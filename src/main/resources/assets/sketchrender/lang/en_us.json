@@ -1,0 +1,41 @@
+{
+  "key.category.sketchrender": "Sketch Render",
+  "sketchrender.key.config": "Config menu",
+  "sketchrender.key.debug": "Debug UI",
+
+  "sketchrender.cull_entity": "Cull Entity",
+  "sketchrender.cull_block_entity": "Cull Block Entity",
+  "sketchrender.cull_chunk": "Cull Chunk",
+  "sketchrender.async": "Async Rebuild Chunk",
+  "sketchrender.auto_shader_async": "Auto Disable Async Rebuild",
+  "sketchrender.sampler": "Depth Sampler Rate",
+  "sketchrender.culling_map_update_delay": "Culling Map update delay",
+  "sketchrender.entity_culling": "Culled entity",
+  "sketchrender.block_culling": "Culled block",
+  "sketchrender.entity_culling_time": "Entity culling cost",
+  "sketchrender.block_culling_time": "Block culling cost",
+  "sketchrender.entity_culling_init": "Entity Culling Map update cost",
+  "sketchrender.chunk_culling_init": "Chunk Culling Map update cost",
+
+  "sketchrender.chunk_culling": "Culled chunk",
+  "sketchrender.chunk_culling_time": "Chunk culling cost",
+  "sketchrender.chunk_update_count": "Async Chunk Update Count",
+
+  "sketchrender.enable": "Enable",
+  "sketchrender.disable": "Disable",
+  "sketchrender.detail.cull_entity": "Cull entities visually invisible",
+  "sketchrender.detail.cull_block_entity": "Cull block entities visually invisible",
+  "sketchrender.detail.cull_chunk": "Cull chunks visually invisible",
+  "sketchrender.detail.async": "Uses a dedicated thread to asynchronously update visible chunks and synchronize them with the main rendering thread. This can speed up chunk generation during movement and improve frame rates.\nwarn:Synchronizing culling results to the main thread may cause delays, resulting in slower loading speeds for screen edge chunks during rapid view rotation.\n\nYou can increase the number of chunks loaded in multiple threads in the game settings to assist with this function. This feature is in the testing phase; if the game crashes while loading chunks, try disabling this setting.",
+  "sketchrender.detail.sampler": "The scaling ratio of the depth texture used for culling. A higher ratio results in more precise culling and better effects.\n\nIf increasing the ratio has no negative impact on frame rates, you can increase it as much as possible. It is not recommended to go below 20%.",
+  "sketchrender.detail.culling_map_update_delay": "The number of frames delayed before the culling texture is updated to the CPU to prevent incomplete data transmission from causing main thread stuttering. The higher the value, the slower the culling speed.\n\nObserve the culling map update time for debugging. Enabling shaders will slow down data transmission and automatically increase the culling delay by 1 frame.",
+  "sketchrender.detail.check_texture": "For testing purposes, enables checking of depth and culling texture functionality when the data monitoring panel is open.",
+  "sketchrender.detail.debug": "For testing purposes, effective only in vanilla Minecraft, used to view culled chunks.",
+  "sketchrender.detail.nvidium": "warn:Incompatible with Nvidium's Async bfs feature",
+  "sketchrender.detail.auto_shader_async": "On some devices, using shaders and asynchronous chunk building simultaneously can cause crashes. This setting can automatically disable asynchronous chunk building when shaders are enabled.",
+  "sketchrender.detail.sodium": "warn:This feature requires of Sodium(Embeddium).",
+  "sketchrender.detail.gl33": "warn:Need OpenGL 3.3 supported",
+
+  "sketchrender.skip_culling_entities": "Entities Excluded from Culling",
+  "sketchrender.skip_culling_block_entities": "Block Entities Excluded from Culling"
+}

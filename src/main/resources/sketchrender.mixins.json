@@ -1,0 +1,37 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "rogo.sketchrender.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "sketchrender.refmap.json",
+  "mixins": [
+  ],
+  "client": [
+    "AccessorFrustum",
+    "AccessorFrustum$AccessorFrustumIntersection",
+    "AccessorLevelRender",
+    "AccessorMinecraft",
+    "MixinBlockEntityRender",
+    "MixinEntityRender",
+    "MixinFrustum",
+    "MixinInactiveProfiler",
+    "MixinLevelRender",
+    "MixinLevelRender$AccessorViewArea",
+    "MixinMinecraft",
+    "MixinRenderChunk",
+    "MixinRenderChunkInfo",
+    "MixinShaderInstance",
+    "MixinShaderInstance$MixinRenderSystem",
+    "MixinWindow",
+    "sodium.AccessorRenderSectionManager",
+    "sodium.MixinOcclusionCuller",
+    "sodium.MixinRenderRegion",
+    "sodium.MixinRenderSection",
+    "sodium.MixinRenderSectionManager",
+    "sodium.MixinSodiumWorldRenderer",
+    "sodium.MixinVisibleChunkCollector"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
