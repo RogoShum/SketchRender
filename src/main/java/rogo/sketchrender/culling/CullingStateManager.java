@@ -547,8 +547,9 @@ public class CullingStateManager {
                 preCullingInitCount++;
             }
 
-            // 创建计算着色器
-            String computeShaderSource = """
+            if (false) {
+                // 创建计算着色器
+                String computeShaderSource = """
                 #version 430
                 
                 layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
@@ -567,36 +568,37 @@ public class CullingStateManager {
                 }
                 """;
 
-            ComputeShader computeShader = new ComputeShader(computeShaderSource);
-            int DATA_SIZE = 1024;
-            // 初始化 SSBOs
-            SSBO inputSSBO = new SSBO(DATA_SIZE * Float.BYTES);
-            SSBO outputSSBO = new SSBO(DATA_SIZE * Float.BYTES);
+                ComputeShader computeShader = new ComputeShader(computeShaderSource);
+                int DATA_SIZE = 1024;
+                // 初始化 SSBOs
+                SSBO inputSSBO = new SSBO(DATA_SIZE * Float.BYTES);
+                SSBO outputSSBO = new SSBO(DATA_SIZE * Float.BYTES);
 
-            // 填充输入数据
-            float[] inputData = new float[DATA_SIZE];
-            for (int i = 0; i < DATA_SIZE; i++) {
-                inputData[i] = i * 1.0f; // 示例数据
+                // 填充输入数据
+                float[] inputData = new float[DATA_SIZE];
+                for (int i = 0; i < DATA_SIZE; i++) {
+                    inputData[i] = i * 1.0f; // 示例数据
+                }
+                inputSSBO.setData(inputData);
+
+                // 绑定 SSBOs
+                inputSSBO.bind(0);
+                outputSSBO.bind(1);
+
+                SketchRender.TIMER.start("cs execute");
+                // 执行计算着色器
+                computeShader.execute(1, 1, 1);
+                SketchRender.TIMER.end();
+                // 从输出 SSBO 获取数据
+                SketchRender.TIMER.start("cs output");
+                float[] outputData = outputSSBO.getData(DATA_SIZE);
+                SketchRender.TIMER.end();
+
+                // 清理资源
+                computeShader.discard();
+                inputSSBO.discard();
+                outputSSBO.discard();
             }
-            inputSSBO.setData(inputData);
-
-            // 绑定 SSBOs
-            inputSSBO.bind(0);
-            outputSSBO.bind(1);
-
-            SketchRender.TIMER.start("cs execute");
-            // 执行计算着色器
-            computeShader.execute(1, 1, 1);
-            SketchRender.TIMER.end();
-            // 从输出 SSBO 获取数据
-            SketchRender.TIMER.start("cs output");
-            float[] outputData = outputSSBO.getData(DATA_SIZE);
-            SketchRender.TIMER.end();
-
-            // 清理资源
-            computeShader.discard();
-            inputSSBO.discard();
-            outputSSBO.discard();
 
             if (Config.getCullChunk()) {
                 int renderingDiameter = Minecraft.getInstance().options.getEffectiveRenderDistance() * 2 + 1;

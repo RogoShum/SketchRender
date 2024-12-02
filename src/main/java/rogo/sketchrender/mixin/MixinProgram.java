@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import rogo.sketchrender.shader.VanillaShaderModifier;
+import rogo.sketchrender.shader.ShaderModifier;
 
 import java.io.InputStream;
 import java.util.List;
@@ -17,18 +17,18 @@ public abstract class MixinProgram {
 
     @Inject(method = "compileShaderInternal", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/preprocessor/GlslPreprocessor;process(Ljava/lang/String;)Ljava/util/List;"))
     private static void beforeCompileShaderInternal(Program.Type type, String shader, InputStream p_166615_, String source, GlslPreprocessor p_166617_, CallbackInfoReturnable<Integer> cir) {
-        VanillaShaderModifier.currentProgram = source + ":" + shader;
-        VanillaShaderModifier.currentType = type;
+        ShaderModifier.currentProgram = source + ":" + shader;
+        ShaderModifier.currentType = type;
     }
 
     @ModifyArg(method = "compileShaderInternal", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/preprocessor/GlslPreprocessor;process(Ljava/lang/String;)Ljava/util/List;"))
     private static String onCompileShaderInternal(String string) {
-        List<VanillaShaderModifier> list = VanillaShaderModifier.getTargetModifier();
-        for (VanillaShaderModifier modifier : list) {
+        List<ShaderModifier> list = ShaderModifier.getTargetModifier();
+        for (ShaderModifier modifier : list) {
             string = modifier.applyModifications(string);
         }
-        VanillaShaderModifier.currentProgram = "";
-        VanillaShaderModifier.currentType = null;
+        ShaderModifier.currentProgram = "";
+        ShaderModifier.currentType = null;
         return string;
     }
 }

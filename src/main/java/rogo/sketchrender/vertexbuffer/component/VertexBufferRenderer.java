@@ -143,9 +143,9 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
             shader.apply();
 
             if (drawMode == DrawMode.INSTANCED) {
-                //GL31.glDrawArraysInstanced(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
+                GL31.glDrawArraysInstanced(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
             } else {
-                //GL31.glDrawElements(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
+                GL31.glDrawElements(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
             }
 
             shader.clear();
