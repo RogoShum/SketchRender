@@ -1,4 +1,4 @@
-package rogo.sketchrender.api;
+package rogo.sketchrender;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
@@ -37,6 +37,8 @@ import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
+import rogo.sketchrender.api.Config;
+import rogo.sketchrender.culling.CullingRenderEvent;
 import rogo.sketchrender.api.impl.IAABBObject;
 import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.util.NvidiumUtil;
@@ -49,13 +51,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static java.lang.Thread.MAX_PRIORITY;
-import static rogo.sketchrender.api.CullingStateManager.*;
+import static rogo.sketchrender.culling.CullingStateManager.*;
 
-@Mod(ModLoader.MOD_ID)
-public class ModLoader {
+@Mod(SketchRender.MOD_ID)
+public class SketchRender {
     public static final String MOD_ID = "sketchrender";
 
-    public ModLoader() {
+    public SketchRender() {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             registerShader();
             MinecraftForge.EVENT_BUS.register(this);
@@ -223,7 +225,7 @@ public class ModLoader {
             //debugText.put("最大支持光源数", LevelPipeline.getMaxLightSize());
             //debugText.put("ViewMatrixPos", "(" + String.format("%.2f", viewMatrixPos.x) + ", " + String.format("%.2f", viewMatrixPos.y) + ", " + String.format("%.2f", viewMatrixPos.z) + ")");
             //debugText.put("ViewPos", "(" + String.format("%.2f", testPos.x) + ", " + String.format("%.2f", testPos.y) + ", " + String.format("%.2f", testPos.z) + ")");
-            RenderDrawTimer timer = ModLoader.TIMER;
+            RenderDrawTimer timer = SketchRender.TIMER;
             debugText.putAll(timer.getResults());
             StringBuilder debug = new StringBuilder();
             for (Map.Entry<String, Object> entry : debugText.entrySet()) {

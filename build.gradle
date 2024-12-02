@@ -237,3 +237,26 @@ tasks.register("runRenderDoc", Exec.class) {
             "runClient"
 }
 
+
+tasks.register("runNsight", Exec.class) {
+    var javaExecTask = tasks.withType(JavaExec.class).named("runClient").get()
+    var javaHome = javaExecTask.javaLauncher.get().metadata.installationPath.asFile.absolutePath
+    println javaHome
+
+    commandLine "C:\\Program Files\\NVIDIA Corporation\\Nsight Graphics 2024.2.1\\host\\windows-desktop-nomad-x64\\ngfx-ui.exe",
+            "capture",
+            "--opt-hook-children",
+            "--wait-for-exit",
+            "--working-dir",
+            ".",
+            "$javaHome/bin/java.exe",
+            "-Xmx64m",
+            "-Xms64m",
+            "-Dorg.gradle.appname=gradlew",
+            "-Dorg.gradle.java.home=$javaHome",
+            "-classpath",
+            "gradle/wrapper/gradle-wrapper.jar",
+            "org.gradle.wrapper.GradleWrapperMain",
+            "runClient"
+}
+

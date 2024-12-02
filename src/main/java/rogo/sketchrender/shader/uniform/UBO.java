@@ -1,4 +1,4 @@
-package rogo.sketchrender.uniform;
+package rogo.sketchrender.shader.uniform;
 
 import net.minecraft.core.Vec3i;
 import org.lwjgl.opengl.GL15;

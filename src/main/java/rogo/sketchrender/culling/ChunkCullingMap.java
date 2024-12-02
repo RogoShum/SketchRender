@@ -1,8 +1,7 @@
-package rogo.sketchrender.api.data;
+package rogo.sketchrender.culling;
 
 import net.minecraft.world.phys.Vec3;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.CullingStateManager;
 
 public class ChunkCullingMap extends CullingMap {
     private int renderDistance = 0;

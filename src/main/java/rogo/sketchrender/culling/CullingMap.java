@@ -1,11 +1,10 @@
-package rogo.sketchrender.api.data;
+package rogo.sketchrender.culling;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
-import rogo.sketchrender.api.CullingStateManager;
 
 import java.nio.ByteBuffer;
 

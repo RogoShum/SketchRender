@@ -8,9 +8,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
-import rogo.sketchrender.api.CullingRenderEvent;
+import rogo.sketchrender.culling.CullingRenderEvent;
 import rogo.sketchrender.vertexbuffer.DrawMode;
 import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
 
@@ -74,7 +75,7 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
         GL30.glBindVertexArray(0);
     }
 
-    public void drawWithShader(ShaderInstance shader) {
+    public void drawWithShader(ShaderInstance shader, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
         if ((this.indexCount != 0 && this.instanceCount > 0) || drawMode == DrawMode.NORMAL) {
             RenderSystem.assertOnRenderThread();
             BufferUploader.reset();
@@ -85,11 +86,11 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
             }
 
             if (shader.MODEL_VIEW_MATRIX != null) {
-                shader.MODEL_VIEW_MATRIX.set(RenderSystem.getModelViewMatrix());
+                shader.MODEL_VIEW_MATRIX.set(modelViewMatrix);
             }
 
             if (shader.PROJECTION_MATRIX != null) {
-                shader.PROJECTION_MATRIX.set(RenderSystem.getProjectionMatrix());
+                shader.PROJECTION_MATRIX.set(projectionMatrix);
             }
 
             if (shader.INVERSE_VIEW_ROTATION_MATRIX != null) {
@@ -133,7 +134,7 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
                 shader.LINE_WIDTH.set(RenderSystem.getShaderLineWidth());
             }
 
-            CullingRenderEvent.setUniform(shader);
+            //CullingRenderEvent.setUniform(shader);
             RenderSystem.setupShaderLights(shader);
 
             mutable.updateVertexAttrib();
@@ -142,9 +143,9 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
             shader.apply();
 
             if (drawMode == DrawMode.INSTANCED) {
-                GL31.glDrawArraysInstanced(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
+                //GL31.glDrawArraysInstanced(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
             } else {
-                GL31.glDrawElements(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
+                //GL31.glDrawElements(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
             }
 
             shader.clear();

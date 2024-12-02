@@ -2,6 +2,8 @@ package rogo.sketchrender.api;
 
 import com.google.common.collect.ImmutableList;
 import net.minecraftforge.common.ForgeConfigSpec;
+import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.culling.CullingStateManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,10 +90,10 @@ public class Config {
         if (CullingStateManager.needPauseRebuild())
             return false;
 
-        if (!ModLoader.hasSodium())
+        if (!SketchRender.hasSodium())
             return false;
 
-        if (ModLoader.hasNvidium())
+        if (SketchRender.hasNvidium())
             return false;
 
         if(getAutoDisableAsync() && CullingStateManager.enabledShader())
@@ -104,13 +106,13 @@ public class Config {
         if (!shouldCullChunk())
             return;
 
-        if (!ModLoader.hasSodium())
+        if (!SketchRender.hasSodium())
             return;
 
         if (CullingStateManager.needPauseRebuild())
             return;
 
-        if (ModLoader.hasNvidium())
+        if (SketchRender.hasNvidium())
             return;
 
         ASYNC.set(value);

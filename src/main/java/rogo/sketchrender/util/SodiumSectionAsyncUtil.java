@@ -11,7 +11,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.occlusion.OcclusionCuller;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.world.level.Level;
-import rogo.sketchrender.api.CullingStateManager;
+import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.api.impl.ICollectorAccessor;
 import rogo.sketchrender.api.impl.IRenderSectionVisibility;
 

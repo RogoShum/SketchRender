@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.CullingStateManager;
+import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.api.impl.IRenderSectionVisibility;
 
 @Mixin(OcclusionCuller.class)

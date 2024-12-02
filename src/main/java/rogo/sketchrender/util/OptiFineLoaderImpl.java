@@ -2,7 +2,7 @@ package rogo.sketchrender.util;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.client.Minecraft;
-import rogo.sketchrender.api.CullingStateManager;
+import rogo.sketchrender.culling.CullingStateManager;
 
 import java.lang.reflect.Field;
 

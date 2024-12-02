@@ -18,6 +18,7 @@
     "MixinLevelRender",
     "MixinLevelRender$AccessorViewArea",
     "MixinMinecraft",
+    "MixinProgram",
     "MixinRenderChunk",
     "MixinRenderChunkInfo",
     "MixinShaderInstance",

@@ -1,4 +1,4 @@
-package rogo.sketchrender.api;
+package rogo.sketchrender.culling;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -15,6 +15,8 @@ import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
+import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.impl.ICullingShader;
 import rogo.sketchrender.vertexbuffer.EntityCullingInstanceRenderer;
 import rogo.sketchrender.mixin.AccessorFrustum;
@@ -63,7 +65,7 @@ public class CullingRenderEvent {
             CullingStateManager.ENTITY_CULLING_MAP_TARGET.clear(Minecraft.ON_OSX);
             CullingStateManager.ENTITY_CULLING_MAP_TARGET.bindWrite(false);
             CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addEntityAttribute(CullingRenderEvent.ENTITY_CULLING_INSTANCE_RENDERER::addInstanceAttrib);
-            ENTITY_CULLING_INSTANCE_RENDERER.drawWithShader(CullingStateManager.INSTANCED_ENTITY_CULLING_SHADER);
+            ENTITY_CULLING_INSTANCE_RENDERER.drawWithShader(CullingStateManager.INSTANCED_ENTITY_CULLING_SHADER, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
         }
 
         if (Config.getCullChunk() && CullingStateManager.CHUNK_CULLING_MAP != null && CullingStateManager.CHUNK_CULLING_MAP.needTransferData()) {
@@ -111,7 +113,7 @@ public class CullingRenderEvent {
             shaderInstance.getBoxScale().set(4.0f);
         }
         if (shaderInstance.getTestPos() != null) {
-            float[] array = new float[]{ModLoader.testPos.getX(), ModLoader.testPos.getY(), ModLoader.testPos.getZ()};
+            float[] array = new float[]{SketchRender.testPos.getX(), SketchRender.testPos.getY(), SketchRender.testPos.getZ()};
             shaderInstance.getTestPos().set(array);
         }
         if (shaderInstance.getFrustumPos() != null && CullingStateManager.FRUSTUM != null) {
@@ -130,7 +132,7 @@ public class CullingRenderEvent {
             shaderInstance.getCullingProjMat().set(CullingStateManager.PROJECTION_MATRIX);
         }
         if (shaderInstance.getCullingFrustum() != null) {
-            Vector4f[] frustumData = ModLoader.getFrustumPlanes(((AccessorFrustum) CullingStateManager.FRUSTUM).frustumIntersection());
+            Vector4f[] frustumData = SketchRender.getFrustumPlanes(((AccessorFrustum) CullingStateManager.FRUSTUM).frustumIntersection());
             List<Float> data = new ArrayList<>();
             for (Vector4f frustumDatum : frustumData) {
                 data.add(frustumDatum.x());
@@ -225,46 +227,46 @@ public class CullingRenderEvent {
                 addString(monitorTexts, fps);
             }
 
-            String cull = Component.translatable(ModLoader.MOD_ID + ".cull_entity").getString() + ": "
-                    + (Config.getCullEntity() ? Component.translatable(ModLoader.MOD_ID + ".enable").getString() : Component.translatable(ModLoader.MOD_ID + ".disable").getString());
+            String cull = Component.translatable(SketchRender.MOD_ID + ".cull_entity").getString() + ": "
+                    + (Config.getCullEntity() ? Component.translatable(SketchRender.MOD_ID + ".enable").getString() : Component.translatable(SketchRender.MOD_ID + ".disable").getString());
             addString(monitorTexts, cull);
 
-            String cull_block_entity = Component.translatable(ModLoader.MOD_ID + ".cull_block_entity").getString() + ": "
-                    + (Config.getCullBlockEntity() ? Component.translatable(ModLoader.MOD_ID + ".enable").getString() : Component.translatable(ModLoader.MOD_ID + ".disable").getString());
+            String cull_block_entity = Component.translatable(SketchRender.MOD_ID + ".cull_block_entity").getString() + ": "
+                    + (Config.getCullBlockEntity() ? Component.translatable(SketchRender.MOD_ID + ".enable").getString() : Component.translatable(SketchRender.MOD_ID + ".disable").getString());
             addString(monitorTexts, cull_block_entity);
 
-            String cull_chunk = Component.translatable(ModLoader.MOD_ID + ".cull_chunk").getString() + ": "
-                    + (Config.getCullChunk() ? Component.translatable(ModLoader.MOD_ID + ".enable").getString() : Component.translatable(ModLoader.MOD_ID + ".disable").getString());
+            String cull_chunk = Component.translatable(SketchRender.MOD_ID + ".cull_chunk").getString() + ": "
+                    + (Config.getCullChunk() ? Component.translatable(SketchRender.MOD_ID + ".enable").getString() : Component.translatable(SketchRender.MOD_ID + ".disable").getString());
             addString(monitorTexts, cull_chunk);
 
             if (CullingStateManager.DEBUG > 1) {
-                String Sampler = Component.translatable(ModLoader.MOD_ID + ".sampler").getString() + ": " + String.valueOf((Float.parseFloat(String.format("%.0f", Config.getSampling() * 100.0D))) + "%");
+                String Sampler = Component.translatable(SketchRender.MOD_ID + ".sampler").getString() + ": " + String.valueOf((Float.parseFloat(String.format("%.0f", Config.getSampling() * 100.0D))) + "%");
                 addString(monitorTexts, Sampler);
 
                 if (Config.doEntityCulling()) {
-                    String blockCullingTime = Component.translatable(ModLoader.MOD_ID + ".block_culling_time").getString() + ": " + (CullingStateManager.blockCullingTime / 1000 / CullingStateManager.fps) + " μs";
+                    String blockCullingTime = Component.translatable(SketchRender.MOD_ID + ".block_culling_time").getString() + ": " + (CullingStateManager.blockCullingTime / 1000 / CullingStateManager.fps) + " μs";
                     addString(monitorTexts, blockCullingTime);
 
-                    String blockCulling = Component.translatable(ModLoader.MOD_ID + ".block_culling").getString() + ": " + CullingStateManager.blockCulling + " / " + CullingStateManager.blockCount;
+                    String blockCulling = Component.translatable(SketchRender.MOD_ID + ".block_culling").getString() + ": " + CullingStateManager.blockCulling + " / " + CullingStateManager.blockCount;
                     addString(monitorTexts, blockCulling);
 
-                    String entityCullingTime = Component.translatable(ModLoader.MOD_ID + ".entity_culling_time").getString() + ": " + (CullingStateManager.entityCullingTime / 1000 / CullingStateManager.fps) + " μs";
+                    String entityCullingTime = Component.translatable(SketchRender.MOD_ID + ".entity_culling_time").getString() + ": " + (CullingStateManager.entityCullingTime / 1000 / CullingStateManager.fps) + " μs";
                     addString(monitorTexts, entityCullingTime);
 
-                    String entityCulling = Component.translatable(ModLoader.MOD_ID + ".entity_culling").getString() + ": " + CullingStateManager.entityCulling + " / " + CullingStateManager.entityCount;
+                    String entityCulling = Component.translatable(SketchRender.MOD_ID + ".entity_culling").getString() + ": " + CullingStateManager.entityCulling + " / " + CullingStateManager.entityCount;
                     addString(monitorTexts, entityCulling);
 
-                    String initTime = Component.translatable(ModLoader.MOD_ID + ".entity_culling_init").getString() + ": " + (CullingStateManager.entityCullingInitTime / CullingStateManager.cullingInitCount / CullingStateManager.fps) + " ns";
+                    String initTime = Component.translatable(SketchRender.MOD_ID + ".entity_culling_init").getString() + ": " + (CullingStateManager.entityCullingInitTime / CullingStateManager.cullingInitCount / CullingStateManager.fps) + " ns";
                     addString(monitorTexts, initTime);
                 }
 
                 if (Config.getCullChunk()) {
                     if (CullingStateManager.CHUNK_CULLING_MAP != null) {
-                        String chunkCullingCount = Component.translatable(ModLoader.MOD_ID + ".chunk_update_count").getString() + ": " + CullingStateManager.CHUNK_CULLING_MAP.lastQueueUpdateCount;
+                        String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + CullingStateManager.CHUNK_CULLING_MAP.lastQueueUpdateCount;
                         addString(monitorTexts, chunkCullingCount);
                     }
 
-                    String cullingInitTime = Component.translatable(ModLoader.MOD_ID + ".chunk_culling_init").getString() + ": " + (CullingStateManager.chunkCullingInitTime / CullingStateManager.cullingInitCount / CullingStateManager.fps) + " ns";
+                    String cullingInitTime = Component.translatable(SketchRender.MOD_ID + ".chunk_culling_init").getString() + ": " + (CullingStateManager.chunkCullingInitTime / CullingStateManager.cullingInitCount / CullingStateManager.fps) + " ns";
                     addString(monitorTexts, cullingInitTime);
                 }
             }

@@ -1,4 +1,4 @@
-package rogo.sketchrender.api;
+package rogo.sketchrender.culling;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
@@ -24,15 +24,15 @@ import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.Checks;
 import org.slf4j.Logger;
-import rogo.sketchrender.api.data.ChunkCullingMap;
-import rogo.sketchrender.api.data.EntityCullingMap;
+import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.impl.IEntitiesForRender;
 import rogo.sketchrender.api.impl.IRenderChunkInfo;
 import rogo.sketchrender.api.impl.IRenderSectionVisibility;
 import rogo.sketchrender.mixin.AccessorLevelRender;
 import rogo.sketchrender.mixin.AccessorMinecraft;
 import rogo.sketchrender.shader.ComputeShader;
-import rogo.sketchrender.uniform.SSBO;
+import rogo.sketchrender.shader.uniform.SSBO;
 import rogo.sketchrender.util.*;
 
 import java.lang.reflect.Field;
@@ -100,7 +100,7 @@ public class CullingStateManager {
     public static boolean checkCulling = false;
     public static boolean checkTexture = false;
     private static boolean usingShader = false;
-    protected static int fullChunkUpdateCooldown = 0;
+    public static int fullChunkUpdateCooldown = 0;
     private static String shaderName = "";
     public static int LEVEL_SECTION_RANGE;
     public static int LEVEL_POS_RANGE;
@@ -142,7 +142,7 @@ public class CullingStateManager {
             }
         }
 
-        if (ModLoader.hasIris()) {
+        if (SketchRender.hasIris()) {
             try {
                 SHADER_LOADER = Class.forName("rogo.sketchrender.util.IrisLoaderImpl").asSubclass(ShaderLoader.class).newInstance();
             } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
@@ -157,7 +157,7 @@ public class CullingStateManager {
         }
     }
 
-    protected static void cleanup() {
+    public static void cleanup() {
         tick = 0;
         clientTickCount = 0;
         visibleEntity.clear();
@@ -171,8 +171,8 @@ public class CullingStateManager {
             ENTITY_CULLING_MAP = null;
         }
         SHADER_DEPTH_BUFFER_ID.clear();
-        ModLoader.pauseAsync();
-        if(ModLoader.hasSodium()) {
+        SketchRender.pauseAsync();
+        if(SketchRender.hasSodium()) {
             SodiumSectionAsyncUtil.pauseAsync();
         }
     }
@@ -316,8 +316,8 @@ public class CullingStateManager {
         switch (s) {
             case "beforeRunTick" -> {
                 if (((AccessorLevelRender) Minecraft.getInstance().levelRenderer).getNeedsFullRenderChunkUpdate() && Minecraft.getInstance().level != null) {
-                    if (ModLoader.hasMod("embeddium")) {
-                        ModLoader.pauseAsync();
+                    if (SketchRender.hasMod("embeddium")) {
+                        SketchRender.pauseAsync();
                     }
                     LEVEL_SECTION_RANGE = Minecraft.getInstance().level.getMaxSection() - Minecraft.getInstance().level.getMinSection();
                     LEVEL_MIN_SECTION_ABS = Math.abs(Minecraft.getInstance().level.getMinSection());
@@ -356,7 +356,7 @@ public class CullingStateManager {
 
     public static void onProfilerPush(String s) {
         if (s.equals("onKeyboardInput")) {
-            ModLoader.onKeyPress();
+            SketchRender.onKeyPress();
         } else if (s.equals("center")) {
             CAMERA = Minecraft.getInstance().gameRenderer.getMainCamera();
             int thisTick = clientTickCount % 20;
@@ -584,14 +584,14 @@ public class CullingStateManager {
             inputSSBO.bind(0);
             outputSSBO.bind(1);
 
-            ModLoader.TIMER.start("cs execute");
+            SketchRender.TIMER.start("cs execute");
             // 执行计算着色器
             computeShader.execute(1, 1, 1);
-            ModLoader.TIMER.end();
+            SketchRender.TIMER.end();
             // 从输出 SSBO 获取数据
-            ModLoader.TIMER.start("cs output");
+            SketchRender.TIMER.start("cs output");
             float[] outputData = outputSSBO.getData(DATA_SIZE);
-            ModLoader.TIMER.end();
+            SketchRender.TIMER.end();
 
             // 清理资源
             computeShader.discard();

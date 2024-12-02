@@ -16,8 +16,8 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.CullingStateManager;
-import rogo.sketchrender.api.ModLoader;
+import rogo.sketchrender.culling.CullingStateManager;
+import rogo.sketchrender.SketchRender;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -111,7 +111,7 @@ public class ConfigScreen extends Screen {
 
     @Override
     public boolean keyReleased(int p_94715_, int p_94716_, int p_94717_) {
-        if (ModLoader.CONFIG_KEY.matches(p_94715_, p_94716_)) {
+        if (SketchRender.CONFIG_KEY.matches(p_94715_, p_94716_)) {
             if (release) {
                 this.onClose();
                 return true;
@@ -132,10 +132,10 @@ public class ConfigScreen extends Screen {
 
         if (player.getName().getString().equals("Dev")) {
             addConfigButton(() -> CullingStateManager.checkCulling, (b) -> CullingStateManager.checkCulling = b, () -> Component.literal("Debug"))
-                    .setDetailMessage(() -> Component.translatable(ModLoader.MOD_ID + ".detail.debug"));
+                    .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.debug"));
 
             addConfigButton(() -> CullingStateManager.checkTexture, (b) -> CullingStateManager.checkTexture = b, () -> Component.literal("Check Texture"))
-                    .setDetailMessage(() -> Component.translatable(ModLoader.MOD_ID + ".detail.check_texture"));
+                    .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.check_texture"));
         }
 
         addConfigButton(Config::getSampling, (value) -> {
@@ -143,8 +143,8 @@ public class ConfigScreen extends Screen {
             format = Double.parseDouble(String.format("%.2f", format));
             Config.setSampling(format);
             return format;
-        }, (value) -> String.valueOf(Mth.floor(value * 100) + "%"), () -> Component.translatable(ModLoader.MOD_ID + ".sampler"))
-                .setDetailMessage(() -> Component.translatable(ModLoader.MOD_ID + ".detail.sampler"));
+        }, (value) -> String.valueOf(Mth.floor(value * 100) + "%"), () -> Component.translatable(SketchRender.MOD_ID + ".sampler"))
+                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.sampler"));
 
         addConfigButton(() -> Config.getDepthUpdateDelay() / 10d, (value) -> {
             int format = Mth.floor(value * 10);
@@ -157,37 +157,37 @@ public class ConfigScreen extends Screen {
         }, (value) -> {
             int format = Mth.floor(value * 10);
             return String.valueOf(format);
-        }, () -> Component.translatable(ModLoader.MOD_ID + ".culling_map_update_delay"))
-                .setDetailMessage(() -> Component.translatable(ModLoader.MOD_ID + ".detail.culling_map_update_delay"));
+        }, () -> Component.translatable(SketchRender.MOD_ID + ".culling_map_update_delay"))
+                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.culling_map_update_delay"));
 
-        addConfigButton(Config::getAutoDisableAsync, Config::setAutoDisableAsync, () -> Component.translatable(ModLoader.MOD_ID + ".auto_shader_async"))
-                .setDetailMessage(() -> Component.translatable(ModLoader.MOD_ID + ".detail.auto_shader_async"));
+        addConfigButton(Config::getAutoDisableAsync, Config::setAutoDisableAsync, () -> Component.translatable(SketchRender.MOD_ID + ".auto_shader_async"))
+                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.auto_shader_async"));
 
-        addConfigButton(() -> Config.getCullChunk() && ModLoader.hasSodium() && !ModLoader.hasNvidium(), Config::getAsyncChunkRebuild, Config::setAsyncChunkRebuild, () -> Component.translatable(ModLoader.MOD_ID + ".async"))
+        addConfigButton(() -> Config.getCullChunk() && SketchRender.hasSodium() && !SketchRender.hasNvidium(), Config::getAsyncChunkRebuild, Config::setAsyncChunkRebuild, () -> Component.translatable(SketchRender.MOD_ID + ".async"))
                 .setDetailMessage(() -> {
-                    if (ModLoader.hasNvidium()) {
-                        return Component.translatable(ModLoader.MOD_ID + ".detail.nvidium");
-                    } else if (!ModLoader.hasSodium()) {
-                        return Component.translatable(ModLoader.MOD_ID + ".detail.sodium");
+                    if (SketchRender.hasNvidium()) {
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.nvidium");
+                    } else if (!SketchRender.hasSodium()) {
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.sodium");
                     } else
-                        return Component.translatable(ModLoader.MOD_ID + ".detail.async");
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.async");
                 });
-        addConfigButton(Config::getCullChunk, Config::setCullChunk, () -> Component.translatable(ModLoader.MOD_ID + ".cull_chunk"))
-                .setDetailMessage(() -> Component.translatable(ModLoader.MOD_ID + ".detail.cull_chunk"));
-        addConfigButton(Config::getCullBlockEntity, Config::setCullBlockEntity, () -> Component.translatable(ModLoader.MOD_ID + ".cull_block_entity"))
+        addConfigButton(Config::getCullChunk, Config::setCullChunk, () -> Component.translatable(SketchRender.MOD_ID + ".cull_chunk"))
+                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.cull_chunk"));
+        addConfigButton(Config::getCullBlockEntity, Config::setCullBlockEntity, () -> Component.translatable(SketchRender.MOD_ID + ".cull_block_entity"))
                 .setDetailMessage(() -> {
                     if (CullingStateManager.gl33()) {
-                        return Component.translatable(ModLoader.MOD_ID + ".detail.cull_block_entity");
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.cull_block_entity");
                     } else {
-                        return Component.translatable(ModLoader.MOD_ID + ".detail.gl33");
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.gl33");
                     }
                 });
-        addConfigButton(Config::getCullEntity, Config::setCullEntity, () -> Component.translatable(ModLoader.MOD_ID + ".cull_entity"))
+        addConfigButton(Config::getCullEntity, Config::setCullEntity, () -> Component.translatable(SketchRender.MOD_ID + ".cull_entity"))
                 .setDetailMessage(() -> {
                     if (CullingStateManager.gl33()) {
-                        return Component.translatable(ModLoader.MOD_ID + ".detail.cull_entity");
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.cull_entity");
                     } else {
-                        return Component.translatable(ModLoader.MOD_ID + ".detail.gl33");
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.gl33");
                     }
                 });
 

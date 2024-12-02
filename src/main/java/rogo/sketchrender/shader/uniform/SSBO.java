@@ -1,10 +1,9 @@
-package rogo.sketchrender.uniform;
+package rogo.sketchrender.shader.uniform;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 
-import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 
 public class SSBO {

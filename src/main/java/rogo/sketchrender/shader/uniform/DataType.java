@@ -1,4 +1,4 @@
-package rogo.sketchrender.uniform;
+package rogo.sketchrender.shader.uniform;
 
 import java.util.HashMap;
 import java.util.Map;

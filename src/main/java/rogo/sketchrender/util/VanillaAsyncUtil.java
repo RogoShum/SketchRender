@@ -8,7 +8,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import org.jetbrains.annotations.NotNull;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.CullingStateManager;
+import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.api.impl.IEntitiesForRender;
 import rogo.sketchrender.api.impl.IRenderChunkInfo;
 import rogo.sketchrender.api.impl.IRenderSectionVisibility;

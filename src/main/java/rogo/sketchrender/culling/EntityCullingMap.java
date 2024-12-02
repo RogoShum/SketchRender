@@ -1,12 +1,11 @@
-package rogo.sketchrender.api.data;
+package rogo.sketchrender.culling;
 
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.CullingStateManager;
-import rogo.sketchrender.api.ModLoader;
+import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.util.IndexedSet;
 import rogo.sketchrender.util.LifeTimer;
 
@@ -40,7 +39,7 @@ public class EntityCullingMap extends CullingMap {
     }
 
     public boolean isObjectVisible(Object o) {
-        AABB aabb = ModLoader.getObjectAABB(o);
+        AABB aabb = SketchRender.getObjectAABB(o);
 
         if (aabb == INFINITE_EXTENT_AABB) {
             return true;
@@ -160,7 +159,7 @@ public class EntityCullingMap extends CullingMap {
         public void addEntityAttribute(Consumer<Consumer<FloatBuffer>> consumer) {
             clearUpload();
             indexMap.forEach((o, index) -> {
-                addAttribute(consumer, ModLoader.getObjectAABB(o), index);
+                addAttribute(consumer, SketchRender.getObjectAABB(o), index);
                 uploadTemp.add(o);
                 uploadEntity.put(o, index);
             });

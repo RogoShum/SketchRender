@@ -1,4 +1,4 @@
-package rogo.sketchrender.uniform;
+package rogo.sketchrender.shader.uniform;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;

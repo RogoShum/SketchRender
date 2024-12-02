@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import rogo.sketchrender.api.CullingStateManager;
+import rogo.sketchrender.culling.CullingStateManager;
 
 @Mixin(BlockEntityRenderDispatcher.class)
 public class MixinBlockEntityRender {

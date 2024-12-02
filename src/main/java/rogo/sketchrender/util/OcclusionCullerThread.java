@@ -2,8 +2,8 @@ package rogo.sketchrender.util;
 
 import net.minecraft.client.Minecraft;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.CullingStateManager;
-import rogo.sketchrender.api.ModLoader;
+import rogo.sketchrender.culling.CullingStateManager;
+import rogo.sketchrender.SketchRender;
 
 public class OcclusionCullerThread extends Thread {
     public static OcclusionCullerThread INSTANCE;
@@ -18,7 +18,7 @@ public class OcclusionCullerThread extends Thread {
 
     public static void shouldUpdate() {
         if (Config.getAsyncChunkRebuild()) {
-            if(ModLoader.hasSodium()) {
+            if(SketchRender.hasSodium()) {
                 SodiumSectionAsyncUtil.shouldUpdate();
             } else if (VanillaAsyncUtil.injectedAsyncMixin) {
                 //VanillaAsyncUtil.shouldUpdate();
@@ -32,7 +32,7 @@ public class OcclusionCullerThread extends Thread {
             try {
                 if (CullingStateManager.CHUNK_CULLING_MAP != null && CullingStateManager.CHUNK_CULLING_MAP.isDone()) {
                     if (Config.getAsyncChunkRebuild()) {
-                        if (ModLoader.hasSodium()) {
+                        if (SketchRender.hasSodium()) {
                             SodiumSectionAsyncUtil.asyncSearchRebuildSection();
                         } else if(VanillaAsyncUtil.injectedAsyncMixin) {
                             //VanillaAsyncUtil.asyncSearchRebuildSection();
