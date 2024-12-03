@@ -6,10 +6,10 @@ import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import rogo.sketchrender.api.impl.IRenderSectionVisibility;
+import rogo.sketchrender.api.RenderSectionVisibility;
 
 @Mixin(ChunkRenderDispatcher.RenderChunk.class)
-public abstract class MixinRenderChunk implements IRenderSectionVisibility {
+public abstract class MixinRenderChunk implements RenderSectionVisibility {
 
     @Shadow
     @Final

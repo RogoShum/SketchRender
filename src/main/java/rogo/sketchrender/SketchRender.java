@@ -5,6 +5,7 @@ import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -37,9 +38,11 @@ import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
+import org.slf4j.Logger;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingRenderEvent;
-import rogo.sketchrender.api.impl.IAABBObject;
+import rogo.sketchrender.api.AABBObject;
+import rogo.sketchrender.culling.CullingShaderInstance;
 import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.util.NvidiumUtil;
 import rogo.sketchrender.util.OcclusionCullerThread;
@@ -56,6 +59,7 @@ import static rogo.sketchrender.culling.CullingStateManager.*;
 @Mod(SketchRender.MOD_ID)
 public class SketchRender {
     public static final String MOD_ID = "sketchrender";
+    public static final Logger LOGGER = LogUtils.getLogger();
 
     public SketchRender() {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
@@ -108,11 +112,11 @@ public class SketchRender {
     private void initShader() {
         LOGGER.debug("try init shader chunk_culling");
         try {
-            CHUNK_CULLING_SHADER = new ShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "chunk_culling"), DefaultVertexFormat.POSITION);
-            INSTANCED_ENTITY_CULLING_SHADER = new ShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "instanced_entity_culling"), DefaultVertexFormat.POSITION);
-            COPY_DEPTH_SHADER = new ShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "copy_depth"), DefaultVertexFormat.POSITION);
-            REMOVE_COLOR_SHADER = new ShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "remove_color"), DefaultVertexFormat.POSITION_COLOR_TEX);
-            CULL_TEST_SHADER = new ShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
+            CHUNK_CULLING_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "chunk_culling"), DefaultVertexFormat.POSITION);
+            INSTANCED_ENTITY_CULLING_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "instanced_entity_culling"), DefaultVertexFormat.POSITION);
+            COPY_DEPTH_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "copy_depth"), DefaultVertexFormat.POSITION);
+            REMOVE_COLOR_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "remove_color"), DefaultVertexFormat.POSITION_COLOR_TEX);
+            CULL_TEST_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -204,8 +208,8 @@ public class SketchRender {
             return ((BlockEntity) o).getRenderBoundingBox();
         } else if (o instanceof Entity) {
             return ((Entity) o).getBoundingBox();
-        } else if (o instanceof IAABBObject) {
-            return ((IAABBObject) o).getAABB();
+        } else if (o instanceof AABBObject) {
+            return ((AABBObject) o).getAABB();
         }
 
         return null;

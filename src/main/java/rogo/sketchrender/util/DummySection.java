@@ -2,9 +2,9 @@ package rogo.sketchrender.util;
 
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import rogo.sketchrender.api.impl.IRenderSectionVisibility;
+import rogo.sketchrender.api.RenderSectionVisibility;
 
-public class DummySection implements IRenderSectionVisibility {
+public class DummySection implements RenderSectionVisibility {
     private final int x;
     private final int y;
     private final int z;

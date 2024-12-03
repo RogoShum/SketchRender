@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.api.impl.IRenderSectionVisibility;
+import rogo.sketchrender.api.RenderSectionVisibility;
 import rogo.sketchrender.util.SodiumSectionAsyncUtil;
 
 @Mixin(RenderSectionManager.class)
@@ -43,7 +43,7 @@ public abstract class MixinRenderSectionManager {
     private void onIsSectionVisible(int x, int y, int z, CallbackInfoReturnable<Boolean> cir, RenderSection section) {
         if (Config.shouldCullChunk()) {
             cir.setReturnValue(
-                    CullingStateManager.shouldRenderChunk((IRenderSectionVisibility) section, false)
+                    CullingStateManager.shouldRenderChunk((RenderSectionVisibility) section, false)
                             && CullingStateManager.FRUSTUM.isVisible(new AABB(section.getOriginX(), section.getOriginY(), section.getOriginZ()
                             , section.getOriginX()+16, section.getOriginY()+16, section.getOriginZ()+16))
             );

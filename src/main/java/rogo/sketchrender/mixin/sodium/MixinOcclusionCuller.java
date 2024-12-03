@@ -11,14 +11,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.api.impl.IRenderSectionVisibility;
+import rogo.sketchrender.api.RenderSectionVisibility;
 
 @Mixin(OcclusionCuller.class)
 public abstract class MixinOcclusionCuller {
 
     @Inject(method = "isSectionVisible", at = @At(value = "RETURN"), remap = false, cancellable = true)
     private static void onIsSectionVisible(RenderSection section, Viewport viewport, float maxDistance, CallbackInfoReturnable<Boolean> cir) {
-        if (Config.shouldCullChunk() && !CullingStateManager.checkCulling && cir.getReturnValue() && !CullingStateManager.shouldRenderChunk((IRenderSectionVisibility) section, true))
+        if (Config.shouldCullChunk() && !CullingStateManager.checkCulling && cir.getReturnValue() && !CullingStateManager.shouldRenderChunk((RenderSectionVisibility) section, true))
             cir.setReturnValue(false);
     }
 

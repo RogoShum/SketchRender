@@ -20,13 +20,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.api.impl.IEntitiesForRender;
+import rogo.sketchrender.api.EntitiesForRender;
 import rogo.sketchrender.util.VanillaAsyncUtil;
 
 import javax.annotation.Nullable;
 
 @Mixin(LevelRenderer.class)
-public abstract class MixinLevelRender implements IEntitiesForRender {
+public abstract class MixinLevelRender implements EntitiesForRender {
 
     @Mutable
     @Final

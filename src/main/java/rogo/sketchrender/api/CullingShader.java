@@ -1,8 +1,8 @@
-package rogo.sketchrender.api.impl;
+package rogo.sketchrender.api;
 
 import com.mojang.blaze3d.shaders.Uniform;
 
-public interface ICullingShader {
+public interface CullingShader {
     Uniform getRenderDistance();
     Uniform getCullingCameraPos();
     Uniform getCullingCameraDir();

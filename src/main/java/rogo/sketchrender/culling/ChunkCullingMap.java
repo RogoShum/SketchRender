@@ -52,4 +52,12 @@ public class ChunkCullingMap extends CullingMap {
         }
         return false;
     }
+
+    public int getRenderDistance() {
+        return renderDistance;
+    }
+
+    public int getSpacePartitionSize() {
+        return spacePartitionSize;
+    }
 }

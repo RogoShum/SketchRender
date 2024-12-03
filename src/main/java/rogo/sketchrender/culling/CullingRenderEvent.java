@@ -1,6 +1,7 @@
 package rogo.sketchrender.culling;
 
 import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.Minecraft;
@@ -9,21 +10,30 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.impl.ICullingShader;
-import rogo.sketchrender.vertexbuffer.EntityCullingInstanceRenderer;
+import rogo.sketchrender.api.CullingShader;
+import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorFrustum;
+import rogo.sketchrender.shader.ShaderModifier;
+import rogo.sketchrender.shader.uniform.UnsafeUniformMap;
+import rogo.sketchrender.vertexbuffer.EntityCullingInstanceRenderer;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
+import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
+import static org.lwjgl.opengl.GL13.GL_TEXTURE18;
 import static rogo.sketchrender.gui.ConfigScreen.u;
 import static rogo.sketchrender.gui.ConfigScreen.v;
 
@@ -98,7 +108,10 @@ public class CullingRenderEvent {
     }
 
     public static void setUniform(ShaderInstance shader) {
-        ICullingShader shaderInstance = (ICullingShader) shader;
+        if (!(shader instanceof CullingShader)) {
+            return;
+        }
+        CullingShader shaderInstance = (CullingShader) shader;
         if (shaderInstance.getCullingCameraPos() != null) {
             Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
             float[] array = new float[]{(float) pos.x, (float) pos.y, (float) pos.z};
@@ -190,12 +203,56 @@ public class CullingRenderEvent {
     }
 
     @SubscribeEvent
+    public void onBind(ProgramEvent.Init event) {
+        GlStateManager._glUseProgram(event.getProgramId());
+        event.getExtraUniform().getUniforms().createUniforms(new ResourceLocation(SketchRender.MOD_ID, "terrain")
+                , new String[]{
+                        "_culling_terrain",
+                        "_culling_texture",
+                        "_level_min_pos",
+                        "_level_pos_range",
+                        "_level_section_range",
+                        "_render_distance",
+                        "_space_partition_size",
+                        "_culling_size",
+                        "_culling_y"
+                });
+        GlStateManager._glUseProgram(0);
+    }
+
+    @SubscribeEvent
+    public void onBind(ProgramEvent.Bind event) {
+        UnsafeUniformMap uniformMap = event.getExtraUniform().getUniforms();
+        if (!Config.getCullChunk() || CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
+            uniformMap.setUniform("_culling_terrain", 0);
+        } else {
+            uniformMap.setUniform("_culling_terrain", 1);
+        }
+
+        if (CullingStateManager.CHUNK_CULLING_MAP_TARGET != null) {
+            uniformMap.setUniform("_culling_texture", 18);
+            GL13.glActiveTexture(GL_TEXTURE18);
+            GL11.glBindTexture(GL_TEXTURE_2D, CullingStateManager.CHUNK_CULLING_MAP_TARGET.getColorTextureId());
+            GL13.glActiveTexture(GL_TEXTURE0);
+            uniformMap.setUniform("_culling_size", CullingStateManager.CHUNK_CULLING_MAP_TARGET.width);
+        }
+
+        uniformMap.setUniform("_level_min_pos", CullingStateManager.LEVEL_MIN_POS);
+        uniformMap.setUniform("_level_pos_range", CullingStateManager.LEVEL_POS_RANGE);
+        uniformMap.setUniform("_level_section_range", CullingStateManager.LEVEL_SECTION_RANGE);
+        uniformMap.setUniform("_culling_y", (float) Minecraft.getInstance().gameRenderer.getMainCamera().getPosition().y);
+
+        if (CullingStateManager.CHUNK_CULLING_MAP != null) {
+            uniformMap.setUniform("_render_distance", CullingStateManager.CHUNK_CULLING_MAP.getRenderDistance());
+            uniformMap.setUniform("_space_partition_size", CullingStateManager.CHUNK_CULLING_MAP.getSpacePartitionSize());
+        }
+    }
+
+    @SubscribeEvent
     public void onOverlayRender(RenderGuiOverlayEvent event) {
         if (Minecraft.getInstance().player == null) {
             return;
         }
-
-
 
         if (event.getOverlay().id().equals(VanillaGuiOverlay.HELMET.id()) && partialTick != event.getPartialTick()) {
             partialTick = event.getPartialTick();

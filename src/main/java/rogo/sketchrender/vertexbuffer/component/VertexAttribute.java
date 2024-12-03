@@ -6,8 +6,10 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketchrender.vertexbuffer.BufferBuilder;
 import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
 
+import javax.annotation.Nullable;
 import java.nio.*;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,19 +21,23 @@ public abstract class VertexAttribute implements AutoCloseable {
     protected final int vertexID;
     protected final int vertexSize;
     private int vertexCount;
-    protected FloatBuffer buffer = MemoryUtil.memAllocFloat(2097152);
+    @Nullable
+    protected ByteBuffer buffer;
 
     public VertexAttribute(GLVertex... vertices) {
         this.vertices.addAll(Arrays.stream(vertices).toList());
         vertexID = GlStateManager._glGenBuffers();
         int vertexSize = 0;
-        if(this.vertices.size() > 1) {
-            for(GLVertex vertex : vertices) {
-                vertexSize += vertex.size()*vertex.elementType().getSize();
+        if (this.vertices.size() > 1) {
+            for (GLVertex vertex : vertices) {
+                vertexSize += vertex.size() * vertex.elementType().getSize();
             }
         }
         this.vertexSize = vertexSize;
+        createBuffer();
     }
+
+    public abstract void createBuffer();
 
     public int vertexCount() {
         return vertexCount;
@@ -41,19 +47,21 @@ public abstract class VertexAttribute implements AutoCloseable {
         this.vertexCount = count;
     }
 
-    public abstract void init(Consumer<FloatBuffer> bufferConsumer);
+    public abstract void init(Consumer<BufferBuilder<?>> bufferConsumer);
 
-    public abstract void addAttrib(Consumer<FloatBuffer> bufferConsumer);
+    public abstract void addAttrib(Consumer<ByteBuffer> bufferConsumer);
 
     public void bind() {
         GL15.glBindBuffer(34962, vertexID);
     }
 
     public void updateVertexAttrib() {
-        bind();
-        buffer.flip();
-        GL15.glBufferData(34962, buffer, 35048);
-        buffer.limit(buffer.capacity());
+        if (needUpdate()) {
+            bind();
+            buffer.flip();
+            GL15.glBufferData(34962, buffer, 35048);
+            buffer.limit(buffer.capacity());
+        }
     }
 
     public void bindVertexAttribArray() {
@@ -70,39 +78,11 @@ public abstract class VertexAttribute implements AutoCloseable {
 
     public abstract boolean needUpdate();
 
-    public void update(FloatBuffer buffer) {
-        GL15.glBindBuffer(34962, this.vertexID);
-        GL15.glBufferData(34962, buffer, 35044);
-    }
-
-    public void update(ByteBuffer buffer) {
-        GL15.glBindBuffer(34962, this.vertexID);
-        GL15.glBufferData(34962, buffer, 35044);
-    }
-
-    public void update(IntBuffer buffer) {
-        GL15.glBindBuffer(34962, this.vertexID);
-        GL15.glBufferData(34962, buffer, 35044);
-    }
-
-    public void update(DoubleBuffer buffer) {
-        GL15.glBindBuffer(34962, this.vertexID);
-        GL15.glBufferData(34962, buffer, 35044);
-    }
-
-    public void update(LongBuffer buffer) {
-        GL15.glBindBuffer(34962, this.vertexID);
-        GL15.glBufferData(34962, buffer, 35044);
-    }
-
-    public void update(ShortBuffer buffer) {
-        GL15.glBindBuffer(34962, this.vertexID);
-        GL15.glBufferData(34962, buffer, 35044);
-    }
-
     @Override
     public void close() {
         RenderSystem.glDeleteBuffers(this.vertexID);
-        MemoryUtil.memFree(this.buffer);
+        if (this.buffer != null) {
+            MemoryUtil.memFree(this.buffer);
+        }
     }
 }

@@ -4,10 +4,10 @@ import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import rogo.sketchrender.api.impl.IRenderSectionVisibility;
+import rogo.sketchrender.api.RenderSectionVisibility;
 
 @Mixin(RenderSection.class)
-public abstract class MixinRenderSection implements IRenderSectionVisibility {
+public abstract class MixinRenderSection implements RenderSectionVisibility {
 
     @Shadow(remap = false)
     public abstract int getOriginX();

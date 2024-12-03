@@ -6,13 +6,13 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
-import com.mojang.logging.LogUtils;
 import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -20,15 +20,16 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.Checks;
-import org.slf4j.Logger;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.impl.IEntitiesForRender;
-import rogo.sketchrender.api.impl.IRenderChunkInfo;
-import rogo.sketchrender.api.impl.IRenderSectionVisibility;
+import rogo.sketchrender.api.EntitiesForRender;
+import rogo.sketchrender.api.RenderChunkInfo;
+import rogo.sketchrender.api.RenderSectionVisibility;
+import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorLevelRender;
 import rogo.sketchrender.mixin.AccessorMinecraft;
 import rogo.sketchrender.shader.ComputeShader;
@@ -45,7 +46,6 @@ import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
 
 public class CullingStateManager {
-    public static final Logger LOGGER = LogUtils.getLogger();
     public static EntityCullingMap ENTITY_CULLING_MAP = null;
     public static volatile ChunkCullingMap CHUNK_CULLING_MAP = null;
     public static Matrix4f VIEW_MATRIX = new Matrix4f();
@@ -132,7 +132,7 @@ public class CullingStateManager {
         try {
             OptiFine = Class.forName("net.optifine.shaders.Shaders");
         } catch (ClassNotFoundException e) {
-            LOGGER.debug("OptiFine Not Found");
+            SketchRender.LOGGER.debug("OptiFine Not Found");
         }
 
         if (OptiFine != null) {
@@ -177,7 +177,7 @@ public class CullingStateManager {
         }
     }
 
-    public static boolean shouldRenderChunk(IRenderSectionVisibility section, boolean checkForChunk) {
+    public static boolean shouldRenderChunk(RenderSectionVisibility section, boolean checkForChunk) {
         if (section == null) {
             return false;
         }
@@ -547,59 +547,6 @@ public class CullingStateManager {
                 preCullingInitCount++;
             }
 
-            if (false) {
-                // 创建计算着色器
-                String computeShaderSource = """
-                #version 430
-                
-                layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
-                
-                layout(std430, binding = 0) buffer InputBuffer {
-                    float inputData[];
-                };
-                
-                layout(std430, binding = 1) buffer OutputBuffer {
-                    float outputData[];
-                };
-                
-                void main() {
-                    uint index = gl_GlobalInvocationID.x;
-                    outputData[index] = -inputData[index];
-                }
-                """;
-
-                ComputeShader computeShader = new ComputeShader(computeShaderSource);
-                int DATA_SIZE = 1024;
-                // 初始化 SSBOs
-                SSBO inputSSBO = new SSBO(DATA_SIZE * Float.BYTES);
-                SSBO outputSSBO = new SSBO(DATA_SIZE * Float.BYTES);
-
-                // 填充输入数据
-                float[] inputData = new float[DATA_SIZE];
-                for (int i = 0; i < DATA_SIZE; i++) {
-                    inputData[i] = i * 1.0f; // 示例数据
-                }
-                inputSSBO.setData(inputData);
-
-                // 绑定 SSBOs
-                inputSSBO.bind(0);
-                outputSSBO.bind(1);
-
-                SketchRender.TIMER.start("cs execute");
-                // 执行计算着色器
-                computeShader.execute(1, 1, 1);
-                SketchRender.TIMER.end();
-                // 从输出 SSBO 获取数据
-                SketchRender.TIMER.start("cs output");
-                float[] outputData = outputSSBO.getData(DATA_SIZE);
-                SketchRender.TIMER.end();
-
-                // 清理资源
-                computeShader.discard();
-                inputSSBO.discard();
-                outputSSBO.discard();
-            }
-
             if (Config.getCullChunk()) {
                 int renderingDiameter = Minecraft.getInstance().options.getEffectiveRenderDistance() * 2 + 1;
                 int maxSize = renderingDiameter * LEVEL_SECTION_RANGE * renderingDiameter;
@@ -654,8 +601,8 @@ public class CullingStateManager {
                     CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().clearIndexMap();
                     Iterable<Entity> entities = Minecraft.getInstance().level.entitiesForRendering();
                     entities.forEach(entity -> CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addObject(entity));
-                    for (Object levelrenderer$renderchunkinfo : ((IEntitiesForRender) Minecraft.getInstance().levelRenderer).renderChunksInFrustum()) {
-                        List<BlockEntity> list = ((IRenderChunkInfo) levelrenderer$renderchunkinfo).getRenderChunk().getCompiledChunk().getRenderableBlockEntities();
+                    for (Object levelrenderer$renderchunkinfo : ((EntitiesForRender) Minecraft.getInstance().levelRenderer).renderChunksInFrustum()) {
+                        List<BlockEntity> list = ((RenderChunkInfo) levelrenderer$renderchunkinfo).getRenderChunk().getCompiledChunk().getRenderableBlockEntities();
                         list.forEach(entity -> CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addObject(entity));
                     }
 

@@ -11,11 +11,12 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
-import rogo.sketchrender.culling.CullingRenderEvent;
+import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.vertexbuffer.BufferBuilder;
 import rogo.sketchrender.vertexbuffer.DrawMode;
 import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
 
-import java.nio.FloatBuffer;
+import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -23,43 +24,43 @@ import static org.lwjgl.opengl.GL15.glBindBuffer;
 
 @OnlyIn(Dist.CLIENT)
 public abstract class VertexBufferRenderer implements AutoCloseable {
-    protected final VertexAttribute main;
-    protected final VertexAttribute mutable;
+    protected final VertexAttribute staticBuffer;
+    protected final VertexAttribute dynamicBuffer;
     private int arrayObjectId;
     protected int indexCount;
     protected int instanceCount;
     protected final VertexFormat.Mode mode;
     protected final DrawMode drawMode;
 
-    public VertexBufferRenderer(VertexFormat.Mode mode, DrawMode drawMode, GLVertex[] mainVertices, Consumer<FloatBuffer> bufferConsumer, GLVertex[] mutableVertices) {
-        this.main = mainAttributeSuppler().apply(mainVertices);
-        this.mutable = mutableAttributeSuppler().apply(mutableVertices);
+    public VertexBufferRenderer(VertexFormat.Mode mode, DrawMode drawMode, GLVertex[] mainVertices, Consumer<BufferBuilder<?>> bufferConsumer, GLVertex[] mutableVertices) {
+        this.staticBuffer = staticAttributeSuppler().apply(mainVertices);
+        this.dynamicBuffer = mutableAttributeSuppler().apply(mutableVertices);
         this.arrayObjectId = GL30.glGenVertexArrays();
         this.mode = mode;
         this.drawMode = drawMode;
         init(bufferConsumer);
     }
 
-    protected Function<GLVertex[], MainAttribute> mainAttributeSuppler() {
-        return MainAttribute::new;
+    protected Function<GLVertex[], StaticAttribute> staticAttributeSuppler() {
+        return StaticAttribute::new;
     }
 
-    protected Function<GLVertex[], MutableAttribute> mutableAttributeSuppler() {
-        return MutableAttribute::new;
+    protected Function<GLVertex[], DynamicAttribute> mutableAttributeSuppler() {
+        return DynamicAttribute::new;
     }
 
-    public void init(Consumer<FloatBuffer> bufferConsumer) {
+    public void init(Consumer<BufferBuilder<?>> bufferConsumer) {
         bindVertexArray();
-        main.bindVertexAttribArray();
-        main.init(bufferConsumer);
-        mutable.bindVertexAttribArray();
+        staticBuffer.bindVertexAttribArray();
+        staticBuffer.init(bufferConsumer);
+        dynamicBuffer.bindVertexAttribArray();
         unbindVertexArray();
         unbindVBO();
-        this.indexCount = mode.indexCount(main.vertexCount());
+        this.indexCount = mode.indexCount(staticBuffer.vertexCount());
     }
 
-    public void addInstanceAttrib(Consumer<FloatBuffer> consumer) {
-        mutable.addAttrib(consumer);
+    public void addInstanceAttrib(Consumer<ByteBuffer> consumer) {
+        dynamicBuffer.addAttrib(consumer);
         instanceCount++;
     }
 
@@ -76,7 +77,11 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
     }
 
     public void drawWithShader(ShaderInstance shader, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
-        if ((this.indexCount != 0 && this.instanceCount > 0) || drawMode == DrawMode.NORMAL) {
+        if (this.indexCount <= 0) {
+            SketchRender.LOGGER.warn("SketchRender VertexBuffer indexCount can't be {}!", this.indexCount);
+            return;
+        }
+        if (this.instanceCount > 0 || drawMode == DrawMode.NORMAL) {
             RenderSystem.assertOnRenderThread();
             BufferUploader.reset();
 
@@ -134,10 +139,9 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
                 shader.LINE_WIDTH.set(RenderSystem.getShaderLineWidth());
             }
 
-            //CullingRenderEvent.setUniform(shader);
             RenderSystem.setupShaderLights(shader);
 
-            mutable.updateVertexAttrib();
+            dynamicBuffer.updateVertexAttrib();
             unbindVBO();
             bindVertexArray();
             shader.apply();
@@ -145,7 +149,7 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
             if (drawMode == DrawMode.INSTANCED) {
                 GL31.glDrawArraysInstanced(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
             } else {
-                //GL31.glDrawElements(this.mode.asGLMode, 0, this.indexCount, this.instanceCount);
+                GL31.glDrawArrays(this.mode.asGLMode, 0, this.indexCount);
             }
 
             shader.clear();
@@ -155,8 +159,8 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
     }
 
     public void close() {
-        main.close();
-        mutable.close();
+        staticBuffer.close();
+        dynamicBuffer.close();
 
         if (this.arrayObjectId > 0) {
             RenderSystem.glDeleteVertexArrays(this.arrayObjectId);

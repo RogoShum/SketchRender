@@ -1,6 +1,6 @@
-package rogo.sketchrender.api.impl;
+package rogo.sketchrender.api;
 
-public interface IRenderSectionVisibility {
+public interface RenderSectionVisibility {
     boolean shouldCheckVisibility(int clientTick);
 
     void updateVisibleTick(int clientTick);

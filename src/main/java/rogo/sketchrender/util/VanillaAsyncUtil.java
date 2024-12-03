@@ -9,9 +9,9 @@ import net.minecraft.core.SectionPos;
 import org.jetbrains.annotations.NotNull;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.api.impl.IEntitiesForRender;
-import rogo.sketchrender.api.impl.IRenderChunkInfo;
-import rogo.sketchrender.api.impl.IRenderSectionVisibility;
+import rogo.sketchrender.api.EntitiesForRender;
+import rogo.sketchrender.api.RenderChunkInfo;
+import rogo.sketchrender.api.RenderSectionVisibility;
 
 import java.util.ArrayDeque;
 import java.util.HashSet;
@@ -34,13 +34,13 @@ public class VanillaAsyncUtil {
         Queue<LevelRenderer.RenderChunkInfo> queue = new ArrayDeque<>();
         HashSet<BlockPos> posHashSet = new HashSet<>();
         BlockPos origin = getOriginPos();
-        LevelRenderer.RenderChunkInfo originChunk = new LevelRenderer.RenderChunkInfo(((IEntitiesForRender) levelRenderer).invokeGetRenderChunkAt(origin), null, 0);
+        LevelRenderer.RenderChunkInfo originChunk = new LevelRenderer.RenderChunkInfo(((EntitiesForRender) levelRenderer).invokeGetRenderChunkAt(origin), null, 0);
         queue.add(originChunk);
 
         while (!queue.isEmpty()) {
             LevelRenderer.RenderChunkInfo last = queue.poll();
-            ChunkRenderDispatcher.RenderChunk lastRenderChunk = ((IRenderChunkInfo) last).getRenderChunk();
-            if (originChunk != last && (!CullingStateManager.FRUSTUM.isVisible(lastRenderChunk.getBoundingBox()) || !CullingStateManager.shouldRenderChunk((IRenderSectionVisibility) lastRenderChunk, true))) {
+            ChunkRenderDispatcher.RenderChunk lastRenderChunk = ((RenderChunkInfo) last).getRenderChunk();
+            if (originChunk != last && (!CullingStateManager.FRUSTUM.isVisible(lastRenderChunk.getBoundingBox()) || !CullingStateManager.shouldRenderChunk((RenderSectionVisibility) lastRenderChunk, true))) {
                 continue;
             }
 
@@ -53,10 +53,10 @@ public class VanillaAsyncUtil {
             }
 
             for (Direction direction : DIRECTIONS) {
-                ChunkRenderDispatcher.RenderChunk sideRenderChunk = ((IEntitiesForRender) levelRenderer).invokeGetRelativeFrom(origin, lastRenderChunk, direction);
+                ChunkRenderDispatcher.RenderChunk sideRenderChunk = ((EntitiesForRender) levelRenderer).invokeGetRelativeFrom(origin, lastRenderChunk, direction);
                 if (sideRenderChunk != null && !posHashSet.contains(sideRenderChunk.getOrigin())) {
                     posHashSet.add(sideRenderChunk.getOrigin());
-                    LevelRenderer.RenderChunkInfo newRenderChunk = new LevelRenderer.RenderChunkInfo(sideRenderChunk, direction, ((IRenderChunkInfo) last).getStep() + 1);
+                    LevelRenderer.RenderChunkInfo newRenderChunk = new LevelRenderer.RenderChunkInfo(sideRenderChunk, direction, ((RenderChunkInfo) last).getStep() + 1);
                     queue.add(newRenderChunk);
                 }
             }

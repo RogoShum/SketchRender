@@ -7,10 +7,10 @@ import me.jellysquid.mods.sodium.client.render.chunk.lists.VisibleChunkCollector
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import rogo.sketchrender.api.impl.ICollectorAccessor;
+import rogo.sketchrender.api.CollectorAccessor;
 
 @Mixin(VisibleChunkCollector.class)
-public abstract class MixinVisibleChunkCollector implements ICollectorAccessor {
+public abstract class MixinVisibleChunkCollector implements CollectorAccessor {
     @Shadow(remap = false) @Final private ObjectArrayList<ChunkRenderList> sortedRenderLists;
 
     @Shadow(remap = false) protected abstract void addToRebuildLists(RenderSection section);

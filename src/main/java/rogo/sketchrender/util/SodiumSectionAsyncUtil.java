@@ -12,8 +12,8 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.world.level.Level;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.api.impl.ICollectorAccessor;
-import rogo.sketchrender.api.impl.IRenderSectionVisibility;
+import rogo.sketchrender.api.CollectorAccessor;
+import rogo.sketchrender.api.RenderSectionVisibility;
 
 import java.util.*;
 import java.util.concurrent.Semaphore;
@@ -129,7 +129,7 @@ public class SodiumSectionAsyncUtil {
                 ChunkRenderList renderList;
                 if (!renderListMap.containsKey(region)) {
                     renderList = new ChunkRenderList(region);
-                    ((ICollectorAccessor) this).addRenderList(renderList);
+                    ((CollectorAccessor) this).addRenderList(renderList);
                     renderListMap.put(region, renderList);
                 } else {
                     renderList = renderListMap.get(region);
@@ -137,7 +137,7 @@ public class SodiumSectionAsyncUtil {
                 renderList.add(section);
             }
 
-            ((ICollectorAccessor) this).addAsyncToRebuildLists(section);
+            ((CollectorAccessor) this).addAsyncToRebuildLists(section);
         }
 
         @Override
@@ -186,7 +186,7 @@ public class SodiumSectionAsyncUtil {
             ChunkRenderList renderList;
             if (!renderListMap.containsKey(region)) {
                 renderList = new ChunkRenderList(region);
-                ((ICollectorAccessor) this).addRenderList(renderList);
+                ((CollectorAccessor) this).addRenderList(renderList);
                 renderListMap.put(region, renderList);
             } else {
                 renderList = renderListMap.get(region);
@@ -198,7 +198,7 @@ public class SodiumSectionAsyncUtil {
         @Override
         public SortedRenderLists createRenderLists() {
             for(RenderSection section : renderSectionSet) {
-                boolean shouldRender = CullingStateManager.shouldRenderChunk((IRenderSectionVisibility) section, true);
+                boolean shouldRender = CullingStateManager.shouldRenderChunk((RenderSectionVisibility) section, true);
                 if(CullingStateManager.checkCulling) {
                     shouldRender = !shouldRender;
                 }

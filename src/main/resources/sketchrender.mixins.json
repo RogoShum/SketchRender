@@ -4,7 +4,9 @@
   "package": "rogo.sketchrender.mixin",
   "compatibilityLevel": "JAVA_8",
   "refmap": "sketchrender.refmap.json",
-  "mixins": [],
+  "mixins": [
+    "sodium.MixinGlProgram"
+  ],
   "client": [
     "AccessorFrustum",
     "AccessorFrustum$AccessorFrustumIntersection",
@@ -24,11 +26,11 @@
     "MixinShaderInstance$MixinRenderSystem",
     "MixinWindow",
     "sodium.AccessorRenderSectionManager",
-    "sodium.MixinShaderWorkarounds",
     "sodium.MixinOcclusionCuller",
     "sodium.MixinRenderRegion",
     "sodium.MixinRenderSection",
     "sodium.MixinRenderSectionManager",
+    "sodium.MixinShaderWorkarounds",
     "sodium.MixinSodiumWorldRenderer",
     "sodium.MixinVisibleChunkCollector"
   ],

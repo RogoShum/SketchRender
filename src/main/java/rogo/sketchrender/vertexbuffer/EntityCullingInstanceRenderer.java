@@ -2,33 +2,27 @@ package rogo.sketchrender.vertexbuffer;
 
 import com.mojang.blaze3d.vertex.VertexFormat;
 import org.lwjgl.opengl.GL15;
-import rogo.sketchrender.vertexbuffer.attribute.GLFloatVertex;
-import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
+import rogo.sketchrender.vertexbuffer.attribute.*;
 import rogo.sketchrender.vertexbuffer.component.VertexBufferRenderer;
 
-import java.nio.FloatBuffer;
+import java.nio.ByteBuffer;
 
 public class EntityCullingInstanceRenderer extends VertexBufferRenderer {
 
     public EntityCullingInstanceRenderer() {
-        super(VertexFormat.Mode.QUADS, DrawMode.INSTANCED, new GLVertex[]{GLFloatVertex.createF2(0, "Position")}
+        super(VertexFormat.Mode.TRIANGLES, DrawMode.INSTANCED, new GLVertex[]{FloatVertex.size2(0, "Position")}
                 , EntityCullingInstanceRenderer::init
-                , new GLVertex[]{GLFloatVertex.createF1(1, "index"),
-                        GLFloatVertex.createF2(2, "Size"),
-                        GLFloatVertex.createF3(3, "EntityCenter")});
+                , new GLVertex[]{FloatVertex.size1(1, "index"),
+                        FloatVertex.size2(2, "Size"),
+                        FloatVertex.size3(3, "EntityCenter")});
     }
 
-    private static void init(FloatBuffer buffer) {
-        buffer.position(0);
+    private static void init(BufferBuilder<?> buffer) {
         buffer.put(-1f);
         buffer.put(-1f);
         buffer.put(1f);
         buffer.put(-1f);
         buffer.put(1f);
         buffer.put(1f);
-        buffer.put(-1f);
-        buffer.put(1f);
-        buffer.flip();
-        GL15.glBufferData(34962, buffer, 35044);
     }
 }

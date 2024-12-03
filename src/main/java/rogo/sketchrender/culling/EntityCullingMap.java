@@ -4,12 +4,12 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import rogo.sketchrender.api.Config;
 import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.Config;
 import rogo.sketchrender.util.IndexedSet;
 import rogo.sketchrender.util.LifeTimer;
 
-import java.nio.FloatBuffer;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.function.Consumer;
@@ -107,7 +107,7 @@ public class EntityCullingMap extends CullingMap {
         }
 
         public Integer getIndex(Object obj) {
-            if(!readTemp.contains(obj))
+            if (!readTemp.contains(obj))
                 return -1;
             return readEntity.getOrDefault(obj, -1);
         }
@@ -141,22 +141,22 @@ public class EntityCullingMap extends CullingMap {
             tempObjectTimer.clear();
         }
 
-        private void addAttribute(Consumer<Consumer<FloatBuffer>> consumer, AABB aabb, int index) {
+        private void addAttribute(Consumer<Consumer<ByteBuffer>> consumer, AABB aabb, int index) {
             consumer.accept(buffer -> {
-                buffer.put((float) index);
+                buffer.putFloat(index);
 
                 float size = (float) Math.max(aabb.getXsize(), aabb.getZsize());
-                buffer.put(size+0.5F);
-                buffer.put((float) aabb.getYsize()+0.5F);
+                buffer.putFloat(size + 0.5F);
+                buffer.putFloat((float) aabb.getYsize() + 0.5F);
 
                 Vec3 pos = aabb.getCenter();
-                buffer.put((float) pos.x);
-                buffer.put((float) pos.y);
-                buffer.put((float) pos.z);
+                buffer.putFloat((float) pos.x);
+                buffer.putFloat((float) pos.y);
+                buffer.putFloat((float) pos.z);
             });
         }
 
-        public void addEntityAttribute(Consumer<Consumer<FloatBuffer>> consumer) {
+        public void addEntityAttribute(Consumer<Consumer<ByteBuffer>> consumer) {
             clearUpload();
             indexMap.forEach((o, index) -> {
                 addAttribute(consumer, SketchRender.getObjectAABB(o), index);
