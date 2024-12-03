@@ -3,6 +3,11 @@ package rogo.sketchrender.culling;
 import net.minecraft.world.phys.Vec3;
 import rogo.sketchrender.api.Config;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class ChunkCullingMap extends CullingMap {
     private int renderDistance = 0;
     private int spacePartitionSize = 0;
@@ -46,6 +51,10 @@ public class ChunkCullingMap extends CullingMap {
     }
 
     public boolean isChunkVisible(int posX, int posY, int posZ, boolean checkForChunk) {
+        Map<Double, Integer> height = new HashMap();
+        for (double d = -64.0; d <= 319.0; d += 8.0) {
+            height.put(d, CullingStateManager.mapChunkY(d));
+        }
         int index = 1 + (((posX + renderDistance) * spacePartitionSize * CullingStateManager.LEVEL_SECTION_RANGE + (posZ + renderDistance) * CullingStateManager.LEVEL_SECTION_RANGE + posY) << 2);
         if (index > 0 && index < cullingBuffer.limit()) {
             return (cullingBuffer.get(index) & 0xFF) > (checkForChunk ? 0 : 127);

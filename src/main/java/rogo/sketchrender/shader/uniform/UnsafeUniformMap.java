@@ -1,6 +1,7 @@
 package rogo.sketchrender.shader.uniform;
 
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
@@ -27,7 +28,7 @@ public class UnsafeUniformMap {
 
     public UnsafeUniformMap(int shaderId) {
         this.programId = shaderId;
-        printActiveUniforms(this.programId);
+        //printActiveUniforms(this.programId);
     }
 
     public static void printActiveUniforms(int programID) {
@@ -120,6 +121,13 @@ public class UnsafeUniformMap {
         int handle = getUniform(name);
         if (handle > -1) {
             GL20.glUniform1f(handle, value);
+        }
+    }
+
+    public void setUniform(String name, Vec3 value) {
+        int handle = getUniform(name);
+        if (handle > -1) {
+            GL20.glUniform3f(handle, (float) value.x, (float) value.y, (float) value.z);
         }
     }
 

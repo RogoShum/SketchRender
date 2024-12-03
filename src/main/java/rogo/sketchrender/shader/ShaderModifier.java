@@ -23,11 +23,17 @@ public class ShaderModifier {
     protected Program.Type type;
     protected String injectionPosition;
     protected String injectionContent;
+    protected boolean replace;
 
     public ShaderModifier(Program.Type programType, String positionRegex, String injectionContent) {
         this.type = programType;
         this.injectionPosition = positionRegex != null ? positionRegex : "";
         this.injectionContent = injectionContent != null ? injectionContent : "";
+    }
+
+    public ShaderModifier replace() {
+        this.replace = true;
+        return this;
     }
 
     public static ShaderModifier beforeMain(Program.Type programType, String injectionContent) {
@@ -46,73 +52,93 @@ public class ShaderModifier {
         List<ShaderModifier> list = new ArrayList<>();
         if ("sodium:terrain".equals(currentProgram) && currentType == Program.Type.VERTEX) {
             list.add(ShaderModifier.beforeMain(Program.Type.VERTEX, """
-                    uniform sampler2D _culling_texture;
-                    uniform int _culling_terrain;
-                    uniform int _level_min_pos;
-                    uniform int _level_pos_range;
-                    uniform int _level_section_range;
-                    uniform int _render_distance;
-                    uniform int _space_partition_size;
-                    uniform float _culling_size;
-                    uniform float _culling_y;
+                    uniform sampler2D sketch_culling_texture;
+                    uniform int sketch_culling_terrain;
+                    uniform int sketch_level_min_pos;
+                    uniform int sketch_level_pos_range;
+                    uniform int sketch_level_section_range;
+                    uniform int sketch_render_distance;
+                    uniform int sketch_space_partition_size;
+                    uniform int sketch_culling_size;
+                    uniform vec3 sketch_camera_pos;
+                    uniform int sketch_check_culling;
                     
-                    out vec3 _test_pos;
+                    flat out vec3 sketch_section_pos;
                     flat out ivec3 _chunk_offset_map;
-                    flat out int _chunk_index;
+                    flat out int _pre_chunk_offset_y;
                     
                     int _map_culling_chunkY(float _pos_y) {
-                        float offset = _pos_y - _level_min_pos;
-                        float mappingRatio = offset / _level_pos_range;
+                        float offset = _pos_y - sketch_level_min_pos;
+                        float mappingRatio = offset / sketch_level_pos_range;
                     
-                        return int(floor(mappingRatio * _level_section_range));
+                        return int(floor(mappingRatio * sketch_level_section_range));
                     }
                     
                     int _get_chunk_index(ivec3 chunk_offset) {
-                        return (chunk_offset.x + _render_distance) * _space_partition_size * _level_section_range + (chunk_offset.z + _render_distance) * _level_section_range + chunk_offset.y;
+                        return (chunk_offset.x + sketch_render_distance) * sketch_space_partition_size * sketch_level_section_range + (chunk_offset.z + sketch_render_distance) * sketch_level_section_range + chunk_offset.y;
+                    }
+                    
+                    ivec3 _vec_to_section_pos(vec3 vec) {
+                        return ivec3(int(vec.x) >> 4, int(vec.y) >> 4, int(vec.z) >> 4);
                     }
                     
                     vec2 _get_culling_uv_from_index(ivec3 chunk_offset) {
                         int screenIndex = _get_chunk_index(chunk_offset);
                     
-                        int fragX = screenIndex % _culling_size;
-                        int fragY = screenIndex / _culling_size;
+                        int fragX = screenIndex % sketch_culling_size;
+                        int fragY = screenIndex / sketch_culling_size;
                     
-                        return vec2(fragX, fragY) / vec2(_culling_size);
+                        return vec2(fragX, fragY) / vec2(sketch_culling_size);
                     }
                     
                     bool _is_chunk_culled(ivec3 chunk_offset) {
-                        return texture(_culling_texture, _get_culling_uv_from_index(chunk_offset)).y < 0.5;
+                        return texture(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset)).y < 0.5;
                     }
                     """));
             list.add(ShaderModifier.afterVertInit(Program.Type.VERTEX, """
-                        if (_culling_terrain > 0) {
-                            _test_pos = u_RegionOffset + _get_draw_translation(_draw_id);
-                            _test_pos.y = _culling_y;
-                            _chunk_offset_map = ivec3(int(_test_pos.x), int(_test_pos.y), int(_test_pos.z));
-                            _chunk_index = _get_chunk_index(_chunk_offset_map);
-                            
-                            if (_is_chunk_culled(_chunk_offset_map)) {
-                                gl_Position = vec4(0.0, 0.0, -100.0, 1.0);
-                                return;
-                            }
+                    if (sketch_culling_terrain > 0) {
+                        sketch_section_pos = u_RegionOffset + _get_draw_translation(_draw_id) + sketch_camera_pos;
+                        ivec3 sketch_camera_section = _vec_to_section_pos(sketch_camera_pos);
+                        _chunk_offset_map = _vec_to_section_pos(vec3(sketch_section_pos.x + 8.0, sketch_section_pos.y, sketch_section_pos.z + 8.0));
+                        _chunk_offset_map.x = _chunk_offset_map.x - sketch_camera_section.x;
+                        _chunk_offset_map.z = _chunk_offset_map.z - sketch_camera_section.z;
+                        _pre_chunk_offset_y = _chunk_offset_map.y - sketch_camera_section.y;
+                        _chunk_offset_map.y = _map_culling_chunkY(sketch_section_pos.y + 8.0);
+
+                        bool sketch_culled = _is_chunk_culled(_chunk_offset_map);
+                        if (sketch_check_culling > 0) {
+                            sketch_culled = !sketch_culled;
                         }
+
+                        if (sketch_culled) {
+                            gl_Position = vec4(0.0, 0.0, -100.0, 1.0);
+                            return;
+                        }
+                    }
                     """));
             return list;
         }
 
+        /*
         if ("sodium:terrain".equals(currentProgram) && currentType == Program.Type.FRAGMENT) {
             list.add(ShaderModifier.beforeMain(Program.Type.FRAGMENT, """
-                    in vec3 _test_pos;
+                    flat in int _pre_chunk_offset_y;
                     flat in ivec3 _chunk_offset_map;
-                    flat in int _chunk_index;
                     """));
-            list.add(ShaderModifier.afterMain(Program.Type.VERTEX, """
-                        if (_chunk_index < 0) {
-                            discard;
-                        }
-                    """));
+            list.add(new ShaderModifier(Program.Type.VERTEX, "fragColor = _linearFog(diffuseColor, v_FragDistance, u_FogColor, u_FogStart, u_FogEnd);", """
+                    fragColor = _linearFog(diffuseColor, v_FragDistance, u_FogColor, u_FogStart, u_FogEnd);
+                    int maxOffset = max(abs(_chunk_offset_map.x), max(abs(_chunk_offset_map.z), abs(_pre_chunk_offset_y)));
+                    if (maxOffset == 0) {
+                        fragColor.r = 1.0;
+                    } else if (maxOffset == 1) {
+                    	fragColor.g = 1.0;
+                    } else if (maxOffset == 2) {
+                    	fragColor.b = 1.0;
+                    }
+                    """).replace());
             return list;
         }
+         */
 
         return MODIFIERS.getOrDefault(currentProgram, new java.util.ArrayList<>()).stream()
                 .filter(mod -> mod.type == currentType)
@@ -120,14 +146,18 @@ public class ShaderModifier {
     }
 
     public String applyModifications(String shaderCode) {
-        Pattern pattern = Pattern.compile(injectionPosition);
-        Matcher matcher = pattern.matcher(shaderCode);
+        if (replace) {
+            shaderCode = shaderCode.replace(injectionPosition, injectionContent);
+        } else {
+            Pattern pattern = Pattern.compile(injectionPosition);
+            Matcher matcher = pattern.matcher(shaderCode);
 
-        if (matcher.find()) {
-            int position = matcher.end();
-            shaderCode = new StringBuilder(shaderCode)
-                    .insert(position, "\n" + injectionContent)
-                    .toString();
+            if (matcher.find()) {
+                int position = matcher.end();
+                shaderCode = new StringBuilder(shaderCode)
+                        .insert(position, "\n" + injectionContent)
+                        .toString();
+            }
         }
         return shaderCode;
     }
