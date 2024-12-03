@@ -1,5 +1,7 @@
 package rogo.sketchrender.vertexbuffer.component;
 
+import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
 
 import java.nio.FloatBuffer;
@@ -19,6 +21,8 @@ public class MutableAttribute extends VertexAttribute {
             bufferConsumer.accept(this.buffer);
         } catch (Exception e) {
             this.buffer.position(0);
+            this.buffer.limit(this.buffer.capacity());
+            CullingStateManager.LOGGER.warn("MutableAttribute addAttrib error");
         }
     }
 

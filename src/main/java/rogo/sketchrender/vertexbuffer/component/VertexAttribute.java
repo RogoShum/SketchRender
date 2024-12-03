@@ -53,6 +53,7 @@ public abstract class VertexAttribute implements AutoCloseable {
         bind();
         buffer.flip();
         GL15.glBufferData(34962, buffer, 35048);
+        buffer.limit(buffer.capacity());
     }
 
     public void bindVertexAttribArray() {
