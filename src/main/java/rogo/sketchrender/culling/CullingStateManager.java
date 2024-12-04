@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import com.mojang.math.Axis;
@@ -12,7 +13,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -20,7 +20,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.Checks;
@@ -28,12 +27,9 @@ import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.EntitiesForRender;
 import rogo.sketchrender.api.RenderChunkInfo;
-import rogo.sketchrender.api.RenderSectionVisibility;
-import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorLevelRender;
 import rogo.sketchrender.mixin.AccessorMinecraft;
-import rogo.sketchrender.shader.ComputeShader;
-import rogo.sketchrender.shader.uniform.SSBO;
+import rogo.sketchrender.shader.ShaderModifier;
 import rogo.sketchrender.util.*;
 
 import java.lang.reflect.Field;
@@ -47,7 +43,7 @@ import static org.lwjgl.opengl.GL30.*;
 
 public class CullingStateManager {
     public static EntityCullingMap ENTITY_CULLING_MAP = null;
-    public static volatile ChunkCullingMap CHUNK_CULLING_MAP = null;
+    public static final ChunkCullingMessage CHUNK_CULLING_MESSAGE = new ChunkCullingMessage();
     public static Matrix4f VIEW_MATRIX = new Matrix4f();
     public static Matrix4f PROJECTION_MATRIX = new Matrix4f();
 
@@ -91,8 +87,6 @@ public class CullingStateManager {
     private static long preChunkCullingTime = 0;
     public static long preApplyFrustumTime = 0;
     public static long applyFrustumTime = 0;
-    public static long chunkCullingInitTime = 0;
-    public static long preChunkCullingInitTime = 0;
     public static long entityCullingInitTime = 0;
     public static long preEntityCullingInitTime = 0;
     public static int cullingInitCount = 0;
@@ -109,10 +103,8 @@ public class CullingStateManager {
     public static Camera CAMERA;
     private static final HashMap<Integer, Integer> SHADER_DEPTH_BUFFER_ID = new HashMap<>();
     private static int frame;
-    private static int lastVisibleUpdatedFrame;
     public static volatile boolean useOcclusionCulling = true;
     private static int continueUpdateCount;
-    private static boolean lastUpdate;
 
     static {
         RenderSystem.recordRenderCall(() -> {
@@ -126,6 +118,67 @@ public class CullingStateManager {
             ENTITY_CULLING_MAP_TARGET = new TextureTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
             ENTITY_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
         });
+
+        ShaderModifier.registerModifier("sodium:terrain", ShaderModifier.beforeMain(Program.Type.VERTEX, """
+                uniform sampler2D sketch_culling_texture;
+                uniform int sketch_culling_terrain;
+                uniform int sketch_level_min_pos;
+                uniform int sketch_level_pos_range;
+                uniform int sketch_level_section_range;
+                uniform int sketch_render_distance;
+                uniform int sketch_space_partition_size;
+                uniform int sketch_culling_size;
+                uniform vec3 sketch_camera_pos;
+                uniform int sketch_check_culling;
+
+                int _map_culling_chunkY(float _pos_y) {
+                    float offset = _pos_y - sketch_level_min_pos;
+                    float mappingRatio = offset / sketch_level_pos_range;
+
+                    return int(floor(mappingRatio * sketch_level_section_range));
+                }
+
+                int _get_chunk_index(ivec3 chunk_offset) {
+                    return (chunk_offset.x + sketch_render_distance) * sketch_space_partition_size * sketch_level_section_range + (chunk_offset.z + sketch_render_distance) * sketch_level_section_range + chunk_offset.y;
+                }
+
+                ivec3 _vec_to_section_pos(vec3 vec) {
+                    return ivec3(int(vec.x) >> 4, int(vec.y) >> 4, int(vec.z) >> 4);
+                }
+
+                ivec2 _get_culling_uv_from_index(ivec3 chunk_offset) {
+                    int screenIndex = _get_chunk_index(chunk_offset);
+
+                    int fragX = screenIndex % sketch_culling_size;
+                    int fragY = screenIndex / sketch_culling_size;
+
+                    return ivec2(fragX, fragY);
+                }
+
+                bool _is_chunk_culled(ivec3 chunk_offset) {
+                    return texelFetch(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset), 0).y <= 0.001;
+                }
+                """));
+        ShaderModifier.registerModifier("sodium:terrain", ShaderModifier.afterVertInit(Program.Type.VERTEX, """
+                if (sketch_culling_terrain > 0) {
+                    vec3 sketch_section_pos = u_RegionOffset + _get_draw_translation(_draw_id) + sketch_camera_pos;
+                    ivec3 sketch_camera_section = _vec_to_section_pos(sketch_camera_pos);
+                    ivec3 sketch_chunk_offset_map = _vec_to_section_pos(vec3(sketch_section_pos.x + 8.0, sketch_section_pos.y, sketch_section_pos.z + 8.0));
+                    sketch_chunk_offset_map.x = sketch_chunk_offset_map.x - sketch_camera_section.x;
+                    sketch_chunk_offset_map.z = sketch_chunk_offset_map.z - sketch_camera_section.z;
+                    sketch_chunk_offset_map.y = _map_culling_chunkY(sketch_section_pos.y + 8.0);
+
+                    bool sketch_culled = _is_chunk_culled(sketch_chunk_offset_map);
+                    if (sketch_check_culling > 0) {
+                        sketch_culled = !sketch_culled;
+                    }
+
+                    if (sketch_culled) {
+                        gl_Position = vec4(0.0, 0.0, -100.0, 1.0);
+                        return;
+                    }
+                }
+                """));
     }
 
     public static void init() {
@@ -162,58 +215,16 @@ public class CullingStateManager {
         clientTickCount = 0;
         visibleEntity.clear();
         visibleBlock.clear();
-        if (CHUNK_CULLING_MAP != null) {
-            CHUNK_CULLING_MAP.cleanup();
-            CHUNK_CULLING_MAP = null;
-        }
+
         if (ENTITY_CULLING_MAP != null) {
             ENTITY_CULLING_MAP.cleanup();
             ENTITY_CULLING_MAP = null;
         }
         SHADER_DEPTH_BUFFER_ID.clear();
         SketchRender.pauseAsync();
-        if(SketchRender.hasSodium()) {
+        if (SketchRender.hasSodium()) {
             SodiumSectionAsyncUtil.pauseAsync();
         }
-    }
-
-    public static boolean shouldRenderChunk(RenderSectionVisibility section, boolean checkForChunk) {
-        if (section == null) {
-            return false;
-        }
-
-        if (DEBUG < 2) {
-            if (!useOcclusionCulling) {
-                return true;
-            }
-            if (!section.shouldCheckVisibility(lastVisibleUpdatedFrame)) {
-                return true;
-            } else if (CHUNK_CULLING_MAP.isChunkOffsetCameraVisible(section.getPositionX(), section.getPositionY(), section.getPositionZ(), checkForChunk)) {
-                section.updateVisibleTick(lastVisibleUpdatedFrame);
-                return true;
-            }
-            return false;
-        }
-
-        if (Config.getAsyncChunkRebuild() && !useOcclusionCulling) {
-            return true;
-        }
-
-        boolean render;
-        boolean actualRender = false;
-
-        if (!section.shouldCheckVisibility(lastVisibleUpdatedFrame)) {
-            render = true;
-        } else {
-            actualRender = CHUNK_CULLING_MAP.isChunkOffsetCameraVisible(section.getPositionX(), section.getPositionY(), section.getPositionZ(), checkForChunk);
-            render = actualRender;
-        }
-
-        if (actualRender) {
-            section.updateVisibleTick(lastVisibleUpdatedFrame);
-        }
-
-        return render;
     }
 
     public static boolean shouldSkipBlockEntity(BlockEntity blockEntity, AABB aabb, BlockPos pos) {
@@ -338,17 +349,15 @@ public class CullingStateManager {
                 } else {
                     frustum = levelFrustum.getCullingFrustum();
                 }
-                CullingStateManager.FRUSTUM = new Frustum(frustum).offsetToFullyIncludeCameraCube(32);
-                if (CullingStateManager.CHUNK_CULLING_MAP != null) {
-                    CullingStateManager.CHUNK_CULLING_MAP.updateCamera();
-                }
+                CullingStateManager.FRUSTUM = new Frustum(frustum).offsetToFullyIncludeCameraCube(24);
                 checkShader();
+                CullingRenderEvent.updateChunkCullingMap();
             }
             case "destroyProgress" -> {
                 updatingDepth = true;
                 updateDepthMap();
                 readMapData();
-                CullingRenderEvent.updateCullingMap();
+                CullingRenderEvent.updateEntityCullingMap();
                 updatingDepth = false;
             }
         }
@@ -383,7 +392,7 @@ public class CullingStateManager {
             if (isNextLoop()) {
                 visibleBlock.tick(clientTickCount, 3);
                 visibleEntity.tick(clientTickCount, 3);
-                if(CullingStateManager.ENTITY_CULLING_MAP != null)
+                if (CullingStateManager.ENTITY_CULLING_MAP != null)
                     CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().tickTemp(clientTickCount);
 
                 applyFrustumTime = preApplyFrustumTime;
@@ -395,19 +404,14 @@ public class CullingStateManager {
                 blockCullingTime = preBlockCullingTime;
                 preBlockCullingTime = 0;
 
-                chunkCullingInitTime = preChunkCullingInitTime;
-                preChunkCullingInitTime = 0;
-
                 cullingInitCount = preCullingInitCount;
                 preCullingInitCount = 0;
 
                 entityCullingInitTime = preEntityCullingInitTime;
                 preEntityCullingInitTime = 0;
 
-                if (CullingStateManager.CHUNK_CULLING_MAP != null) {
-                    CullingStateManager.CHUNK_CULLING_MAP.lastQueueUpdateCount = CullingStateManager.CHUNK_CULLING_MAP.queueUpdateCount;
-                    CullingStateManager.CHUNK_CULLING_MAP.queueUpdateCount = 0;
-                }
+                CullingStateManager.CHUNK_CULLING_MESSAGE.lastQueueUpdateCount = CullingStateManager.CHUNK_CULLING_MESSAGE.queueUpdateCount;
+                CullingStateManager.CHUNK_CULLING_MESSAGE.queueUpdateCount = 0;
 
                 if (preChunkCullingTime != 0) {
                     chunkCullingTime = preChunkCullingTime;
@@ -419,20 +423,10 @@ public class CullingStateManager {
 
     public static void readMapData() {
         if (!checkCulling) {
-            if (Config.getCullChunk()) {
-                long time = System.nanoTime();
-                if (CHUNK_CULLING_MAP != null && CHUNK_CULLING_MAP.isTransferred()) {
-                    CHUNK_CULLING_MAP.readData();
-                    lastVisibleUpdatedFrame = frame;
-                }
-                preChunkCullingInitTime += System.nanoTime() - time;
-            }
-
             if (Config.doEntityCulling()) {
                 long time = System.nanoTime();
                 if (ENTITY_CULLING_MAP != null && ENTITY_CULLING_MAP.isTransferred()) {
                     ENTITY_CULLING_MAP.readData();
-                    lastVisibleUpdatedFrame = frame;
                 }
                 preEntityCullingInitTime += System.nanoTime() - time;
             }
@@ -475,7 +469,7 @@ public class CullingStateManager {
 
     public static void updateDepthMap() {
         CullingStateManager.PROJECTION_MATRIX = new Matrix4f(RenderSystem.getProjectionMatrix());
-        if (anyCulling() && !checkCulling && anyNeedTransfer() && continueUpdateDepth()) {
+        if (anyCulling() && !checkCulling && continueUpdateDepth()) {
             float sampling = (float) Config.getSampling();
             Window window = Minecraft.getInstance().getWindow();
             int width = window.getWidth();
@@ -554,32 +548,14 @@ public class CullingStateManager {
 
                 if (CHUNK_CULLING_MAP_TARGET.width != cullingSize || CHUNK_CULLING_MAP_TARGET.height != cullingSize) {
                     CHUNK_CULLING_MAP_TARGET.resize(cullingSize, cullingSize, Minecraft.ON_OSX);
-                    if (CHUNK_CULLING_MAP != null) {
-                        CHUNK_CULLING_MAP.cleanup();
-                        CHUNK_CULLING_MAP = new ChunkCullingMap(CHUNK_CULLING_MAP_TARGET.width, CHUNK_CULLING_MAP_TARGET.height);
-                        CHUNK_CULLING_MAP.generateIndex(Minecraft.getInstance().options.getEffectiveRenderDistance());
-                    }
                 }
 
-                if (CHUNK_CULLING_MAP == null) {
-                    CHUNK_CULLING_MAP = new ChunkCullingMap(CHUNK_CULLING_MAP_TARGET.width, CHUNK_CULLING_MAP_TARGET.height);
-                    if (ENTITY_CULLING_MAP != null) {
-                        ENTITY_CULLING_MAP.syncDelay(CHUNK_CULLING_MAP);
-                    }
-                    CHUNK_CULLING_MAP.generateIndex(Minecraft.getInstance().options.getEffectiveRenderDistance());
-                }
-
-                long time = System.nanoTime();
-                CHUNK_CULLING_MAP.transferData();
-                preChunkCullingInitTime += System.nanoTime() - time;
+                CHUNK_CULLING_MESSAGE.generateIndex(Minecraft.getInstance().options.getEffectiveRenderDistance());
             }
 
             if (Config.doEntityCulling()) {
                 if (ENTITY_CULLING_MAP == null) {
                     ENTITY_CULLING_MAP = new EntityCullingMap(ENTITY_CULLING_MAP_TARGET.width, ENTITY_CULLING_MAP_TARGET.height);
-                    if (CHUNK_CULLING_MAP != null) {
-                        CHUNK_CULLING_MAP.syncDelay(ENTITY_CULLING_MAP);
-                    }
                 }
 
                 int cullingSize = (CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().size() / 64 * 64 + 64) / 8 + 1;
@@ -615,10 +591,6 @@ public class CullingStateManager {
             if (ENTITY_CULLING_MAP != null) {
                 ENTITY_CULLING_MAP.cleanup();
                 ENTITY_CULLING_MAP = null;
-            }
-            if (CHUNK_CULLING_MAP != null) {
-                CHUNK_CULLING_MAP.cleanup();
-                CHUNK_CULLING_MAP = null;
             }
         }
     }
@@ -679,8 +651,7 @@ public class CullingStateManager {
     }
 
     public static boolean anyNeedTransfer() {
-        return (CullingStateManager.ENTITY_CULLING_MAP != null && CullingStateManager.ENTITY_CULLING_MAP.needTransferData()) ||
-                (CullingStateManager.CHUNK_CULLING_MAP != null && CullingStateManager.CHUNK_CULLING_MAP.needTransferData());
+        return CullingStateManager.ENTITY_CULLING_MAP != null && CullingStateManager.ENTITY_CULLING_MAP.needTransferData();
     }
 
     private static int gl33 = -1;
@@ -697,27 +668,8 @@ public class CullingStateManager {
         return fullChunkUpdateCooldown > 0;
     }
 
-    public static int mapChunkY(double posY) {
-        double offset = posY - LEVEL_MIN_POS;
-        double mappingRatio = offset / LEVEL_POS_RANGE;
-
-        return (int) Math.floor(mappingRatio * LEVEL_SECTION_RANGE);
-    }
-
     public static void updating() {
         continueUpdateCount = 10;
-        lastUpdate = true;
-    }
-
-    public static boolean continueUpdateChunk() {
-        if (continueUpdateCount > 0) {
-            return true;
-        } else if (lastUpdate) {
-            lastUpdate = false;
-            return true;
-        }
-
-        return false;
     }
 
     public static boolean continueUpdateDepth() {

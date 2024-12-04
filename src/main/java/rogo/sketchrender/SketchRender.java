@@ -156,8 +156,7 @@ public class SketchRender {
         if (event.phase == TickEvent.Phase.START) {
             if (Minecraft.getInstance().player != null && Minecraft.getInstance().level != null) {
                 clientTickCount++;
-                if (Minecraft.getInstance().player.tickCount > 60 && clientTickCount > 60 && CHUNK_CULLING_MAP != null && !CHUNK_CULLING_MAP.isDone()) {
-                    CHUNK_CULLING_MAP.setDone();
+                if (Minecraft.getInstance().player.tickCount > 60 && clientTickCount > 60) {
                     LEVEL_SECTION_RANGE = Minecraft.getInstance().level.getMaxSection() - Minecraft.getInstance().level.getMinSection();
                     LEVEL_MIN_SECTION_ABS = Math.abs(Minecraft.getInstance().level.getMinSection());
                     LEVEL_MIN_POS = Minecraft.getInstance().level.getMinBuildHeight();

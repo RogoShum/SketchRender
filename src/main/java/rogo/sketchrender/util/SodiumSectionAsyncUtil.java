@@ -5,7 +5,6 @@ import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkUpdateType;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderList;
-import me.jellysquid.mods.sodium.client.render.chunk.lists.SortedRenderLists;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.VisibleChunkCollector;
 import me.jellysquid.mods.sodium.client.render.chunk.occlusion.OcclusionCuller;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
@@ -13,7 +12,6 @@ import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.world.level.Level;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.api.CollectorAccessor;
-import rogo.sketchrender.api.RenderSectionVisibility;
 
 import java.util.*;
 import java.util.concurrent.Semaphore;
@@ -53,12 +51,11 @@ public class SodiumSectionAsyncUtil {
 
         if (viewport != null) {
             frame++;
-            VisibleChunkCollector collector = CullingStateManager.checkCulling ? new DebugChunkCollector(frame) : new AsynchronousChunkCollector(frame);
+            VisibleChunkCollector collector = new AsynchronousChunkCollector(frame);
             occlusionCuller.findVisible(collector, viewport, searchDistance, useOcclusionCulling, frame);
             SodiumSectionAsyncUtil.collector = collector;
 
-            if(CullingStateManager.CHUNK_CULLING_MAP != null)
-                CullingStateManager.CHUNK_CULLING_MAP.queueUpdateCount++;
+            CullingStateManager.CHUNK_CULLING_MESSAGE.queueUpdateCount++;
             Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildList = SodiumSectionAsyncUtil.collector.getRebuildLists();
             for(ArrayDeque<RenderSection> arrayDeque : rebuildList.values()) {
                 if (!arrayDeque.isEmpty()) {
@@ -163,50 +160,6 @@ public class SodiumSectionAsyncUtil {
                 }
             }));
             return syncRebuildLists;
-        }
-    }
-
-    public static class DebugChunkCollector extends VisibleChunkCollector {
-        private final HashMap<RenderRegion, ChunkRenderList> renderListMap = new HashMap<>();
-        private final HashSet<RenderSection> renderSectionSet = new HashSet<>();
-
-        public DebugChunkCollector(int frame) {
-            super(frame);
-        }
-
-        @Override
-        public void visit(RenderSection section, boolean visible) {
-            if (visible && section.getFlags() != 0) {
-                renderSectionSet.add(section);
-            }
-        }
-
-        public void addToVisible(RenderSection section) {
-            RenderRegion region = section.getRegion();
-            ChunkRenderList renderList;
-            if (!renderListMap.containsKey(region)) {
-                renderList = new ChunkRenderList(region);
-                ((CollectorAccessor) this).addRenderList(renderList);
-                renderListMap.put(region, renderList);
-            } else {
-                renderList = renderListMap.get(region);
-            }
-            if(renderList.size() < 256)
-                renderList.add(section);
-        }
-
-        @Override
-        public SortedRenderLists createRenderLists() {
-            for(RenderSection section : renderSectionSet) {
-                boolean shouldRender = CullingStateManager.shouldRenderChunk((RenderSectionVisibility) section, true);
-                if(CullingStateManager.checkCulling) {
-                    shouldRender = !shouldRender;
-                }
-                if(shouldRender) {
-                    addToVisible(section);
-                }
-            }
-            return super.createRenderLists();
         }
     }
 }

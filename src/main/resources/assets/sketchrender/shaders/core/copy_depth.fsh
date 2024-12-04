@@ -3,14 +3,14 @@
 uniform sampler2D Sampler0;
 uniform float RenderDistance;
 
-flat in  vec2 DepthScreenSize;
-flat in float xStep;
-flat in float yStep;
+flat in ivec2 ParentSize;
+flat in float xMult;
+flat in float yMult;
 
 out vec4 fragColor;
 
 float near = 0.1;
-float far  = 1000.0;
+float far  = 16.0;
 
 float LinearizeDepth(float depth) {
     float z = depth * 2.0 - 1.0;
@@ -18,22 +18,24 @@ float LinearizeDepth(float depth) {
 }
 
 void main() {
-    float minX = gl_FragCoord.x / DepthScreenSize.x;
-    float minY = gl_FragCoord.y / DepthScreenSize.y;
-    float maxX = min(gl_FragCoord.x+1, DepthScreenSize.x)/DepthScreenSize.x;
-    float maxY = min(gl_FragCoord.y+1, DepthScreenSize.y)/DepthScreenSize.y;
-    float depth;
+    int px = int(gl_FragCoord.x * xMult);
+    int py = int(gl_FragCoord.y * yMult);
+    ivec2 depthUV = ivec2(px, py);
+    float depth = 0.0;
 
-    for(float x = minX-xStep; x <= maxX+xStep; x+=xStep) {
-        for(float y = minY-xStep; y <= maxY+xStep; y+=yStep) {
-            vec2 depthUV = vec2(min(x, 1.0), min(y, 1.0));
-            depth = max(depth, texture(Sampler0, depthUV).r);
-        }
-    }
+    depth = max(depth, texelFetch(Sampler0, depthUV, 0).r);
+    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(0, 1)).r);
+    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(0, -1)).r);
+    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(1, 0)).r);
+    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(-1, 0)).r);
+    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(1, 1)).r);
+    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(1, -1)).r);
+    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(-1, -1)).r);
+    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(-1, 1)).r);
 
     if(RenderDistance > 1) {
         fragColor = vec4(vec3(depth), 1.0);
     } else {
-        fragColor = vec4(vec3(LinearizeDepth(depth)/500.0), 1.0);
+        fragColor = vec4(vec3(LinearizeDepth(depth) / (far * 0.5)), 1.0);
     }
 }

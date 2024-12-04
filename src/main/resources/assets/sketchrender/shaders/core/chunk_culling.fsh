@@ -24,7 +24,7 @@ flat in vec2[5] DepthScreenSize;
 out vec4 fragColor;
 
 float near = 0.1;
-float far  = 1000.0;
+float far  = 16.0;
 
 int getSampler(float xLength, float yLength) {
     for(int i = 0; i < DepthScreenSize.length(); ++i) {
@@ -109,15 +109,15 @@ bool isVisible(vec3 vec) {
 
 float getUVDepth(int idx, vec2 uv) {
     if(idx == 0)
-    return texture(Sampler0, uv).r * 500;
+    return texture(Sampler0, uv).r;
     else if(idx == 1)
-    return texture(Sampler1, uv).r * 500;
+    return texture(Sampler1, uv).r;
     else if(idx == 2)
-    return texture(Sampler2, uv).r * 500;
+    return texture(Sampler2, uv).r;
     else if(idx == 3)
-    return texture(Sampler3, uv).r * 500;
+    return texture(Sampler3, uv).r;
 
-    return texture(Sampler4, uv).r * 500;
+    return texture(Sampler4, uv).r;
 }
 
 void main() {
@@ -138,26 +138,24 @@ void main() {
         return;
     }
 
-    float chunkDepth = LinearizeDepth(chunkCenterDepth)-BoxScale;
+    float chunkDepth = LinearizeDepth(chunkCenterDepth) / (far * 0.5) - 0.015625;//0.015625 = 4.0 / 256.0; do offset
 
     if(chunkDepth < 0) {
         fragColor = vec4(0.0, 0.4, 0.5, 1.0);
         return;
     }
 
-    /*
-       if(!isVisible(chunkPos)) {
+    if(!isVisible(chunkPos)) {
         fragColor = vec4(0.0, 0.0, 1.0, 1.0);
         return;
     }
-    */
 
     float sizeOffset = 8.0;
     vec3 aabb[8] = vec3[](
-        chunkPos+vec3(-sizeOffset, -sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, -sizeOffset),
-        chunkPos+vec3(-sizeOffset, sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, -sizeOffset),
-        chunkPos+vec3(-sizeOffset, -sizeOffset, sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, sizeOffset),
-        chunkPos+vec3(-sizeOffset, sizeOffset, sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, sizeOffset)
+    chunkPos+vec3(-sizeOffset, -sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, -sizeOffset),
+    chunkPos+vec3(-sizeOffset, sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, -sizeOffset),
+    chunkPos+vec3(-sizeOffset, -sizeOffset, sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, sizeOffset),
+    chunkPos+vec3(-sizeOffset, sizeOffset, sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, sizeOffset)
     );
 
     float maxX = -0.1;
@@ -166,6 +164,7 @@ void main() {
     float minY = 1.1;
 
     bool inside = false;
+
     vec3 colmun0 = CullingViewMat[0].xyz;
     vec3 colmun1 = CullingViewMat[1].xyz;
     vec3 colmun2 = CullingViewMat[2].xyz;
@@ -179,6 +178,8 @@ void main() {
         && screenPos.z >= 0 && screenPos.z <= 1) {
             inside = true;
         } else {
+            fragColor = vec4(0.0, 1.0, 0.0, 1.0);
+            return;
             vec3 vectorDir = normalize(aabb[i]-CullingCameraPos);
 
             float xDot = dot(vectorDir, cameraRight);
@@ -209,7 +210,7 @@ void main() {
     }
 
     if(!inside) {
-        fragColor = vec4(1.0, 1.0, 0.0, 1.0);
+        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 

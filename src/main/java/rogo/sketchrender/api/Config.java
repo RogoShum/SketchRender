@@ -69,9 +69,6 @@ public class Config {
         if (unload())
             return false;
 
-        if (CullingStateManager.CHUNK_CULLING_MAP == null || !CullingStateManager.CHUNK_CULLING_MAP.isDone())
-            return false;
-
         return getCullChunk();
     }
 

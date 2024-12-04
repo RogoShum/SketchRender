@@ -9,7 +9,6 @@ import me.jellysquid.mods.sodium.client.render.chunk.lists.VisibleChunkCollector
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.client.Camera;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,11 +17,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.api.RenderSectionVisibility;
 import rogo.sketchrender.util.SodiumSectionAsyncUtil;
 
 @Mixin(RenderSectionManager.class)
@@ -32,29 +28,16 @@ public abstract class MixinRenderSectionManager {
     @Final
     private Long2ReferenceMap<RenderSection> sectionByPosition;
 
-    @Shadow(remap = false) private @NotNull SortedRenderLists renderLists;
+    @Shadow(remap = false)
+    private @NotNull SortedRenderLists renderLists;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(ClientLevel world, int renderDistance, CommandList commandList, CallbackInfo ci) {
         SodiumSectionAsyncUtil.fromSectionManager(this.sectionByPosition, world);
     }
 
-    @Inject(method = "isSectionVisible", at = @At(value = "RETURN"), remap = false, locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true)
-    private void onIsSectionVisible(int x, int y, int z, CallbackInfoReturnable<Boolean> cir, RenderSection section) {
-        if (Config.shouldCullChunk()) {
-            cir.setReturnValue(
-                    CullingStateManager.shouldRenderChunk((RenderSectionVisibility) section, false)
-                            && CullingStateManager.FRUSTUM.isVisible(new AABB(section.getOriginX(), section.getOriginY(), section.getOriginZ()
-                            , section.getOriginX()+16, section.getOriginY()+16, section.getOriginZ()+16))
-            );
-        }
-    }
-
-    @Inject(method = "update", at = @At(value = "HEAD"), remap = false, cancellable = true)
+    @Inject(method = "update", at = @At(value = "HEAD"), remap = false)
     private void onUpdate(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
-        if(CullingStateManager.checkCulling && CullingStateManager.DEBUG > 1) {
-            ci.cancel();
-        }
         CullingStateManager.updating();
     }
 
@@ -71,7 +54,7 @@ public abstract class MixinRenderSectionManager {
     private void onCreateTerrainRenderList(boolean updateImmediately, CallbackInfo ci) {
         if (Config.getAsyncChunkRebuild()) {
             VisibleChunkCollector collector = CullingStateManager.renderingIris() ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
-            if(collector != null)
+            if (collector != null)
                 this.renderLists = collector.createRenderLists();
         }
     }

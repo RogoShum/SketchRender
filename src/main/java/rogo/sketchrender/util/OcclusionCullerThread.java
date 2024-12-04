@@ -1,9 +1,8 @@
 package rogo.sketchrender.util;
 
 import net.minecraft.client.Minecraft;
-import rogo.sketchrender.api.Config;
-import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.Config;
 
 public class OcclusionCullerThread extends Thread {
     public static OcclusionCullerThread INSTANCE;
@@ -17,12 +16,8 @@ public class OcclusionCullerThread extends Thread {
     }
 
     public static void shouldUpdate() {
-        if (Config.getAsyncChunkRebuild()) {
-            if(SketchRender.hasSodium()) {
-                SodiumSectionAsyncUtil.shouldUpdate();
-            } else if (VanillaAsyncUtil.injectedAsyncMixin) {
-                //VanillaAsyncUtil.shouldUpdate();
-            }
+        if (Config.getAsyncChunkRebuild() && SketchRender.hasSodium()) {
+            SodiumSectionAsyncUtil.shouldUpdate();
         }
     }
 
@@ -30,14 +25,8 @@ public class OcclusionCullerThread extends Thread {
     public void run() {
         while (!finished) {
             try {
-                if (CullingStateManager.CHUNK_CULLING_MAP != null && CullingStateManager.CHUNK_CULLING_MAP.isDone()) {
-                    if (Config.getAsyncChunkRebuild()) {
-                        if (SketchRender.hasSodium()) {
-                            SodiumSectionAsyncUtil.asyncSearchRebuildSection();
-                        } else if(VanillaAsyncUtil.injectedAsyncMixin) {
-                            //VanillaAsyncUtil.asyncSearchRebuildSection();
-                        }
-                    }
+                if (Config.getAsyncChunkRebuild() || SketchRender.hasSodium()) {
+                    SodiumSectionAsyncUtil.asyncSearchRebuildSection();
                 }
 
                 if (Minecraft.getInstance().level == null) {

@@ -1,7 +1,6 @@
 package rogo.sketchrender.culling;
 
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.Minecraft;
@@ -24,7 +23,6 @@ import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.CullingShader;
 import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorFrustum;
-import rogo.sketchrender.shader.ShaderModifier;
 import rogo.sketchrender.shader.uniform.UnsafeUniformMap;
 import rogo.sketchrender.vertexbuffer.EntityCullingInstanceRenderer;
 
@@ -48,37 +46,28 @@ public class CullingRenderEvent {
     float partialTick;
     int textWidth;
 
-    protected static void updateCullingMap() {
+    protected static void updateEntityCullingMap() {
         if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
             return;
-        Tesselator tessellator = Tesselator.getInstance();
-        BufferBuilder bufferbuilder = tessellator.getBuilder();
-        /*
-        if(ModLoader.CULL_TEST_TARGET.width != Minecraft.getInstance().getWindow().getWidth() || ModLoader.CULL_TEST_TARGET.height != Minecraft.getInstance().getWindow().getHeight()) {
-            ModLoader.CULL_TEST_TARGET.resize(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), Minecraft.ON_OSX);
-        }
-        CullingHandler.useShader(ModLoader.CULL_TEST_SHADER);
-        ModLoader.CULL_TEST_TARGET.clear(Minecraft.ON_OSX);
-        ModLoader.CULL_TEST_TARGET.bindWrite(false);
-        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
-        bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
-        bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
-        bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
-        bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
-        CullingHandler.callDepthTexture();
-        tessellator.end();
-         */
 
         CullingStateManager.callDepthTexture();
-
         if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MAP != null && CullingStateManager.ENTITY_CULLING_MAP.needTransferData()) {
             CullingStateManager.ENTITY_CULLING_MAP_TARGET.clear(Minecraft.ON_OSX);
             CullingStateManager.ENTITY_CULLING_MAP_TARGET.bindWrite(false);
             CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addEntityAttribute(CullingRenderEvent.ENTITY_CULLING_INSTANCE_RENDERER::addInstanceAttrib);
             ENTITY_CULLING_INSTANCE_RENDERER.drawWithShader(CullingStateManager.INSTANCED_ENTITY_CULLING_SHADER, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
         }
+        CullingStateManager.bindMainFrameTarget();
+    }
 
-        if (Config.getCullChunk() && CullingStateManager.CHUNK_CULLING_MAP != null && CullingStateManager.CHUNK_CULLING_MAP.needTransferData()) {
+    protected static void updateChunkCullingMap() {
+        if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
+            return;
+        Tesselator tessellator = Tesselator.getInstance();
+        BufferBuilder bufferbuilder = tessellator.getBuilder();
+        CullingStateManager.callDepthTexture();
+
+        if (Config.getCullChunk()) {
             CullingStateManager.useShader(CullingStateManager.CHUNK_CULLING_SHADER);
             CullingStateManager.CHUNK_CULLING_MAP_TARGET.clear(Minecraft.ON_OSX);
             CullingStateManager.CHUNK_CULLING_MAP_TARGET.bindWrite(false);
@@ -245,10 +234,8 @@ public class CullingRenderEvent {
         uniformMap.setUniform("sketch_level_section_range", CullingStateManager.LEVEL_SECTION_RANGE);
         uniformMap.setUniform("sketch_camera_pos", Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
 
-        if (CullingStateManager.CHUNK_CULLING_MAP != null) {
-            uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_MAP.getRenderDistance());
-            uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_MAP.getSpacePartitionSize());
-        }
+        uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_MESSAGE.getRenderDistance());
+        uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_MESSAGE.getSpacePartitionSize());
     }
 
     @SubscribeEvent
@@ -321,13 +308,8 @@ public class CullingRenderEvent {
                 }
 
                 if (Config.getCullChunk()) {
-                    if (CullingStateManager.CHUNK_CULLING_MAP != null) {
-                        String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + CullingStateManager.CHUNK_CULLING_MAP.lastQueueUpdateCount;
-                        addString(monitorTexts, chunkCullingCount);
-                    }
-
-                    String cullingInitTime = Component.translatable(SketchRender.MOD_ID + ".chunk_culling_init").getString() + ": " + (CullingStateManager.chunkCullingInitTime / CullingStateManager.cullingInitCount / CullingStateManager.fps) + " ns";
-                    addString(monitorTexts, cullingInitTime);
+                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + CullingStateManager.CHUNK_CULLING_MESSAGE.lastQueueUpdateCount;
+                    addString(monitorTexts, chunkCullingCount);
                 }
             }
 

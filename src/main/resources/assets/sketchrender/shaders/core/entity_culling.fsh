@@ -21,7 +21,7 @@ flat in vec2[5] DepthScreenSize;
 out vec4 fragColor;
 
 float near = 0.1;
-float far  = 1000.0;
+float far  = 16.0;
 
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
@@ -98,15 +98,15 @@ bool isVisible(vec3 vec, float width, float height) {
 
 float getUVDepth(int idx, vec2 uv) {
     if(idx == 0)
-    return texture(Sampler0, uv).r * 500;
+    return texture(Sampler0, uv).r;
     else if(idx == 1)
-    return texture(Sampler1, uv).r * 500;
+    return texture(Sampler1, uv).r;
     else if(idx == 2)
-    return texture(Sampler2, uv).r * 500;
+    return texture(Sampler2, uv).r;
     else if(idx == 3)
-    return texture(Sampler3, uv).r * 500;
+    return texture(Sampler3, uv).r;
 
-    return texture(Sampler4, uv).r * 500;
+    return texture(Sampler4, uv).r;
 }
 
 void main() {
@@ -197,7 +197,7 @@ void main() {
     minY = max(minY-yStep, 0.0);
     maxY = min(maxY+yStep, 1.0);
 
-    float entityDepth = LinearizeDepth(worldToScreenSpace(moveTowardsCamera(Pos, sqrt(halfWidth*halfWidth+halfWidth*halfWidth))).z);
+    float entityDepth = LinearizeDepth(worldToScreenSpace(moveTowardsCamera(Pos, sqrt(halfWidth*halfWidth+halfWidth*halfWidth))).z) / (far * 0.5);
     for (float x = minX; x <= maxX; x += xStep) {
         for (float y = minY; y <= maxY; y += yStep) {
             float pixelDepth = getUVDepth(idx, vec2(x, y));
