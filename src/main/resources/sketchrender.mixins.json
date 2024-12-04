@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "sketchrender.refmap.json",
   "mixins": [
-    "sodium.MixinGlProgram"
+    "sodium.MixinGlProgram",
+    "sodium.MixinGLRenderDevice",
+    "sodium.MixinGLRenderDevice$MixinDefaultChunkRenderer"
   ],
   "client": [
     "AccessorFrustum",

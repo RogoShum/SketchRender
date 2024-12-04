@@ -38,6 +38,8 @@ import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.opengl.GL42;
+import org.lwjgl.opengl.GL43;
 import org.slf4j.Logger;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingRenderEvent;
@@ -54,6 +56,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static java.lang.Thread.MAX_PRIORITY;
+import static org.lwjgl.opengl.GL32.nglDrawElementsInstancedBaseVertex;
+import static org.lwjgl.opengl.GL40.glDrawElementsIndirect;
 import static rogo.sketchrender.culling.CullingStateManager.*;
 
 @Mod(SketchRender.MOD_ID)
