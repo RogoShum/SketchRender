@@ -6,12 +6,15 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;
+import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.CullingShader;
+import rogo.sketchrender.api.ShaderCollector;
+import rogo.sketchrender.shader.ShaderManager;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 
-public class CullingShaderInstance extends ShaderInstance implements CullingShader {
+public class CullingShaderInstance extends ShaderInstance implements CullingShader, ShaderCollector {
     @Nullable
     public Uniform CULLING_CAMERA_POS;
     @Nullable
@@ -134,5 +137,10 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
         super.apply();
         if (CullingStateManager.updatingDepth)
             ProgramManager.glUseProgram(getId());
+    }
+
+    @Override
+    public void onShadeCreate() {
+        SketchRender.getShaderManager().onShaderLoad(this);
     }
 }

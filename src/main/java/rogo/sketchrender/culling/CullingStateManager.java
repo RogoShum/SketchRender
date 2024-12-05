@@ -30,8 +30,12 @@ import rogo.sketchrender.api.RenderChunkInfo;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.mixin.AccessorLevelRender;
 import rogo.sketchrender.mixin.AccessorMinecraft;
+import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.shader.ShaderModifier;
-import rogo.sketchrender.util.*;
+import rogo.sketchrender.util.DepthContext;
+import rogo.sketchrender.util.LifeTimer;
+import rogo.sketchrender.util.OcclusionCullerThread;
+import rogo.sketchrender.util.ShaderLoader;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -58,10 +62,6 @@ public class CullingStateManager {
     public static RenderTarget[] DEPTH_BUFFER_TARGET = new RenderTarget[DEPTH_SIZE];
     public static RenderTarget CHUNK_CULLING_MAP_TARGET;
     public static RenderTarget ENTITY_CULLING_MAP_TARGET;
-    public static ShaderInstance CHUNK_CULLING_SHADER;
-    public static ShaderInstance COPY_DEPTH_SHADER;
-    public static ShaderInstance REMOVE_COLOR_SHADER;
-    public static ShaderInstance INSTANCED_ENTITY_CULLING_SHADER;
     public static Frustum FRUSTUM;
     public static boolean updatingDepth;
     public static boolean applyFrustum;
@@ -103,7 +103,6 @@ public class CullingStateManager {
     public static int LEVEL_MIN_POS;
     public static Camera CAMERA;
     private static final HashMap<Integer, Integer> SHADER_DEPTH_BUFFER_ID = new HashMap<>();
-    private static int frame;
     public static volatile boolean useOcclusionCulling = true;
     private static int continueUpdateCount;
 
@@ -119,83 +118,9 @@ public class CullingStateManager {
             ENTITY_CULLING_MAP_TARGET = new TextureTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
             ENTITY_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
         });
-
-        ShaderModifier.registerModifier("sodium:terrain", ShaderModifier.beforeMain(Program.Type.VERTEX, """
-                uniform sampler2D sketch_culling_texture;
-                uniform int sketch_culling_terrain;
-                uniform int sketch_level_min_pos;
-                uniform int sketch_level_pos_range;
-                uniform int sketch_level_section_range;
-                uniform int sketch_render_distance;
-                uniform int sketch_space_partition_size;
-                uniform int sketch_culling_size;
-                uniform vec3 sketch_camera_pos;
-                uniform int sketch_check_culling;
-
-                int _map_culling_chunkY(float _pos_y) {
-                    float offset = _pos_y - sketch_level_min_pos;
-                    float mappingRatio = offset / sketch_level_pos_range;
-
-                    return int(floor(mappingRatio * sketch_level_section_range));
-                }
-
-                int _get_chunk_index(ivec3 chunk_offset) {
-                    return (chunk_offset.x + sketch_render_distance) * sketch_space_partition_size * sketch_level_section_range + (chunk_offset.z + sketch_render_distance) * sketch_level_section_range + chunk_offset.y;
-                }
-
-                ivec3 _vec_to_section_pos(vec3 vec) {
-                    return ivec3(int(vec.x) >> 4, int(vec.y) >> 4, int(vec.z) >> 4);
-                }
-
-                ivec2 _get_culling_uv_from_index(ivec3 chunk_offset) {
-                    int screenIndex = _get_chunk_index(chunk_offset);
-
-                    int fragX = screenIndex % sketch_culling_size;
-                    int fragY = screenIndex / sketch_culling_size;
-
-                    return ivec2(fragX, fragY);
-                }
-
-                bool _is_chunk_culled(ivec3 chunk_offset) {
-                    return texelFetch(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset), 0).y <= 0.001;
-                }
-                """));
-        ShaderModifier.registerModifier("sodium:terrain", ShaderModifier.afterVertInit(Program.Type.VERTEX, """
-                if (sketch_culling_terrain > 0) {
-                    vec3 sketch_section_pos = u_RegionOffset + _get_draw_translation(_draw_id) + sketch_camera_pos;
-                    ivec3 sketch_camera_section = _vec_to_section_pos(sketch_camera_pos);
-                    ivec3 sketch_chunk_offset_map = _vec_to_section_pos(vec3(sketch_section_pos.x + 8.0, sketch_section_pos.y, sketch_section_pos.z + 8.0));
-                    sketch_chunk_offset_map.x = sketch_chunk_offset_map.x - sketch_camera_section.x;
-                    sketch_chunk_offset_map.z = sketch_chunk_offset_map.z - sketch_camera_section.z;
-                    sketch_chunk_offset_map.y = _map_culling_chunkY(sketch_section_pos.y + 8.0);
-
-                    bool sketch_culled = _is_chunk_culled(sketch_chunk_offset_map);
-                    if (sketch_check_culling > 0) {
-                        sketch_culled = !sketch_culled;
-                    }
-
-                    if (sketch_culled) {
-                        gl_Position = vec4(0.0, 0.0, 10000.0, 1.0);
-                        return;
-                    }
-                }
-                """));
     }
 
     public static void init() {
-        try {
-            OptiFine = Class.forName("net.optifine.shaders.Shaders");
-        } catch (ClassNotFoundException e) {
-            SketchRender.LOGGER.debug("OptiFine Not Found");
-        }
-
-        if (OptiFine != null) {
-            try {
-                SHADER_LOADER = Class.forName("rogo.sketchrender.util.OptiFineLoaderImpl").asSubclass(ShaderLoader.class).newInstance();
-            } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ignored) {
-            }
-        }
-
         if (SketchRender.hasIris()) {
             try {
                 SHADER_LOADER = Class.forName("rogo.sketchrender.util.IrisLoaderImpl").asSubclass(ShaderLoader.class).newInstance();
@@ -203,6 +128,8 @@ public class CullingStateManager {
                 throw new RuntimeException(e);
             }
         }
+
+        ShaderModifier.loadAll(Minecraft.getInstance().getResourceManager());
     }
 
     public static void onWorldUnload(Level world) {
@@ -338,7 +265,6 @@ public class CullingStateManager {
                 }
             }
             case "afterRunTick" -> {
-                ++frame;
                 updateMapData();
                 OcclusionCullerThread.shouldUpdate();
             }
@@ -508,7 +434,7 @@ public class CullingStateManager {
             MAIN_DEPTH_TEXTURE = depthTexture;
 
             runOnDepthFrame((depthContext) -> {
-                useShader(CullingStateManager.COPY_DEPTH_SHADER);
+                useShader(ShaderManager.COPY_DEPTH_SHADER);
                 depthContext.frame().clear(Minecraft.ON_OSX);
                 depthContext.frame().bindWrite(false);
                 Tesselator tesselator = Tesselator.getInstance();

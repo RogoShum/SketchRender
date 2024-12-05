@@ -3,15 +3,11 @@ package rogo.sketchrender;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.InputConstants;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
@@ -22,6 +18,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
@@ -38,39 +35,36 @@ import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.opengl.GL42;
-import org.lwjgl.opengl.GL43;
 import org.slf4j.Logger;
+import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingRenderEvent;
-import rogo.sketchrender.api.AABBObject;
-import rogo.sketchrender.culling.CullingShaderInstance;
 import rogo.sketchrender.gui.ConfigScreen;
+import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.NvidiumUtil;
 import rogo.sketchrender.util.OcclusionCullerThread;
 import rogo.sketchrender.util.RenderDrawTimer;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static java.lang.Thread.MAX_PRIORITY;
-import static org.lwjgl.opengl.GL32.nglDrawElementsInstancedBaseVertex;
-import static org.lwjgl.opengl.GL40.glDrawElementsIndirect;
 import static rogo.sketchrender.culling.CullingStateManager.*;
 
 @Mod(SketchRender.MOD_ID)
 public class SketchRender {
     public static final String MOD_ID = "sketchrender";
     public static final Logger LOGGER = LogUtils.getLogger();
+    private static final ShaderManager shaderManager = new ShaderManager();
 
+    @SuppressWarnings("removal")
     public SketchRender() {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-            registerShader();
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
             ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_CONFIG);
+            FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
 
             init();
@@ -95,35 +89,20 @@ public class SketchRender {
             GLFW.GLFW_KEY_G,
             "key.category." + MOD_ID);
 
+    public void registerReloadListener(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(SketchRender.shaderManager);
+    }
+
     public void registerKeyBinding(RegisterKeyMappingsEvent event) {
         event.register(CONFIG_KEY);
         event.register(DEBUG_KEY);
-        //event.register(TEST_CULL_KEY);
     }
 
-    private void registerShader() {
-        RenderSystem.recordRenderCall(this::initShader);
-    }
-
-    public static ShaderInstance CULL_TEST_SHADER;
     public static RenderTarget CULL_TEST_TARGET;
 
     static {
         CULL_TEST_TARGET = new TextureTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
         CULL_TEST_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-    }
-
-    private void initShader() {
-        LOGGER.debug("try init shader chunk_culling");
-        try {
-            CHUNK_CULLING_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "chunk_culling"), DefaultVertexFormat.POSITION);
-            INSTANCED_ENTITY_CULLING_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "instanced_entity_culling"), DefaultVertexFormat.POSITION);
-            COPY_DEPTH_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "copy_depth"), DefaultVertexFormat.POSITION);
-            REMOVE_COLOR_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "remove_color"), DefaultVertexFormat.POSITION_COLOR_TEX);
-            CULL_TEST_SHADER = new CullingShaderInstance(Minecraft.getInstance().getResourceManager(), new ResourceLocation(MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @SubscribeEvent
@@ -249,6 +228,10 @@ public class SketchRender {
                         , 16777215 + (255 << 24));
             }
         }
+    }
+
+    public static ShaderManager getShaderManager() {
+        return SketchRender.shaderManager;
     }
 
     private long lastSwitchTime = 0;

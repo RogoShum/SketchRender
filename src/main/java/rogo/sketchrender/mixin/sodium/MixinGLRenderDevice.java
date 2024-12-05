@@ -40,7 +40,6 @@ public class MixinGLRenderDevice implements TessellationDevice {
                 IndirectCommandBuffer.INSTANCE.upload();
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
                 GL43.glMultiDrawElementsIndirect(primitiveType.getId(), indexType.getFormatId(), 0, drawCount, stride);
-                //IndirectCommandBuffer.INSTANCE.unBind();
                 ci.cancel();
             }
         }

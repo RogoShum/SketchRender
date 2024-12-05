@@ -18,6 +18,7 @@ import net.minecraft.world.entity.player.Player;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.shader.ShaderManager;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -60,7 +61,7 @@ public class ConfigScreen extends Screen {
         float bgColor = 1.0f;
         float bgAlpha = 0.3f;
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 0.1f);
-        CullingStateManager.useShader(CullingStateManager.REMOVE_COLOR_SHADER);
+        CullingStateManager.useShader(ShaderManager.REMOVE_COLOR_SHADER);
         BufferBuilder bufferbuilder = Tesselator.getInstance().getBuilder();
         bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_TEX);
         bufferbuilder.vertex(right - 1, bottom + 1, 0.0D)
