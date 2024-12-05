@@ -60,6 +60,7 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
         this.FRUSTUM_POS = this.getUniform("FrustumPos");
         this.CULLING_VIEW_MAT = this.getUniform("CullingViewMat");
         this.CULLING_PROJ_MAT = this.getUniform("CullingProjMat");
+        onShadeCreate();
     }
 
     @Override

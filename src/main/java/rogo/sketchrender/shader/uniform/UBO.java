@@ -1,5 +1,6 @@
 package rogo.sketchrender.shader.uniform;
 
+import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.core.Vec3i;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
@@ -24,9 +25,9 @@ public class UBO {
 
     private int createUBO() {
         int id = GL15.glGenBuffers();
-        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, id);
+        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, id);
         GL15.glBufferData(GL31.GL_UNIFORM_BUFFER, stride, GL15.GL_DYNAMIC_DRAW);
-        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
+        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
         return id;
     }
 
@@ -59,9 +60,9 @@ public class UBO {
     }
 
     public void updateData(FloatBuffer buffer) {
-        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, uboId);
+        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, uboId);
         GL15.glBufferData(GL31.GL_UNIFORM_BUFFER, buffer, GL15.GL_DYNAMIC_DRAW);
-        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
+        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
     }
 
     public int getStride() {

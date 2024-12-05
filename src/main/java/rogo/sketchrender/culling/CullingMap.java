@@ -1,5 +1,6 @@
 package rogo.sketchrender.culling;
 
+import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
@@ -25,9 +26,9 @@ public abstract class CullingMap {
         this.height = height;
         cullingBuffer = BufferUtils.createByteBuffer(width * height * 4);
         pboId = GL15.glGenBuffers();
-        GL15.glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, pboId);
+        GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, pboId);
         GL15.glBufferData(GL31.GL_PIXEL_PACK_BUFFER, (long) width * height * 4 * Float.BYTES, GL15.GL_DYNAMIC_READ);
-        GL15.glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, 0);
+        GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, 0);
         CullingStateManager.bindMainFrameTarget();
     }
 
@@ -42,9 +43,9 @@ public abstract class CullingMap {
     public void transferData() {
         if (delayCount <= 0) {
             GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, bindFrameBufferId());
-            GL15.glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, pboId);
+            GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, pboId);
             GL11.glReadPixels(0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, 0);
-            GL15.glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, 0);
+            GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, 0);
             CullingStateManager.bindMainFrameTarget();
             delayCount = configDelayCount() + dynamicDelayCount();
         } else if (shouldUpdate()) {
@@ -58,9 +59,9 @@ public abstract class CullingMap {
     protected abstract boolean shouldUpdate();
 
     public void readData() {
-        GL15.glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, pboId);
+        GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, pboId);
         GL15.glGetBufferSubData(GL31.GL_PIXEL_PACK_BUFFER, 0, cullingBuffer);
-        GL15.glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, 0);
+        GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, 0);
         setTransferred(false);
     }
 

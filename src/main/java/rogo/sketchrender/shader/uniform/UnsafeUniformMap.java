@@ -1,5 +1,6 @@
 package rogo.sketchrender.shader.uniform;
 
+import net.minecraft.core.Vec3i;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -128,6 +129,13 @@ public class UnsafeUniformMap {
         int handle = getUniform(name);
         if (handle > -1) {
             GL20.glUniform3f(handle, (float) value.x, (float) value.y, (float) value.z);
+        }
+    }
+
+    public void setUniform(String name, Vec3i value) {
+        int handle = getUniform(name);
+        if (handle > -1) {
+            GL20.glUniform3i(handle, value.getX(), value.getY(), value.getZ());
         }
     }
 

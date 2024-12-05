@@ -8,6 +8,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
@@ -233,7 +234,9 @@ public class CullingRenderEvent {
         uniformMap.setUniform("sketch_level_min_pos", CullingStateManager.LEVEL_MIN_POS);
         uniformMap.setUniform("sketch_level_pos_range", CullingStateManager.LEVEL_POS_RANGE);
         uniformMap.setUniform("sketch_level_section_range", CullingStateManager.LEVEL_SECTION_RANGE);
-        uniformMap.setUniform("sketch_camera_pos", Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
+        Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+        BlockPos cameraPos = new BlockPos((int) pos.x >> 4, (int) pos.y >> 4, (int) pos.z >> 4);
+        uniformMap.setUniform("sketch_camera_pos", cameraPos);
 
         uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_MESSAGE.getRenderDistance());
         uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_MESSAGE.getSpacePartitionSize());

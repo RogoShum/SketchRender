@@ -52,7 +52,7 @@ public abstract class VertexAttribute implements AutoCloseable {
     public abstract void addAttrib(Consumer<ByteBuffer> bufferConsumer);
 
     public void bind() {
-        GL15.glBindBuffer(34962, vertexID);
+        GlStateManager._glBindBuffer(34962, vertexID);
     }
 
     public void updateVertexAttrib() {

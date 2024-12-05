@@ -7,13 +7,16 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import org.apache.commons.compress.utils.Lists;
 import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.ShaderCollector;
+import rogo.sketchrender.culling.ChunkCullingMessage;
 import rogo.sketchrender.culling.CullingShaderInstance;
+import rogo.sketchrender.culling.CullingStateManager;
 
 import java.io.IOException;
 import java.util.List;
 
 public class ShaderManager implements ResourceManagerReloadListener {
-    private final List<AutoCloseable> shaders = Lists.newArrayList();
+    private final List<ShaderCollector> shaders = Lists.newArrayList();
     public static ShaderInstance CHUNK_CULLING_SHADER;
     public static ShaderInstance COPY_DEPTH_SHADER;
     public static ShaderInstance REMOVE_COLOR_SHADER;
@@ -22,7 +25,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
 
     public static ComputeShader CHUNK_CULLING_CS;
 
-    public void onShaderLoad(AutoCloseable a) {
+    public void onShaderLoad(ShaderCollector a) {
         shaders.add(a);
     }
 
@@ -31,7 +34,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
         ShaderModifier.clear();
         ShaderModifier.loadAll(resourceManager);
 
-        for (AutoCloseable autoCloseable : shaders) {
+        for (ShaderCollector autoCloseable : shaders) {
             try {
                 autoCloseable.close();
             } catch (Exception e) {
@@ -48,7 +51,10 @@ public class ShaderManager implements ResourceManagerReloadListener {
             REMOVE_COLOR_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "remove_color"), DefaultVertexFormat.POSITION_COLOR_TEX);
             CULL_TEST_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
 
-            CHUNK_CULLING_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_chunk"));
+            CHUNK_CULLING_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_chunk"), (cs) -> {
+                cs.bindSSBO(ChunkCullingMessage.batchCulling.getId(), 0);
+                cs.bindSSBO(ChunkCullingMessage.batchCommand.getId(), 1);
+            });
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

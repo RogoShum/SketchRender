@@ -1,5 +1,6 @@
 package rogo.sketchrender.vertexbuffer.component;
 
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -19,8 +20,6 @@ import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
 import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
-import static org.lwjgl.opengl.GL15.glBindBuffer;
 
 @OnlyIn(Dist.CLIENT)
 public abstract class VertexBufferRenderer implements AutoCloseable {
@@ -65,7 +64,7 @@ public abstract class VertexBufferRenderer implements AutoCloseable {
     }
 
     public void unbindVBO() {
-        glBindBuffer(34962, 0);
+        GlStateManager._glBindBuffer(34962, 0);
     }
 
     private void bindVertexArray() {

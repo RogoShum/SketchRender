@@ -1,5 +1,8 @@
 package rogo.sketchrender.mixin.sodium;
 
+import com.mojang.blaze3d.platform.GlDebug;
+import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
 import me.jellysquid.mods.sodium.client.gl.device.GLRenderDevice;
 import me.jellysquid.mods.sodium.client.gl.device.MultiDrawBatch;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlIndexType;
@@ -12,8 +15,11 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.TessellationDevice;
+import rogo.sketchrender.culling.ChunkCullingMessage;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
+import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.DrawElementsIndirectCommand;
 
 @Mixin(GLRenderDevice.class)
@@ -36,8 +42,15 @@ public class MixinGLRenderDevice implements TessellationDevice {
                 int drawCount = batch.size();
                 int stride = DrawElementsIndirectCommand.SIZE;
 
-                IndirectCommandBuffer.INSTANCE.bindOnce();
-                IndirectCommandBuffer.INSTANCE.upload();
+                IndirectCommandBuffer.INSTANCE.bind();
+
+                if (Config.getCullChunk()) {
+                    ChunkCullingMessage.batchCulling.upload();
+                    ShaderManager.CHUNK_CULLING_CS.execute(drawCount, 1, 1);
+                } else {
+                    IndirectCommandBuffer.INSTANCE.upload();
+                }
+
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
                 GL43.glMultiDrawElementsIndirect(primitiveType.getId(), indexType.getFormatId(), 0, drawCount, stride);
                 ci.cancel();
