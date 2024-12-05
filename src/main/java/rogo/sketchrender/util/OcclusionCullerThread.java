@@ -3,6 +3,7 @@ package rogo.sketchrender.util;
 import net.minecraft.client.Minecraft;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 
 public class OcclusionCullerThread extends Thread {
     public static OcclusionCullerThread INSTANCE;

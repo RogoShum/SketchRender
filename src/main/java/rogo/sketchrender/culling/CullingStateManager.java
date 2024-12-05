@@ -27,6 +27,7 @@ import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.EntitiesForRender;
 import rogo.sketchrender.api.RenderChunkInfo;
+import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.mixin.AccessorLevelRender;
 import rogo.sketchrender.mixin.AccessorMinecraft;
 import rogo.sketchrender.shader.ShaderModifier;

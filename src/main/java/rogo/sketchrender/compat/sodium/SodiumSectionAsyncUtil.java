@@ -1,4 +1,4 @@
-package rogo.sketchrender.util;
+package rogo.sketchrender.compat.sodium;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;

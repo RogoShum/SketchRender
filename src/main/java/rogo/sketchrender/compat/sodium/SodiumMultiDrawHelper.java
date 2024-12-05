@@ -1,8 +1,9 @@
-package rogo.sketchrender.util;
+package rogo.sketchrender.compat.sodium;
 
 import me.jellysquid.mods.sodium.client.gl.device.MultiDrawBatch;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.Pointer;
+import rogo.sketchrender.util.DrawElementsIndirectCommand;
 
 public class SodiumMultiDrawHelper {
     private final MultiDrawBatch batch;

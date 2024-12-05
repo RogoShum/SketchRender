@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.util.SodiumSectionAsyncUtil;
+import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 
 @Mixin(RenderSectionManager.class)
 public abstract class MixinRenderSectionManager {

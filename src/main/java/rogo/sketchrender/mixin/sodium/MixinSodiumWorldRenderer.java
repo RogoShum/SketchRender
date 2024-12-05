@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.util.SodiumSectionAsyncUtil;
+import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 
 import java.util.SortedSet;
 
