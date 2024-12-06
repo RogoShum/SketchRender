@@ -33,7 +33,10 @@ public class ShaderManager implements ResourceManagerReloadListener {
     public void onResourceManagerReload(ResourceManager resourceManager) {
         ShaderModifier.clear();
         ShaderModifier.loadAll(resourceManager);
+        resetShader(resourceManager);
+    }
 
+    public void resetShader(ResourceManager resourceManager) {
         for (ShaderCollector autoCloseable : shaders) {
             try {
                 autoCloseable.close();

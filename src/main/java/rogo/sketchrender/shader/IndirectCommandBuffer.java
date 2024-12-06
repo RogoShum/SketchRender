@@ -2,7 +2,7 @@ package rogo.sketchrender.shader;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import me.jellysquid.mods.sodium.client.model.quad.properties.ModelQuadFacing;
-import net.minecraft.core.BlockPos;
+import net.minecraft.client.renderer.texture.SpriteLoader;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
@@ -11,11 +11,10 @@ import rogo.sketchrender.shader.uniform.SSBO;
 public class IndirectCommandBuffer {
     public static final IndirectCommandBuffer INSTANCE = new IndirectCommandBuffer(ModelQuadFacing.COUNT * 256 + 1);
     private final int id = GL15.glGenBuffers();
-    private static int lastBindBuffer;
     private int chunkX;
     private int chunkY;
     private int chunkZ;
-    public final long commandBuffer;
+    private final long commandBuffer;
     public final int iCapacity;
     public int maxElementCount;
     public int position;
@@ -29,25 +28,23 @@ public class IndirectCommandBuffer {
             MemoryUtil.memPutInt(commandBuffer + offset + 8, 0);
             MemoryUtil.memPutInt(commandBuffer + offset + 16, 0);
         }
+
         GL15.nglBufferData(GL43.GL_DRAW_INDIRECT_BUFFER, iCapacity, commandBuffer, GL15.GL_DYNAMIC_DRAW);
     }
 
     public void bind() {
-        if (lastBindBuffer != id) {
-            GlStateManager._glBindBuffer(GL43.GL_DRAW_INDIRECT_BUFFER, id);
-            lastBindBuffer = id;
-        }
+        GlStateManager._glBindBuffer(GL43.GL_DRAW_INDIRECT_BUFFER, id);
     }
 
     public void upload() {
-        GL15.nglBufferData(GL43.GL_DRAW_INDIRECT_BUFFER, position, commandBuffer, GL15.GL_DYNAMIC_DRAW);
+        GL15.nglBufferSubData(GL43.GL_DRAW_INDIRECT_BUFFER, 0, position, commandBuffer);
     }
 
     public int getId() {
         return id;
     }
 
-    public long getBufferAddress() {
+    public long getMemoryAddress() {
         return commandBuffer;
     }
 

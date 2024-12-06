@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.lwjgl.opengl.GL43.*;
+
 public class ComputeShader implements ShaderCollector, ExtraUniform {
     private final UnsafeUniformMap unsafeUniformMap;
     private final int program;
@@ -50,11 +52,17 @@ public class ComputeShader implements ShaderCollector, ExtraUniform {
         onShadeCreate();
     }
 
-    public void execute(int xWorkGroups, int yWorkGroups, int zWorkGroups) {
+    public void bind() {
         GL20.glUseProgram(program);
         MinecraftForge.EVENT_BUS.post(new ProgramEvent.Bind(this.getUniforms().getProgramId(), this));
+    }
+
+    public void execute(int xWorkGroups, int yWorkGroups, int zWorkGroups) {
         GL43.glDispatchCompute(xWorkGroups, yWorkGroups, zWorkGroups);
-        GL43.glMemoryBarrier(GL43.GL_SHADER_STORAGE_BARRIER_BIT);
+    }
+
+    public void memoryBarrier(int bit) {
+        GL43.glMemoryBarrier(bit);
     }
 
     public void bindSSBO(int ssboId, int binding) {

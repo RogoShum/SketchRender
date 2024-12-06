@@ -206,7 +206,7 @@ public class CullingRenderEvent {
                         "sketch_render_distance",
                         "sketch_space_partition_size",
                         "sketch_culling_size",
-                        "sketch_camera_pos",
+                        "sketch_camera_offset",
                         "sketch_check_culling"
                 });
         GlStateManager._glUseProgram(0);
@@ -235,8 +235,8 @@ public class CullingRenderEvent {
         uniformMap.setUniform("sketch_level_pos_range", CullingStateManager.LEVEL_POS_RANGE);
         uniformMap.setUniform("sketch_level_section_range", CullingStateManager.LEVEL_SECTION_RANGE);
         Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-        BlockPos cameraPos = new BlockPos((int) pos.x >> 4, (int) pos.y >> 4, (int) pos.z >> 4);
-        uniformMap.setUniform("sketch_camera_pos", cameraPos);
+        BlockPos cameraPos = new BlockPos((int) pos.x >> 4, CullingStateManager.LEVEL_MIN_POS >> 4, (int) pos.z >> 4);
+        uniformMap.setUniform("sketch_camera_offset", cameraPos);
 
         uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_MESSAGE.getRenderDistance());
         uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_MESSAGE.getSpacePartitionSize());

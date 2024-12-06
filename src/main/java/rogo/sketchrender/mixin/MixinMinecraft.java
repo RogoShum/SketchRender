@@ -6,7 +6,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.culling.CullingStateManager;
+import rogo.sketchrender.shader.ShaderManager;
 
 @Mixin(Minecraft.class)
 public class MixinMinecraft {
@@ -23,5 +25,6 @@ public class MixinMinecraft {
     @Inject(method = "setLevel", at = @At(value = "HEAD"))
     public void onJoinWorld(ClientLevel world, CallbackInfo ci) {
         CullingStateManager.onWorldUnload(world);
+        SketchRender.getShaderManager().resetShader(Minecraft.getInstance().getResourceManager());
     }
 }

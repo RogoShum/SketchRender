@@ -1,22 +1,19 @@
 #version 430
 
-layout(std430, binding = 0) buffer InputSSBO {
+layout(std430, binding = 0) readonly buffer InputSSBO {
     int inputData[];
 };
 
-layout(std430, binding = 1) buffer OutputSSBO {
+layout(std430, binding = 1) writeonly buffer OutputSSBO {
     int outputData[];
 };
 
 uniform sampler2D sketch_culling_texture;
-uniform int sketch_level_min_pos;
-uniform int sketch_level_pos_range;
 uniform int sketch_level_section_range;
 uniform int sketch_render_distance;
 uniform int sketch_space_partition_size;
 uniform int sketch_culling_size;
-uniform vec3 sketch_camera_pos;
-uniform int sketch_check_culling;
+uniform ivec3 sketch_camera_offset;
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
@@ -39,15 +36,13 @@ bool _is_chunk_culled(ivec3 chunk_offset) {
 
 void main() {
     uint id = gl_GlobalInvocationID.x;
-    if (id >= inputData.length()) return;
     int offset = int(id) * 5;
 
     int x = inputData[offset];
     int y = inputData[offset + 1];
     int z = inputData[offset + 2];
 
-    ivec3 carema_section = ivec3(int(sketch_camera_pos.x), int(sketch_camera_pos.y), int(sketch_camera_pos.z));
-    ivec3 offset_chunk = ivec3(x - carema_section.x, y - carema_section.y, z - carema_section.z);
+    ivec3 offset_chunk = ivec3(x - sketch_camera_offset.x, y - sketch_camera_offset.y, z - sketch_camera_offset.z);
 
     if (!_is_chunk_culled(offset_chunk)) {
         int elementCount = inputData[offset + 3];

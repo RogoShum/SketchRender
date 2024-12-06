@@ -1,5 +1,6 @@
 package rogo.sketchrender.util;
 
+import java.text.DecimalFormat;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,7 +31,8 @@ public class RenderDrawTimer {
             long totalCalls = callCounts.get(functionName);
             long averageTimeNs = totalCalls > 0 ? totalDuration / totalCalls : 0;
             double averageTimeMs = averageTimeNs / 1_000_000.0;
-            results.put(functionName, averageTimeMs + "ms");
+            DecimalFormat df = new DecimalFormat("#.####################");
+            results.put(functionName, df.format(averageTimeMs) + "ms");
         }
 
         callTimes.clear();
