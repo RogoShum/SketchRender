@@ -52,9 +52,13 @@ public class ComputeShader implements ShaderCollector, ExtraUniform {
         onShadeCreate();
     }
 
-    public void bind() {
+    public void bindUniforms() {
         GL20.glUseProgram(program);
         MinecraftForge.EVENT_BUS.post(new ProgramEvent.Bind(this.getUniforms().getProgramId(), this));
+    }
+
+    public void bind() {
+        GL20.glUseProgram(program);
     }
 
     public void execute(int xWorkGroups, int yWorkGroups, int zWorkGroups) {

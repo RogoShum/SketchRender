@@ -1,8 +1,10 @@
 package rogo.sketchrender.culling;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.jellysquid.mods.sodium.client.model.quad.properties.ModelQuadFacing;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
+import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 public class ChunkCullingMessage {
@@ -13,11 +15,15 @@ public class ChunkCullingMessage {
 
     public static SSBO batchCulling;
     public static SSBO batchCommand;
+    public static SSBO batchCounter;
+    public static CountBuffer cullingCounter;
 
     static {
         RenderSystem.recordRenderCall(() -> {
             batchCulling = new SSBO(ModelQuadFacing.COUNT * 256 + 1);
             batchCommand = new SSBO(IndirectCommandBuffer.INSTANCE);
+            cullingCounter = new CountBuffer(VertexFormatElement.Type.INT);
+            batchCounter = new SSBO(cullingCounter);
         });
     }
 

@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingRenderEvent;
+import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.NvidiumUtil;
@@ -145,10 +146,13 @@ public class SketchRender {
                     LEVEL_MIN_POS = Minecraft.getInstance().level.getMinBuildHeight();
                     LEVEL_POS_RANGE = Minecraft.getInstance().level.getMaxBuildHeight() - Minecraft.getInstance().level.getMinBuildHeight();
 
-                    OcclusionCullerThread occlusionCullerThread = new OcclusionCullerThread();
-                    occlusionCullerThread.setName("Chunk Depth Occlusion Cull thread");
-                    occlusionCullerThread.setPriority(MAX_PRIORITY);
-                    occlusionCullerThread.start();
+                    if (OcclusionCullerThread.INSTANCE == null) {
+                        OcclusionCullerThread occlusionCullerThread = new OcclusionCullerThread();
+                        OcclusionCullerThread.INSTANCE = occlusionCullerThread;
+                        occlusionCullerThread.setName("Chunk Depth Occlusion Cull thread");
+                        occlusionCullerThread.setPriority(MAX_PRIORITY);
+                        occlusionCullerThread.start();
+                    }
                 }
                 Config.setLoaded();
             } else {
@@ -242,7 +246,7 @@ public class SketchRender {
         long SWITCH_INTERVAL = 1000000000L;
         if (currentTime - lastSwitchTime >= SWITCH_INTERVAL) {
             lastSwitchTime = currentTime;
-            TIMER.calculateAverageTimes();
+            TIMER.calculateAverageTimes(CullingStateManager.fps);
         }
     }
 

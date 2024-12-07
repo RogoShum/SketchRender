@@ -8,11 +8,16 @@ layout(std430, binding = 1) writeonly buffer OutputSSBO {
     int outputData[];
 };
 
+layout(std430, binding = 2) buffer CounterSSBO {
+    int counter;
+};
+
 uniform sampler2D sketch_culling_texture;
 uniform int sketch_level_section_range;
 uniform int sketch_render_distance;
 uniform int sketch_space_partition_size;
 uniform int sketch_culling_size;
+uniform int sketch_check_culling;
 uniform ivec3 sketch_camera_offset;
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
@@ -31,7 +36,11 @@ ivec2 _get_culling_uv_from_index(ivec3 chunk_offset) {
 }
 
 bool _is_chunk_culled(ivec3 chunk_offset) {
-    return texelFetch(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset), 0).y <= 0.001;
+    bool cull = texelFetch(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset), 0).y <= 0.001;
+    if (sketch_check_culling > 0) {
+        return !cull;
+    }
+    return cull;
 }
 
 void main() {
@@ -48,16 +57,15 @@ void main() {
         int elementCount = inputData[offset + 3];
         int vertexOffset = inputData[offset + 4];
 
-        outputData[offset] = elementCount;
-        outputData[offset + 1] = 1;
-        outputData[offset + 2] = 0;
-        outputData[offset + 3] = vertexOffset;
-        outputData[offset + 4] = 0;
-    } else {
-        outputData[offset] = 0;
-        outputData[offset + 1] = 0;
-        outputData[offset + 2] = 0;
-        outputData[offset + 3] = 0;
-        outputData[offset + 4] = 0;
+        int currentCounter = atomicAdd(counter, 1);
+        memoryBarrierBuffer();
+
+        int outputOffset = currentCounter * 5;
+
+        outputData[outputOffset] = elementCount;
+        outputData[outputOffset + 1] = 1;
+        outputData[outputOffset + 2] = 0;
+        outputData[outputOffset + 3] = vertexOffset;
+        outputData[outputOffset + 4] = 0;
     }
 }

@@ -5,37 +5,43 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RenderDrawTimer {
-    private final Map<String, Long> callTimes = new HashMap<>();
+    private final Map<String, Long> totalDurations = new HashMap<>();
     private final Map<String, Long> callCounts = new HashMap<>();
-    private long startTime;
-    private String func = "";
+    private final Map<String, Long> startTimes = new HashMap<>();
     private Map<String, String> results = new HashMap<>();
 
-    public void start(String functionName) {
-        func = functionName;
-        startTime =  System.nanoTime();
+    public void start(String taskName) {
+        startTimes.put(taskName, System.nanoTime());
     }
 
-    public void end() {
-        long endTime = System.nanoTime();
-        long duration = endTime - startTime;
+    public void end(String taskName) {
+        Long startTime = startTimes.remove(taskName);
+        if (startTime != null) {
+            long endTime = System.nanoTime();
+            long duration = endTime - startTime;
 
-        callTimes.put(func, callTimes.getOrDefault(func, 0L) + duration);
-        callCounts.put(func, callCounts.getOrDefault(func, 0L) + 1);
+            totalDurations.put(taskName, totalDurations.getOrDefault(taskName, 0L) + duration);
+            callCounts.put(taskName, callCounts.getOrDefault(taskName, 0L) + 1);
+        }
     }
 
-    public void calculateAverageTimes() {
+    public void calculateAverageTimes(int frameCount) {
         results = new HashMap<>();
-        for (String functionName : callTimes.keySet()) {
-            long totalDuration = callTimes.get(functionName);
-            long totalCalls = callCounts.get(functionName);
+        DecimalFormat df = new DecimalFormat("#.############");
+
+        for (String taskName : totalDurations.keySet()) {
+            long totalDuration = totalDurations.get(taskName);
+            long totalCalls = callCounts.getOrDefault(taskName, 0L);
             long averageTimeNs = totalCalls > 0 ? totalDuration / totalCalls : 0;
+
+            double totalDurationTimeMs = totalDuration / 1_000_000.0;
             double averageTimeMs = averageTimeNs / 1_000_000.0;
-            DecimalFormat df = new DecimalFormat("#.####################");
-            results.put(functionName, df.format(averageTimeMs) + "ms");
+            double perFrameTimeMs = frameCount > 0 ? (totalDuration / (double) frameCount) / 1_000_000.0 : 0;
+
+            results.put(taskName, "Total: " + df.format(totalDurationTimeMs) + "ms, Average: " + df.format(averageTimeMs) + "ms, Per Frame: " + df.format(perFrameTimeMs) + "ms");
         }
 
-        callTimes.clear();
+        totalDurations.clear();
         callCounts.clear();
     }
 

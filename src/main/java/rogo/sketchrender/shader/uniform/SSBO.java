@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketchrender.api.BufferObject;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 
 public class SSBO {
@@ -21,8 +22,8 @@ public class SSBO {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    public SSBO(IndirectCommandBuffer buffer) {
-        iCapacity = buffer.iCapacity;
+    public SSBO(BufferObject buffer) {
+        iCapacity = buffer.getSize();
         bufferPointer = buffer.getMemoryAddress();
         id = buffer.getId();
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);

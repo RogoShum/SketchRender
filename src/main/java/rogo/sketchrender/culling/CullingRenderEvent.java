@@ -32,8 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
-import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
-import static org.lwjgl.opengl.GL13.GL_TEXTURE18;
+import static org.lwjgl.opengl.GL13.*;
 import static rogo.sketchrender.gui.ConfigScreen.u;
 import static rogo.sketchrender.gui.ConfigScreen.v;
 
@@ -193,53 +192,59 @@ public class CullingRenderEvent {
         }
     }
 
+    public static final ResourceLocation culling_terrain = new ResourceLocation(SketchRender.MOD_ID, "terrain");
+
     @SubscribeEvent
     public void onBind(ProgramEvent.Init event) {
         GlStateManager._glUseProgram(event.getProgramId());
-        event.getExtraUniform().getUniforms().createUniforms(new ResourceLocation(SketchRender.MOD_ID, "terrain")
-                , new String[]{
-                        "sketch_culling_terrain",
-                        "sketch_culling_texture",
-                        "sketch_level_min_pos",
-                        "sketch_level_pos_range",
-                        "sketch_level_section_range",
-                        "sketch_render_distance",
-                        "sketch_space_partition_size",
-                        "sketch_culling_size",
-                        "sketch_camera_offset",
-                        "sketch_check_culling"
-                });
+        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_check_culling", () -> {
+            event.getExtraUniform().getUniforms().createUniforms(culling_terrain
+                    , new String[]{
+                            "sketch_culling_terrain",
+                            "sketch_culling_texture",
+                            "sketch_level_min_pos",
+                            "sketch_level_pos_range",
+                            "sketch_level_section_range",
+                            "sketch_render_distance",
+                            "sketch_space_partition_size",
+                            "sketch_culling_size",
+                            "sketch_camera_offset",
+                            "sketch_check_culling"
+                    });
+        });
         GlStateManager._glUseProgram(0);
     }
 
     @SubscribeEvent
     public void onBind(ProgramEvent.Bind event) {
         UnsafeUniformMap uniformMap = event.getExtraUniform().getUniforms();
-        if (!Config.getCullChunk() || CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
-            uniformMap.setUniform("sketch_culling_terrain", 0);
-        } else {
-            uniformMap.setUniform("sketch_culling_terrain", 1);
+        if (uniformMap.containsOperate(culling_terrain)) {
+            if (!Config.getCullChunk() || CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
+                uniformMap.setUniform("sketch_culling_terrain", 0);
+            } else {
+                uniformMap.setUniform("sketch_culling_terrain", 1);
+            }
+
+            uniformMap.setUniform("sketch_check_culling", CullingStateManager.checkCulling ? 1 : 0);
+
+            if (CullingStateManager.CHUNK_CULLING_MAP_TARGET != null) {
+                uniformMap.setUniform("sketch_culling_texture", 18);
+                GlStateManager._activeTexture(GL_TEXTURE18);
+                GL11.glBindTexture(GL_TEXTURE_2D, CullingStateManager.CHUNK_CULLING_MAP_TARGET.getColorTextureId());
+                GlStateManager._activeTexture(GL_TEXTURE0);
+                uniformMap.setUniform("sketch_culling_size", CullingStateManager.CHUNK_CULLING_MAP_TARGET.width);
+            }
+
+            uniformMap.setUniform("sketch_level_min_pos", CullingStateManager.LEVEL_MIN_POS);
+            uniformMap.setUniform("sketch_level_pos_range", CullingStateManager.LEVEL_POS_RANGE);
+            uniformMap.setUniform("sketch_level_section_range", CullingStateManager.LEVEL_SECTION_RANGE);
+            Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+            BlockPos cameraPos = new BlockPos((int) pos.x >> 4, CullingStateManager.LEVEL_MIN_POS >> 4, (int) pos.z >> 4);
+            uniformMap.setUniform("sketch_camera_offset", cameraPos);
+
+            uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_MESSAGE.getRenderDistance());
+            uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_MESSAGE.getSpacePartitionSize());
         }
-
-        uniformMap.setUniform("sketch_check_culling", CullingStateManager.checkCulling ? 1 : 0);
-
-        if (CullingStateManager.CHUNK_CULLING_MAP_TARGET != null) {
-            uniformMap.setUniform("sketch_culling_texture", 18);
-            GL13.glActiveTexture(GL_TEXTURE18);
-            GL11.glBindTexture(GL_TEXTURE_2D, CullingStateManager.CHUNK_CULLING_MAP_TARGET.getColorTextureId());
-            GL13.glActiveTexture(GL_TEXTURE0);
-            uniformMap.setUniform("sketch_culling_size", CullingStateManager.CHUNK_CULLING_MAP_TARGET.width);
-        }
-
-        uniformMap.setUniform("sketch_level_min_pos", CullingStateManager.LEVEL_MIN_POS);
-        uniformMap.setUniform("sketch_level_pos_range", CullingStateManager.LEVEL_POS_RANGE);
-        uniformMap.setUniform("sketch_level_section_range", CullingStateManager.LEVEL_SECTION_RANGE);
-        Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-        BlockPos cameraPos = new BlockPos((int) pos.x >> 4, CullingStateManager.LEVEL_MIN_POS >> 4, (int) pos.z >> 4);
-        uniformMap.setUniform("sketch_camera_offset", cameraPos);
-
-        uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_MESSAGE.getRenderDistance());
-        uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_MESSAGE.getSpacePartitionSize());
     }
 
     @SubscribeEvent

@@ -6,16 +6,17 @@ import net.minecraft.client.renderer.texture.SpriteLoader;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketchrender.api.BufferObject;
 import rogo.sketchrender.shader.uniform.SSBO;
 
-public class IndirectCommandBuffer {
+public class IndirectCommandBuffer implements BufferObject {
     public static final IndirectCommandBuffer INSTANCE = new IndirectCommandBuffer(ModelQuadFacing.COUNT * 256 + 1);
     private final int id = GL15.glGenBuffers();
     private int chunkX;
     private int chunkY;
     private int chunkZ;
     private final long commandBuffer;
-    public final int iCapacity;
+    private final int iCapacity;
     public int maxElementCount;
     public int position;
 
@@ -42,6 +43,11 @@ public class IndirectCommandBuffer {
 
     public int getId() {
         return id;
+    }
+
+    @Override
+    public int getSize() {
+        return iCapacity;
     }
 
     public long getMemoryAddress() {

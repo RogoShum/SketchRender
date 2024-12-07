@@ -5,11 +5,9 @@ import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSectionManager;
-import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderListIterable;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.SortedRenderLists;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.VisibleChunkCollector;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
-import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.client.Camera;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -23,9 +21,9 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.culling.ChunkCullingMessage;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
+import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 
 @Mixin(RenderSectionManager.class)
@@ -45,16 +43,13 @@ public abstract class MixinRenderSectionManager {
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false)
     private void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
-        IndirectCommandBuffer.INSTANCE.bind();
-        ChunkCullingMessage.batchCulling.bindShaderSlot(0);
-        ChunkCullingMessage.batchCommand.bindShaderSlot(1);
-        SketchRender.TIMER.start("renderLayer");
+        ChunkRenderMixinHook.onRenderStart(matrices, pass, x, y, z, ci);
     }
 
     @Inject(method = "renderLayer", at = @At(value = "RETURN"), remap = false)
     private void onRenderEnd(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
         IndirectCommandBuffer.INSTANCE.unBind();
-        SketchRender.TIMER.end();
+        SketchRender.TIMER.end("renderLayer");
     }
 
     @Inject(method = "update", at = @At(value = "HEAD"), remap = false)

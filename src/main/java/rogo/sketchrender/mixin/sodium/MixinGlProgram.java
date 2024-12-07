@@ -1,5 +1,6 @@
 package rogo.sketchrender.mixin.sodium;
 
+import me.jellysquid.mods.sodium.client.gl.GlObject;
 import me.jellysquid.mods.sodium.client.gl.shader.GlProgram;
 import net.minecraftforge.common.MinecraftForge;
 import org.spongepowered.asm.mixin.Mixin;
@@ -7,13 +8,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.api.ExtraUniform;
+import rogo.sketchrender.compat.sodium.ChunkShaderTracker;
 import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.shader.uniform.UnsafeUniformMap;
 
 import java.util.function.Function;
 
 @Mixin(GlProgram.class)
-public class MixinGlProgram implements ExtraUniform {
+public abstract class MixinGlProgram extends GlObject implements ExtraUniform {
     private UnsafeUniformMap unsafeUniformMap;
 
     @Inject(method = "<init>", at = @At("TAIL"), remap = false)
@@ -24,6 +26,7 @@ public class MixinGlProgram implements ExtraUniform {
 
     @Inject(method = "bind", at = @At("TAIL"), remap = false)
     private void onBind(CallbackInfo ci) {
+        ChunkShaderTracker.lastProgram = this.handle();
         MinecraftForge.EVENT_BUS.post(new ProgramEvent.Bind(this.getUniforms().getProgramId(), this));
     }
 

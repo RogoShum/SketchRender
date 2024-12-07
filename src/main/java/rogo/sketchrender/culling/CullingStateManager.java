@@ -463,6 +463,7 @@ public class CullingStateManager {
     }
 
     public static void updateMapData() {
+        fps = ((AccessorMinecraft) Minecraft.getInstance()).getFps();
         if (anyCulling()) {
             if (anyNeedTransfer()) {
                 preCullingInitCount++;
@@ -512,8 +513,6 @@ public class CullingStateManager {
                     CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addAllTemp();
                 }
             }
-
-            fps = ((AccessorMinecraft) Minecraft.getInstance()).getFps();
         } else {
             if (ENTITY_CULLING_MAP != null) {
                 ENTITY_CULLING_MAP.cleanup();
