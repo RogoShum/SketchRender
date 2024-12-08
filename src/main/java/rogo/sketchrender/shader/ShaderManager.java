@@ -8,9 +8,8 @@ import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import org.apache.commons.compress.utils.Lists;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.ShaderCollector;
-import rogo.sketchrender.culling.ChunkCullingMessage;
+import rogo.sketchrender.culling.ChunkCullingUniform;
 import rogo.sketchrender.culling.CullingShaderInstance;
-import rogo.sketchrender.culling.CullingStateManager;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,6 +23,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
     public static ShaderInstance CULL_TEST_SHADER;
 
     public static ComputeShader CHUNK_CULLING_CS;
+    public static ComputeShader COLLECT_CHUNK_CS;
 
     public void onShaderLoad(ShaderCollector a) {
         shaders.add(a);
@@ -55,8 +55,11 @@ public class ShaderManager implements ResourceManagerReloadListener {
             CULL_TEST_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
 
             CHUNK_CULLING_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_chunk"), (cs) -> {
-                cs.bindSSBO(ChunkCullingMessage.batchCulling.getId(), 0);
-                cs.bindSSBO(ChunkCullingMessage.batchCommand.getId(), 1);
+
+            });
+
+            COLLECT_CHUNK_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk"), (cs) -> {
+
             });
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -16,15 +16,18 @@ import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexType;
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import me.jellysquid.mods.sodium.client.util.iterator.ByteIterator;
+import net.minecraft.core.BlockPos;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.ExtraUniform;
 import rogo.sketchrender.compat.sodium.ChunkShaderTracker;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
+import rogo.sketchrender.shader.ShaderManager;
 
 @Mixin(DefaultChunkRenderer.class)
 public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer {
@@ -36,6 +39,7 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer {
     @Inject(method = "fillCommandBuffer", at = @At(value = "HEAD"), remap = false)
     private static void onFillCommandBufferStart(MultiDrawBatch batch, RenderRegion renderRegion, SectionRenderDataStorage renderDataStorage, ChunkRenderList renderList, CameraTransform camera, TerrainRenderPass pass, boolean useBlockFaceCulling, CallbackInfo ci) {
         IndirectCommandBuffer.INSTANCE.clear();
+        IndirectCommandBuffer.INSTANCE.switchRegion(renderRegion.getChunkX(), renderRegion.getChunkY(), renderRegion.getChunkZ());
     }
 
     @Inject(method = "fillCommandBuffer", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/DefaultChunkRenderer;addDrawCommands(Lme/jellysquid/mods/sodium/client/gl/device/MultiDrawBatch;JI)V"), locals = LocalCapture.CAPTURE_FAILHARD, remap = false)

@@ -22,6 +22,7 @@ import org.lwjgl.opengl.GL13;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.CullingShader;
+import rogo.sketchrender.compat.sodium.RenderSectionManagerGetter;
 import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorFrustum;
 import rogo.sketchrender.shader.ShaderManager;
@@ -193,6 +194,7 @@ public class CullingRenderEvent {
     }
 
     public static final ResourceLocation culling_terrain = new ResourceLocation(SketchRender.MOD_ID, "terrain");
+    public static final ResourceLocation collect_chunk = new ResourceLocation(SketchRender.MOD_ID, "collect_chunk");
 
     @SubscribeEvent
     public void onBind(ProgramEvent.Init event) {
@@ -212,12 +214,25 @@ public class CullingRenderEvent {
                             "sketch_check_culling"
                     });
         });
+
+        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_region_size", () -> {
+            event.getExtraUniform().getUniforms().createUniforms(collect_chunk
+                    , new String[]{
+                            "sketch_region_size",
+                            "sketch_layer_pass",
+                            "sketch_region_pos"
+                    });
+        });
         GlStateManager._glUseProgram(0);
     }
 
     @SubscribeEvent
     public void onBind(ProgramEvent.Bind event) {
         UnsafeUniformMap uniformMap = event.getExtraUniform().getUniforms();
+        if (uniformMap.containsOperate(collect_chunk)) {
+            uniformMap.setUniform("sketch_region_size", RenderSectionManagerGetter.getChunkData().getCurrentRegionSize());
+        }
+
         if (uniformMap.containsOperate(culling_terrain)) {
             if (!Config.getCullChunk() || CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
                 uniformMap.setUniform("sketch_culling_terrain", 0);

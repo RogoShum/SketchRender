@@ -3,6 +3,7 @@ package rogo.sketchrender.shader;
 import com.mojang.blaze3d.platform.GlStateManager;
 import me.jellysquid.mods.sodium.client.model.quad.properties.ModelQuadFacing;
 import net.minecraft.client.renderer.texture.SpriteLoader;
+import net.minecraft.core.BlockPos;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
@@ -15,6 +16,9 @@ public class IndirectCommandBuffer implements BufferObject {
     private int chunkX;
     private int chunkY;
     private int chunkZ;
+    private int regionX;
+    private int regionY;
+    private int regionZ;
     private final long commandBuffer;
     private final int iCapacity;
     public int maxElementCount;
@@ -71,11 +75,11 @@ public class IndirectCommandBuffer implements BufferObject {
         maxElementCount = Math.max(elementCount, maxElementCount);
 
         int offset = size * 20;
-        MemoryUtil.memPutInt(ssbo.bufferPointer + offset, chunkX);
-        MemoryUtil.memPutInt(ssbo.bufferPointer + offset + 4, chunkY);
-        MemoryUtil.memPutInt(ssbo.bufferPointer + offset + 8, chunkZ);
-        MemoryUtil.memPutInt(ssbo.bufferPointer + offset + 12, elementCount);
-        MemoryUtil.memPutInt(ssbo.bufferPointer + offset + 16, vertexOffset);
+        MemoryUtil.memPutInt(ssbo.getMemoryAddress() + offset, chunkX);
+        MemoryUtil.memPutInt(ssbo.getMemoryAddress() + offset + 4, chunkY);
+        MemoryUtil.memPutInt(ssbo.getMemoryAddress() + offset + 8, chunkZ);
+        MemoryUtil.memPutInt(ssbo.getMemoryAddress() + offset + 12, elementCount);
+        MemoryUtil.memPutInt(ssbo.getMemoryAddress() + offset + 16, vertexOffset);
         ssbo.position = offset + 20;
     }
 
@@ -88,6 +92,16 @@ public class IndirectCommandBuffer implements BufferObject {
         chunkX = x;
         chunkY = y;
         chunkZ = z;
+    }
+
+    public void switchRegion(int x, int y, int z) {
+        regionX = x;
+        regionY = y;
+        regionZ = z;
+    }
+
+    public BlockPos getRegionPos() {
+        return new BlockPos(regionX, regionY, regionZ);
     }
 
     public void delete() {

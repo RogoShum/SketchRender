@@ -1,0 +1,141 @@
+#version 430
+
+layout(std430, binding = 0) readonly buffer InputSSBO {
+    int inputData[];
+};
+
+layout(std430, binding = 1) writeonly buffer OutputSSBO {
+    int outputData[];
+};
+
+layout(std430, binding = 2) buffer CounterSSBO {
+    int counter;
+};
+
+layout(std430, binding = 3) readonly buffer ChunkSSBO {
+    int chunkData[];
+};
+
+layout(std430, binding = 4) readonly buffer RegionSSBO {
+    ivec3 regionData[];
+};
+
+uniform sampler2D sketch_culling_texture;
+uniform int sketch_level_section_range;
+uniform int sketch_render_distance;
+uniform int sketch_space_partition_size;
+uniform int sketch_culling_size;
+uniform int sketch_check_culling;
+uniform ivec3 sketch_camera_offset;
+
+uniform int sketch_region_size;
+uniform int sketch_layer_pass;
+uniform ivec3 sketch_region_pos;
+
+#define SECTION_DATA_STEP 16
+#define SECTIONS_PER_REGION 256
+#define REGION_DATA_STEP 4096
+#define REGION_WIDTH_SH 3
+#define REGION_HEIGHT_SH 2
+#define REGION_LENGTH_SH 3
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+ivec3 _section_2_region() {
+    return ivec3(sketch_region_pos.x, sketch_region_pos.y, sketch_region_pos.z);
+}
+
+int _get_chunk_index(ivec3 chunk_offset) {
+    return (chunk_offset.x + sketch_render_distance) * sketch_space_partition_size * sketch_level_section_range + (chunk_offset.z + sketch_render_distance) * sketch_level_section_range + chunk_offset.y;
+}
+
+ivec2 _get_culling_uv_from_index(ivec3 chunk_offset) {
+    int screenIndex = _get_chunk_index(chunk_offset);
+
+    int fragX = screenIndex % sketch_culling_size;
+    int fragY = screenIndex / sketch_culling_size;
+
+    return ivec2(fragX, fragY);
+}
+
+bool _is_chunk_culled(ivec3 chunk_offset) {
+    bool cull = texelFetch(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset), 0).y <= 0.001;
+    if (sketch_check_culling > 0) {
+        return !cull;
+    }
+    return cull;
+}
+
+int _get_region_index(ivec3 regionPos) {
+    for (int i = 0; i < sketch_region_size; ++i) {
+        ivec3 find = regionData[i];
+        if (find.x == regionPos.x && find.y == regionPos.y && find.z == regionPos.z) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int unpackX(int idx) {
+    return idx >> 5 & 7;
+}
+
+int unpackY(int idx) {
+    return idx >> 0 & 3;
+}
+
+int unpackZ(int idx) {
+    return idx >> 2 & 7;
+}
+
+void main() {
+    int screenIndex = int(gl_GlobalInvocationID.x) + (int(gl_GlobalInvocationID.y) * 8) + (int(gl_GlobalInvocationID.z) * 8 * 4);
+    ivec3 sectionPos = ivec3(
+    unpackX(screenIndex) + (sketch_region_pos.x),
+    unpackY(screenIndex) + (sketch_region_pos.y),
+    unpackZ(screenIndex) + (sketch_region_pos.z));
+
+    ivec3 offset_chunk = ivec3(sectionPos.x - sketch_camera_offset.x, sectionPos.y - sketch_camera_offset.y, sectionPos.z - sketch_camera_offset.z);
+
+    if (!_is_chunk_culled(offset_chunk)) {
+        ivec3 regionPos = sketch_region_pos.xyz;
+
+        int regionIndex = _get_region_index(regionPos) * 3 + sketch_layer_pass;
+
+        if (regionIndex > 0) {
+            int sectionIndex = screenIndex;
+
+            int dataIndex = regionIndex * REGION_DATA_STEP + sectionIndex * SECTION_DATA_STEP;
+
+            if (chunkData[dataIndex + 1] > 0) {
+                int drawCount = 0;
+                int[14] drawVertex;
+
+                for (int i = 0; i < 7; ++i) {
+                    int offset = drawCount * 2;
+                    int elementCount = chunkData[dataIndex + 3 + offset];
+                    if (elementCount > 0) {
+                        drawVertex[offset] = elementCount;
+                        drawVertex[offset + 1] = chunkData[dataIndex + 2 + offset];
+                        drawCount++;
+                    }
+                }
+
+                int currentCounter = atomicAdd(counter, drawCount);
+                memoryBarrierBuffer();
+
+                int outputOffset = currentCounter * 5;
+
+                for (int i = 0; i < drawCount; ++i) {
+                    int offset = i * 5;
+                    outputData[outputOffset + offset] = drawVertex[i * 2];
+                    outputData[outputOffset + offset + 1] = 1;
+                    outputData[outputOffset + offset + 2] = 0;
+                    outputData[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
+                    outputData[outputOffset + offset + 4] = 0;
+                }
+            }
+        }
+    }
+}

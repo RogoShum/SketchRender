@@ -10,7 +10,7 @@ public class IndexedQueue<T> {
 
     public int add(T object) {
         if (objectToIndex.containsKey(object)) {
-            throw new IllegalArgumentException("Object already exists in the queue");
+            return getIndex(object);
         }
 
         int index;

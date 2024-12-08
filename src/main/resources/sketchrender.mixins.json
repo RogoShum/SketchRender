@@ -9,7 +9,9 @@
     "sodium.MixinGlProgram",
     "sodium.MixinGLRenderDevice",
     "sodium.MixinGLRenderDevice$MixinDefaultChunkRenderer",
-    "sodium.MixinMultiDrawBatch"
+    "sodium.MixinMultiDrawBatch",
+    "sodium.MixinSectionRenderDataStorage",
+    "sodium.MixinSectionRenderDataUnsafe"
   ],
   "client": [
     "AccessorFrustum",

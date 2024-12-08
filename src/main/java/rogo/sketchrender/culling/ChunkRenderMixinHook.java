@@ -9,15 +9,20 @@ import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
 import me.jellysquid.mods.sodium.client.model.quad.properties.ModelQuadFacing;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataUnsafe;
+import me.jellysquid.mods.sodium.client.render.chunk.terrain.DefaultTerrainRenderPasses;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Items;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL46C;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.api.ExtraUniform;
 import rogo.sketchrender.api.TessellationDevice;
 import rogo.sketchrender.compat.sodium.ChunkShaderTracker;
+import rogo.sketchrender.compat.sodium.RenderSectionManagerGetter;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.DrawElementsIndirectCommand;
@@ -30,10 +35,22 @@ public class ChunkRenderMixinHook {
     public static void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
         IndirectCommandBuffer.INSTANCE.bind();
         if (Config.getCullChunk()) {
-            ChunkCullingMessage.batchCulling.bindShaderSlot(0);
-            ChunkCullingMessage.batchCommand.bindShaderSlot(1);
-            ChunkCullingMessage.batchCounter.bindShaderSlot(2);
+            ChunkCullingUniform.batchCulling.bindShaderSlot(0);
+            ChunkCullingUniform.batchCommand.bindShaderSlot(1);
+            ChunkCullingUniform.batchCounter.bindShaderSlot(2);
+            ChunkCullingUniform.chunkData.bindShaderSlot(3);
+            RenderSectionManagerGetter.getChunkData().regionIndex.bindShaderSlot(4);
+
+            SketchRender.TIMER.start("collect_chunk");
+            RenderSectionManagerGetter.getChunkData().updateSSBO(ChunkCullingUniform.chunkData.getId());
             ShaderManager.CHUNK_CULLING_CS.bindUniforms();
+            ShaderManager.COLLECT_CHUNK_CS.bindUniforms();
+            for (int i = 0; i < DefaultTerrainRenderPasses.ALL.length; ++i) {
+                if (pass == DefaultTerrainRenderPasses.ALL[i]) {
+                    ((ExtraUniform)ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_layer_pass", i);
+                }
+            }
+            SketchRender.TIMER.end("collect_chunk");
         }
         SketchRender.TIMER.start("renderLayer");
     }
@@ -46,7 +63,7 @@ public class ChunkRenderMixinHook {
             if (Config.getCullChunk()) {
                 for (int facing = 0; facing < ModelQuadFacing.COUNT; ++facing) {
                     IndirectCommandBuffer.INSTANCE.putSSBOData(
-                            ChunkCullingMessage.batchCulling,
+                            ChunkCullingUniform.batchCulling,
                             size,
                             SectionRenderDataUnsafe.getElementCount(pMeshData, facing),
                             SectionRenderDataUnsafe.getVertexOffset(pMeshData, facing));
@@ -71,12 +88,20 @@ public class ChunkRenderMixinHook {
 
             if (Config.getCullChunk()) {
                 SketchRender.TIMER.start("CHUNK_CULLING_CS");
-                ChunkCullingMessage.batchCulling.upload();
-                ChunkCullingMessage.cullingCounter.updateCount(0);
+                ChunkCullingUniform.batchCulling.upload();
+                ChunkCullingUniform.cullingCounter.updateCount(0);
 
-                ShaderManager.CHUNK_CULLING_CS.bind();
-                ShaderManager.CHUNK_CULLING_CS.execute(drawCount, 1, 1);
-                ShaderManager.CHUNK_CULLING_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
+                if (Minecraft.getInstance().player.getOffhandItem().getItem() == Items.STICK) {
+                    ShaderManager.COLLECT_CHUNK_CS.bind();
+                    BlockPos regionPos = new BlockPos(IndirectCommandBuffer.INSTANCE.getRegionPos());
+                    ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_region_pos", regionPos);
+                    ShaderManager.COLLECT_CHUNK_CS.execute(8, 4, 8);
+                    ShaderManager.COLLECT_CHUNK_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
+                } else {
+                    ShaderManager.CHUNK_CULLING_CS.bind();
+                    ShaderManager.CHUNK_CULLING_CS.execute(drawCount, 1, 1);
+                    ShaderManager.CHUNK_CULLING_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
+                }
 
                 GL20.glUseProgram(ChunkShaderTracker.lastProgram);
                 SketchRender.TIMER.end("CHUNK_CULLING_CS");

@@ -20,14 +20,16 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.ChunkDataStorageSupplier;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.culling.ChunkDataStorage;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 
 @Mixin(RenderSectionManager.class)
-public abstract class MixinRenderSectionManager {
+public abstract class MixinRenderSectionManager implements ChunkDataStorageSupplier {
 
     @Shadow(remap = false)
     @Final
@@ -36,9 +38,12 @@ public abstract class MixinRenderSectionManager {
     @Shadow(remap = false)
     private @NotNull SortedRenderLists renderLists;
 
+    private ChunkDataStorage storage;
+
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(ClientLevel world, int renderDistance, CommandList commandList, CallbackInfo ci) {
         SodiumSectionAsyncUtil.fromSectionManager(this.sectionByPosition, world);
+        storage = new ChunkDataStorage(64);
     }
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false)
@@ -57,6 +62,11 @@ public abstract class MixinRenderSectionManager {
         CullingStateManager.updating();
     }
 
+    @Inject(method = "destroy", at = @At(value = "RETURN"), remap = false)
+    private void onDestroy(CallbackInfo ci) {
+        storage.free();
+    }
+
     @ModifyVariable(name = "visitor", method = "createTerrainRenderList", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/occlusion/OcclusionCuller;findVisible(Lme/jellysquid/mods/sodium/client/render/chunk/occlusion/OcclusionCuller$Visitor;Lme/jellysquid/mods/sodium/client/render/viewport/Viewport;FZI)V", shift = At.Shift.BEFORE), remap = false)
     private VisibleChunkCollector onCreateTerrainRenderList(VisibleChunkCollector value) {
         if (Config.getAsyncChunkRebuild()) {
@@ -73,5 +83,10 @@ public abstract class MixinRenderSectionManager {
             if (collector != null)
                 this.renderLists = collector.createRenderLists();
         }
+    }
+
+    @Override
+    public ChunkDataStorage getChunkDataStorage() {
+        return storage;
     }
 }

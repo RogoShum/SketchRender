@@ -4,7 +4,6 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import com.mojang.math.Axis;
@@ -48,7 +47,7 @@ import static org.lwjgl.opengl.GL30.*;
 
 public class CullingStateManager {
     public static EntityCullingMap ENTITY_CULLING_MAP = null;
-    public static final ChunkCullingMessage CHUNK_CULLING_MESSAGE = new ChunkCullingMessage();
+    public static final ChunkCullingUniform CHUNK_CULLING_MESSAGE = new ChunkCullingUniform();
     public static Matrix4f VIEW_MATRIX = new Matrix4f();
     public static Matrix4f PROJECTION_MATRIX = new Matrix4f();
 

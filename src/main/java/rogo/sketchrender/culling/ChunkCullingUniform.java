@@ -7,12 +7,13 @@ import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.SSBO;
 
-public class ChunkCullingMessage {
+public class ChunkCullingUniform {
     private int renderDistance = 0;
     private int spacePartitionSize = 0;
     public int queueUpdateCount = 0;
     public int lastQueueUpdateCount = 0;
 
+    public static SSBO chunkData;
     public static SSBO batchCulling;
     public static SSBO batchCommand;
     public static SSBO batchCounter;
@@ -20,7 +21,8 @@ public class ChunkCullingMessage {
 
     static {
         RenderSystem.recordRenderCall(() -> {
-            batchCulling = new SSBO(ModelQuadFacing.COUNT * 256 + 1);
+            chunkData = new SSBO(4, 1);
+            batchCulling = new SSBO(ModelQuadFacing.COUNT * 256 + 1, 20);
             batchCommand = new SSBO(IndirectCommandBuffer.INSTANCE);
             cullingCounter = new CountBuffer(VertexFormatElement.Type.INT);
             batchCounter = new SSBO(cullingCounter);
