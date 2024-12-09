@@ -60,12 +60,6 @@ public class ChunkDataStorage {
     }
 
     public void addRenderRegion(RenderRegion renderRegion) {
-        Arrays.stream(DefaultTerrainRenderPasses.ALL).forEach(pass -> {
-            SectionRenderDataStorage dataStorage = renderRegion.createStorage(pass);
-            sectionStorageMap.put(dataStorage, renderRegion);
-            sectionPassMap.put(dataStorage, pass);
-        });
-
         renderRegionQueue.add(renderRegion);
 
         if (renderRegionQueue.size() > currentRegionSize) {
@@ -80,6 +74,11 @@ public class ChunkDataStorage {
         }
 
         regionChanged = true;
+    }
+
+    public void addStorage(RenderRegion region, TerrainRenderPass pass, SectionRenderDataStorage storage) {
+        sectionStorageMap.put(storage, region);
+        sectionPassMap.put(storage, pass);
     }
 
     public int getRegionIndex(TerrainRenderPass pass, SectionRenderDataStorage sectionStorage) {
@@ -219,27 +218,26 @@ public class ChunkDataStorage {
         }
 
         if (regionChanged) {
+            Collection<Integer> regions = renderRegionQueue.getAllIndices();
+            IntBuffer buffer = MemoryUtil.memAllocInt(regions.size() * 4);
 
+            for (Integer index : regions) {
+                RenderRegion region = renderRegionQueue.getObject(index);
+                if (region != null) {
+                    buffer.put(region.getChunkX());
+                    buffer.put(region.getChunkY());
+                    buffer.put(region.getChunkZ());
+                    buffer.put(0);
+                }
+            }
+            buffer.flip();
+
+            GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, regionIndex.getId());
+            GL15.glBufferData(GL43.GL_SHADER_STORAGE_BUFFER, buffer, GL15.GL_DYNAMIC_DRAW);
+            GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+            MemoryUtil.memFree(buffer);
             regionChanged = false;
         }
-
-        Collection<Integer> regions = renderRegionQueue.getAllIndices();
-        IntBuffer buffer = MemoryUtil.memAllocInt(regions.size() * 3);
-
-        for (Integer index : regions) {
-            RenderRegion region = renderRegionQueue.getObject(index);
-            if (region != null) {
-                buffer.put(region.getChunkX());
-                buffer.put(region.getChunkY());
-                buffer.put(region.getChunkZ());
-            }
-        }
-        buffer.flip();
-
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, regionIndex.getId());
-        GL15.glBufferData(GL43.GL_SHADER_STORAGE_BUFFER, buffer, GL15.GL_DYNAMIC_DRAW);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
-        MemoryUtil.memFree(buffer);
     }
 
     public void free() {

@@ -23,7 +23,7 @@ public class ComputeShader implements ShaderCollector, ExtraUniform {
     private final UnsafeUniformMap unsafeUniformMap;
     private final int program;
 
-    public ComputeShader(ResourceProvider resourceProvider, ResourceLocation shaderLocation, Consumer<ComputeShader> initBind) throws IOException {
+    public ComputeShader(ResourceProvider resourceProvider, ResourceLocation shaderLocation) throws IOException {
         ResourceLocation resourcelocation = new ResourceLocation(shaderLocation.getNamespace(), "shaders/compute/" + shaderLocation.getPath() + ".comp");
 
         BufferedReader reader = resourceProvider.openAsReader(resourcelocation);
@@ -47,7 +47,6 @@ public class ComputeShader implements ShaderCollector, ExtraUniform {
 
         GL43.glDeleteShader(computeShader);
         unsafeUniformMap = new UnsafeUniformMap(program);
-        initBind.accept(this);
         MinecraftForge.EVENT_BUS.post(new ProgramEvent.Init(this.getUniforms().getProgramId(), this));
         onShadeCreate();
     }

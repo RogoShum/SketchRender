@@ -34,13 +34,6 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer {
     private static void onFillCommandBufferStart(MultiDrawBatch batch, RenderRegion renderRegion, SectionRenderDataStorage renderDataStorage, ChunkRenderList renderList, CameraTransform camera, TerrainRenderPass pass, boolean useBlockFaceCulling, CallbackInfo ci) {
         IndirectCommandBuffer.INSTANCE.clear();
         IndirectCommandBuffer.INSTANCE.switchRegion(renderRegion.getChunkX(), renderRegion.getChunkY(), renderRegion.getChunkZ());
-        for (RenderRegion region : RenderSectionManagerGetter.getChunkData().getRenderRegions()) {
-            if (region.getChunkX() == renderRegion.getChunkX() && region.getChunkY() == renderRegion.getChunkY() && region.getChunkZ() == renderRegion.getChunkZ()) {
-                SketchRender.hitRegion++;
-            } else {
-                SketchRender.missRegion++;
-            }
-        }
     }
 
     @Inject(method = "fillCommandBuffer", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/DefaultChunkRenderer;addDrawCommands(Lme/jellysquid/mods/sodium/client/gl/device/MultiDrawBatch;JI)V"), locals = LocalCapture.CAPTURE_FAILHARD, remap = false)

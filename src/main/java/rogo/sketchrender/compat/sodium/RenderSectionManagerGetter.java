@@ -1,6 +1,7 @@
 package rogo.sketchrender.compat.sodium;
 
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSectionManager;
+import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegionManager;
 import me.jellysquid.mods.sodium.client.world.WorldRendererExtended;
 import net.minecraft.client.Minecraft;
 import rogo.sketchrender.api.ChunkDataStorageSupplier;
@@ -17,5 +18,9 @@ public class RenderSectionManagerGetter {
 
     public static ChunkDataStorage getChunkData() {
         return ((ChunkDataStorageSupplier)get()).getChunkDataStorage();
+    }
+
+    public static RenderRegionManager getRenderRegionManager() {
+        return ((ChunkDataStorageSupplier)get()).getRenderRegionManager();
     }
 }

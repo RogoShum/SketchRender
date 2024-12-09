@@ -7,6 +7,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSectionManager;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.SortedRenderLists;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.VisibleChunkCollector;
+import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegionManager;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.client.Camera;
@@ -38,6 +39,7 @@ public abstract class MixinRenderSectionManager implements ChunkDataStorageSuppl
     @Shadow(remap = false)
     private @NotNull SortedRenderLists renderLists;
 
+    @Shadow(remap = false) @Final private RenderRegionManager regions;
     private ChunkDataStorage storage;
 
     @Inject(method = "<init>", at = @At("TAIL"))
@@ -88,5 +90,10 @@ public abstract class MixinRenderSectionManager implements ChunkDataStorageSuppl
     @Override
     public ChunkDataStorage getChunkDataStorage() {
         return storage;
+    }
+
+    @Override
+    public RenderRegionManager getRenderRegionManager() {
+        return this.regions;
     }
 }

@@ -215,10 +215,10 @@ public class SketchRender {
         if (event.getOverlay() == VanillaGuiOverlay.HELMET.type()) {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
-             debugText.put("帧数", fps);
-            debugText.put("missRegion", missRegion);
-
+            debugText.put("帧数", fps);
             debugText.put("hitRegion", prevHitRegion);
+            debugText.put("missRegion", prevMissRegion);
+
             //debugText.put("Debug光源：", LevelPipeline.DEBUG_LIGHT == null ? "null" : LevelPipeline.DEBUG_LIGHT.getPosVec());
             //debugText.put("最大支持光源数", LevelPipeline.getMaxLightSize());
             //debugText.put("ViewMatrixPos", "(" + String.format("%.2f", viewMatrixPos.x) + ", " + String.format("%.2f", viewMatrixPos.y) + ", " + String.format("%.2f", viewMatrixPos.z) + ")");

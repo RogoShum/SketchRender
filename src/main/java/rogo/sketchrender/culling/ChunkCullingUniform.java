@@ -14,7 +14,6 @@ public class ChunkCullingUniform {
     public int lastQueueUpdateCount = 0;
 
     public static SSBO chunkData;
-    public static SSBO batchCulling;
     public static SSBO batchCommand;
     public static SSBO batchCounter;
     public static CountBuffer cullingCounter;
@@ -22,7 +21,6 @@ public class ChunkCullingUniform {
     static {
         RenderSystem.recordRenderCall(() -> {
             chunkData = new SSBO(4, 1);
-            batchCulling = new SSBO(ModelQuadFacing.COUNT * 256 + 1, 20);
             batchCommand = new SSBO(IndirectCommandBuffer.INSTANCE);
             cullingCounter = new CountBuffer(VertexFormatElement.Type.INT);
             batchCounter = new SSBO(cullingCounter);
