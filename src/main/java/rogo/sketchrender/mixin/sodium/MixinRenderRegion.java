@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import rogo.sketchrender.api.DataStorage;
 import rogo.sketchrender.compat.sodium.RenderSectionManagerGetter;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 
@@ -26,7 +27,7 @@ public abstract class MixinRenderRegion {
 
     @Inject(method = "createStorage", at = @At("RETURN"), remap = false)
     private void onGetSection(TerrainRenderPass pass, CallbackInfoReturnable<SectionRenderDataStorage> cir) {
-        RenderSectionManagerGetter.getChunkData().addStorage((RenderRegion) (Object) this, pass, cir.getReturnValue());
+        RenderSectionManagerGetter.getChunkData().addStorage((RenderRegion) (Object) this, pass, (DataStorage) cir.getReturnValue());
     }
 
     @Inject(method = "getSection", at = @At("HEAD"), cancellable = true, remap = false)

@@ -13,6 +13,15 @@ import rogo.sketchrender.culling.ChunkDataStorage;
 
 @Mixin(SectionRenderDataUnsafe.class)
 public abstract class MixinSectionRenderDataUnsafe {
+    @Inject(method = "freeHeap", at = @At(value = "HEAD"), remap = false)
+    private static void endSetSliceMask(long pointer, CallbackInfo ci) {
+        RenderSectionManagerGetter.getChunkData().setValid(0);
+    }
+
+    @Inject(method = "clear", at = @At(value = "HEAD"), remap = false)
+    private static void onClear(long pointer, CallbackInfo ci) {
+        RenderSectionManagerGetter.getChunkData().setValid(0);
+    }
 
     @Inject(method = "setElementCount", at = @At(value = "HEAD"), remap = false)
     private static void onSetElementCount(long ptr, int facing, int value, CallbackInfo ci) {

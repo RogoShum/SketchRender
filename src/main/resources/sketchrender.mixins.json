@@ -9,7 +9,6 @@
     "sodium.MixinGlProgram",
     "sodium.MixinGLRenderDevice",
     "sodium.MixinGLRenderDevice$MixinDefaultChunkRenderer",
-    "sodium.MixinMultiDrawBatch",
     "sodium.MixinRenderRegionManager",
     "sodium.MixinSectionRenderDataStorage",
     "sodium.MixinSectionRenderDataUnsafe"

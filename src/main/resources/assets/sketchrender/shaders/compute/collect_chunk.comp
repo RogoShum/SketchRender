@@ -1,22 +1,18 @@
 #version 430
 
-layout(std430, binding = 0) readonly buffer InputSSBO {
-    int inputData[];
-};
-
-layout(std430, binding = 1) writeonly buffer OutputSSBO {
+layout(std430, binding = 4) writeonly buffer OutputSSBO {
     int outputData[];
 };
 
-layout(std430, binding = 2) buffer CounterSSBO {
+layout(std430, binding = 5) buffer CounterSSBO {
     int counter;
 };
 
-layout(std430, binding = 3) readonly buffer ChunkSSBO {
+layout(std430, binding = 6) readonly buffer ChunkSSBO {
     int chunkData[];
 };
 
-layout(std430, binding = 4) readonly buffer RegionSSBO {
+layout(std430, binding = 7) readonly buffer RegionSSBO {
     ivec4 regionData[];
 };
 

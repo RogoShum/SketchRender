@@ -1,59 +1,93 @@
 package rogo.sketchrender.mixin.sodium;
 
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
-import me.jellysquid.mods.sodium.client.gl.device.MultiDrawBatch;
 import me.jellysquid.mods.sodium.client.gl.device.RenderDevice;
+import me.jellysquid.mods.sodium.client.gl.shader.GlProgram;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
+import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import me.jellysquid.mods.sodium.client.render.chunk.DefaultChunkRenderer;
 import me.jellysquid.mods.sodium.client.render.chunk.ShaderChunkRenderer;
-import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
-import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderList;
+import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderListIterable;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
+import me.jellysquid.mods.sodium.client.render.chunk.shader.ChunkShaderInterface;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexType;
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
-import me.jellysquid.mods.sodium.client.util.iterator.ByteIterator;
+import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
+import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.vehicle.Minecart;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.Config;
+import rogo.sketchrender.api.ExtraChunkRenderer;
+import rogo.sketchrender.api.ExtraUniform;
 import rogo.sketchrender.compat.sodium.RenderSectionManagerGetter;
+import rogo.sketchrender.culling.ChunkCullingUniform;
+import rogo.sketchrender.culling.ChunkDataStorage;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
+import rogo.sketchrender.shader.ShaderManager;
 
 @Mixin(DefaultChunkRenderer.class)
-public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer {
+public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
+    Class<?> extraShaderInterface;
+    boolean checkedShaderInterface = false;
+
+    @Shadow
+    protected abstract GlTessellation prepareTessellation(CommandList commandList, RenderRegion region);
+
+    @Shadow
+    private static void setModelMatrixUniforms(ChunkShaderInterface shader, RenderRegion region, CameraTransform camera) {
+    }
 
     public MixinDefaultChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {
         super(device, vertexType);
     }
 
-    @Inject(method = "fillCommandBuffer", at = @At(value = "HEAD"), remap = false)
-    private static void onFillCommandBufferStart(MultiDrawBatch batch, RenderRegion renderRegion, SectionRenderDataStorage renderDataStorage, ChunkRenderList renderList, CameraTransform camera, TerrainRenderPass pass, boolean useBlockFaceCulling, CallbackInfo ci) {
-        IndirectCommandBuffer.INSTANCE.clear();
-        IndirectCommandBuffer.INSTANCE.switchRegion(renderRegion.getChunkX(), renderRegion.getChunkY(), renderRegion.getChunkZ());
+    @Inject(method = "render", at = @At(value = "HEAD"), remap = false, cancellable = true)
+    private void onRender(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera, CallbackInfo ci) {
+        if (Config.getCullChunk()) {
+            ci.cancel();
+            super.begin(renderPass);
+
+            ChunkShaderInterface shaderInterface = null;
+            if (this.activeProgram != null) {
+                shaderInterface = this.activeProgram.getInterface();
+            } else {
+                if (!checkedShaderInterface) {
+                    try {
+                        extraShaderInterface = Class.forName("net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt");
+                    } catch (ClassNotFoundException ignored) {
+                    } finally {
+                        checkedShaderInterface = true;
+                    }
+                } else if (extraShaderInterface != null && extraShaderInterface.isAssignableFrom(ShaderChunkRenderer.class)) {
+                    GlProgram<IrisChunkShaderInterface> program = ((ShaderChunkRendererExt) this).iris$getOverride();
+                    if (program != null) {
+                        shaderInterface = program.getInterface();
+                    }
+                }
+            }
+
+            if (shaderInterface != null) {
+                ChunkRenderMixinHook.preRender(shaderInterface, matrices, renderPass);
+                ChunkRenderMixinHook.onRender(this, shaderInterface, commandList, renderLists, renderPass, camera);
+            }
+
+            super.end(renderPass);
+        }
     }
 
-    @Inject(method = "fillCommandBuffer", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/DefaultChunkRenderer;addDrawCommands(Lme/jellysquid/mods/sodium/client/gl/device/MultiDrawBatch;JI)V"), locals = LocalCapture.CAPTURE_FAILHARD, remap = false)
-    private static void onFillCommandBuffer(MultiDrawBatch batch, RenderRegion renderRegion, SectionRenderDataStorage renderDataStorage, ChunkRenderList renderList, CameraTransform camera, TerrainRenderPass pass, boolean useBlockFaceCulling, CallbackInfo ci, ByteIterator iterator, int originX, int originY, int originZ, int sectionIndex, int chunkX, int chunkY, int chunkZ, long pMeshData, int slices) {
-        IndirectCommandBuffer.INSTANCE.switchSection(chunkX, chunkY, chunkZ);
+    public GlTessellation sodiumTessellation(CommandList commandList, RenderRegion region) {
+        return prepareTessellation(commandList, region);
     }
 
-    @Inject(method = "executeDrawBatch", at = @At(value = "HEAD"), remap = false)
-    private static void onExecuteDrawBatch(CommandList commandList, GlTessellation tessellation, MultiDrawBatch batch, CallbackInfo ci) {
-        SketchRender.TIMER.start("executeDrawBatch");
-        ChunkRenderMixinHook.onExecuteDrawBatch(commandList, tessellation, batch, ci);
-    }
-
-    @Inject(method = "executeDrawBatch", at = @At(value = "RETURN"), remap = false)
-    private static void endExecuteDrawBatch(CommandList commandList, GlTessellation tessellation, MultiDrawBatch batch, CallbackInfo ci) {
-        SketchRender.TIMER.end("executeDrawBatch");
-    }
-
-    @Inject(method = "addDrawCommands", at = @At(value = "HEAD"), remap = false, cancellable = true)
-    private static void onAddDrawCommands(MultiDrawBatch batch, long pMeshData, int mask, CallbackInfo ci) {
-        ChunkRenderMixinHook.onAddDrawCommands(batch, pMeshData, mask, ci);
+    public void sodiumModelMatrixUniforms(ChunkShaderInterface shader, RenderRegion region, CameraTransform camera) {
+        setModelMatrixUniforms(shader, region, camera);
     }
 }

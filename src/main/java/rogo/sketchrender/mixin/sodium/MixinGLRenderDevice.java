@@ -28,13 +28,12 @@ public class MixinGLRenderDevice implements TessellationDevice {
     public abstract static class MixinDefaultChunkRenderer {
         @Inject(remap = false, method = "multiDrawElementsBaseVertex", at = @At(value = "HEAD"), cancellable = true)
         private void onExecuteDrawBatch(MultiDrawBatch batch, GlIndexType indexType, CallbackInfo ci) {
-            SketchRender.TIMER.start("multiDrawElementsBaseVertex");
-            ChunkRenderMixinHook.onMultiDrawElementsBaseVertex(batch, indexType, ci);
+
         }
 
         @Inject(remap = false, method = "multiDrawElementsBaseVertex", at = @At(value = "RETURN"))
         private void endExecuteDrawBatch(MultiDrawBatch batch, GlIndexType indexType, CallbackInfo ci) {
-            SketchRender.TIMER.end("multiDrawElementsBaseVertex");
+
         }
     }
 }
