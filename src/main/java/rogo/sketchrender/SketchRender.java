@@ -132,6 +132,11 @@ public class SketchRender {
 
     public static BlockPos testPos = new BlockPos(0, 8, 0);
 
+    public static int hitRegion;
+    public static int missRegion;
+    public static int prevHitRegion;
+    public static int prevMissRegion;
+
     public static void onKeyPress() {
     }
 
@@ -210,7 +215,10 @@ public class SketchRender {
         if (event.getOverlay() == VanillaGuiOverlay.HELMET.type()) {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
-            debugText.put("帧数", fps);
+             debugText.put("帧数", fps);
+            debugText.put("missRegion", missRegion);
+
+            debugText.put("hitRegion", prevHitRegion);
             //debugText.put("Debug光源：", LevelPipeline.DEBUG_LIGHT == null ? "null" : LevelPipeline.DEBUG_LIGHT.getPosVec());
             //debugText.put("最大支持光源数", LevelPipeline.getMaxLightSize());
             //debugText.put("ViewMatrixPos", "(" + String.format("%.2f", viewMatrixPos.x) + ", " + String.format("%.2f", viewMatrixPos.y) + ", " + String.format("%.2f", viewMatrixPos.z) + ")");
@@ -247,6 +255,10 @@ public class SketchRender {
         if (currentTime - lastSwitchTime >= SWITCH_INTERVAL) {
             lastSwitchTime = currentTime;
             TIMER.calculateAverageTimes(CullingStateManager.fps);
+            prevHitRegion = hitRegion;
+            prevMissRegion = missRegion;
+            hitRegion = 0;
+            missRegion = 0;
         }
     }
 

@@ -18,7 +18,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL13;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.CullingShader;
@@ -257,8 +256,8 @@ public class CullingRenderEvent {
             BlockPos cameraPos = new BlockPos((int) pos.x >> 4, CullingStateManager.LEVEL_MIN_POS >> 4, (int) pos.z >> 4);
             uniformMap.setUniform("sketch_camera_offset", cameraPos);
 
-            uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_MESSAGE.getRenderDistance());
-            uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_MESSAGE.getSpacePartitionSize());
+            uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_UNIFORM.getRenderDistance());
+            uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_UNIFORM.getSpacePartitionSize());
         }
     }
 
@@ -332,7 +331,7 @@ public class CullingRenderEvent {
                 }
 
                 if (Config.getCullChunk()) {
-                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + CullingStateManager.CHUNK_CULLING_MESSAGE.lastQueueUpdateCount;
+                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + CullingStateManager.CHUNK_CULLING_UNIFORM.lastQueueUpdateCount;
                     addString(monitorTexts, chunkCullingCount);
                 }
             }

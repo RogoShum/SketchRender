@@ -55,7 +55,7 @@ public class SodiumSectionAsyncUtil {
             occlusionCuller.findVisible(collector, viewport, searchDistance, useOcclusionCulling, frame);
             SodiumSectionAsyncUtil.collector = collector;
 
-            CullingStateManager.CHUNK_CULLING_MESSAGE.queueUpdateCount++;
+            CullingStateManager.CHUNK_CULLING_UNIFORM.queueUpdateCount++;
             Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildList = SodiumSectionAsyncUtil.collector.getRebuildLists();
             for(ArrayDeque<RenderSection> arrayDeque : rebuildList.values()) {
                 if (!arrayDeque.isEmpty()) {

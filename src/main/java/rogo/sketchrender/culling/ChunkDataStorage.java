@@ -51,6 +51,10 @@ public class ChunkDataStorage {
         dirty = false;
     }
 
+    public Collection<RenderRegion> getRenderRegions() {
+        return renderRegionQueue.getAllObjects();
+    }
+
     public int getCurrentRegionSize() {
         return currentRegionSize;
     }
