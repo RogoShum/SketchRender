@@ -11,4 +11,6 @@ public interface DataStorage {
     RenderRegion getRenderRegion();
     int getTerrainPass();
     int getStorageIndex();
+
+    void bindSSBO(int slot);
 }

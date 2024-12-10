@@ -16,7 +16,7 @@ public class SSBO implements BufferObject{
     public SSBO(int capacity, int stride) {
         this.capacity = capacity * stride;
         this.stride = stride;
-        bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, this.capacity);
+        bufferPointer = MemoryUtil.nmemCalloc(capacity, stride);
         id = GL15.glGenBuffers();
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, this.capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
@@ -57,6 +57,12 @@ public class SSBO implements BufferObject{
     public void upload() {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, 0, position, bufferPointer);
+        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
+    public void upload(long index) {
+        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, index * getStride(), getStride(), bufferPointer);
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 

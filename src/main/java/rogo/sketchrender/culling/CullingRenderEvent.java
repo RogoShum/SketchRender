@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
@@ -219,7 +220,8 @@ public class CullingRenderEvent {
                     , new String[]{
                             "sketch_region_size",
                             "sketch_layer_pass",
-                            "sketch_region_pos"
+                            "sketch_region_pos",
+                            "sketch_region_mesh"
                     });
         });
         GlStateManager._glUseProgram(0);
@@ -230,6 +232,11 @@ public class CullingRenderEvent {
         UnsafeUniformMap uniformMap = event.getExtraUniform().getUniforms();
         if (uniformMap.containsOperate(collect_chunk)) {
             uniformMap.setUniform("sketch_region_size", RenderSectionManagerGetter.getChunkData().getCurrentRegionSize());
+            if (Minecraft.getInstance().player.getOffhandItem().getItem() == Items.STICK) {
+                uniformMap.setUniform("sketch_region_mesh", 1);
+            } else {
+                uniformMap.setUniform("sketch_region_mesh", 0);
+            }
         }
 
         if (uniformMap.containsOperate(culling_terrain)) {

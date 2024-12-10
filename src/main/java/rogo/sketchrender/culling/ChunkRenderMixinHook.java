@@ -15,11 +15,14 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.chunk.shader.ChunkShaderInterface;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Items;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL46C;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.SketchRender;
+import rogo.sketchrender.api.DataStorage;
 import rogo.sketchrender.api.ExtraChunkRenderer;
 import rogo.sketchrender.api.ExtraUniform;
 import rogo.sketchrender.api.TessellationDevice;
@@ -81,6 +84,9 @@ public class ChunkRenderMixinHook {
             if (storage != null && region.getResources() != null) {
                 IndirectCommandBuffer.INSTANCE.clear();
                 IndirectCommandBuffer.INSTANCE.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
+                if (Minecraft.getInstance().player.getOffhandItem().getItem() == Items.STICK) {
+                    ((DataStorage)storage).bindSSBO(3);
+                }
                 ChunkRenderMixinHook.preExecuteDrawBatch();
                 GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
                 renderer.sodiumModelMatrixUniforms(shader, region, camera);

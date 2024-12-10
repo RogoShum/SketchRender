@@ -15,23 +15,14 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.vehicle.Minecart;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.ExtraChunkRenderer;
-import rogo.sketchrender.api.ExtraUniform;
-import rogo.sketchrender.compat.sodium.RenderSectionManagerGetter;
-import rogo.sketchrender.culling.ChunkCullingUniform;
-import rogo.sketchrender.culling.ChunkDataStorage;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
-import rogo.sketchrender.shader.IndirectCommandBuffer;
-import rogo.sketchrender.shader.ShaderManager;
 
 @Mixin(DefaultChunkRenderer.class)
 public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {

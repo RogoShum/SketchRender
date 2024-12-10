@@ -1,6 +1,7 @@
 package rogo.sketchrender.culling;
 
 import com.mojang.blaze3d.platform.GlStateManager;
+import me.jellysquid.mods.sodium.client.render.chunk.compile.ChunkBuildOutput;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.DefaultTerrainRenderPasses;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class ChunkDataStorage {
+    public static ChunkDataStorage INSTANCE;
     private static final int SECTION_DATA_STEP = 16;
     private static final int SECTIONS_PER_REGION = 256;
     private static final int REGION_DATA_STEP = SECTION_DATA_STEP * SECTIONS_PER_REGION;
@@ -42,6 +44,7 @@ public class ChunkDataStorage {
         clearBuffer();
         currentRegionSize = regionSize;
         regionIndex = new SSBO(1, 1);
+        INSTANCE = this;
     }
 
     private void clearBuffer() {
@@ -77,6 +80,11 @@ public class ChunkDataStorage {
         storage.setTerrainPass(pass);
         int index = getRegionIndex(storage) * REGION_DATA_STEP;
         storage.setStorageIndex(index);
+    }
+
+    public void updateSectionMesh(ChunkBuildOutput output) {
+
+
     }
 
     public int getRegionIndex(DataStorage sectionStorage) {
@@ -139,11 +147,13 @@ public class ChunkDataStorage {
     }
 
     public void removeSection(DataStorage storage, int sections) {
+        /*
         sectionIndexTrace = sections;
         dataStorageTrace = storage;
         setValid(0);
         sectionIndexTrace = -1;
         dataStorageTrace = null;
+         */
     }
 
     public void removeSectionStorage(DataStorage storage) {
