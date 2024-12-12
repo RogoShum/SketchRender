@@ -4,6 +4,7 @@ import com.mojang.blaze3d.shaders.Uniform;
 
 public interface CullingShader {
     Uniform getRenderDistance();
+    Uniform getDepthIndex();
     Uniform getCullingCameraPos();
     Uniform getCullingCameraDir();
     Uniform getBoxScale();

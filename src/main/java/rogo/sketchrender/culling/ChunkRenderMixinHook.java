@@ -13,6 +13,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderList;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderListIterable;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.chunk.shader.ChunkShaderInterface;
+import me.jellysquid.mods.sodium.client.render.chunk.terrain.DefaultTerrainRenderPasses;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.minecraft.client.Minecraft;
@@ -27,7 +28,6 @@ import rogo.sketchrender.api.ExtraChunkRenderer;
 import rogo.sketchrender.api.ExtraUniform;
 import rogo.sketchrender.api.TessellationDevice;
 import rogo.sketchrender.compat.sodium.ChunkShaderTracker;
-import rogo.sketchrender.compat.sodium.RenderSectionManagerGetter;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
@@ -47,15 +47,19 @@ public class ChunkRenderMixinHook {
         ChunkCullingUniform.batchCommand.bindShaderSlot(4);
         ChunkCullingUniform.batchCounter.bindShaderSlot(5);
         ChunkCullingUniform.chunkData.bindShaderSlot(6);
-        RenderSectionManagerGetter.getChunkData().regionIndex.bindShaderSlot(7);
 
         shader.setProjectionMatrix(matrices.projection());
         shader.setModelViewMatrix(matrices.modelView());
 
+        int layer = 0;
+        for (int i = 0; i < DefaultTerrainRenderPasses.ALL.length; ++i) {
+            if (DefaultTerrainRenderPasses.ALL[layer] == pass) {
+                layer = i;
+            }
+        }
         SketchRender.TIMER.start("collect_chunk");
-        RenderSectionManagerGetter.getChunkData().updateSSBO(ChunkCullingUniform.chunkData.getId());
         ShaderManager.COLLECT_CHUNK_CS.bindUniforms();
-        ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_layer_pass", ChunkDataStorage.PASS_INDEX_MAP.get(pass));
+        ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_layer_pass", layer);
         SketchRender.TIMER.end("collect_chunk");
     }
 
@@ -84,9 +88,7 @@ public class ChunkRenderMixinHook {
             if (storage != null && region.getResources() != null) {
                 IndirectCommandBuffer.INSTANCE.clear();
                 IndirectCommandBuffer.INSTANCE.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
-                if (Minecraft.getInstance().player.getOffhandItem().getItem() == Items.STICK) {
-                    ((DataStorage)storage).bindSSBO(3);
-                }
+                ((DataStorage) storage).bindSSBO(3);
                 ChunkRenderMixinHook.preExecuteDrawBatch();
                 GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
                 renderer.sodiumModelMatrixUniforms(shader, region, camera);

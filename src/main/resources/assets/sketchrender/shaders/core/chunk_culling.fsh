@@ -15,7 +15,6 @@ uniform vec3 FrustumPos;
 uniform float RenderDistance;
 uniform int LevelHeightOffset;
 uniform int LevelMinSection;
-uniform float BoxScale;
 
 flat in int spacePartitionSize;
 flat in vec4[6] frustum;
@@ -23,7 +22,7 @@ flat in vec2[5] DepthScreenSize;
 
 out vec4 fragColor;
 
-float near = 0.1;
+float near = 0.05;
 float far  = 16.0;
 
 int getSampler(float xLength, float yLength) {
@@ -130,23 +129,19 @@ void main() {
     int chunkY = screenIndex % LevelHeightOffset + LevelMinSection;
     vec3 chunkBasePos = vec3(chunkX, chunkY, chunkZ);
     vec3 chunkPos = vec3(chunkBasePos+blockToChunk(CullingCameraPos))*16;
-    chunkPos = vec3(chunkPos.x, chunkY*16, chunkPos.z)+vec3(8.0);
-
-    float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 16)).z;
-    if (calculateDistance(chunkPos, CullingCameraPos) < 1024) {
-        fragColor = vec4(1.0, 1.0, 1.0, 1.0);
-        return;
-    }
-
-    float chunkDepth = LinearizeDepth(chunkCenterDepth) / (far * 0.5) - 0.015625;//0.015625 = 4.0 / 256.0; do offset
-
-    if(chunkDepth < 0) {
-        fragColor = vec4(0.0, 0.4, 0.5, 1.0);
-        return;
-    }
+    chunkPos = vec3(chunkPos.x + 8.0, chunkY*16 + 8.0, chunkPos.z + 8.0);
 
     if(!isVisible(chunkPos)) {
         fragColor = vec4(0.0, 0.0, 1.0, 1.0);
+        return;
+    }
+
+    far = RenderDistance * 64.0;
+    float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 16.0)).z;
+    float chunkDepth = LinearizeDepth(chunkCenterDepth) / (far * 0.5);//0.015625 = 4.0 / 256.0; do offset
+
+    if(chunkDepth < 0) {
+        fragColor = vec4(0.0, 0.4, 0.5, 1.0);
         return;
     }
 
@@ -179,7 +174,6 @@ void main() {
             inside = true;
         } else {
             fragColor = vec4(0.0, 1.0, 0.0, 1.0);
-            return;
             vec3 vectorDir = normalize(aabb[i]-CullingCameraPos);
 
             float xDot = dot(vectorDir, cameraRight);
@@ -207,11 +201,6 @@ void main() {
         minX = screenPos.x;
         if (screenPos.y < minY)
         minY = screenPos.y;
-    }
-
-    if(!inside) {
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
     }
 
     int idx = getSampler(maxX-minX,

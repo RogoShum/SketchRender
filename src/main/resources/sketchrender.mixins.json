@@ -5,14 +5,11 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "sketchrender.refmap.json",
   "mixins": [
-    "sodium.MixinChunkBuilderMeshingTask",
     "sodium.MixinDefaultChunkRenderer",
     "sodium.MixinGlProgram",
     "sodium.MixinGLRenderDevice",
     "sodium.MixinGLRenderDevice$MixinDefaultChunkRenderer",
-    "sodium.MixinRenderRegionManager",
-    "sodium.MixinSectionRenderDataStorage",
-    "sodium.MixinSectionRenderDataUnsafe"
+    "sodium.MixinSectionRenderDataStorage"
   ],
   "client": [
     "AccessorFrustum",

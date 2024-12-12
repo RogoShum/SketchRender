@@ -275,7 +275,7 @@ public class CullingStateManager {
                 } else {
                     frustum = levelFrustum.getCullingFrustum();
                 }
-                CullingStateManager.FRUSTUM = new Frustum(frustum).offsetToFullyIncludeCameraCube(24);
+                CullingStateManager.FRUSTUM = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
                 checkShader();
                 CullingRenderEvent.updateChunkCullingMap();
             }

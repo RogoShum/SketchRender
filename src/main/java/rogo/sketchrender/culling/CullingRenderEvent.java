@@ -52,6 +52,23 @@ public class CullingRenderEvent {
         if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
             return;
 
+        if(SketchRender.CULL_TEST_TARGET.width != Minecraft.getInstance().getWindow().getWidth() || SketchRender.CULL_TEST_TARGET.height != Minecraft.getInstance().getWindow().getHeight()) {
+            SketchRender.CULL_TEST_TARGET.resize(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), Minecraft.ON_OSX);
+        }
+
+        Tesselator tessellator = Tesselator.getInstance();
+        BufferBuilder bufferbuilder = tessellator.getBuilder();
+        CullingStateManager.useShader(ShaderManager.CULL_TEST_SHADER);
+        SketchRender.CULL_TEST_TARGET.clear(Minecraft.ON_OSX);
+        SketchRender.CULL_TEST_TARGET.bindWrite(false);
+        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
+        bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
+        bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
+        bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
+        bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
+        CullingStateManager.callDepthTexture();
+        tessellator.end();
+
         CullingStateManager.callDepthTexture();
         if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MAP != null && CullingStateManager.ENTITY_CULLING_MAP.needTransferData()) {
             CullingStateManager.ENTITY_CULLING_MAP_TARGET.clear(Minecraft.ON_OSX);
@@ -152,14 +169,12 @@ public class CullingRenderEvent {
         }
         if (shaderInstance.getRenderDistance() != null) {
             float distance = Minecraft.getInstance().options.getEffectiveRenderDistance();
-            if (shader == ShaderManager.COPY_DEPTH_SHADER) {
-                if (CullingStateManager.DEPTH_INDEX > 0)
-                    distance = 2;
-                else
-                    distance = 0;
-            }
-
             shaderInstance.getRenderDistance().set(distance);
+        }
+        if (shaderInstance.getDepthIndex() != null) {
+            if (shader == ShaderManager.COPY_DEPTH_SHADER) {
+                shaderInstance.getDepthIndex().set(CullingStateManager.DEPTH_INDEX);
+            }
         }
         if (shaderInstance.getDepthSize() != null) {
             float[] array = new float[CullingStateManager.DEPTH_SIZE * 2];
@@ -202,7 +217,6 @@ public class CullingRenderEvent {
         event.getExtraUniform().getUniforms().tryInsertUniform("sketch_check_culling", () -> {
             event.getExtraUniform().getUniforms().createUniforms(culling_terrain
                     , new String[]{
-                            "sketch_culling_terrain",
                             "sketch_culling_texture",
                             "sketch_level_min_pos",
                             "sketch_level_pos_range",
@@ -215,13 +229,11 @@ public class CullingRenderEvent {
                     });
         });
 
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_region_size", () -> {
+        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_region_pos", () -> {
             event.getExtraUniform().getUniforms().createUniforms(collect_chunk
                     , new String[]{
-                            "sketch_region_size",
-                            "sketch_layer_pass",
-                            "sketch_region_pos",
-                            "sketch_region_mesh"
+                            "sketch_cull_facing",
+                            "sketch_region_pos"
                     });
         });
         GlStateManager._glUseProgram(0);
@@ -231,12 +243,7 @@ public class CullingRenderEvent {
     public void onBind(ProgramEvent.Bind event) {
         UnsafeUniformMap uniformMap = event.getExtraUniform().getUniforms();
         if (uniformMap.containsOperate(collect_chunk)) {
-            uniformMap.setUniform("sketch_region_size", RenderSectionManagerGetter.getChunkData().getCurrentRegionSize());
-            if (Minecraft.getInstance().player.getOffhandItem().getItem() == Items.STICK) {
-                uniformMap.setUniform("sketch_region_mesh", 1);
-            } else {
-                uniformMap.setUniform("sketch_region_mesh", 0);
-            }
+            //uniformMap.setUniform("sketch_region_mesh", 1);
         }
 
         if (uniformMap.containsOperate(culling_terrain)) {
@@ -391,7 +398,7 @@ public class CullingRenderEvent {
 
             Tesselator tessellator = Tesselator.getInstance();
 
-            /*
+
             RenderSystem.enableBlend();
             RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
             RenderSystem.defaultBlendFunc();
@@ -404,9 +411,9 @@ public class CullingRenderEvent {
             bufferbuilder.vertex((double) minecraft.getWindow().getGuiScaledWidth(), height * 2, 0.0D).uv(1, 0.0F).color(255, 255, 255, 255).endVertex();
             bufferbuilder.vertex((double) minecraft.getWindow().getGuiScaledWidth(), height, 0.0D).uv(1, 1).color(255, 255, 255, 255).endVertex();
             bufferbuilder.vertex(minecraft.getWindow().getGuiScaledWidth() - width, height, 0.0D).uv(0.0F, 1).color(255, 255, 255, 255).endVertex();
-            RenderSystem.setShaderTexture(0, ModLoader.CULL_TEST_TARGET.getColorTextureId());
+            RenderSystem.setShaderTexture(0, SketchRender.CULL_TEST_TARGET.getColorTextureId());
             tessellator.end();
-             */
+
 
             if (!CullingStateManager.checkTexture)
                 return;

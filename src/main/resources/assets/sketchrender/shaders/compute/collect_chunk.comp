@@ -16,35 +16,17 @@ layout(std430, binding = 6) readonly buffer ChunkSSBO {
     int chunkData[];
 };
 
-layout(std430, binding = 7) readonly buffer RegionSSBO {
-    ivec4 regionData[];
-};
-
 uniform sampler2D sketch_culling_texture;
 uniform int sketch_level_section_range;
 uniform int sketch_render_distance;
 uniform int sketch_space_partition_size;
 uniform int sketch_culling_size;
 uniform int sketch_check_culling;
+uniform int sketch_cull_facing;
 uniform ivec3 sketch_camera_offset;
-
-uniform int sketch_region_size;
-uniform int sketch_layer_pass;
 uniform ivec3 sketch_region_pos;
-uniform int sketch_region_mesh;
-
-#define SECTION_DATA_STEP 16
-#define SECTIONS_PER_REGION 256
-#define REGION_DATA_STEP 4096
-#define REGION_WIDTH_SH 3
-#define REGION_HEIGHT_SH 2
-#define REGION_LENGTH_SH 3
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-
-ivec3 _section_2_region() {
-    return ivec3(sketch_region_pos.x, sketch_region_pos.y, sketch_region_pos.z);
-}
 
 int _get_chunk_index(ivec3 chunk_offset) {
     return (chunk_offset.x + sketch_render_distance) * sketch_space_partition_size * sketch_level_section_range + (chunk_offset.z + sketch_render_distance) * sketch_level_section_range + chunk_offset.y;
@@ -65,17 +47,6 @@ bool _is_chunk_culled(ivec3 chunk_offset) {
         return !cull;
     }
     return cull;
-}
-
-int _get_region_index(ivec3 regionPos) {
-    for (int i = 0; i < sketch_region_size; ++i) {
-        ivec3 find = regionData[i].xyz;
-        if (find.x == regionPos.x && find.y == regionPos.y && find.z == regionPos.z) {
-            return i;
-        }
-    }
-
-    return -1;
 }
 
 int unpackX(int idx) {
@@ -102,74 +73,34 @@ void main() {
     if (!_is_chunk_culled(offset_chunk)) {
         ivec3 regionPos = sketch_region_pos.xyz;
 
-        if (sketch_region_mesh > 0) {
-            int meshOffset = screenIndex * 16;
-            if (regionMesh[meshOffset] > 0) {
-                int drawCount = 0;
-                int[14] drawVertex;
+        int meshOffset = screenIndex * 16;
+        if (regionMesh[meshOffset] > 0) {
+            int drawCount = 0;
+            int[14] drawVertex;
 
-                for (int i = 0; i < 6; ++i) {
-                    int chunkOffset = i * 2;
-                    int outOffset = drawCount * 2;
-                    int elementCount = regionMesh[meshOffset + 3 + chunkOffset];
-                    if (elementCount > 0) {
-                        drawVertex[outOffset] = elementCount;
-                        drawVertex[outOffset + 1] = regionMesh[meshOffset + 2 + chunkOffset];
-                        drawCount++;
-                    }
-                }
-
-                int currentCounter = atomicAdd(counter, drawCount);
-                memoryBarrierBuffer();
-
-                int outputOffset = currentCounter * 5;
-
-                for (int i = 0; i < drawCount; ++i) {
-                    int offset = i * 5;
-                    outputData[outputOffset + offset] = drawVertex[i * 2];
-                    outputData[outputOffset + offset + 1] = 1;
-                    outputData[outputOffset + offset + 2] = 0;
-                    outputData[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
-                    outputData[outputOffset + offset + 4] = 0;
+            for (int i = 0; i < 7; ++i) {
+                int chunkOffset = i * 2;
+                int outOffset = drawCount * 2;
+                int elementCount = regionMesh[meshOffset + 3 + chunkOffset];
+                if (elementCount > 0) {
+                    drawVertex[outOffset] = elementCount;
+                    drawVertex[outOffset + 1] = regionMesh[meshOffset + 2 + chunkOffset];
+                    drawCount++;
                 }
             }
-        } else {
-            int regionIndex = _get_region_index(regionPos) * 3 + sketch_layer_pass;
 
-            if (regionIndex > 0) {
-                int sectionIndex = screenIndex;
+            int currentCounter = atomicAdd(counter, drawCount);
+            memoryBarrierBuffer();
 
-                int dataIndex = regionIndex * REGION_DATA_STEP + sectionIndex * SECTION_DATA_STEP;
+            int outputOffset = currentCounter * 5;
 
-                if (chunkData[dataIndex + 1] > 0) {
-                    int drawCount = 0;
-                    int[14] drawVertex;
-
-                    for (int i = 0; i < 7; ++i) {
-                        int chunkOffset = i * 2;
-                        int outOffset = drawCount * 2;
-                        int elementCount = chunkData[dataIndex + 3 + chunkOffset];
-                        if (elementCount > 0) {
-                            drawVertex[outOffset] = elementCount;
-                            drawVertex[outOffset + 1] = chunkData[dataIndex + 2 + chunkOffset];
-                            drawCount++;
-                        }
-                    }
-
-                    int currentCounter = atomicAdd(counter, drawCount);
-                    memoryBarrierBuffer();
-
-                    int outputOffset = currentCounter * 5;
-
-                    for (int i = 0; i < drawCount; ++i) {
-                        int offset = i * 5;
-                        outputData[outputOffset + offset] = drawVertex[i * 2];
-                        outputData[outputOffset + offset + 1] = 1;
-                        outputData[outputOffset + offset + 2] = 0;
-                        outputData[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
-                        outputData[outputOffset + offset + 4] = 0;
-                    }
-                }
+            for (int i = 0; i < drawCount; ++i) {
+                int offset = i * 5;
+                outputData[outputOffset + offset] = drawVertex[i * 2];
+                outputData[outputOffset + offset + 1] = 1;
+                outputData[outputOffset + offset + 2] = 0;
+                outputData[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
+                outputData[outputOffset + offset + 4] = 0;
             }
         }
     }

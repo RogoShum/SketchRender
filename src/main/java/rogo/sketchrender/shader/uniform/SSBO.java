@@ -23,6 +23,16 @@ public class SSBO implements BufferObject{
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
+    public SSBO(int capacity, int stride, long memoryAddress) {
+        this.capacity = capacity * stride;
+        this.stride = stride;
+        bufferPointer = memoryAddress;
+        id = GL15.glGenBuffers();
+        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, this.capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
+        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
     public SSBO(BufferObject buffer) {
         capacity = buffer.getSize();
         bufferPointer = buffer.getMemoryAddress();

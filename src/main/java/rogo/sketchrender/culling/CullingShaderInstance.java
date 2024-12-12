@@ -24,6 +24,8 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
     @Nullable
     public Uniform RENDER_DISTANCE;
     @Nullable
+    public Uniform DEPTH_INDEX;
+    @Nullable
     public Uniform DEPTH_SIZE;
     @Nullable
     public Uniform CULLING_SIZE;
@@ -50,6 +52,7 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
         this.CULLING_CAMERA_DIR = this.getUniform("CullingCameraDir");
         this.BOX_SCALE = this.getUniform("BoxScale");
         this.TEST_POS = this.getUniform("TestPos");
+        this.DEPTH_INDEX = this.getUniform("DepthIndex");
         this.RENDER_DISTANCE = this.getUniform("RenderDistance");
         this.DEPTH_SIZE = this.getUniform("DepthSize");
         this.CULLING_SIZE = this.getUniform("CullingSize");
@@ -76,6 +79,11 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
     @Override
     public Uniform getRenderDistance() {
         return RENDER_DISTANCE;
+    }
+
+    @Override
+    public Uniform getDepthIndex() {
+        return DEPTH_INDEX;
     }
 
     @Override
