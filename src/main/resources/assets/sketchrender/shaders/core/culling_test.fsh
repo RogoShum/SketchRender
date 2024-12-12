@@ -24,10 +24,10 @@ float near = 0.05;
 float far  = 16.0;
 
 int getSampler(float xLength, float yLength) {
-    for(int i = 0; i < DepthScreenSize.length(); ++i) {
+    for (int i = 0; i < DepthScreenSize.length(); ++i) {
         float xStep = 2.0 / DepthScreenSize[i].x;
         float yStep = 2.0 / DepthScreenSize[i].y;
-        if(xStep > xLength && yStep > yLength) {
+        if (xStep > xLength && yStep > yLength) {
             return i;
         }
     }
@@ -105,13 +105,13 @@ bool isVisible(vec3 vec) {
 }
 
 float getUVDepth(int idx, vec2 uv) {
-    if(idx == 0)
+    if (idx == 0)
     return texture(Sampler0, uv).r;
-    else if(idx == 1)
+    else if (idx == 1)
     return texture(Sampler1, uv).r;
-    else if(idx == 2)
+    else if (idx == 2)
     return texture(Sampler2, uv).r;
-    else if(idx == 3)
+    else if (idx == 3)
     return texture(Sampler3, uv).r;
 
     return texture(Sampler4, uv).r;
@@ -124,6 +124,11 @@ void main() {
     vec3 chunkBasePos = TestPos;
     vec3 chunkPos = chunkBasePos*16;
     chunkPos = vec3(chunkPos.x, chunkPos.y, chunkPos.z)+vec3(8.0);
+
+    if(!isVisible(chunkPos)) {
+        fragColor = vec4(screenUV.x, screenUV.y, (screenUV.x + screenUV.y) * 0.5, 1.0);
+        return;
+    }
 
     float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 16)).z;
 
@@ -183,15 +188,9 @@ void main() {
         minY = screenPos.y;
     }
 
-    if (!inside) {
-        fragColor = vec4(screenUV.x, screenUV.y, (screenUV.x+screenUV.y)*0.5, 1.0);
-        return;
-    }
-
     float chunkDepth = LinearizeDepth(chunkCenterDepth) / (far * 0.5);
 
-    int idx = getSampler(maxX-minX,
-    maxY-minY);
+    int idx = getSampler(maxX-minX, maxY-minY);
 
     float xStep = 1.0/DepthScreenSize[idx].x;
     float yStep = 1.0/DepthScreenSize[idx].y;
@@ -201,18 +200,16 @@ void main() {
     minY = max(minY-yStep, 0.0);
     maxY = min(maxY+yStep, 1.0);
 
-    for(float x = minX; x <= maxX; x += xStep) {
-        for(float y = minY; y <= maxY; y += yStep) {
-            float pixelDepth = getUVDepth(idx, vec2(x, y));
-            if(chunkDepth < pixelDepth) {
-                fragColor = vec4(0.0, 1.0, 0.0, 1.0);
-                return;
-            } else {
-                fragColor = vec4(1.0, 0.0, 0.0, 1.0);
-                return;
-            }
+    if(screenUV.x >= minX && screenUV.x <= maxX && screenUV.y >= minY && screenUV.y <= maxY) {
+        float pixelDepth = getUVDepth(idx, screenUV);
+        if(chunkDepth < pixelDepth) {
+            fragColor = vec4(0.0, 1.0, 0.0, 1.0);
+            return;
+        } else {
+            fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+            return;
+        }
     }
-
 
     fragColor = vec4(0.0, 0.0, 0.0, 1.0);
 }

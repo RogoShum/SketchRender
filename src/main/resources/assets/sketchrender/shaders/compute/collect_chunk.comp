@@ -23,8 +23,19 @@ uniform int sketch_space_partition_size;
 uniform int sketch_culling_size;
 uniform int sketch_check_culling;
 uniform int sketch_cull_facing;
+uniform int sketch_translucent_sort;
+uniform int sketch_layer_pass;
 uniform ivec3 sketch_camera_offset;
 uniform ivec3 sketch_region_pos;
+uniform ivec3 sketch_camera_pos;
+
+#define MODEL_UNASSIGNED 6
+#define MODEL_NEG_Z 5
+#define MODEL_NEG_Y 4
+#define MODEL_NEG_X 3
+#define MODEL_POS_Z 2
+#define MODEL_POS_Y 1
+#define MODEL_POS_X 0
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
@@ -47,6 +58,31 @@ bool _is_chunk_culled(ivec3 chunk_offset) {
         return !cull;
     }
     return cull;
+}
+
+int lessThan(int a, int b) {
+    return int(uint(a - b) >> 31);
+}
+
+int greaterThan(int a, int b) {
+    return int(uint(b - a) >> 31);
+}
+
+int getVisibleFaces(int originX, int originY, int originZ, int chunkX, int chunkY, int chunkZ) {
+    int boundsMinX = chunkX << 4;
+    int boundsMaxX = boundsMinX + 16;
+    int boundsMinY = chunkY << 4;
+    int boundsMaxY = boundsMinY + 16;
+    int boundsMinZ = chunkZ << 4;
+    int boundsMaxZ = boundsMinZ + 16;
+    int planes = 1 << MODEL_UNASSIGNED;
+    planes |= greaterThan(originX, boundsMinX - 3) << MODEL_POS_X;
+    planes |= greaterThan(originY, boundsMinY - 3) << MODEL_POS_Y;
+    planes |= greaterThan(originZ, boundsMinZ - 3) << MODEL_POS_Z;
+    planes |= lessThan(originX, boundsMaxX + 3) << MODEL_NEG_X;
+    planes |= lessThan(originY, boundsMaxY + 3) << MODEL_NEG_Y;
+    planes |= lessThan(originZ, boundsMaxZ + 3) << MODEL_NEG_Z;
+    return planes;
 }
 
 int unpackX(int idx) {
@@ -74,19 +110,28 @@ void main() {
         ivec3 regionPos = sketch_region_pos.xyz;
 
         int meshOffset = screenIndex * 16;
-        if (regionMesh[meshOffset] > 0) {
+        int slices;
+
+        if (sketch_cull_facing > 0 || (sketch_translucent_sort > 1 && sketch_layer_pass == 2)) {
+            slices = 127;
+        } else {
+            slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, offset_chunk.x, offset_chunk.y, offset_chunk.z);
+        }
+
+        slices &= regionMesh[meshOffset];
+
+        if (slices != 0) {
             int drawCount = 0;
             int[14] drawVertex;
 
-            for (int i = 0; i < 7; ++i) {
-                int chunkOffset = i * 2;
+            for (int facing = 0; facing < 7; ++facing) {
+                int count = slices >> facing & 1;
+                int chunkOffset = facing * 2;
                 int outOffset = drawCount * 2;
-                int elementCount = regionMesh[meshOffset + 3 + chunkOffset];
-                if (elementCount > 0) {
-                    drawVertex[outOffset] = elementCount;
-                    drawVertex[outOffset + 1] = regionMesh[meshOffset + 2 + chunkOffset];
-                    drawCount++;
-                }
+
+                drawVertex[outOffset] = regionMesh[meshOffset + 3 + chunkOffset];
+                drawVertex[outOffset + 1] = regionMesh[meshOffset + 2 + chunkOffset];
+                drawCount += count;
             }
 
             int currentCounter = atomicAdd(counter, drawCount);

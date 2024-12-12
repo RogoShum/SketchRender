@@ -3,6 +3,7 @@ package rogo.sketchrender.culling;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -225,7 +226,8 @@ public class CullingRenderEvent {
                             "sketch_space_partition_size",
                             "sketch_culling_size",
                             "sketch_camera_offset",
-                            "sketch_check_culling"
+                            "sketch_check_culling",
+                            "sketch_camera_pos"
                     });
         });
 
@@ -233,7 +235,9 @@ public class CullingRenderEvent {
             event.getExtraUniform().getUniforms().createUniforms(collect_chunk
                     , new String[]{
                             "sketch_cull_facing",
-                            "sketch_region_pos"
+                            "sketch_translucent_sort",
+                            "sketch_region_pos",
+                            "sketch_layer_pass"
                     });
         });
         GlStateManager._glUseProgram(0);
@@ -243,7 +247,11 @@ public class CullingRenderEvent {
     public void onBind(ProgramEvent.Bind event) {
         UnsafeUniformMap uniformMap = event.getExtraUniform().getUniforms();
         if (uniformMap.containsOperate(collect_chunk)) {
-            //uniformMap.setUniform("sketch_region_mesh", 1);
+            boolean useBlockFaceCulling = SodiumClientMod.options().performance.useBlockFaceCulling;
+            boolean useTranslucentFaceSorting = SodiumClientMod.options().performance.useTranslucentFaceSorting;
+
+            uniformMap.setUniform("sketch_cull_facing", useBlockFaceCulling ? 1 : 0);
+            uniformMap.setUniform("sketch_translucent_sort", useTranslucentFaceSorting ? 1 : 0);
         }
 
         if (uniformMap.containsOperate(culling_terrain)) {
@@ -269,7 +277,8 @@ public class CullingRenderEvent {
             Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
             BlockPos cameraPos = new BlockPos((int) pos.x >> 4, CullingStateManager.LEVEL_MIN_POS >> 4, (int) pos.z >> 4);
             uniformMap.setUniform("sketch_camera_offset", cameraPos);
-
+            cameraPos = new BlockPos((int) pos.x, (int) pos.y, (int) pos.z);
+            uniformMap.setUniform("sketch_camera_pos", cameraPos);
             uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_UNIFORM.getRenderDistance());
             uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_UNIFORM.getSpacePartitionSize());
         }

@@ -97,6 +97,7 @@ public class SketchRender {
     public void registerKeyBinding(RegisterKeyMappingsEvent event) {
         event.register(CONFIG_KEY);
         event.register(DEBUG_KEY);
+        event.register(TEST_CULL_KEY);
     }
 
     public static RenderTarget CULL_TEST_TARGET;

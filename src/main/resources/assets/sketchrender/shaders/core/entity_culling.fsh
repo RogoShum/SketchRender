@@ -6,6 +6,7 @@ uniform vec3 CullingCameraPos;
 uniform vec3 CullingCameraDir;
 uniform mat4 CullingProjMat;
 uniform vec3 FrustumPos;
+uniform float RenderDistance;
 
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
@@ -20,14 +21,14 @@ flat in vec2[5] DepthScreenSize;
 
 out vec4 fragColor;
 
-float near = 0.1;
+float near = 0.05;
 float far  = 16.0;
 
 int getSampler(float xLength, float yLength) {
-    for (int i = 0; i < DepthScreenSize.length(); ++i) {
+    for(int i = 0; i < DepthScreenSize.length(); ++i) {
         float xStep = 2.0 / DepthScreenSize[i].x;
         float yStep = 2.0 / DepthScreenSize[i].y;
-        if (xStep > xLength && yStep > yLength) {
+        if(xStep > xLength && yStep > yLength) {
             return i;
         }
     }
@@ -119,10 +120,10 @@ void main() {
     }
 
     vec3 aabb[8] = vec3[](
-    Pos+vec3(-halfWidth, -halfHeight, -halfWidth), Pos+vec3(halfWidth, -halfHeight, -halfWidth),
-    Pos+vec3(-halfWidth, halfHeight, -halfWidth), Pos+vec3(halfWidth, halfHeight, -halfWidth),
-    Pos+vec3(-halfWidth, -halfHeight, halfWidth), Pos+vec3(halfWidth, -halfHeight, halfWidth),
-    Pos+vec3(-halfWidth, halfHeight, halfWidth), Pos+vec3(halfWidth, halfHeight, halfWidth)
+        Pos+vec3(-halfWidth, -halfHeight, -halfWidth), Pos+vec3(halfWidth, -halfHeight, -halfWidth),
+        Pos+vec3(-halfWidth, halfHeight, -halfWidth), Pos+vec3(halfWidth, halfHeight, -halfWidth),
+        Pos+vec3(-halfWidth, -halfHeight, halfWidth), Pos+vec3(halfWidth, -halfHeight, halfWidth),
+        Pos+vec3(-halfWidth, halfHeight, halfWidth), Pos+vec3(halfWidth, halfHeight, halfWidth)
     );
 
     float maxX = -0.1;
@@ -180,12 +181,6 @@ void main() {
     }
     */
 
-
-    minX = min(1.0, max(0.0, minX));
-    maxX = min(1.0, max(0.0, maxX));
-    maxY = min(1.0, max(0.0, maxY));
-    minY = min(1.0, max(0.0, minY));
-
     int idx = getSampler(maxX-minX,
     maxY-minY);
 
@@ -197,6 +192,7 @@ void main() {
     minY = max(minY-yStep, 0.0);
     maxY = min(maxY+yStep, 1.0);
 
+    far = RenderDistance * 64.0;
     float entityDepth = LinearizeDepth(worldToScreenSpace(moveTowardsCamera(Pos, sqrt(halfWidth*halfWidth+halfWidth*halfWidth))).z) / (far * 0.5);
     for (float x = minX; x <= maxX; x += xStep) {
         for (float y = minY; y <= maxY; y += yStep) {

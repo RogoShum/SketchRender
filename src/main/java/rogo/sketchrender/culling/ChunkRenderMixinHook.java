@@ -78,7 +78,6 @@ public class ChunkRenderMixinHook {
     }
 
     public static void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass pass, CameraTransform camera) {
-        boolean useBlockFaceCulling = SodiumClientMod.options().performance.useBlockFaceCulling;
         Iterator<ChunkRenderList> iterator = renderLists.iterator(pass.isReverseOrder());
 
         while (iterator.hasNext()) {
