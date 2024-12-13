@@ -137,7 +137,7 @@ void main() {
     }
 
     far = RenderDistance * 64.0;
-    float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 16.0)).z;
+    float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 12.0)).z;
     float chunkDepth = LinearizeDepth(chunkCenterDepth) / (far * 0.5);//0.015625 = 4.0 / 256.0; do offset
 
     if(chunkDepth < 0) {
@@ -209,10 +209,12 @@ void main() {
     float xStep = 1.0/DepthScreenSize[idx].x;
     float yStep = 1.0/DepthScreenSize[idx].y;
 
+    /*
     minX = max(minX-xStep, 0.0);
     maxX = min(maxX+xStep, 1.0);
     minY = max(minY-yStep, 0.0);
     maxY = min(maxY+yStep, 1.0);
+    */
 
     for(float x = minX; x <= maxX; x += xStep) {
         for(float y = minY; y <= maxY; y += yStep) {

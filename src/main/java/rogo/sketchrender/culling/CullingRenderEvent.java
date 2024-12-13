@@ -57,6 +57,7 @@ public class CullingRenderEvent {
             SketchRender.CULL_TEST_TARGET.resize(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), Minecraft.ON_OSX);
         }
 
+        /*
         Tesselator tessellator = Tesselator.getInstance();
         BufferBuilder bufferbuilder = tessellator.getBuilder();
         CullingStateManager.useShader(ShaderManager.CULL_TEST_SHADER);
@@ -69,6 +70,7 @@ public class CullingRenderEvent {
         bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
         CullingStateManager.callDepthTexture();
         tessellator.end();
+         */
 
         CullingStateManager.callDepthTexture();
         if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MAP != null && CullingStateManager.ENTITY_CULLING_MAP.needTransferData()) {

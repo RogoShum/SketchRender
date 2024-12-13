@@ -8,6 +8,7 @@ import me.jellysquid.mods.sodium.client.gl.tessellation.GlIndexType;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlPrimitiveType;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
+import me.jellysquid.mods.sodium.client.render.chunk.SharedQuadIndexBuffer;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderList;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderListIterable;
@@ -77,7 +78,9 @@ public class ChunkRenderMixinHook {
         SketchRender.TIMER.end("CHUNK_CULLING_CS");
     }
 
-    public static void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass pass, CameraTransform camera) {
+    public static int maxElementCount = (SharedQuadIndexBuffer.IndexType.INTEGER.getMaxElementCount() / 4) - (16384 * 6) - 128;
+
+    public static void onRender(ExtraChunkRenderer renderer, SharedQuadIndexBuffer sharedIndexBuffer, ChunkShaderInterface shader, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass pass, CameraTransform camera) {
         Iterator<ChunkRenderList> iterator = renderLists.iterator(pass.isReverseOrder());
 
         while (iterator.hasNext()) {
@@ -89,6 +92,7 @@ public class ChunkRenderMixinHook {
                 IndirectCommandBuffer.INSTANCE.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
                 ((DataStorage) storage).bindSSBO(3);
                 ChunkRenderMixinHook.preExecuteDrawBatch();
+                sharedIndexBuffer.ensureCapacity(commandList, maxElementCount);
                 GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
                 renderer.sodiumModelMatrixUniforms(shader, region, camera);
                 DrawCommandList drawCommandList = commandList.beginTessellating(tessellation);

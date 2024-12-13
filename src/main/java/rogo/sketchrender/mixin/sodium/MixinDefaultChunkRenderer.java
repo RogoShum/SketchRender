@@ -7,6 +7,7 @@ import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import me.jellysquid.mods.sodium.client.render.chunk.DefaultChunkRenderer;
 import me.jellysquid.mods.sodium.client.render.chunk.ShaderChunkRenderer;
+import me.jellysquid.mods.sodium.client.render.chunk.SharedQuadIndexBuffer;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderListIterable;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.chunk.shader.ChunkShaderInterface;
@@ -15,6 +16,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -23,6 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.ExtraChunkRenderer;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
+import rogo.sketchrender.culling.CullingStateManager;
 
 @Mixin(DefaultChunkRenderer.class)
 public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
@@ -36,13 +39,15 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
     private static void setModelMatrixUniforms(ChunkShaderInterface shader, RenderRegion region, CameraTransform camera) {
     }
 
+    @Shadow @Final private SharedQuadIndexBuffer sharedIndexBuffer;
+
     public MixinDefaultChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {
         super(device, vertexType);
     }
 
     @Inject(method = "render", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onRender(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera, CallbackInfo ci) {
-        if (Config.getCullChunk()) {
+        if (Config.getCullChunk() && !CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
             ci.cancel();
             super.begin(renderPass);
 
@@ -67,7 +72,7 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
 
             if (shaderInterface != null) {
                 ChunkRenderMixinHook.preRender(shaderInterface, matrices, renderPass);
-                ChunkRenderMixinHook.onRender(this, shaderInterface, commandList, renderLists, renderPass, camera);
+                ChunkRenderMixinHook.onRender(this, sharedIndexBuffer, shaderInterface, commandList, renderLists, renderPass, camera);
             }
 
             super.end(renderPass);

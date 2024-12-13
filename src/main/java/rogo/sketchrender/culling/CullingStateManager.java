@@ -24,6 +24,7 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.system.Checks;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.api.DefaultShaderLoader;
 import rogo.sketchrender.api.EntitiesForRender;
 import rogo.sketchrender.api.RenderChunkInfo;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
@@ -126,6 +127,8 @@ public class CullingStateManager {
             } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
+        } else {
+            SHADER_LOADER = new DefaultShaderLoader();
         }
 
         ShaderModifier.loadAll(Minecraft.getInstance().getResourceManager());
@@ -410,7 +413,7 @@ public class CullingStateManager {
             });
 
             int depthTexture = Minecraft.getInstance().getMainRenderTarget().getDepthTextureId();
-            if (SHADER_LOADER != null && SHADER_LOADER.enabledShader()) {
+            if (SHADER_LOADER.enabledShader()) {
                 if (!SHADER_DEPTH_BUFFER_ID.containsKey(SHADER_LOADER.getFrameBufferID())) {
                     RenderSystem.assertOnRenderThreadOrInit();
                     GlStateManager._glBindFramebuffer(GL_FRAMEBUFFER, SHADER_LOADER.getFrameBufferID());
@@ -525,7 +528,7 @@ public class CullingStateManager {
     }
 
     public static void bindMainFrameTarget() {
-        if (SHADER_LOADER != null && SHADER_LOADER.renderingShaderPass()) {
+        if (SHADER_LOADER.renderingShaderPass()) {
             SHADER_LOADER.bindDefaultFrameBuffer();
         } else {
             Minecraft.getInstance().getMainRenderTarget().bindWrite(true);
@@ -552,11 +555,11 @@ public class CullingStateManager {
     }
 
     public static boolean renderingShader() {
-        return SHADER_LOADER != null && SHADER_LOADER.renderingShaderPass();
+        return SHADER_LOADER.renderingShaderPass();
     }
 
     public static boolean enabledShader() {
-        return SHADER_LOADER != null && SHADER_LOADER.enabledShader();
+        return SHADER_LOADER.enabledShader();
     }
 
     public static boolean anyNextTick() {
