@@ -112,10 +112,10 @@ void main() {
         int meshOffset = screenIndex * 16;
         int slices;
 
-        if (sketch_cull_facing > 0 || (sketch_translucent_sort > 1 && sketch_layer_pass == 2)) {
+        if (sketch_cull_facing <= 0 || (sketch_translucent_sort > 1 && sketch_layer_pass == 2)) {
             slices = 127;
         } else {
-            slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, offset_chunk.x, offset_chunk.y, offset_chunk.z);
+            slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, sectionPos.x, sectionPos.y, sectionPos.z);
         }
 
         slices &= regionMesh[meshOffset];
@@ -126,7 +126,6 @@ void main() {
             int maxElementCount = 0;
 
             for (int facing = 0; facing < 7; ++facing) {
-                int count = slices >> facing & 1;
                 int chunkOffset = facing * 2;
                 int outOffset = drawCount * 2;
 
@@ -134,7 +133,7 @@ void main() {
                 maxElementCount += elementCount;
                 drawVertex[outOffset] = elementCount;
                 drawVertex[outOffset + 1] = regionMesh[meshOffset + 2 + chunkOffset];
-                drawCount += count;
+                drawCount += slices >> facing & 1;
             }
 
             atomicAdd(elementData, maxElementCount);

@@ -23,7 +23,7 @@ public abstract class MixinSectionRenderDataStorage implements DataStorage {
 
     @Inject(method = "<init>", at = @At(value = "RETURN"), remap = false)
     private void onInit(CallbackInfo ci) {
-        meshSSBO = new SSBO(256, 64, this.pMeshDataArray, GL15.GL_STREAM_DRAW);
+        meshSSBO = new SSBO(256, 64, this.pMeshDataArray, GL15.GL_STATIC_DRAW);
     }
 
     @Inject(method = "setMeshes", at = @At(value = "RETURN"), remap = false)
