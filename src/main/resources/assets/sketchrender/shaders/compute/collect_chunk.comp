@@ -8,12 +8,12 @@ layout(std430, binding = 4) writeonly buffer OutputSSBO {
     int outputData[];
 };
 
-layout(std430, binding = 5) buffer CounterSSBO {
+layout(std430, binding = 5) writeonly buffer CounterSSBO {
     int counter;
 };
 
-layout(std430, binding = 6) readonly buffer ChunkSSBO {
-    int chunkData[];
+layout(std430, binding = 6) writeonly buffer ElementSSBO {
+    int elementData;
 };
 
 uniform sampler2D sketch_culling_texture;
@@ -123,17 +123,21 @@ void main() {
         if (slices != 0) {
             int drawCount = 0;
             int[14] drawVertex;
+            int maxElementCount = 0;
 
             for (int facing = 0; facing < 7; ++facing) {
                 int count = slices >> facing & 1;
                 int chunkOffset = facing * 2;
                 int outOffset = drawCount * 2;
 
-                drawVertex[outOffset] = regionMesh[meshOffset + 3 + chunkOffset];
+                int elementCount = regionMesh[meshOffset + 3 + chunkOffset];
+                maxElementCount += elementCount;
+                drawVertex[outOffset] = elementCount;
                 drawVertex[outOffset + 1] = regionMesh[meshOffset + 2 + chunkOffset];
                 drawCount += count;
             }
 
+            atomicAdd(elementData, maxElementCount);
             int currentCounter = atomicAdd(counter, drawCount);
             memoryBarrierBuffer();
 

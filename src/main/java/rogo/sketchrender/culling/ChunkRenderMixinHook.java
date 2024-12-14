@@ -21,6 +21,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Items;
 import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL45;
 import org.lwjgl.opengl.GL46C;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.SketchRender;
@@ -32,6 +33,8 @@ import rogo.sketchrender.compat.sodium.ChunkShaderTracker;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 import java.util.Iterator;
 
 import static org.lwjgl.opengl.GL42.GL_COMMAND_BARRIER_BIT;
@@ -47,7 +50,7 @@ public class ChunkRenderMixinHook {
         IndirectCommandBuffer.INSTANCE.bind();
         ChunkCullingUniform.batchCommand.bindShaderSlot(4);
         ChunkCullingUniform.batchCounter.bindShaderSlot(5);
-        ChunkCullingUniform.chunkData.bindShaderSlot(6);
+        ChunkCullingUniform.batchElement.bindShaderSlot(6);
 
         shader.setProjectionMatrix(matrices.projection());
         shader.setModelViewMatrix(matrices.modelView());
@@ -66,7 +69,9 @@ public class ChunkRenderMixinHook {
 
     public static void preExecuteDrawBatch() {
         SketchRender.TIMER.start("CHUNK_CULLING_CS");
+        ChunkCullingUniform.elementCounter.updateCount(0);
         ChunkCullingUniform.cullingCounter.updateCount(0);
+
 
         ShaderManager.COLLECT_CHUNK_CS.bind();
         BlockPos regionPos = new BlockPos(IndirectCommandBuffer.INSTANCE.getRegionPos());
@@ -77,8 +82,6 @@ public class ChunkRenderMixinHook {
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
         SketchRender.TIMER.end("CHUNK_CULLING_CS");
     }
-
-    public static int maxElementCount = (SharedQuadIndexBuffer.IndexType.INTEGER.getMaxElementCount() / 4) - (16384 * 6) - 128;
 
     public static void onRender(ExtraChunkRenderer renderer, SharedQuadIndexBuffer sharedIndexBuffer, ChunkShaderInterface shader, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass pass, CameraTransform camera) {
         Iterator<ChunkRenderList> iterator = renderLists.iterator(pass.isReverseOrder());
@@ -92,7 +95,6 @@ public class ChunkRenderMixinHook {
                 IndirectCommandBuffer.INSTANCE.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
                 ((DataStorage) storage).bindSSBO(3);
                 ChunkRenderMixinHook.preExecuteDrawBatch();
-                sharedIndexBuffer.ensureCapacity(commandList, maxElementCount);
                 GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
                 renderer.sodiumModelMatrixUniforms(shader, region, camera);
                 DrawCommandList drawCommandList = commandList.beginTessellating(tessellation);
@@ -116,6 +118,18 @@ public class ChunkRenderMixinHook {
                     drawCommandList.close();
                 }
             }
+        }
+
+        //ChunkRenderMixinHook.asyncReadInt(ChunkCullingUniform.batchElement.getId(), 0, ChunkCullingUniform.sectionMaxElement);
+    }
+
+    public static void asyncReadInt(int ssboId, int offset, int[] outputBuffer) {
+        GL45.glBindBuffer(GL45.GL_SHADER_STORAGE_BUFFER, ssboId);
+        ByteBuffer dataBuffer = GL45.glMapBufferRange(GL45.GL_SHADER_STORAGE_BUFFER, offset, Integer.BYTES, GL45.GL_MAP_READ_BIT);
+
+        if (dataBuffer != null) {
+            outputBuffer[0] = dataBuffer.getInt(0);
+            GL45.glUnmapBuffer(GL45.GL_SHADER_STORAGE_BUFFER);
         }
     }
 }

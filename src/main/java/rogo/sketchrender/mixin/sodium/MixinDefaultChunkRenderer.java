@@ -19,18 +19,27 @@ import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRende
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.ExtraChunkRenderer;
+import rogo.sketchrender.culling.ChunkCullingUniform;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.culling.CullingStateManager;
+import rogo.sketchrender.shader.uniform.SSBO;
+
+import java.nio.IntBuffer;
 
 @Mixin(DefaultChunkRenderer.class)
 public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
     Class<?> extraShaderInterface;
     boolean checkedShaderInterface = false;
+
+    public MixinDefaultChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {
+        super(device, vertexType);
+    }
 
     @Shadow
     protected abstract GlTessellation prepareTessellation(CommandList commandList, RenderRegion region);
@@ -40,10 +49,8 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
     }
 
     @Shadow @Final private SharedQuadIndexBuffer sharedIndexBuffer;
-
-    public MixinDefaultChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {
-        super(device, vertexType);
-    }
+    @Unique
+    private int maxElementCount = 0;
 
     @Inject(method = "render", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onRender(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera, CallbackInfo ci) {
@@ -71,6 +78,11 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
             }
 
             if (shaderInterface != null) {
+                if (maxElementCount < ChunkCullingUniform.sectionMaxElement[0]) {
+                    sharedIndexBuffer.ensureCapacity(commandList, ChunkCullingUniform.sectionMaxElement[0]);
+                    maxElementCount = ChunkCullingUniform.sectionMaxElement[0];
+                }
+
                 ChunkRenderMixinHook.preRender(shaderInterface, matrices, renderPass);
                 ChunkRenderMixinHook.onRender(this, sharedIndexBuffer, shaderInterface, commandList, renderLists, renderPass, camera);
             }
