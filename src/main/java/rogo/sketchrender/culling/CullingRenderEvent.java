@@ -213,6 +213,7 @@ public class CullingRenderEvent {
 
     public static final ResourceLocation culling_terrain = new ResourceLocation(SketchRender.MOD_ID, "terrain");
     public static final ResourceLocation collect_chunk = new ResourceLocation(SketchRender.MOD_ID, "collect_chunk");
+    public static final ResourceLocation collect_chunk_batch = new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_batch");
 
     @SubscribeEvent
     public void onBind(ProgramEvent.Init event) {
@@ -240,6 +241,13 @@ public class CullingRenderEvent {
                             "sketch_translucent_sort",
                             "sketch_region_pos",
                             "sketch_layer_pass"
+                    });
+        });
+
+        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_region_index", () -> {
+            event.getExtraUniform().getUniforms().createUniforms(collect_chunk_batch
+                    , new String[]{
+                            "sketch_region_index"
                     });
         });
         GlStateManager._glUseProgram(0);

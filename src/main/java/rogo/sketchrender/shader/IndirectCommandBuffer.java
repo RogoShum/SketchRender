@@ -2,7 +2,6 @@ package rogo.sketchrender.shader;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import me.jellysquid.mods.sodium.client.model.quad.properties.ModelQuadFacing;
-import net.minecraft.client.renderer.texture.SpriteLoader;
 import net.minecraft.core.BlockPos;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
@@ -11,7 +10,8 @@ import rogo.sketchrender.api.BufferObject;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 public class IndirectCommandBuffer implements BufferObject {
-    public static final IndirectCommandBuffer INSTANCE = new IndirectCommandBuffer(ModelQuadFacing.COUNT * 256 + 1);
+    public static final int REGION_COMMAND_SIZE = ModelQuadFacing.COUNT * 256 + 1;
+    public static final IndirectCommandBuffer INSTANCE = new IndirectCommandBuffer(REGION_COMMAND_SIZE);
     private final int id = GL15.glGenBuffers();
     private int chunkX;
     private int chunkY;
@@ -19,21 +19,23 @@ public class IndirectCommandBuffer implements BufferObject {
     private int regionX;
     private int regionY;
     private int regionZ;
-    private final long commandBuffer;
-    private final int iCapacity;
+    private long commandBuffer;
+    private int iCapacity;
+    private int commandCount;
     public int maxElementCount;
     public int position;
 
     public IndirectCommandBuffer(int capacity) {
         iCapacity = capacity * 20;
-        commandBuffer = MemoryUtil.nmemAlignedAlloc(32L, iCapacity);
-        for (int i = 0; i < capacity; ++i) {
-            int offset = i * 20;
-            MemoryUtil.memPutInt(commandBuffer + offset + 4, 1);
-            MemoryUtil.memPutInt(commandBuffer + offset + 8, 0);
-            MemoryUtil.memPutInt(commandBuffer + offset + 16, 0);
-        }
+        commandCount = capacity;
+        commandBuffer = MemoryUtil.nmemCalloc(1, iCapacity);
+        GL15.nglBufferData(GL43.GL_DRAW_INDIRECT_BUFFER, iCapacity, commandBuffer, GL15.GL_DYNAMIC_DRAW);
+    }
 
+    public void resize(int capacity) {
+        iCapacity = capacity * 20;
+        commandCount = capacity;
+        commandBuffer = MemoryUtil.nmemCalloc(1, iCapacity);
         GL15.nglBufferData(GL43.GL_DRAW_INDIRECT_BUFFER, iCapacity, commandBuffer, GL15.GL_DYNAMIC_DRAW);
     }
 
@@ -47,6 +49,10 @@ public class IndirectCommandBuffer implements BufferObject {
 
     public int getId() {
         return id;
+    }
+
+    public int getCommandCount() {
+        return commandCount;
     }
 
     @Override
@@ -105,7 +111,7 @@ public class IndirectCommandBuffer implements BufferObject {
     }
 
     public void delete() {
-        MemoryUtil.nmemAlignedFree(this.commandBuffer);
+        MemoryUtil.nmemFree(this.commandBuffer);
         GL15.nglDeleteBuffers(GL43.GL_DRAW_INDIRECT_BUFFER, id);
     }
 }

@@ -14,6 +14,7 @@ public class Config {
     private static ForgeConfigSpec.BooleanValue CULL_ENTITY;
     private static ForgeConfigSpec.BooleanValue CULL_BLOCK_ENTITY;
     private static ForgeConfigSpec.BooleanValue CULL_CHUNK;
+    private static ForgeConfigSpec.BooleanValue COMPUTE_SHADER;
     private static ForgeConfigSpec.BooleanValue ASYNC;
     private static ForgeConfigSpec.BooleanValue AUTO_DISABLE_ASYNC;
     private static ForgeConfigSpec.IntValue UPDATE_DELAY;
@@ -75,6 +76,18 @@ public class Config {
     public static void setCullChunk(boolean value) {
         CULL_CHUNK.set(value);
         CULL_CHUNK.save();
+    }
+
+    public static boolean shouldComputeShader() {
+        if (unload())
+            return false;
+
+        return COMPUTE_SHADER.get();
+    }
+
+    public static void setComputeShader(boolean value) {
+        COMPUTE_SHADER.set(value);
+        COMPUTE_SHADER.save();
     }
 
     public static boolean getAsyncChunkRebuild() {
@@ -185,6 +198,10 @@ public class Config {
 
         CLIENT_BUILDER.push("Cull chunk");
         CULL_CHUNK = CLIENT_BUILDER.define("enabled", true);
+        CLIENT_BUILDER.pop();
+
+        CLIENT_BUILDER.push("Compute shader");
+        COMPUTE_SHADER = CLIENT_BUILDER.define("enabled", true);
         CLIENT_BUILDER.pop();
 
         CLIENT_BUILDER.push("Async chunk rebuild");

@@ -6,7 +6,7 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.api.BufferObject;
 
-public class SSBO implements BufferObject{
+public class SSBO implements BufferObject {
     private final int id;
     private long bufferPointer;
     private int capacity;
@@ -97,6 +97,15 @@ public class SSBO implements BufferObject{
     }
 
     public void discard() {
+        MemoryUtil.nmemFree(bufferPointer);
         GL15.glDeleteBuffers(id);
+    }
+
+    public void discardBufferId() {
+        GL15.glDeleteBuffers(id);
+    }
+
+    public void discardMemory() {
+        MemoryUtil.nmemFree(bufferPointer);
     }
 }

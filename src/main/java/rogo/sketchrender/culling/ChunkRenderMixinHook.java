@@ -1,6 +1,5 @@
 package rogo.sketchrender.culling;
 
-import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.gl.device.DrawCommandList;
 import me.jellysquid.mods.sodium.client.gl.device.GLRenderDevice;
@@ -17,9 +16,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.shader.ChunkShaderInterface
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.DefaultTerrainRenderPasses;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.item.Items;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.opengl.GL46C;
@@ -34,7 +31,6 @@ import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.util.Iterator;
 
 import static org.lwjgl.opengl.GL42.GL_COMMAND_BARRIER_BIT;
@@ -68,7 +64,7 @@ public class ChunkRenderMixinHook {
     }
 
     public static void preExecuteDrawBatch() {
-        SketchRender.TIMER.start("CHUNK_CULLING_CS");
+        SketchRender.TIMER.start("chunk_culling_cs");
         ChunkCullingUniform.elementCounter.updateCount(0);
         ChunkCullingUniform.cullingCounter.updateCount(0);
 
@@ -80,7 +76,7 @@ public class ChunkRenderMixinHook {
         ShaderManager.COLLECT_CHUNK_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
 
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
-        SketchRender.TIMER.end("CHUNK_CULLING_CS");
+        SketchRender.TIMER.end("chunk_culling_cs");
     }
 
     public static void onRender(ExtraChunkRenderer renderer, SharedQuadIndexBuffer sharedIndexBuffer, ChunkShaderInterface shader, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass pass, CameraTransform camera) {
@@ -93,7 +89,7 @@ public class ChunkRenderMixinHook {
             if (storage != null && region.getResources() != null) {
                 IndirectCommandBuffer.INSTANCE.clear();
                 IndirectCommandBuffer.INSTANCE.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
-                ((DataStorage) storage).bindSSBO(3);
+                ((DataStorage) storage).bindMeshData(3);
                 ChunkRenderMixinHook.preExecuteDrawBatch();
                 GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
                 renderer.sodiumModelMatrixUniforms(shader, region, camera);

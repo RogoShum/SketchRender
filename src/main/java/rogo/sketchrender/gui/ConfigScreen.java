@@ -139,6 +139,9 @@ public class ConfigScreen extends Screen {
                     .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.check_texture"));
         }
 
+        addConfigButton(Config::shouldComputeShader, Config::setComputeShader, () -> Component.translatable(SketchRender.MOD_ID + ".compute_shader"))
+                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.compute_shader"));
+
         addConfigButton(Config::getSampling, (value) -> {
             double format = Mth.floor(value * 20) * 0.05;
             format = Double.parseDouble(String.format("%.2f", format));

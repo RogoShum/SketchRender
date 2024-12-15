@@ -1,8 +1,11 @@
 package rogo.sketchrender.api;
 
-import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
-import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
-
 public interface DataStorage {
-    void bindSSBO(int slot);
+    void bindMeshData(int slot);
+    void bindCounter(int slot);
+    void bindIndirectCommand(int slot);
+    void bindCommandBuffer();
+    void bindCounterBuffer();
+
+    void clearCounter();
 }

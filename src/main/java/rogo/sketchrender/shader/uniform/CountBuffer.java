@@ -9,16 +9,27 @@ import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.api.BufferObject;
 
 public class CountBuffer implements BufferObject {
-    private final long bufferPointer;
+    private long bufferPointer;
     private final int bufferId;
-    private final int size;
+    private int size;
+    private final VertexFormatElement.Type counterType;
 
     public CountBuffer(VertexFormatElement.Type type) {
+        counterType = type;
         bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, type.getSize());
         MemoryUtil.memSet(bufferPointer, 0, type.getSize());
         this.size = type.getSize();
 
         bufferId = GL33.glGenBuffers();
+        GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);
+        GL15C.nglBufferData(GL46.GL_PARAMETER_BUFFER, size, bufferPointer, GL15.GL_DYNAMIC_DRAW);
+        GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
+    }
+
+    public void resize(int count) {
+        this.size = getCounterStride() * count;
+        bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, this.size);
+        MemoryUtil.memSet(bufferPointer, 0, this.size);
         GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);
         GL15C.nglBufferData(GL46.GL_PARAMETER_BUFFER, size, bufferPointer, GL15.GL_DYNAMIC_DRAW);
         GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
@@ -32,6 +43,10 @@ public class CountBuffer implements BufferObject {
         return size;
     }
 
+    public int getCounterStride() {
+        return counterType.getSize();
+    }
+
     public long getMemoryAddress() {
         return bufferPointer;
     }
@@ -41,7 +56,7 @@ public class CountBuffer implements BufferObject {
     }
 
     public void updateCount(int count) {
-        MemoryUtil.memPutInt(bufferPointer, count);
+        MemoryUtil.memSet(bufferPointer, count, this.size);
         bind();
         GL15C.nglBufferSubData(GL46.GL_PARAMETER_BUFFER, 0, size, bufferPointer);
     }
