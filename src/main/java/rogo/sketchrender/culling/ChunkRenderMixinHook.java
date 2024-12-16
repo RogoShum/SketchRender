@@ -39,7 +39,7 @@ import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 public class ChunkRenderMixinHook {
 
     public static void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
-        SketchRender.TIMER.start("renderLayer");
+        SketchRender.COMMAND_TIMER.start("renderLayer");
     }
 
     public static void preRender(ChunkShaderInterface shader, ChunkRenderMatrices matrices, TerrainRenderPass pass) {
@@ -57,17 +57,14 @@ public class ChunkRenderMixinHook {
                 layer = i;
             }
         }
-        SketchRender.TIMER.start("collect_chunk");
         ShaderManager.COLLECT_CHUNK_CS.bindUniforms();
         ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_layer_pass", layer);
-        SketchRender.TIMER.end("collect_chunk");
     }
 
     public static void preExecuteDrawBatch() {
-        SketchRender.TIMER.start("chunk_culling_cs");
+        //SketchRender.RENDER_TIMER.start("collect_chunk_cs");
         ChunkCullingUniform.elementCounter.updateCount(0);
         ChunkCullingUniform.cullingCounter.updateCount(0);
-
 
         ShaderManager.COLLECT_CHUNK_CS.bind();
         BlockPos regionPos = new BlockPos(IndirectCommandBuffer.INSTANCE.getRegionPos());
@@ -76,7 +73,7 @@ public class ChunkRenderMixinHook {
         ShaderManager.COLLECT_CHUNK_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
 
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
-        SketchRender.TIMER.end("chunk_culling_cs");
+        //SketchRender.RENDER_TIMER.end("collect_chunk_cs");
     }
 
     public static void onRender(ExtraChunkRenderer renderer, SharedQuadIndexBuffer sharedIndexBuffer, ChunkShaderInterface shader, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass pass, CameraTransform camera) {

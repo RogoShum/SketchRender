@@ -39,8 +39,6 @@ import rogo.sketchrender.api.TessellationDevice;
 import rogo.sketchrender.culling.ChunkCullingUniform;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
-import rogo.sketchrender.shader.uniform.CountBuffer;
-import rogo.sketchrender.shader.uniform.SSBO;
 
 import java.util.Iterator;
 import java.util.List;
@@ -99,7 +97,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             preRender(shaderInterface, matrices, renderPass, regions);
             onRender(this, shaderInterface, commandList, regions, renderPass, camera);
         }
-
         super.end(renderPass);
     }
 
@@ -113,7 +110,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             }
         }
 
-        SketchRender.TIMER.start("collect_chunk");
         ShaderManager.COLLECT_CHUNK_CS.bindUniforms();
         ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_layer_pass", layer);
 
@@ -127,9 +123,14 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             dataStorage.bindCounter(5);
             dataStorage.bindIndirectCommand(4);
             ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_region_index", i);
+            //SketchRender.RENDER_TIMER.start("collect_chunk_cs");
+
             executeShaderCulling();
+
+            //SketchRender.RENDER_TIMER.end("collect_chunk_cs");
         }
-        SketchRender.TIMER.end("collect_chunk");
+
+        ShaderManager.COLLECT_CHUNK_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
 
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
         shader.setProjectionMatrix(matrices.projection());
@@ -142,11 +143,9 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         BlockPos regionPos = new BlockPos(IndirectCommandBuffer.INSTANCE.getRegionPos());
         ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_region_pos", regionPos);
         ShaderManager.COLLECT_CHUNK_CS.execute(8, 4, 8);
-        ShaderManager.COLLECT_CHUNK_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
     }
 
     public static void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, List<RenderRegion> regions, TerrainRenderPass pass, CameraTransform camera) {
-
         for (int i = 0; i < regions.size(); ++i) {
             RenderRegion region = regions.get(i);
             SectionRenderDataStorage storage = region.getStorage(pass);
@@ -176,7 +175,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 drawCommandList.close();
             }
         }
-
         //ChunkRenderMixinHook.asyncReadInt(ChunkCullingUniform.batchElement.getId(), 0, ChunkCullingUniform.sectionMaxElement);
     }
 

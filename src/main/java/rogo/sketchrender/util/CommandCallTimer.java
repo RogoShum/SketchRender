@@ -4,7 +4,7 @@ import java.text.DecimalFormat;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RenderDrawTimer {
+public class CommandCallTimer {
     private final Map<String, Long> totalDurations = new HashMap<>();
     private final Map<String, Long> callCounts = new HashMap<>();
     private final Map<String, Long> startTimes = new HashMap<>();
@@ -27,7 +27,7 @@ public class RenderDrawTimer {
 
     public void calculateAverageTimes(int frameCount) {
         results = new HashMap<>();
-        DecimalFormat df = new DecimalFormat("#.############");
+        DecimalFormat df = new DecimalFormat("#.######");
 
         for (String taskName : totalDurations.keySet()) {
             long totalDuration = totalDurations.get(taskName);
@@ -38,7 +38,7 @@ public class RenderDrawTimer {
             double averageTimeMs = averageTimeNs / 1_000_000.0;
             double perFrameTimeMs = frameCount > 0 ? (totalDuration / (double) frameCount) / 1_000_000.0 : 0;
 
-            results.put(taskName, "Total: " + df.format(totalDurationTimeMs) + "ms, Average: " + df.format(averageTimeMs) + "ms, Per Frame: " + df.format(perFrameTimeMs) + "ms");
+            results.put(taskName, " 每帧: " + df.format(perFrameTimeMs) + "ms, 平均: " + df.format(averageTimeMs) + "ms, 总计: " + df.format(totalDurationTimeMs) + "ms");
         }
 
         totalDurations.clear();

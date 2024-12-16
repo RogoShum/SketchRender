@@ -44,7 +44,8 @@ import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.NvidiumUtil;
 import rogo.sketchrender.util.OcclusionCullerThread;
-import rogo.sketchrender.util.RenderDrawTimer;
+import rogo.sketchrender.util.CommandCallTimer;
+import rogo.sketchrender.util.RenderCallTimer;
 
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
@@ -133,11 +134,6 @@ public class SketchRender {
 
     public static BlockPos testPos = new BlockPos(0, 8, 0);
 
-    public static int hitRegion;
-    public static int missRegion;
-    public static int prevHitRegion;
-    public static int prevMissRegion;
-
     public static void onKeyPress() {
     }
 
@@ -217,15 +213,13 @@ public class SketchRender {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
-            debugText.put("hitRegion", prevHitRegion);
-            debugText.put("missRegion", prevMissRegion);
 
-            //debugText.put("Debug光源：", LevelPipeline.DEBUG_LIGHT == null ? "null" : LevelPipeline.DEBUG_LIGHT.getPosVec());
-            //debugText.put("最大支持光源数", LevelPipeline.getMaxLightSize());
-            //debugText.put("ViewMatrixPos", "(" + String.format("%.2f", viewMatrixPos.x) + ", " + String.format("%.2f", viewMatrixPos.y) + ", " + String.format("%.2f", viewMatrixPos.z) + ")");
-            //debugText.put("ViewPos", "(" + String.format("%.2f", testPos.x) + ", " + String.format("%.2f", testPos.y) + ", " + String.format("%.2f", testPos.z) + ")");
-            RenderDrawTimer timer = SketchRender.TIMER;
-            debugText.putAll(timer.getResults());
+            CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
+            debugText.putAll(commandTimer.getResults());
+
+            RenderCallTimer renderTimer = SketchRender.RENDER_TIMER;
+            debugText.putAll(renderTimer.getResults());
+
             StringBuilder debug = new StringBuilder();
             for (Map.Entry<String, Object> entry : debugText.entrySet()) {
                 String text = entry.getKey();
@@ -255,13 +249,11 @@ public class SketchRender {
         long SWITCH_INTERVAL = 1000000000L;
         if (currentTime - lastSwitchTime >= SWITCH_INTERVAL) {
             lastSwitchTime = currentTime;
-            TIMER.calculateAverageTimes(CullingStateManager.fps);
-            prevHitRegion = hitRegion;
-            prevMissRegion = missRegion;
-            hitRegion = 0;
-            missRegion = 0;
+            COMMAND_TIMER.calculateAverageTimes(CullingStateManager.fps);
+            RENDER_TIMER.calculateAverageTimes(CullingStateManager.fps);
         }
     }
 
-    public static RenderDrawTimer TIMER = new RenderDrawTimer();
+    public static CommandCallTimer COMMAND_TIMER = new CommandCallTimer();
+    public static RenderCallTimer RENDER_TIMER = new RenderCallTimer();
 }
