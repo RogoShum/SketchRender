@@ -142,7 +142,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
         BlockPos regionPos = new BlockPos(IndirectCommandBuffer.INSTANCE.getRegionPos());
         ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_region_pos", regionPos);
-        ShaderManager.COLLECT_CHUNK_CS.execute(8, 4, 8);
+        ShaderManager.COLLECT_CHUNK_CS.execute(1, 1, 1);
     }
 
     public static void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, List<RenderRegion> regions, TerrainRenderPass pass, CameraTransform camera) {
