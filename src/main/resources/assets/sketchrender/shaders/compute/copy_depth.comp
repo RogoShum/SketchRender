@@ -1,6 +1,6 @@
 #version 430
 
-layout(r8, binding = 0) uniform image2D output_texture;
+layout(binding = 0, r16f) uniform image2D output_texture;
 
 uniform sampler2D sketch_sampler_texture;
 uniform float sketch_render_distance;
@@ -42,6 +42,6 @@ void main() {
     if(sketch_depth_index > 0) {
         imageStore(output_texture, coords, vec4(vec3(depth), 1.0));
     } else {
-        imageStore(output_texture, coords, vec4(vec3(LinearizeDepth(depth) / (far * 0.5)), 1.0));
+        imageStore(output_texture, coords, vec4(vec3(LinearizeDepth(depth)), 1.0));
     }
 }

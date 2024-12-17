@@ -193,7 +193,7 @@ void main() {
     maxY = min(maxY+yStep, 1.0);
 
     far = RenderDistance * 64.0;
-    float entityDepth = LinearizeDepth(worldToScreenSpace(moveTowardsCamera(Pos, sqrt(halfWidth*halfWidth+halfWidth*halfWidth))).z) / (far * 0.5);
+    float entityDepth = LinearizeDepth(worldToScreenSpace(moveTowardsCamera(Pos, sqrt(halfWidth*halfWidth+halfWidth*halfWidth))).z);
     for (float x = minX; x <= maxX; x += xStep) {
         for (float y = minY; y <= maxY; y += yStep) {
             float pixelDepth = getUVDepth(idx, vec2(x, y));

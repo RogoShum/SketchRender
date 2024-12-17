@@ -138,7 +138,7 @@ void main() {
 
     far = RenderDistance * 64.0;
     float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 12.0)).z;
-    float chunkDepth = LinearizeDepth(chunkCenterDepth) / (far * 0.5);//0.015625 = 4.0 / 256.0; do offset
+    float chunkDepth = LinearizeDepth(chunkCenterDepth);//0.015625 = 4.0 / 256.0; do offset
 
     float sizeOffset = 8.0;
     vec3 aabb[8] = vec3[](
