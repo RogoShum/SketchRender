@@ -9,7 +9,7 @@ layout(std430, binding = 1) writeonly buffer OutputSolid {
 };
 
 layout(std430, binding = 2) writeonly buffer CounterSolid {
-    int counter_solid;
+    int counter_solid[];
 };
 
 layout(std430, binding = 3) writeonly buffer OutputCutOut {
@@ -17,7 +17,7 @@ layout(std430, binding = 3) writeonly buffer OutputCutOut {
 };
 
 layout(std430, binding = 4) writeonly buffer CounterCutOut {
-    int counter_cutout;
+    int counter_cutout[];
 };
 
 layout(std430, binding = 5) writeonly buffer OutputTranslucent {
@@ -25,7 +25,7 @@ layout(std430, binding = 5) writeonly buffer OutputTranslucent {
 };
 
 layout(std430, binding = 6) writeonly buffer CounterTranslucent {
-    int counter_translucent;
+    int counter_translucent[];
 };
 
 layout(std430, binding = 7) writeonly buffer ElementCount {
@@ -69,7 +69,7 @@ ivec2 _get_culling_uv_from_index(ivec3 chunk_offset) {
 }
 
 bool _is_chunk_culled(ivec3 chunk_offset) {
-    bool cull = texelFetch(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset), 0).y <= 0.001;
+    bool cull = texelFetch(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset), 0).r <= 0.001;
     if (sketch_check_culling > 0) {
         return !cull;
     }
@@ -156,11 +156,11 @@ void main() {
             int currentCounter = 0;
 
             if (passIndex == 0) {
-                currentCounter = atomicAdd(counter_solid, drawCount);
+                currentCounter = atomicAdd(counter_solid[2], drawCount);
             } else if (passIndex == 1) {
-                currentCounter = atomicAdd(counter_cutout, drawCount);
+                currentCounter = atomicAdd(counter_cutout[2], drawCount);
             } else {
-                currentCounter = atomicAdd(counter_translucent, drawCount);
+                currentCounter = atomicAdd(counter_translucent[2], drawCount);
             }
 
             atomicMax(element_count, maxElementCount);

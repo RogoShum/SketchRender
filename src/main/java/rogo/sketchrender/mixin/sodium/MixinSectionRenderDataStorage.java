@@ -33,6 +33,11 @@ public class MixinSectionRenderDataStorage implements SectionData {
     private long passOffset;
     private int indexOffset;
 
+    @Inject(method = "<init>", at = @At(value = "RETURN"), remap = false)
+    private void afterInit(CallbackInfo ci) {
+        drawCounter.resize(3);
+    }
+
     @Inject(method = "setMeshes", at = @At(value = "RETURN"), remap = false)
     private void endSetMeshes(int localSectionIndex, GlBufferSegment allocation, VertexRange[] ranges, CallbackInfo ci) {
         copySectionMesh(localSectionIndex);

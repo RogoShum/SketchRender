@@ -5,6 +5,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
+import org.joml.Vector2i;
 import org.joml.Vector3f;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL20;
@@ -74,6 +75,13 @@ public class UnsafeUniformMap {
         int handle = getUniform(name);
         if (handle > -1) {
             GL20.glUniform3i(handle, value.getX(), value.getY(), value.getZ());
+        }
+    }
+
+    public void setUniform(String name, Vector2i value) {
+        int handle = getUniform(name);
+        if (handle > -1) {
+            GL20.glUniform2i(handle, value.x(), value.y());
         }
     }
 

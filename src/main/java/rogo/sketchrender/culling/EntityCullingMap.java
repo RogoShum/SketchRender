@@ -46,7 +46,7 @@ public class EntityCullingMap extends CullingMap {
         }
 
         int idx = getEntityTable().getIndex(o);
-        idx = 1 + idx * 4;
+
         if (getEntityTable().tempObjectTimer.contains(o))
             getEntityTable().addTemp(o, CullingStateManager.clientTickCount);
 

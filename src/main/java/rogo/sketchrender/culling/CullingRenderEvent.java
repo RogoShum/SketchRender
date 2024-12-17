@@ -12,7 +12,6 @@ import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
@@ -23,7 +22,6 @@ import org.lwjgl.opengl.GL11;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.CullingShader;
-import rogo.sketchrender.compat.sodium.RenderSectionManagerGetter;
 import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorFrustum;
 import rogo.sketchrender.shader.ShaderManager;
@@ -213,7 +211,7 @@ public class CullingRenderEvent {
 
     public static final ResourceLocation culling_terrain = new ResourceLocation(SketchRender.MOD_ID, "terrain");
     public static final ResourceLocation collect_chunk = new ResourceLocation(SketchRender.MOD_ID, "collect_chunk");
-    public static final ResourceLocation collect_chunk_batch = new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_batch");
+    public static final ResourceLocation copy_depth = new ResourceLocation(SketchRender.MOD_ID, "copy_depth");
 
     @SubscribeEvent
     public void onBind(ProgramEvent.Init event) {
@@ -244,10 +242,14 @@ public class CullingRenderEvent {
                     });
         });
 
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_region_index", () -> {
-            event.getExtraUniform().getUniforms().createUniforms(collect_chunk_batch
+        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_depth_size", () -> {
+            event.getExtraUniform().getUniforms().createUniforms(copy_depth
                     , new String[]{
-                            "sketch_region_index"
+                            "sketch_depth_size",
+                            "sketch_sampler_texture",
+                            "sketch_render_distance",
+                            "sketch_screen_size",
+                            "sketch_depth_index"
                     });
         });
         GlStateManager._glUseProgram(0);

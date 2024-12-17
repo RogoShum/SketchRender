@@ -28,6 +28,7 @@ public class CountBuffer implements BufferObject {
 
     public void resize(int count) {
         this.size = getCounterStride() * count;
+        MemoryUtil.nmemFree(bufferPointer);
         bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, this.size);
         MemoryUtil.memSet(bufferPointer, 0, this.size);
         GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);

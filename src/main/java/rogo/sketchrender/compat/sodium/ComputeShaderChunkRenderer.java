@@ -105,7 +105,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         if (lastUpdateFrame == ChunkCullingUniform.currentFrame) {
             return;
         }
-        SketchRender.RENDER_TIMER.start("COLLECT_CHUNK_PASS_CS");
+
+        //SketchRender.RENDER_TIMER.start("COLLECT_CHUNK_PASS_CS");
         lastUpdateFrame = ChunkCullingUniform.currentFrame;
         ChunkCullingUniform.batchElement.bindShaderSlot(7);
         ShaderManager.COLLECT_CHUNK_PASS_CS.bindUniforms();
@@ -129,7 +130,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
         ShaderManager.COLLECT_CHUNK_PASS_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
-        SketchRender.RENDER_TIMER.end("COLLECT_CHUNK_PASS_CS");
+        //SketchRender.RENDER_TIMER.end("COLLECT_CHUNK_PASS_CS");
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
     }
 
@@ -152,7 +153,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
             try {
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0L, 0L, 1792, 20);
+                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0L, 8L, 1792, 20);
             } catch (Throwable var7) {
                 if (drawCommandList != null) {
                     try {

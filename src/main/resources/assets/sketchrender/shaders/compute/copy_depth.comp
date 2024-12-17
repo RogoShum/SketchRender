@@ -1,0 +1,47 @@
+#version 430
+
+layout(r8, binding = 0) uniform image2D output_texture;
+
+uniform sampler2D sketch_sampler_texture;
+uniform float sketch_render_distance;
+uniform ivec2 sketch_screen_size;
+uniform ivec2 sketch_depth_size;
+uniform int sketch_depth_index;
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+float near = 0.05;
+float far  = 16.0;
+
+float LinearizeDepth(float depth) {
+    float z = depth * 2.0 - 1.0;
+    return (near * far) / (far + near - z * (far - near));
+}
+
+void main() {
+    float xMult = sketch_screen_size.x/float(sketch_depth_size.x);
+    float yMult = sketch_screen_size.y/float(sketch_depth_size.y);
+    far  = sketch_render_distance * 64.0;
+
+    int px = int(gl_GlobalInvocationID.x * xMult);
+    int py = int(gl_GlobalInvocationID.y * yMult);
+    ivec2 depthUV = ivec2(px, py);
+    float depth = 0.0;
+
+    depth = max(depth, texelFetch(sketch_sampler_texture, depthUV, 0).r);
+    depth = max(depth, texelFetchOffset(sketch_sampler_texture, depthUV, 0, ivec2(0, 1)).r);
+    depth = max(depth, texelFetchOffset(sketch_sampler_texture, depthUV, 0, ivec2(0, -1)).r);
+    depth = max(depth, texelFetchOffset(sketch_sampler_texture, depthUV, 0, ivec2(1, 0)).r);
+    depth = max(depth, texelFetchOffset(sketch_sampler_texture, depthUV, 0, ivec2(-1, 0)).r);
+    depth = max(depth, texelFetchOffset(sketch_sampler_texture, depthUV, 0, ivec2(1, 1)).r);
+    depth = max(depth, texelFetchOffset(sketch_sampler_texture, depthUV, 0, ivec2(1, -1)).r);
+    depth = max(depth, texelFetchOffset(sketch_sampler_texture, depthUV, 0, ivec2(-1, -1)).r);
+    depth = max(depth, texelFetchOffset(sketch_sampler_texture, depthUV, 0, ivec2(-1, 1)).r);
+
+    ivec2 coords = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
+    if(sketch_depth_index > 0) {
+        imageStore(output_texture, coords, vec4(vec3(depth), 1.0));
+    } else {
+        imageStore(output_texture, coords, vec4(vec3(LinearizeDepth(depth) / (far * 0.5)), 1.0));
+    }
+}

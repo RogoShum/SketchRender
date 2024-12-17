@@ -20,7 +20,9 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.joml.Vector2i;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.Checks;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
@@ -30,6 +32,7 @@ import rogo.sketchrender.api.RenderChunkInfo;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.mixin.AccessorLevelRender;
 import rogo.sketchrender.mixin.AccessorMinecraft;
+import rogo.sketchrender.shader.ComputeShader;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.shader.ShaderModifier;
 import rogo.sketchrender.util.DepthContext;
@@ -45,6 +48,8 @@ import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
+import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class CullingStateManager {
     public static EntityCullingMap ENTITY_CULLING_MAP = null;
@@ -109,13 +114,13 @@ public class CullingStateManager {
     static {
         RenderSystem.recordRenderCall(() -> {
             for (int i = 0; i < DEPTH_BUFFER_TARGET.length; ++i) {
-                DEPTH_BUFFER_TARGET[i] = new TextureTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
+                DEPTH_BUFFER_TARGET[i] = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
                 DEPTH_BUFFER_TARGET[i].setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
             }
 
-            CHUNK_CULLING_MAP_TARGET = new TextureTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
+            CHUNK_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
             CHUNK_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-            ENTITY_CULLING_MAP_TARGET = new TextureTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
+            ENTITY_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
             ENTITY_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
         });
     }
@@ -435,23 +440,27 @@ public class CullingStateManager {
 
             MAIN_DEPTH_TEXTURE = depthTexture;
 
-            runOnDepthFrame((depthContext) -> {
-                useShader(ShaderManager.COPY_DEPTH_SHADER);
-                depthContext.frame().clear(Minecraft.ON_OSX);
-                depthContext.frame().bindWrite(false);
-                Tesselator tesselator = Tesselator.getInstance();
-                BufferBuilder bufferbuilder = tesselator.getBuilder();
-                bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
-                bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
-                bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
-                bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
-                bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
-                RenderSystem.setShaderTexture(0, depthContext.lastTexture());
-                tesselator.end();
-                DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
-            });
+            if (Config.shouldComputeShader()) {
+                computeHizTexture();
+            } else {
+                runOnDepthFrame((depthContext) -> {
+                    useShader(ShaderManager.COPY_DEPTH_SHADER);
+                    depthContext.frame().clear(Minecraft.ON_OSX);
+                    depthContext.frame().bindWrite(false);
+                    Tesselator tesselator = Tesselator.getInstance();
+                    BufferBuilder bufferbuilder = tesselator.getBuilder();
+                    bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
+                    bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
+                    bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
+                    bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
+                    bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
+                    RenderSystem.setShaderTexture(0, depthContext.lastTexture());
+                    tesselator.end();
+                    DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
+                });
 
-            bindMainFrameTarget();
+                bindMainFrameTarget();
+            }
             net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles cameraSetup = net.minecraftforge.client.ForgeHooksClient.onCameraSetup(Minecraft.getInstance().gameRenderer
                     , CAMERA, Minecraft.getInstance().getFrameTime());
             PoseStack viewMatrix = new PoseStack();
@@ -462,6 +471,38 @@ public class CullingStateManager {
             viewMatrix.translate((float) -cameraPos.x, (float) -cameraPos.y, (float) -cameraPos.z);
             VIEW_MATRIX = new Matrix4f(viewMatrix.last().pose());
         }
+    }
+
+    public static void computeHizTexture() {
+        ComputeShader shader = ShaderManager.COPY_DEPTH_CS;
+
+        shader.bind();
+        shader.getUniforms().setUniform("sketch_render_distance", (float) Minecraft.getInstance().options.getEffectiveRenderDistance());
+
+        runOnDepthFrame((depthContext) -> {
+            shader.getUniforms().setUniform("sketch_depth_index", depthContext.index());
+            shader.getUniforms().setUniform("sketch_sampler_texture", 0);
+            shader.getUniforms().setUniform("sketch_depth_size"
+                    , new Vector2i(depthContext.frame().width, depthContext.frame().height));
+            RenderTarget screen;
+
+            if (depthContext.index() == 0) {
+                screen = Minecraft.getInstance().getMainRenderTarget();
+            } else {
+                screen = DEPTH_BUFFER_TARGET[depthContext.index() - 1];
+            }
+
+            shader.getUniforms().setUniform("sketch_screen_size"
+                    , new Vector2i(screen.width, screen.height));
+            GL43.glBindImageTexture(0, depthContext.frame().getColorTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R8);
+            RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+            RenderSystem.bindTexture(depthContext.lastTexture());
+            shader.execute(depthContext.frame().width, depthContext.frame().height, 1);
+            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
+        });
+
+        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
     }
 
     public static void updateMapData() {

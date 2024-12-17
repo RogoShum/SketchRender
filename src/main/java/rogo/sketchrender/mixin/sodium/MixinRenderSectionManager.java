@@ -58,7 +58,7 @@ public abstract class MixinRenderSectionManager {
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
         ChunkRenderMixinHook.onRenderStart(matrices, pass, x, y, z, ci);
-        if (Config.getCullChunk() && Config.shouldComputeShader() && !CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
+        if (Config.getCullChunk() && !CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
             RenderDevice device = RenderDevice.INSTANCE;
             CommandList commandList = device.createCommandList();
             computeChunkRenderer.render(matrices, commandList, this.renderLists, pass, new CameraTransform(x, y, z));

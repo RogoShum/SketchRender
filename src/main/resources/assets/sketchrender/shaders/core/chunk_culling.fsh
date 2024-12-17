@@ -140,11 +140,6 @@ void main() {
     float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 12.0)).z;
     float chunkDepth = LinearizeDepth(chunkCenterDepth) / (far * 0.5);//0.015625 = 4.0 / 256.0; do offset
 
-    if(chunkDepth < 0) {
-        fragColor = vec4(0.0, 0.4, 0.5, 1.0);
-        return;
-    }
-
     float sizeOffset = 8.0;
     vec3 aabb[8] = vec3[](
         chunkPos+vec3(-sizeOffset, -sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, -sizeOffset),
@@ -218,11 +213,11 @@ void main() {
         for(float y = minY; y <= maxY; y += yStep) {
             float pixelDepth = getUVDepth(idx, vec2(x, y));
             if(chunkDepth < pixelDepth) {
-                fragColor = vec4(0.0, 1.0, 0.0, 1.0);
+                fragColor = vec4(1.0, 0.0, 0.0, 1.0);
                 return;
             }
         }
     }
 
-    fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    fragColor = vec4(0.0, 1.0, 0.0, 1.0);
 }

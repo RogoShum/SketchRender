@@ -9,6 +9,7 @@ import org.lwjgl.opengl.GL31;
 
 import java.nio.ByteBuffer;
 
+import static org.lwjgl.opengl.GL11.GL_RED;
 import static org.lwjgl.opengl.GL11.GL_UNSIGNED_BYTE;
 import static org.lwjgl.opengl.GL12.GL_BGRA;
 
@@ -24,10 +25,10 @@ public abstract class CullingMap {
     public CullingMap(int width, int height) {
         this.width = width;
         this.height = height;
-        cullingBuffer = BufferUtils.createByteBuffer(width * height * 4);
+        cullingBuffer = BufferUtils.createByteBuffer(width * height);
         pboId = GL15.glGenBuffers();
         GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, pboId);
-        GL15.glBufferData(GL31.GL_PIXEL_PACK_BUFFER, (long) width * height * 4 * Float.BYTES, GL15.GL_DYNAMIC_READ);
+        GL15.glBufferData(GL31.GL_PIXEL_PACK_BUFFER, (long) width * height * Float.BYTES, GL15.GL_DYNAMIC_READ);
         GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, 0);
         CullingStateManager.bindMainFrameTarget();
     }
@@ -44,7 +45,7 @@ public abstract class CullingMap {
         if (delayCount <= 0) {
             GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, bindFrameBufferId());
             GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, pboId);
-            GL11.glReadPixels(0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+            GL11.glReadPixels(0, 0, width, height, GL_RED, GL_UNSIGNED_BYTE, 0);
             GlStateManager._glBindBuffer(GL31.GL_PIXEL_PACK_BUFFER, 0);
             CullingStateManager.bindMainFrameTarget();
             delayCount = configDelayCount() + dynamicDelayCount();

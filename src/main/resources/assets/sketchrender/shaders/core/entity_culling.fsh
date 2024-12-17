@@ -199,11 +199,11 @@ void main() {
             float pixelDepth = getUVDepth(idx, vec2(x, y));
 
             if (entityDepth < pixelDepth) {
-                fragColor = vec4(0.0, 1.0, 0.0, 1.0);
+                fragColor = vec4(1.0, 0.0, 0.0, 1.0);
                 return;
             }
         }
     }
 
-    fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    fragColor = vec4(0.0, 1.0, 0.0, 1.0);
 }
