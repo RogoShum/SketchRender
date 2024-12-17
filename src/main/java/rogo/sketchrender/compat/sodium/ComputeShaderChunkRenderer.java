@@ -30,12 +30,10 @@ import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRende
 import net.minecraft.core.BlockPos;
 import org.apache.commons.compress.utils.Lists;
 import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import rogo.sketchrender.SketchRender;
-import rogo.sketchrender.api.DataStorage;
-import rogo.sketchrender.api.ExtraChunkRenderer;
-import rogo.sketchrender.api.ExtraUniform;
-import rogo.sketchrender.api.TessellationDevice;
+import rogo.sketchrender.api.*;
 import rogo.sketchrender.culling.ChunkCullingUniform;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
@@ -52,6 +50,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     protected int maxElementCount = 0;
     protected Class<?> extraShaderInterface;
     protected boolean checkedShaderInterface = false;
+    private int lastUpdateFrame;
 
     public ComputeShaderChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {
         super(device, vertexType);
@@ -94,62 +93,57 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 return storage != null && r.getResources() != null;
             }).toList();
 
-            preRender(shaderInterface, matrices, renderPass, regions);
+            preRender(regions);
+            shaderInterface.setProjectionMatrix(matrices.projection());
+            shaderInterface.setModelViewMatrix(matrices.modelView());
             onRender(this, shaderInterface, commandList, regions, renderPass, camera);
         }
         super.end(renderPass);
     }
 
-    public void preRender(ChunkShaderInterface shader, ChunkRenderMatrices matrices, TerrainRenderPass pass, List<RenderRegion> regions) {
-        ChunkCullingUniform.batchElement.bindShaderSlot(6);
-
-        int layer = 0;
-        for (int i = 0; i < DefaultTerrainRenderPasses.ALL.length; ++i) {
-            if (DefaultTerrainRenderPasses.ALL[layer] == pass) {
-                layer = i;
-            }
+    public void preRender(List<RenderRegion> regions) {
+        if (lastUpdateFrame == ChunkCullingUniform.currentFrame) {
+            return;
         }
-
-        ShaderManager.COLLECT_CHUNK_CS.bindUniforms();
-        ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_layer_pass", layer);
+        SketchRender.RENDER_TIMER.start("COLLECT_CHUNK_PASS_CS");
+        lastUpdateFrame = ChunkCullingUniform.currentFrame;
+        ChunkCullingUniform.batchElement.bindShaderSlot(7);
+        ShaderManager.COLLECT_CHUNK_PASS_CS.bindUniforms();
 
         for (int i = 0; i < regions.size(); ++i) {
             RenderRegion region = regions.get(i);
-            SectionRenderDataStorage storage = region.getStorage(pass);
-            DataStorage dataStorage = (DataStorage) storage;
             IndirectCommandBuffer.INSTANCE.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
-            dataStorage.clearCounter();
-            dataStorage.bindMeshData(3);
-            dataStorage.bindCounter(5);
-            dataStorage.bindIndirectCommand(4);
-            ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_region_index", i);
-            //SketchRender.RENDER_TIMER.start("collect_chunk_cs");
+            ((RegionData)region).bindMeshData(0);
+
+            for (int j = 0; j < DefaultTerrainRenderPasses.ALL.length; ++j) {
+                TerrainRenderPass pass = DefaultTerrainRenderPasses.ALL[j];
+                SectionRenderDataStorage storage = region.createStorage(pass);
+                SectionData dataStorage = (SectionData) storage;
+                dataStorage.clearCounter();
+                dataStorage.bindIndirectCommand(1 + j * 2);
+                dataStorage.bindCounter(2 + j * 2);
+            }
 
             executeShaderCulling();
-
-            //SketchRender.RENDER_TIMER.end("collect_chunk_cs");
         }
 
-        ShaderManager.COLLECT_CHUNK_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
-
+        ShaderManager.COLLECT_CHUNK_PASS_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
+        SketchRender.RENDER_TIMER.end("COLLECT_CHUNK_PASS_CS");
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
-        shader.setProjectionMatrix(matrices.projection());
-        shader.setModelViewMatrix(matrices.modelView());
     }
 
     public void executeShaderCulling() {
-        ChunkCullingUniform.elementCounter.updateCount(0);
-
         BlockPos regionPos = new BlockPos(IndirectCommandBuffer.INSTANCE.getRegionPos());
-        ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_region_pos", regionPos);
-        ShaderManager.COLLECT_CHUNK_CS.execute(1, 1, 1);
+        ((ExtraUniform) ShaderManager.COLLECT_CHUNK_PASS_CS).getUniforms().setUniform("sketch_region_pos", regionPos);
+        ShaderManager.COLLECT_CHUNK_PASS_CS.execute(256, 1, 1);
     }
 
     public static void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, List<RenderRegion> regions, TerrainRenderPass pass, CameraTransform camera) {
         for (int i = 0; i < regions.size(); ++i) {
             RenderRegion region = regions.get(i);
             SectionRenderDataStorage storage = region.getStorage(pass);
-            DataStorage dataStorage = (DataStorage) storage;
+            SectionData dataStorage = (SectionData) storage;
             dataStorage.bindCounterBuffer();
             dataStorage.bindCommandBuffer();
             GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
@@ -158,7 +152,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
             try {
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0, 0, 1792, 20);
+                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0L, 0L, 1792, 20);
             } catch (Throwable var7) {
                 if (drawCommandList != null) {
                     try {

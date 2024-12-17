@@ -22,7 +22,7 @@ import org.lwjgl.opengl.GL45;
 import org.lwjgl.opengl.GL46C;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.SketchRender;
-import rogo.sketchrender.api.DataStorage;
+import rogo.sketchrender.api.SectionData;
 import rogo.sketchrender.api.ExtraChunkRenderer;
 import rogo.sketchrender.api.ExtraUniform;
 import rogo.sketchrender.api.TessellationDevice;
@@ -40,80 +40,6 @@ public class ChunkRenderMixinHook {
 
     public static void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
         SketchRender.COMMAND_TIMER.start("renderLayer");
-    }
-
-    public static void preRender(ChunkShaderInterface shader, ChunkRenderMatrices matrices, TerrainRenderPass pass) {
-        IndirectCommandBuffer.INSTANCE.bind();
-        ChunkCullingUniform.batchCommand.bindShaderSlot(4);
-        ChunkCullingUniform.batchCounter.bindShaderSlot(5);
-        ChunkCullingUniform.batchElement.bindShaderSlot(6);
-
-        shader.setProjectionMatrix(matrices.projection());
-        shader.setModelViewMatrix(matrices.modelView());
-
-        int layer = 0;
-        for (int i = 0; i < DefaultTerrainRenderPasses.ALL.length; ++i) {
-            if (DefaultTerrainRenderPasses.ALL[layer] == pass) {
-                layer = i;
-            }
-        }
-        ShaderManager.COLLECT_CHUNK_CS.bindUniforms();
-        ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_layer_pass", layer);
-    }
-
-    public static void preExecuteDrawBatch() {
-        //SketchRender.RENDER_TIMER.start("collect_chunk_cs");
-        ChunkCullingUniform.elementCounter.updateCount(0);
-        ChunkCullingUniform.cullingCounter.updateCount(0);
-
-        ShaderManager.COLLECT_CHUNK_CS.bind();
-        BlockPos regionPos = new BlockPos(IndirectCommandBuffer.INSTANCE.getRegionPos());
-        ((ExtraUniform) ShaderManager.COLLECT_CHUNK_CS).getUniforms().setUniform("sketch_region_pos", regionPos);
-        ShaderManager.COLLECT_CHUNK_CS.execute(8, 4, 8);
-        ShaderManager.COLLECT_CHUNK_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
-
-        GL20.glUseProgram(ChunkShaderTracker.lastProgram);
-        //SketchRender.RENDER_TIMER.end("collect_chunk_cs");
-    }
-
-    public static void onRender(ExtraChunkRenderer renderer, SharedQuadIndexBuffer sharedIndexBuffer, ChunkShaderInterface shader, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass pass, CameraTransform camera) {
-        Iterator<ChunkRenderList> iterator = renderLists.iterator(pass.isReverseOrder());
-
-        while (iterator.hasNext()) {
-            ChunkRenderList renderList = iterator.next();
-            RenderRegion region = renderList.getRegion();
-            SectionRenderDataStorage storage = region.getStorage(pass);
-            if (storage != null && region.getResources() != null) {
-                IndirectCommandBuffer.INSTANCE.clear();
-                IndirectCommandBuffer.INSTANCE.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
-                ((DataStorage) storage).bindMeshData(3);
-                ChunkRenderMixinHook.preExecuteDrawBatch();
-                GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
-                renderer.sodiumModelMatrixUniforms(shader, region, camera);
-                DrawCommandList drawCommandList = commandList.beginTessellating(tessellation);
-
-                try {
-                    GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0, 0, 1792, 20);
-                } catch (Throwable var7) {
-                    if (drawCommandList != null) {
-                        try {
-                            drawCommandList.close();
-                        } catch (Throwable var6) {
-                            var7.addSuppressed(var6);
-                        }
-                    }
-
-                    throw var7;
-                }
-
-                if (drawCommandList != null) {
-                    drawCommandList.close();
-                }
-            }
-        }
-
-        //ChunkRenderMixinHook.asyncReadInt(ChunkCullingUniform.batchElement.getId(), 0, ChunkCullingUniform.sectionMaxElement);
     }
 
     public static void asyncReadInt(int ssboId, int offset, int[] outputBuffer) {

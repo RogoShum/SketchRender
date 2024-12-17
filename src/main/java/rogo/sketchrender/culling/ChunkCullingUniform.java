@@ -12,6 +12,7 @@ public class ChunkCullingUniform {
     public int queueUpdateCount = 0;
     public int lastQueueUpdateCount = 0;
 
+    public static int currentFrame = 0;
     public static int[] sectionMaxElement = new int[]{393210};
 
     public static SSBO batchCommand;

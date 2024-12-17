@@ -23,7 +23,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
     public static ShaderInstance CULL_TEST_SHADER;
 
     public static ComputeShader COLLECT_CHUNK_CS;
-    public static ComputeShader COLLECT_CHUNK_BATCH_CS;
+    public static ComputeShader COLLECT_CHUNK_PASS_CS;
 
     public void onShaderLoad(ShaderCollector a) {
         shaders.add(a);
@@ -55,7 +55,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
             CULL_TEST_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
 
             COLLECT_CHUNK_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk"));
-            COLLECT_CHUNK_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_batch"));
+            COLLECT_CHUNK_PASS_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_pass"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

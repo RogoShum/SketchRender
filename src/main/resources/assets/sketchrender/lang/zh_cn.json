@@ -7,6 +7,7 @@
   "sketchrender.cull_block_entity": "剔除方块实体",
   "sketchrender.cull_chunk": "剔除区块",
   "sketchrender.async": "异步构建区块",
+  "sketchrender.compute_shader": "启用计算着色器",
   "sketchrender.auto_shader_async": "自动关闭异步",
   "sketchrender.sampler": "深度采样率",
   "sketchrender.culling_map_update_delay": "剔除图更新推迟",

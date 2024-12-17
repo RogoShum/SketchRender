@@ -34,8 +34,6 @@ import java.nio.IntBuffer;
 
 @Mixin(DefaultChunkRenderer.class)
 public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
-    Class<?> extraShaderInterface;
-    boolean checkedShaderInterface = false;
 
     public MixinDefaultChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {
         super(device, vertexType);
@@ -46,49 +44,6 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
 
     @Shadow
     private static void setModelMatrixUniforms(ChunkShaderInterface shader, RenderRegion region, CameraTransform camera) {
-    }
-
-    @Shadow @Final private SharedQuadIndexBuffer sharedIndexBuffer;
-    @Unique
-    private int maxElementCount = 0;
-
-    @Inject(method = "render", at = @At(value = "HEAD"), remap = false, cancellable = true)
-    private void onRender(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera, CallbackInfo ci) {
-        if (Config.getCullChunk() && !CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
-            ci.cancel();
-            super.begin(renderPass);
-
-            ChunkShaderInterface shaderInterface = null;
-            if (this.activeProgram != null) {
-                shaderInterface = this.activeProgram.getInterface();
-            } else {
-                if (!checkedShaderInterface) {
-                    try {
-                        extraShaderInterface = Class.forName("net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt");
-                    } catch (ClassNotFoundException ignored) {
-                    } finally {
-                        checkedShaderInterface = true;
-                    }
-                } else if (extraShaderInterface != null && extraShaderInterface.isAssignableFrom(ShaderChunkRenderer.class)) {
-                    GlProgram<IrisChunkShaderInterface> program = ((ShaderChunkRendererExt) this).iris$getOverride();
-                    if (program != null) {
-                        shaderInterface = program.getInterface();
-                    }
-                }
-            }
-
-            if (shaderInterface != null) {
-                if (maxElementCount < ChunkCullingUniform.sectionMaxElement[0]) {
-                    sharedIndexBuffer.ensureCapacity(commandList, ChunkCullingUniform.sectionMaxElement[0]);
-                    maxElementCount = ChunkCullingUniform.sectionMaxElement[0];
-                }
-
-                ChunkRenderMixinHook.preRender(shaderInterface, matrices, renderPass);
-                ChunkRenderMixinHook.onRender(this, sharedIndexBuffer, shaderInterface, commandList, renderLists, renderPass, camera);
-            }
-
-            super.end(renderPass);
-        }
     }
 
     public GlTessellation sodiumTessellation(CommandList commandList, RenderRegion region) {

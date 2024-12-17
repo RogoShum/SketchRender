@@ -13,13 +13,16 @@ public class SSBO implements BufferObject {
     private int stride;
     public int position;
 
-    public SSBO(int capacity, int stride) {
+    public SSBO(int capacity, int stride, int usage) {
         this.capacity = capacity * stride;
         this.stride = stride;
         bufferPointer = MemoryUtil.nmemCalloc(capacity, stride);
         id = GL15.glGenBuffers();
+        if (id < 0) {
+            throw new RuntimeException("Failed to create a new buffer");
+        }
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
-        GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, this.capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
+        GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, this.capacity, bufferPointer, usage);
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
@@ -28,6 +31,9 @@ public class SSBO implements BufferObject {
         this.stride = stride;
         bufferPointer = memoryAddress;
         id = GL15.glGenBuffers();
+        if (id == -1) {
+            throw new RuntimeException("Failed to create a new buffer");
+        }
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, this.capacity, bufferPointer, usage);
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
@@ -71,8 +77,9 @@ public class SSBO implements BufferObject {
     }
 
     public void upload(long index) {
+        long indexOffset = index * getStride();
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
-        GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, index * getStride(), getStride(), bufferPointer + index * getStride());
+        GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, indexOffset, getStride(), bufferPointer + indexOffset);
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 

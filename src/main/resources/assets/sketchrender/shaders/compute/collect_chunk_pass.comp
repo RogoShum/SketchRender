@@ -1,19 +1,35 @@
 #version 430
 
-layout(std430, binding = 3) readonly buffer RegionMeshSSBO {
-    int regionMesh[];
+layout(std430, binding = 0) readonly buffer SectionMeshSSBO {
+    int sectionMesh[];
 };
 
-layout(std430, binding = 4) writeonly buffer OutputSSBO {
-    int outputData[];
+layout(std430, binding = 1) writeonly buffer OutputSolid {
+    int output_solid[];
 };
 
-layout(std430, binding = 5) writeonly buffer CounterSSBO {
-    int counter[];
+layout(std430, binding = 2) writeonly buffer CounterSolid {
+    int counter_solid;
 };
 
-layout(std430, binding = 6) writeonly buffer ElementSSBO {
-    int elementData;
+layout(std430, binding = 3) writeonly buffer OutputCutOut {
+    int output_cutout[];
+};
+
+layout(std430, binding = 4) writeonly buffer CounterCutOut {
+    int counter_cutout;
+};
+
+layout(std430, binding = 5) writeonly buffer OutputTranslucent {
+    int output_translucent[];
+};
+
+layout(std430, binding = 6) writeonly buffer CounterTranslucent {
+    int counter_translucent;
+};
+
+layout(std430, binding = 7) writeonly buffer ElementCount {
+    int element_count;
 };
 
 uniform sampler2D sketch_culling_texture;
@@ -25,7 +41,6 @@ uniform int sketch_check_culling;
 uniform int sketch_cull_facing;
 uniform int sketch_translucent_sort;
 uniform int sketch_layer_pass;
-uniform int sketch_region_index;
 uniform ivec3 sketch_camera_offset;
 uniform ivec3 sketch_region_pos;
 uniform ivec3 sketch_camera_pos;
@@ -37,9 +52,8 @@ uniform ivec3 sketch_camera_pos;
 #define MODEL_POS_Z 2
 #define MODEL_POS_Y 1
 #define MODEL_POS_X 0
-#define REGION_COMMAND_SIZE 1793
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 3, local_size_y = 1, local_size_z = 1) in;
 
 int _get_chunk_index(ivec3 chunk_offset) {
     return (chunk_offset.x + sketch_render_distance) * sketch_space_partition_size * sketch_level_section_range + (chunk_offset.z + sketch_render_distance) * sketch_level_section_range + chunk_offset.y;
@@ -100,7 +114,7 @@ int unpackZ(int idx) {
 }
 
 void main() {
-    int screenIndex = int(gl_GlobalInvocationID.x) + (int(gl_GlobalInvocationID.y) * 8) + (int(gl_GlobalInvocationID.z) * 8 * 4);
+    int screenIndex = int(gl_WorkGroupID.x);
     ivec3 sectionPos = ivec3(
     unpackX(screenIndex) + (sketch_region_pos.x),
     unpackY(screenIndex) + (sketch_region_pos.y),
@@ -109,18 +123,19 @@ void main() {
     ivec3 offset_chunk = ivec3(sectionPos.x - sketch_camera_offset.x, sectionPos.y - sketch_camera_offset.y, sectionPos.z - sketch_camera_offset.z);
 
     if (!_is_chunk_culled(offset_chunk)) {
+        int passIndex = int(gl_LocalInvocationID.x);
         ivec3 regionPos = sketch_region_pos.xyz;
 
-        int meshOffset = screenIndex * 16;
+        int meshOffset = 256 * 16 * passIndex + screenIndex * 16;
         int slices;
 
-        if (sketch_cull_facing <= 0 || (sketch_translucent_sort > 1 && sketch_layer_pass == 2)) {
+        if (sketch_cull_facing <= 0 || (sketch_translucent_sort > 1 && passIndex == 2)) {
             slices = 127;
         } else {
             slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, sectionPos.x, sectionPos.y, sectionPos.z);
         }
 
-        slices &= regionMesh[meshOffset];
+        slices &= sectionMesh[meshOffset];
 
         if (slices != 0) {
             int drawCount = 0;
@@ -131,26 +146,55 @@ void main() {
                 int chunkOffset = facing * 2;
                 int outOffset = drawCount * 2;
 
-                int elementCount = regionMesh[meshOffset + 3 + chunkOffset];
+                int elementCount = sectionMesh[meshOffset + 3 + chunkOffset];
                 maxElementCount += elementCount;
                 drawVertex[outOffset] = elementCount;
-                drawVertex[outOffset + 1] = regionMesh[meshOffset + 2 + chunkOffset];
+                drawVertex[outOffset + 1] = sectionMesh[meshOffset + 2 + chunkOffset];
                 drawCount += slices >> facing & 1;
             }
 
-            atomicAdd(elementData, maxElementCount);
-            int currentCounter = atomicAdd(counter[sketch_region_index], drawCount);
-            memoryBarrierBuffer();
+            int currentCounter = 0;
 
-            int outputOffset = sketch_region_index * REGION_COMMAND_SIZE + currentCounter * 5;
+            if (passIndex == 0) {
+                currentCounter = atomicAdd(counter_solid, drawCount);
+            } else if (passIndex == 1) {
+                currentCounter = atomicAdd(counter_cutout, drawCount);
+            } else {
+                currentCounter = atomicAdd(counter_translucent, drawCount);
+            }
 
-            for (int i = 0; i < drawCount; ++i) {
-                int offset = i * 5;
-                outputData[outputOffset + offset] = drawVertex[i * 2];
-                outputData[outputOffset + offset + 1] = 1;
-                outputData[outputOffset + offset + 2] = 0;
-                outputData[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
-                outputData[outputOffset + offset + 4] = 0;
+            atomicMax(element_count, maxElementCount);
+            memoryBarrierAtomicCounter();
+
+            int outputOffset = currentCounter * 5;
+
+            if (passIndex == 0) {
+                for (int i = 0; i < drawCount; ++i) {
+                    int offset = i * 5;
+                    output_solid[outputOffset + offset] = drawVertex[i * 2];
+                    output_solid[outputOffset + offset + 1] = 1;
+                    output_solid[outputOffset + offset + 2] = 0;
+                    output_solid[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
+                    output_solid[outputOffset + offset + 4] = 0;
+                }
+            } else if (passIndex == 1) {
+                for (int i = 0; i < drawCount; ++i) {
+                    int offset = i * 5;
+                    output_cutout[outputOffset + offset] = drawVertex[i * 2];
+                    output_cutout[outputOffset + offset + 1] = 1;
+                    output_cutout[outputOffset + offset + 2] = 0;
+                    output_cutout[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
+                    output_cutout[outputOffset + offset + 4] = 0;
+                }
+            } else {
+                for (int i = 0; i < drawCount; ++i) {
+                    int offset = i * 5;
+                    output_translucent[outputOffset + offset] = drawVertex[i * 2];
+                    output_translucent[outputOffset + offset + 1] = 1;
+                    output_translucent[outputOffset + offset + 2] = 0;
+                    output_translucent[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
+                    output_translucent[outputOffset + offset + 4] = 0;
+                }
             }
         }
     }
