@@ -1,7 +1,6 @@
 package rogo.sketchrender.culling;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -49,7 +48,6 @@ import java.util.function.Consumer;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
 import static org.lwjgl.opengl.GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
-import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class CullingStateManager {
     public static EntityCullingMap ENTITY_CULLING_MAP = null;
@@ -520,7 +518,7 @@ public class CullingStateManager {
                     CHUNK_CULLING_MAP_TARGET.resize(cullingSize, cullingSize, Minecraft.ON_OSX);
                 }
 
-                CHUNK_CULLING_UNIFORM.generateIndex(Minecraft.getInstance().options.getEffectiveRenderDistance());
+                CHUNK_CULLING_UNIFORM.updateDistance(Minecraft.getInstance().options.getEffectiveRenderDistance());
             }
 
             if (Config.doEntityCulling()) {

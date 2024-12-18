@@ -32,9 +32,11 @@ import org.apache.commons.compress.utils.Lists;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
+import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.*;
 import rogo.sketchrender.culling.ChunkCullingUniform;
+import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
@@ -51,6 +53,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     protected Class<?> extraShaderInterface;
     protected boolean checkedShaderInterface = false;
     private int lastUpdateFrame;
+    private List<RenderRegion> cachedRegions;
 
     public ComputeShaderChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {
         super(device, vertexType);
@@ -86,72 +89,116 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 maxElementCount = ChunkCullingUniform.sectionMaxElement[0];
             }
 
-            Iterator<ChunkRenderList> iterator = renderLists.iterator(renderPass.isReverseOrder());
-            List<RenderRegion> regions = Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
-                SectionRenderDataStorage storage = r.getStorage(renderPass);
-                return storage != null && r.getResources() != null;
-            }).toList();
+            boolean update = false;
+            if (lastUpdateFrame != ChunkCullingUniform.currentFrame) {
+                lastUpdateFrame = ChunkCullingUniform.currentFrame;
+                update = true;
+                Iterator<ChunkRenderList> iterator = renderLists.iterator(renderPass.isReverseOrder());
+                cachedRegions = Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
+                    SectionRenderDataStorage storage = r.getStorage(renderPass);
+                    return storage != null && r.getResources() != null;
+                }).toList();
+            }
 
-            preRender(regions);
-            shaderInterface.setProjectionMatrix(matrices.projection());
-            shaderInterface.setModelViewMatrix(matrices.modelView());
-            onRender(this, shaderInterface, commandList, regions, renderPass, camera);
+            if (cachedRegions != null) {
+                if (update) {
+                    preRender();
+                }
+
+                shaderInterface.setProjectionMatrix(matrices.projection());
+                shaderInterface.setModelViewMatrix(matrices.modelView());
+                onRender(this, shaderInterface, commandList, renderPass, camera);
+            }
         }
         super.end(renderPass);
     }
 
-    public void preRender(List<RenderRegion> regions) {
-        if (lastUpdateFrame == ChunkCullingUniform.currentFrame) {
-            return;
-        }
-
-        lastUpdateFrame = ChunkCullingUniform.currentFrame;
+    public void preRender() {
         ChunkCullingUniform.batchElement.bindShaderSlot(7);
-        ShaderManager.COLLECT_CHUNK_PASS_CS.bindUniforms();
 
-        for (int i = 0; i < regions.size(); ++i) {
-            RenderRegion region = regions.get(i);
-            IndirectCommandBuffer.INSTANCE.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
-            ((RegionData)region).bindMeshData(0);
+        if (!Config.getAutoDisableAsync()) {
+            ShaderManager.COLLECT_CHUNK_PASS_CS.bindUniforms();
+            for (RenderRegion region : cachedRegions) {
+                ChunkCullingUniform.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
+                ((RegionData) region).bindMeshData(0);
 
-            for (int j = 0; j < DefaultTerrainRenderPasses.ALL.length; ++j) {
-                TerrainRenderPass pass = DefaultTerrainRenderPasses.ALL[j];
-                SectionRenderDataStorage storage = region.createStorage(pass);
-                SectionData dataStorage = (SectionData) storage;
-                dataStorage.clearCounter();
-                dataStorage.bindIndirectCommand(1 + j * 2);
-                dataStorage.bindCounter(2 + j * 2);
+                for (int j = 0; j < DefaultTerrainRenderPasses.ALL.length; ++j) {
+                    TerrainRenderPass pass = DefaultTerrainRenderPasses.ALL[j];
+                    SectionRenderDataStorage storage = region.createStorage(pass);
+                    SectionData dataStorage = (SectionData) storage;
+                    dataStorage.clearCounter();
+                    dataStorage.bindIndirectCommand(1 + j * 2);
+                    dataStorage.bindCounter(2 + j * 2);
+                }
+
+                executeShaderCulling();
             }
+            ShaderManager.COLLECT_CHUNK_PASS_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        } else {
+            ShaderManager.COLLECT_CHUNK_BATCH_CS.bindUniforms();
+            long ptr = ChunkCullingUniform.batchRegionIndex.getMemoryAddress();
+            for (int i = 0; i < cachedRegions.size(); ++i) {
+                RenderRegion region = cachedRegions.get(i);
+                long offset = i * 16L;
+                MemoryUtil.memPutInt(ptr + offset, ChunkCullingUniform.addIndexedRegion(region));
+                MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkX());
+                MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkY());
+                MemoryUtil.memPutInt(ptr + offset + 12, region.getChunkZ());
+            }
+            ChunkCullingUniform.batchRegionIndex.position = ChunkCullingUniform.batchRegionIndex.getSize();
+            ChunkCullingUniform.batchRegionIndex.upload();
+            ChunkCullingUniform.batchMesh.bindShaderSlot(0);
+            ChunkCullingUniform.batchCommand.bindShaderSlot(1);
+            ChunkCullingUniform.batchCounter.bindShaderSlot(2);
+            ChunkCullingUniform.batchRegionIndex.bindShaderSlot(3);
 
-            executeShaderCulling();
+            ShaderManager.COLLECT_CHUNK_BATCH_CS.execute(256, cachedRegions.size(), 1);
+            ShaderManager.COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
 
-        ShaderManager.COLLECT_CHUNK_PASS_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
     }
 
     public void executeShaderCulling() {
-        BlockPos regionPos = new BlockPos(IndirectCommandBuffer.INSTANCE.getRegionPos());
+        BlockPos regionPos = new BlockPos(ChunkCullingUniform.getRegionPos());
         ((ExtraUniform) ShaderManager.COLLECT_CHUNK_PASS_CS).getUniforms().setUniform("sketch_region_pos", regionPos);
         ShaderManager.COLLECT_CHUNK_PASS_CS.execute(256, 1, 1);
     }
 
-    public static void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, List<RenderRegion> regions, TerrainRenderPass pass, CameraTransform camera) {
-        SketchRender.COMMAND_TIMER.start("MDI");
-        for (int i = 0; i < regions.size(); ++i) {
-            RenderRegion region = regions.get(i);
-            SectionRenderDataStorage storage = region.getStorage(pass);
-            SectionData dataStorage = (SectionData) storage;
-            dataStorage.bindCounterBuffer();
-            dataStorage.bindCommandBuffer();
+    public void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, TerrainRenderPass pass, CameraTransform camera) {
+        boolean async = Config.getAutoDisableAsync();
+        int passIndex = 0;
+        if (pass == DefaultTerrainRenderPasses.TRANSLUCENT) {
+            passIndex = 2;
+        } else if (pass == DefaultTerrainRenderPasses.CUTOUT) {
+            passIndex = 1;
+        }
+        long passOffset = 256L * 64L * passIndex;
+        long regionStride = 256L * 64L * 3;
+
+        for (int i = 0; i < cachedRegions.size(); ++i) {
+            RenderRegion region = cachedRegions.get(i);
+            if (!async) {
+                SectionRenderDataStorage storage = region.getStorage(pass);
+                SectionData dataStorage = (SectionData) storage;
+                dataStorage.bindCounterBuffer();
+                dataStorage.bindCommandBuffer();
+            } else {
+                IndirectCommandBuffer.INSTANCE.bind();
+                ChunkCullingUniform.cullingCounter.bind();
+            }
             GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
             renderer.sodiumModelMatrixUniforms(shader, region, camera);
             DrawCommandList drawCommandList = commandList.beginTessellating(tessellation);
 
             try {
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0L, 8L, 1792, 20);
+                if (!async) {
+                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0L, 0L, 1792, 20);
+                } else {
+                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), regionStride * i + passOffset, i * 4L, 1792, 20);
+                }
             } catch (Throwable var7) {
                 if (drawCommandList != null) {
                     try {
@@ -168,7 +215,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 drawCommandList.close();
             }
         }
-        SketchRender.COMMAND_TIMER.end("MDI");
         //ChunkRenderMixinHook.asyncReadInt(ChunkCullingUniform.batchElement.getId(), 0, ChunkCullingUniform.sectionMaxElement);
     }
 

@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.RegionData;
 import rogo.sketchrender.api.SectionData;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
+import rogo.sketchrender.culling.ChunkCullingUniform;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 @Mixin(RenderRegion.class)
@@ -51,13 +52,14 @@ public abstract class MixinRenderRegion implements RegionData {
                 layer = 1;
             }
 
-            sectionData.setMeshData(meshData, layer);
+            sectionData.setMeshData(meshData, ChunkCullingUniform.addIndexedRegion((RenderRegion) (Object)this), layer);
         }
     }
 
     @Inject(method = "delete", at = @At("HEAD"), remap = false)
     private void onDelete(CommandList commandList, CallbackInfo ci) {
         meshData.discard();
+        ChunkCullingUniform.removeIndexedRegion((RenderRegion) (Object)this);
     }
 
     @Override

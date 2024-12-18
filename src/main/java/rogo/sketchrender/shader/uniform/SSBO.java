@@ -94,13 +94,13 @@ public class SSBO implements BufferObject {
             return;
         }
 
-        long newBufferPointer = MemoryUtil.nmemAlignedAlloc(32L, (long) requiredCapacity * stride);
+        long newBufferPointer = MemoryUtil.nmemCalloc(requiredCapacity, stride);
         MemoryUtil.memCopy(bufferPointer, newBufferPointer, capacity);
-
         MemoryUtil.nmemFree(bufferPointer);
-
         bufferPointer = newBufferPointer;
         capacity = requiredCapacity * stride;
+
+        resetUpload(GL15.GL_DYNAMIC_DRAW);
     }
 
     public void discard() {

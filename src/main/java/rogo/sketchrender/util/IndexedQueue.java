@@ -55,4 +55,11 @@ public class IndexedQueue<T> {
     public int size() {
         return nextIndex;
     }
+
+    public void clear() {
+        objectToIndex.clear();
+        indexToObject.clear();
+        freeIndices.clear();
+        nextIndex = 0;
+    }
 }

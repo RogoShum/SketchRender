@@ -5,6 +5,7 @@ import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.world.entity.TamableAnimal;
 import org.apache.commons.compress.utils.Lists;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.ShaderCollector;
@@ -22,6 +23,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
     public static ShaderInstance CULL_TEST_SHADER;
 
     public static ComputeShader COPY_DEPTH_CS;
+    public static ComputeShader COLLECT_CHUNK_BATCH_CS;
     public static ComputeShader COLLECT_CHUNK_PASS_CS;
 
     public void onShaderLoad(ShaderCollector a) {
@@ -55,6 +57,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
 
             COPY_DEPTH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth"));
             COLLECT_CHUNK_PASS_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_pass"));
+            COLLECT_CHUNK_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_batch"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
