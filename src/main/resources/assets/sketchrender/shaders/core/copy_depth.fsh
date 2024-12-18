@@ -29,7 +29,7 @@ void main() {
 
     for (int x = 0; x < xStep; x++) {
         for (int y = 0; y < yStep; y++) {
-            depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(x, y)).r);
+            depth = max(depth, texelFetch(Sampler0, depthUV + ivec2(x, y), 0).r);
         }
     }
 

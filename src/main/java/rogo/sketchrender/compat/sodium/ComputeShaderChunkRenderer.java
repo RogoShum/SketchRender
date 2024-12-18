@@ -33,17 +33,14 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.*;
 import rogo.sketchrender.culling.ChunkCullingUniform;
-import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
 import java.util.Iterator;
 import java.util.List;
 
-import static org.lwjgl.opengl.GL42.GL_COMMAND_BARRIER_BIT;
 import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
@@ -140,18 +137,19 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             for (int i = 0; i < cachedRegions.size(); ++i) {
                 RenderRegion region = cachedRegions.get(i);
                 long offset = i * 16L;
-                MemoryUtil.memPutInt(ptr + offset, ChunkCullingUniform.addIndexedRegion(region));
-                MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkX());
-                MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkY());
-                MemoryUtil.memPutInt(ptr + offset + 12, region.getChunkZ());
+                MemoryUtil.memPutInt(ptr + offset, region.getChunkX());
+                MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkY());
+                MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
+                MemoryUtil.memPutInt(ptr + offset + 12, ChunkCullingUniform.addIndexedRegion(region));
             }
             ChunkCullingUniform.batchRegionIndex.position = ChunkCullingUniform.batchRegionIndex.getSize();
             ChunkCullingUniform.batchRegionIndex.upload();
-            ChunkCullingUniform.batchMesh.bindShaderSlot(0);
+            ChunkCullingUniform.batchMeshData.bindShaderSlot(0);
             ChunkCullingUniform.batchCommand.bindShaderSlot(1);
             ChunkCullingUniform.batchCounter.bindShaderSlot(2);
             ChunkCullingUniform.batchRegionIndex.bindShaderSlot(3);
 
+            ChunkCullingUniform.cullingCounter.updateCount(0);
             ShaderManager.COLLECT_CHUNK_BATCH_CS.execute(256, cachedRegions.size(), 1);
             ShaderManager.COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
@@ -197,7 +195,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 if (!async) {
                     GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0L, 0L, 1792, 20);
                 } else {
-                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), regionStride * i + passOffset, i * 4L, 1792, 20);
+                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), regionStride * i + passOffset, (i * 12L) + (passIndex * 4L), 1792, 20);
                 }
             } catch (Throwable var7) {
                 if (drawCommandList != null) {
@@ -254,5 +252,11 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
     private static float getCameraTranslation(int chunkBlockPos, int cameraBlockPos, float cameraPos) {
         return (float) (chunkBlockPos - cameraBlockPos) - cameraPos;
+    }
+
+    @Override
+    public void delete(CommandList commandList) {
+        super.delete(commandList);
+        ChunkCullingUniform.clearRegions();
     }
 }

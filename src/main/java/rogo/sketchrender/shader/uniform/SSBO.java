@@ -103,6 +103,14 @@ public class SSBO implements BufferObject {
         resetUpload(GL15.GL_DYNAMIC_DRAW);
     }
 
+    public void setBufferPointer(long bufferPointer) {
+        this.bufferPointer = bufferPointer;
+    }
+
+    public void setCapacity(int capacity) {
+        this.capacity = capacity;
+    }
+
     public void discard() {
         MemoryUtil.nmemFree(bufferPointer);
         GL15.glDeleteBuffers(id);

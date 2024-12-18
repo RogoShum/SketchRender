@@ -13,7 +13,7 @@ layout(std430, binding = 2) writeonly buffer CounterBuffer {
 };
 
 layout(std430, binding = 3) readonly buffer RegionBuffer {
-    int region_pos[];
+    ivec4 region_pos[];
 };
 
 layout(std430, binding = 7) writeonly buffer ElementCount {
@@ -102,10 +102,11 @@ int unpackZ(int idx) {
 }
 
 void main() {
-    int regionIndex = int(gl_WorkGroupID.y);
-    int posIndexOffset = 4 * regionIndex;
-    regionIndex = region_pos[posIndexOffset];
-    ivec3 regionPos = ivec3(region_pos[posIndexOffset + 1], region_pos[posIndexOffset + 2], region_pos[posIndexOffset + 3]);
+    int outputIndex = int(gl_WorkGroupID.y);
+    int posIndexOffset = 4 * outputIndex;
+    ivec4 regionQueue = region_pos[posIndexOffset];
+    int regionIndex = regionQueue.w;
+    ivec3 regionPos = regionQueue.xyz;
 
     int screenIndex = int(gl_WorkGroupID.x);
     ivec3 sectionPos = ivec3(
@@ -146,12 +147,12 @@ void main() {
             }
 
             int currentCounter = 0;
-            currentCounter = atomicAdd(counter[regionIndex], drawCount);
+            currentCounter = atomicAdd(counter[outputIndex * 3 + passIndex], drawCount);
 
             atomicMax(element_count, maxElementCount);
             memoryBarrierAtomicCounter();
 
-            int outputOffset = currentCounter * 5 + 5;
+            int outputOffset = (256 * 16 * 3 * outputIndex) + (256 * 16 * passIndex) + currentCounter * 5;
 
             for (int i = 0; i < drawCount; ++i) {
                 int offset = i * 5;

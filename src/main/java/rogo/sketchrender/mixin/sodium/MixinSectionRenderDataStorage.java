@@ -45,21 +45,15 @@ public class MixinSectionRenderDataStorage implements SectionData {
     @Inject(method = "setMeshes", at = @At(value = "RETURN"), remap = false)
     private void endSetMeshes(int localSectionIndex, GlBufferSegment allocation, VertexRange[] ranges, CallbackInfo ci) {
         copySectionMesh(localSectionIndex);
-        if (Config.getAutoDisableAsync()) {
-            ChunkCullingUniform.batchMesh.upload(localSectionIndex + regionIndexOffset);
-        } else {
-            meshData.upload(localSectionIndex + indexOffset);
-        }
+        ChunkCullingUniform.batchMeshData.upload(localSectionIndex + regionIndexOffset);
+        meshData.upload(localSectionIndex + indexOffset);
     }
 
     @Inject(method = "updateMeshes", at = @At(value = "RETURN"), remap = false)
     private void endSetMeshes(int sectionIndex, CallbackInfo ci) {
         copySectionMesh(sectionIndex);
-        if (Config.getAutoDisableAsync()) {
-            ChunkCullingUniform.batchMesh.upload(sectionIndex + regionIndexOffset);
-        } else {
-            meshData.upload(sectionIndex + indexOffset);
-        }
+        ChunkCullingUniform.batchMeshData.upload(sectionIndex + regionIndexOffset);
+        meshData.upload(sectionIndex + indexOffset);
     }
 
     @Override
@@ -107,11 +101,8 @@ public class MixinSectionRenderDataStorage implements SectionData {
     @Inject(method = "removeMeshes", at = @At(value = "RETURN"), remap = false)
     private void endRemoveMeshes(int localSectionIndex, CallbackInfo ci) {
         copySectionMesh(localSectionIndex);
-        if (Config.getAutoDisableAsync()) {
-            ChunkCullingUniform.batchMesh.upload(localSectionIndex + regionIndexOffset);
-        } else {
-            meshData.upload(localSectionIndex + indexOffset);
-        }
+        ChunkCullingUniform.batchMeshData.upload(localSectionIndex + regionIndexOffset);
+        meshData.upload(localSectionIndex + indexOffset);
     }
 
     @Inject(method = "delete", at = @At(value = "RETURN"), remap = false)
@@ -122,11 +113,8 @@ public class MixinSectionRenderDataStorage implements SectionData {
 
     @Unique
     private void copySectionMesh(int index) {
-        if (Config.getAutoDisableAsync()) {
-            MemoryUtil.memCopy(this.pMeshDataArray + 64L * index
-                    , ChunkCullingUniform.batchMesh.getMemoryAddress() + this.regionOffset + (64L * index), 64L);
-        } else {
-            MemoryUtil.memCopy(this.pMeshDataArray + 64L * index, meshData.getMemoryAddress() + passOffset + (64L * index), 64L);
-        }
+        MemoryUtil.memCopy(this.pMeshDataArray + 64L * index
+                , ChunkCullingUniform.batchMeshData.getMemoryAddress() + this.regionOffset + (64L * index), 64L);
+        MemoryUtil.memCopy(this.pMeshDataArray + 64L * index, meshData.getMemoryAddress() + passOffset + (64L * index), 64L);
     }
 }

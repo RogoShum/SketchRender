@@ -21,7 +21,7 @@ public class ChunkCullingUniform {
 
     public static SSBO batchCommand;
     public static SSBO batchCounter;
-    public static SSBO batchMesh;
+    public static SSBO batchMeshData;
     public static SSBO batchRegionIndex;
     public static SSBO batchElement;
     public static CountBuffer cullingCounter;
@@ -40,7 +40,7 @@ public class ChunkCullingUniform {
             batchCounter = new SSBO(cullingCounter);
             elementCounter = new CountBuffer(VertexFormatElement.Type.INT);
             batchElement = new SSBO(elementCounter);
-            batchMesh = new SSBO(IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE, 64, GL15.GL_DYNAMIC_DRAW);
+            batchMeshData = new SSBO(IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE, 64, GL15.GL_DYNAMIC_DRAW);
             batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
         });
     }
@@ -52,17 +52,21 @@ public class ChunkCullingUniform {
 
         if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20 > IndirectCommandBuffer.INSTANCE.getSize()) {
             IndirectCommandBuffer.INSTANCE.resize(indexedRegions.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
-            batchCommand.resetUpload(GL15.GL_DYNAMIC_DRAW);
+            batchCommand.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
+            batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getSize());
+            batchCommand.resetUpload(GL15.GL_STATIC_DRAW);
         }
 
         if (passSize * cullingCounter.getCounterStride() > cullingCounter.getSize()) {
             cullingCounter.resize(passSize);
-            batchCounter.resetUpload(GL15.GL_DYNAMIC_DRAW);
+            batchCounter.setBufferPointer(cullingCounter.getMemoryAddress());
+            batchCounter.setCapacity(cullingCounter.getSize());
+            batchCounter.resetUpload(GL15.GL_STATIC_DRAW);
         }
 
-        batchMesh.ensureCapacity(passSize * IndirectCommandBuffer.REGION_COMMAND_SIZE);
+        batchMeshData.ensureCapacity(passSize * IndirectCommandBuffer.REGION_COMMAND_SIZE);
 
-        batchRegionIndex.ensureCapacity(passSize);
+        batchRegionIndex.ensureCapacity(regionSize);
 
         return index;
     }
@@ -75,8 +79,8 @@ public class ChunkCullingUniform {
         indexedRegions.clear();
         IndirectCommandBuffer.INSTANCE.resize(IndirectCommandBuffer.REGION_COMMAND_SIZE);
         cullingCounter.resize(1);
-        batchMesh.discard();
-        batchMesh = new SSBO(IndirectCommandBuffer.REGION_COMMAND_SIZE, 64, GL15.GL_DYNAMIC_DRAW);
+        batchMeshData.discard();
+        batchMeshData = new SSBO(IndirectCommandBuffer.REGION_COMMAND_SIZE, 64, GL15.GL_DYNAMIC_DRAW);
         batchRegionIndex = new SSBO(1, 12, GL15.GL_DYNAMIC_DRAW);
     }
 
