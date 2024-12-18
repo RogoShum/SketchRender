@@ -47,6 +47,8 @@ public abstract class MixinLevelRender implements EntitiesForRender {
 
     @Inject(method = "renderLevel", at = @At(value = "HEAD"))
     public void aheadRenderLevel(PoseStack p_109600_, float p_109601_, long p_109602_, boolean p_109603_, Camera p_109604_, GameRenderer p_109605_, LightTexture p_109606_, Matrix4f p_254120_, CallbackInfo ci) {
+        SketchRender.COMMAND_TIMER.end("renderGlobal");
+        SketchRender.COMMAND_TIMER.start("renderGlobal");
         SketchRender.COMMAND_TIMER.start("renderLevel");
     }
 

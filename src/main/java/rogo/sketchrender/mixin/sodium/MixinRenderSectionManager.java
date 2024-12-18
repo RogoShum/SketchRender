@@ -23,7 +23,6 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
@@ -44,15 +43,17 @@ public abstract class MixinRenderSectionManager {
     @Shadow(remap = false)
     private @NotNull SortedRenderLists renderLists;
 
-    @Shadow @Final private ChunkVertexType vertexType;
+    @Shadow
+    @Final
+    private ChunkVertexType vertexType;
 
     @Unique
-    private ChunkRenderer computeChunkRenderer;
+    private ChunkRenderer sketchlib$computeChunkRenderer;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(ClientLevel world, int renderDistance, CommandList commandList, CallbackInfo ci) {
         SodiumSectionAsyncUtil.fromSectionManager(this.sectionByPosition, world);
-        computeChunkRenderer = new ComputeShaderChunkRenderer(RenderDevice.INSTANCE, this.vertexType);
+        sketchlib$computeChunkRenderer = new ComputeShaderChunkRenderer(RenderDevice.INSTANCE, this.vertexType);
     }
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false, cancellable = true)
@@ -61,7 +62,7 @@ public abstract class MixinRenderSectionManager {
         if (Config.getCullChunk() && !CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
             RenderDevice device = RenderDevice.INSTANCE;
             CommandList commandList = device.createCommandList();
-            computeChunkRenderer.render(matrices, commandList, this.renderLists, pass, new CameraTransform(x, y, z));
+            sketchlib$computeChunkRenderer.render(matrices, commandList, this.renderLists, pass, new CameraTransform(x, y, z));
             commandList.flush();
             ci.cancel();
             SketchRender.COMMAND_TIMER.end("renderLayer");
@@ -76,7 +77,7 @@ public abstract class MixinRenderSectionManager {
 
     @ModifyArg(method = "destroy", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/ChunkRenderer;delete(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;)V"), remap = false)
     private CommandList onDestroy(CommandList commandList) {
-        computeChunkRenderer.delete(commandList);
+        sketchlib$computeChunkRenderer.delete(commandList);
         return commandList;
     }
 
@@ -86,21 +87,13 @@ public abstract class MixinRenderSectionManager {
         ChunkCullingUniform.currentFrame = frame;
     }
 
-    @ModifyVariable(name = "visitor", method = "createTerrainRenderList", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/occlusion/OcclusionCuller;findVisible(Lme/jellysquid/mods/sodium/client/render/chunk/occlusion/OcclusionCuller$Visitor;Lme/jellysquid/mods/sodium/client/render/viewport/Viewport;FZI)V", shift = At.Shift.BEFORE), remap = false)
-    private VisibleChunkCollector onCreateTerrainRenderList(VisibleChunkCollector value) {
-        if (Config.getAsyncChunkRebuild()) {
-            VisibleChunkCollector collector = CullingStateManager.renderingIris() ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
-            return collector == null ? value : collector;
-        }
-        return value;
-    }
-
-    @Inject(method = "updateChunks", at = @At(value = "HEAD"), remap = false)
-    private void onCreateTerrainRenderList(boolean updateImmediately, CallbackInfo ci) {
+    @Inject(method = "createTerrainRenderList", at = @At(value = "HEAD"), remap = false, cancellable = true)
+    private void onCreateTerrainRenderList(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
         if (Config.getAsyncChunkRebuild()) {
             VisibleChunkCollector collector = CullingStateManager.renderingIris() ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
             if (collector != null)
                 this.renderLists = collector.createRenderLists();
+            ci.cancel();
         }
     }
 }

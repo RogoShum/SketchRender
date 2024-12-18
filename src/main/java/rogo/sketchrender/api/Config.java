@@ -94,8 +94,10 @@ public class Config {
         if (unload())
             return false;
 
-        if (!shouldCullChunk())
+        /*
+                if (!shouldCullChunk())
             return false;
+         */
 
         if (CullingStateManager.needPauseRebuild())
             return false;

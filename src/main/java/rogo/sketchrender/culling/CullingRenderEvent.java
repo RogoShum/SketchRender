@@ -85,11 +85,10 @@ public class CullingRenderEvent {
             return;
         Tesselator tessellator = Tesselator.getInstance();
         BufferBuilder bufferbuilder = tessellator.getBuilder();
-        CullingStateManager.callDepthTexture();
 
         if (Config.getCullChunk()) {
+            CullingStateManager.callDepthTexture();
             CullingStateManager.useShader(ShaderManager.CHUNK_CULLING_SHADER);
-            CullingStateManager.CHUNK_CULLING_MAP_TARGET.clear(Minecraft.ON_OSX);
             CullingStateManager.CHUNK_CULLING_MAP_TARGET.bindWrite(false);
             bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
             bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();

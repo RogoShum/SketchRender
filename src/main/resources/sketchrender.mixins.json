@@ -28,7 +28,6 @@
     "MixinShaderInstance$MixinRenderSystem",
     "MixinWindow",
     "sodium.AccessorRenderSectionManager",
-    "sodium.MixinOcclusionCuller",
     "sodium.MixinRenderRegion",
     "sodium.MixinRenderSectionManager",
     "sodium.MixinShaderWorkarounds",

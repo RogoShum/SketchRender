@@ -443,9 +443,8 @@ public class CullingStateManager {
             if (Config.shouldComputeShader()) {
                 computeHizTexture();
             } else {
+                useShader(ShaderManager.COPY_DEPTH_SHADER);
                 runOnDepthFrame((depthContext) -> {
-                    useShader(ShaderManager.COPY_DEPTH_SHADER);
-                    depthContext.frame().clear(Minecraft.ON_OSX);
                     depthContext.frame().bindWrite(false);
                     Tesselator tesselator = Tesselator.getInstance();
                     BufferBuilder bufferbuilder = tesselator.getBuilder();
@@ -581,7 +580,7 @@ public class CullingStateManager {
         for (DEPTH_INDEX = 0; DEPTH_INDEX < DEPTH_BUFFER_TARGET.length; ++DEPTH_INDEX) {
             int lastTexture = DEPTH_INDEX == 0 ? MAIN_DEPTH_TEXTURE : DEPTH_BUFFER_TARGET[DEPTH_INDEX - 1].getColorTextureId();
             consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, f, lastTexture));
-            f *= 0.4f;
+            f *= 0.35f;
         }
     }
 

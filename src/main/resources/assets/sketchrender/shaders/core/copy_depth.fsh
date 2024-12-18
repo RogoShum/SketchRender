@@ -7,6 +7,8 @@ uniform int DepthIndex;
 flat in ivec2 ParentSize;
 flat in float xMult;
 flat in float yMult;
+flat in int xStep;
+flat in int yStep;
 
 out vec4 fragColor;
 
@@ -25,15 +27,11 @@ void main() {
     ivec2 depthUV = ivec2(px, py);
     float depth = 0.0;
 
-    depth = max(depth, texelFetch(Sampler0, depthUV, 0).r);
-    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(0, 1)).r);
-    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(0, -1)).r);
-    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(1, 0)).r);
-    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(-1, 0)).r);
-    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(1, 1)).r);
-    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(1, -1)).r);
-    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(-1, -1)).r);
-    depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(-1, 1)).r);
+    for (int x = 0; x < xStep; x++) {
+        for (int y = 0; y < yStep; y++) {
+            depth = max(depth, texelFetchOffset(Sampler0, depthUV, 0, ivec2(x, y)).r);
+        }
+    }
 
     if(DepthIndex > 0) {
         fragColor = vec4(vec3(depth), 1.0);

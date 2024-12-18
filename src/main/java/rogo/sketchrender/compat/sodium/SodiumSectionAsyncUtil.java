@@ -10,10 +10,13 @@ import me.jellysquid.mods.sodium.client.render.chunk.occlusion.OcclusionCuller;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.world.level.Level;
-import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.api.CollectorAccessor;
+import rogo.sketchrender.culling.CullingStateManager;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 
 public class SodiumSectionAsyncUtil {
@@ -37,7 +40,7 @@ public class SodiumSectionAsyncUtil {
 
     public static void asyncSearchRebuildSection() {
         shouldUpdate.acquireUninterruptibly();
-        if(CullingStateManager.needPauseRebuild()) {
+        if (CullingStateManager.needPauseRebuild()) {
             return;
         }
         if (CullingStateManager.enabledShader() && shadowViewport != null) {
@@ -57,7 +60,7 @@ public class SodiumSectionAsyncUtil {
 
             CullingStateManager.CHUNK_CULLING_UNIFORM.queueUpdateCount++;
             Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildList = SodiumSectionAsyncUtil.collector.getRebuildLists();
-            for(ArrayDeque<RenderSection> arrayDeque : rebuildList.values()) {
+            for (ArrayDeque<RenderSection> arrayDeque : rebuildList.values()) {
                 if (!arrayDeque.isEmpty()) {
                     needSyncRebuild = true;
                     break;
@@ -101,12 +104,13 @@ public class SodiumSectionAsyncUtil {
         private final HashMap<RenderRegion, ChunkRenderList> renderListMap = new HashMap<>();
         private final EnumMap<ChunkUpdateType, ArrayDeque<RenderSection>> syncRebuildLists;
         private static final EnumMap<ChunkUpdateType, ArrayDeque<RenderSection>> EMPTY_LIST = new EnumMap<>(ChunkUpdateType.class);
+
         static {
             for (ChunkUpdateType type : ChunkUpdateType.values()) {
                 EMPTY_LIST.put(type, new ArrayDeque<>());
             }
-
         }
+
         private boolean sent;
 
         public AsynchronousChunkCollector(int frame) {
@@ -139,15 +143,15 @@ public class SodiumSectionAsyncUtil {
 
         @Override
         public Map<ChunkUpdateType, ArrayDeque<RenderSection>> getRebuildLists() {
-            if(!RenderSystem.isOnRenderThread()) {
+            if (!RenderSystem.isOnRenderThread()) {
                 return super.getRebuildLists();
             }
-            if(!sent) {
+            if (!sent) {
                 sent = true;
             } else {
                 return EMPTY_LIST;
             }
-            if(CullingStateManager.needPauseRebuild()) {
+            if (CullingStateManager.needPauseRebuild()) {
                 return syncRebuildLists;
             }
             super.getRebuildLists().forEach(((chunkUpdateType, renderSections) -> {
@@ -155,7 +159,8 @@ public class SodiumSectionAsyncUtil {
                     if (!section.isDisposed() && section.getBuildCancellationToken() == null) {
                         try {
                             syncRebuildLists.get(chunkUpdateType).add(section);
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
                     }
                 }
             }));

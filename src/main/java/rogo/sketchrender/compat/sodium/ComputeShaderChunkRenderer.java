@@ -61,7 +61,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     @Override
     public void render(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera) {
         super.begin(renderPass);
-
         ChunkShaderInterface shaderInterface = null;
         if (this.activeProgram != null) {
             shaderInterface = this.activeProgram.getInterface();
@@ -106,7 +105,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             return;
         }
 
-        //SketchRender.RENDER_TIMER.start("COLLECT_CHUNK_PASS_CS");
         lastUpdateFrame = ChunkCullingUniform.currentFrame;
         ChunkCullingUniform.batchElement.bindShaderSlot(7);
         ShaderManager.COLLECT_CHUNK_PASS_CS.bindUniforms();
@@ -130,7 +128,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
         ShaderManager.COLLECT_CHUNK_PASS_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
-        //SketchRender.RENDER_TIMER.end("COLLECT_CHUNK_PASS_CS");
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
     }
 
@@ -141,6 +138,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     }
 
     public static void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, List<RenderRegion> regions, TerrainRenderPass pass, CameraTransform camera) {
+        SketchRender.COMMAND_TIMER.start("MDI");
         for (int i = 0; i < regions.size(); ++i) {
             RenderRegion region = regions.get(i);
             SectionRenderDataStorage storage = region.getStorage(pass);
@@ -170,6 +168,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 drawCommandList.close();
             }
         }
+        SketchRender.COMMAND_TIMER.end("MDI");
         //ChunkRenderMixinHook.asyncReadInt(ChunkCullingUniform.batchElement.getId(), 0, ChunkCullingUniform.sectionMaxElement);
     }
 
