@@ -31,7 +31,7 @@ public class ChunkCullingUniform {
     private static int regionY;
     private static int regionZ;
 
-    private static final IndexedQueue<RenderRegion> indexedRegions = new IndexedQueue<>();
+    private static final IndexedQueue<BlockPos> indexedRegions = new IndexedQueue<>();
 
     static {
         RenderSystem.recordRenderCall(() -> {
@@ -46,7 +46,7 @@ public class ChunkCullingUniform {
     }
 
     public static int addIndexedRegion(RenderRegion region) {
-        int index = indexedRegions.add(region);
+        int index = indexedRegions.add(new BlockPos(region.getChunkX(), region.getChunkY(), region.getChunkZ()));
         int regionSize = indexedRegions.size();
         int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
 
@@ -72,7 +72,7 @@ public class ChunkCullingUniform {
     }
 
     public static void removeIndexedRegion(RenderRegion region) {
-        indexedRegions.remove(region);
+        indexedRegions.remove(new BlockPos(region.getChunkX(), region.getChunkY(), region.getChunkZ()));
     }
 
     public static void clearRegions() {

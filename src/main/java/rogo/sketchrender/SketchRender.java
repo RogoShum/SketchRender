@@ -38,9 +38,11 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.culling.ChunkCullingUniform;
 import rogo.sketchrender.culling.CullingRenderEvent;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.gui.ConfigScreen;
+import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.NvidiumUtil;
 import rogo.sketchrender.util.OcclusionCullerThread;
@@ -213,6 +215,10 @@ public class SketchRender {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
+            if (ChunkCullingUniform.batchCommand != null) {
+                debugText.put("batchCommand", ChunkCullingUniform.batchCommand.getSize());
+            }
+            debugText.put("batchCommand", IndirectCommandBuffer.INSTANCE.getSize());
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
             debugText.putAll(commandTimer.getResults());

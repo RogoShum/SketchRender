@@ -24,7 +24,9 @@ public class IndirectCommandBuffer implements BufferObject {
         iCapacity = capacity * 20;
         commandCount = capacity;
         commandBuffer = MemoryUtil.nmemCalloc(1, iCapacity);
+        bind();
         GL15.nglBufferData(GL43.GL_DRAW_INDIRECT_BUFFER, iCapacity, commandBuffer, GL15.GL_STATIC_DRAW);
+        unBind();
     }
 
     public void resize(int capacity) {
@@ -32,7 +34,9 @@ public class IndirectCommandBuffer implements BufferObject {
         commandCount = capacity;
         MemoryUtil.nmemFree(this.commandBuffer);
         commandBuffer = MemoryUtil.nmemCalloc(1, iCapacity);
+        bind();
         GL15.nglBufferData(GL43.GL_DRAW_INDIRECT_BUFFER, iCapacity, commandBuffer, GL15.GL_STATIC_DRAW);
+        unBind();
     }
 
     public void bind() {

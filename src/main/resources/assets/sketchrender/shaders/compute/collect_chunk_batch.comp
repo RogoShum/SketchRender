@@ -103,7 +103,7 @@ int unpackZ(int idx) {
 
 void main() {
     int outputIndex = int(gl_WorkGroupID.y);
-    int posIndexOffset = 4 * outputIndex;
+    int posIndexOffset = outputIndex;
     ivec4 regionQueue = region_pos[posIndexOffset];
     int regionIndex = regionQueue.w;
     ivec3 regionPos = regionQueue.xyz;
