@@ -55,7 +55,6 @@ public class CullingRenderEvent {
             SketchRender.CULL_TEST_TARGET.resize(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), Minecraft.ON_OSX);
         }
 
-        /*
         Tesselator tessellator = Tesselator.getInstance();
         BufferBuilder bufferbuilder = tessellator.getBuilder();
         CullingStateManager.useShader(ShaderManager.CULL_TEST_SHADER);
@@ -68,7 +67,6 @@ public class CullingRenderEvent {
         bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
         CullingStateManager.callDepthTexture();
         tessellator.end();
-         */
 
         CullingStateManager.callDepthTexture();
         if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MAP != null && CullingStateManager.ENTITY_CULLING_MAP.needTransferData()) {
@@ -469,7 +467,7 @@ public class CullingRenderEvent {
                 tessellator.end();
             }
 
-            if (Config.getCullChunk()) {
+            if (false) {//Config.getCullChunk()
                 height = (int) (minecraft.getWindow().getGuiScaledHeight() * 0.25f);
                 bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
                 bufferbuilder.vertex(minecraft.getWindow().getGuiScaledWidth() - height, height * 2, 0.0D).uv(0.0F, 0.0F).color(255, 255, 255, 255).endVertex();
@@ -479,6 +477,7 @@ public class CullingRenderEvent {
                 RenderSystem.setShaderTexture(0, CullingStateManager.CHUNK_CULLING_MAP_TARGET.getColorTextureId());
                 tessellator.end();
             }
+
             RenderSystem.depthMask(true);
             RenderSystem.disableBlend();
         }

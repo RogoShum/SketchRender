@@ -17,7 +17,7 @@ uniform sampler2D Sampler4;
 flat in vec3 Pos;
 flat in vec2 Size;
 flat in vec4[6] frustum;
-flat in vec2[5] DepthScreenSize;
+flat in vec2[6] DepthScreenSize;
 
 out vec4 fragColor;
 

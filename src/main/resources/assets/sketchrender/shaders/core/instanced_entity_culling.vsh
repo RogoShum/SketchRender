@@ -8,10 +8,10 @@ layout (location=3) in vec3 EntityCenter;
 
 uniform vec2 EntityCullingSize;
 uniform float[24] CullingFrustum;
-uniform float[10] DepthSize;
+uniform float[12] DepthSize;
 
 flat out vec4[6] frustum;
-flat out vec2[5] DepthScreenSize;
+flat out vec2[6] DepthScreenSize;
 flat out vec3 Pos;
 flat out vec2 Size;
 
@@ -36,7 +36,8 @@ void main() {
     vec2(DepthSize[2], DepthSize[3]),
     vec2(DepthSize[4], DepthSize[5]),
     vec2(DepthSize[6], DepthSize[7]),
-    vec2(DepthSize[8], DepthSize[9])
+    vec2(DepthSize[8], DepthSize[9]),
+    vec2(DepthSize[10], DepthSize[11])
     );
 
     frustum = frustumData;

@@ -3,7 +3,7 @@
 in vec3 Position;
 
 uniform vec2 ScreenSize;
-uniform float[10] DepthSize;
+uniform float[12] DepthSize;
 
 flat out float xMult;
 flat out float yMult;

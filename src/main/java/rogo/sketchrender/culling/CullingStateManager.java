@@ -59,7 +59,7 @@ public class CullingStateManager {
         PROJECTION_MATRIX.identity();
     }
 
-    public static final int DEPTH_SIZE = 5;
+    public static final int DEPTH_SIZE = 6;
     public static int DEPTH_INDEX;
     public static int MAIN_DEPTH_TEXTURE = 0;
     public static RenderTarget[] DEPTH_BUFFER_TARGET = new RenderTarget[DEPTH_SIZE];
@@ -112,13 +112,13 @@ public class CullingStateManager {
     static {
         RenderSystem.recordRenderCall(() -> {
             for (int i = 0; i < DEPTH_BUFFER_TARGET.length; ++i) {
-                DEPTH_BUFFER_TARGET[i] = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
+                DEPTH_BUFFER_TARGET[i] = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), true);
                 DEPTH_BUFFER_TARGET[i].setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
             }
 
-            CHUNK_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
+            CHUNK_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false);
             CHUNK_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-            ENTITY_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
+            ENTITY_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false);
             ENTITY_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
         });
     }
@@ -578,7 +578,7 @@ public class CullingStateManager {
         for (DEPTH_INDEX = 0; DEPTH_INDEX < DEPTH_BUFFER_TARGET.length; ++DEPTH_INDEX) {
             int lastTexture = DEPTH_INDEX == 0 ? MAIN_DEPTH_TEXTURE : DEPTH_BUFFER_TARGET[DEPTH_INDEX - 1].getColorTextureId();
             consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, f, lastTexture));
-            f *= 0.35f;
+            f *= 0.5f;
         }
     }
 

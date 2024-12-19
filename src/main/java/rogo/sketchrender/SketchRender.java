@@ -33,6 +33,7 @@ import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
+import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -44,13 +45,12 @@ import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
-import rogo.sketchrender.util.NvidiumUtil;
-import rogo.sketchrender.util.OcclusionCullerThread;
-import rogo.sketchrender.util.CommandCallTimer;
-import rogo.sketchrender.util.RenderCallTimer;
+import rogo.sketchrender.util.*;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.lang.Thread.MAX_PRIORITY;
@@ -218,7 +218,7 @@ public class SketchRender {
             if (ChunkCullingUniform.batchCommand != null) {
                 debugText.put("batchCommand", ChunkCullingUniform.batchCommand.getSize());
             }
-            debugText.put("batchCommand", IndirectCommandBuffer.INSTANCE.getSize());
+            debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getSize());
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
             debugText.putAll(commandTimer.getResults());
