@@ -24,6 +24,7 @@
     "MixinMinecraft",
     "MixinProgram",
     "MixinRenderChunkInfo",
+    "MixinRenderSystem",
     "MixinShaderInstance",
     "MixinShaderInstance$MixinRenderSystem",
     "MixinWindow",

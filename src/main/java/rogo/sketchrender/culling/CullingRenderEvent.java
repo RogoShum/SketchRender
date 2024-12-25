@@ -88,11 +88,18 @@ public class CullingRenderEvent {
             CullingStateManager.callDepthTexture();
             CullingStateManager.useShader(ShaderManager.CHUNK_CULLING_SHADER);
             CullingStateManager.CHUNK_CULLING_MAP_TARGET.bindWrite(false);
-            bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
-            bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
-            bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
-            bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
-            bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
+            if (Config.shouldComputeShader()) {
+                bufferbuilder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
+                bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
+                bufferbuilder.vertex(-1.0f, -3.0f, 0.0f).endVertex();
+                bufferbuilder.vertex(3.0f, 1.0f, 0.0f).endVertex();
+            } else {
+                bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
+                bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
+                bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
+                bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
+                bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
+            }
             tessellator.end();
         }
 
