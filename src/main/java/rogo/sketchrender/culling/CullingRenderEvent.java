@@ -55,18 +55,20 @@ public class CullingRenderEvent {
             SketchRender.CULL_TEST_TARGET.resize(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), Minecraft.ON_OSX);
         }
 
-        Tesselator tessellator = Tesselator.getInstance();
-        BufferBuilder bufferbuilder = tessellator.getBuilder();
-        CullingStateManager.useShader(ShaderManager.CULL_TEST_SHADER);
-        SketchRender.CULL_TEST_TARGET.clear(Minecraft.ON_OSX);
-        SketchRender.CULL_TEST_TARGET.bindWrite(false);
-        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
-        bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
-        bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
-        bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
-        bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
-        CullingStateManager.callDepthTexture();
-        tessellator.end();
+        if (CullingStateManager.DEBUG > 0) {
+            Tesselator tessellator = Tesselator.getInstance();
+            BufferBuilder bufferbuilder = tessellator.getBuilder();
+            CullingStateManager.useShader(ShaderManager.CULL_TEST_SHADER);
+            SketchRender.CULL_TEST_TARGET.clear(Minecraft.ON_OSX);
+            SketchRender.CULL_TEST_TARGET.bindWrite(false);
+            bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
+            bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
+            bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
+            bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
+            bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
+            CullingStateManager.callDepthTexture();
+            tessellator.end();
+        }
 
         CullingStateManager.callDepthTexture();
         if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MAP != null && CullingStateManager.ENTITY_CULLING_MAP.needTransferData()) {
@@ -81,26 +83,24 @@ public class CullingRenderEvent {
     protected static void updateChunkCullingMap() {
         if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
             return;
-        Tesselator tessellator = Tesselator.getInstance();
-        BufferBuilder bufferbuilder = tessellator.getBuilder();
 
-        if (Config.getCullChunk()) {
-            CullingStateManager.callDepthTexture();
-            CullingStateManager.useShader(ShaderManager.CHUNK_CULLING_SHADER);
-            CullingStateManager.CHUNK_CULLING_MAP_TARGET.bindWrite(false);
-            if (Config.shouldComputeShader()) {
+        if (Config.getCullChunk() && Config.shouldComputeShader()) {
+            if (Config.getAutoDisableAsync()) {
+                CullingStateManager.callDepthTexture();
+                CullingStateManager.CHUNK_CULLING_MAP_TARGET.bindWrite(false);
+                SketchRender.getScreenRenderer().drawWithShader(ShaderManager.CHUNK_CULLING_SHADER, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
+            } else {
+                Tesselator tessellator = Tesselator.getInstance();
+                BufferBuilder bufferbuilder = tessellator.getBuilder();
+                CullingStateManager.callDepthTexture();
+                CullingStateManager.useShader(ShaderManager.CHUNK_CULLING_SHADER);
+                CullingStateManager.CHUNK_CULLING_MAP_TARGET.bindWrite(false);
                 bufferbuilder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
                 bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
                 bufferbuilder.vertex(-1.0f, -3.0f, 0.0f).endVertex();
                 bufferbuilder.vertex(3.0f, 1.0f, 0.0f).endVertex();
-            } else {
-                bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
-                bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
-                bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
-                bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
-                bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
+                tessellator.end();
             }
-            tessellator.end();
         }
 
         CullingStateManager.bindMainFrameTarget();

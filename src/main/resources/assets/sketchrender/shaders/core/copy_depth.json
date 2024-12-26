@@ -7,7 +7,6 @@
     "vertex": "sketchrender:copy_depth",
     "fragment": "sketchrender:copy_depth",
     "attributes": [
-        "Position"
     ],
     "samplers": [
         { "name": "Sampler0" }

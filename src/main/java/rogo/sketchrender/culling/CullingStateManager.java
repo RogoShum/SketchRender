@@ -438,32 +438,31 @@ public class CullingStateManager {
 
             MAIN_DEPTH_TEXTURE = depthTexture;
 
-            if (false) {
-                computeHizTexture();
-            } else {
-                useShader(ShaderManager.COPY_DEPTH_SHADER);
-                runOnDepthFrame((depthContext) -> {
-                    depthContext.frame().bindWrite(false);
-                    Tesselator tesselator = Tesselator.getInstance();
-                    BufferBuilder bufferbuilder = tesselator.getBuilder();
-
-                    if (Config.shouldComputeShader()) {
+            if (Config.shouldComputeShader()) {
+                if (Config.getAutoDisableAsync()) {
+                    useShader(ShaderManager.COPY_DEPTH_SHADER);
+                    runOnDepthFrame((depthContext) -> {
+                        depthContext.frame().bindWrite(false);
+                        RenderSystem.setShaderTexture(0, depthContext.lastTexture());
+                        SketchRender.getScreenRenderer().drawWithShader(ShaderManager.COPY_DEPTH_SHADER, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
+                        DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
+                    });
+                } else {
+                    useShader(ShaderManager.COPY_DEPTH_SHADER);
+                    runOnDepthFrame((depthContext) -> {
+                        depthContext.frame().bindWrite(false);
+                        Tesselator tesselator = Tesselator.getInstance();
+                        BufferBuilder bufferbuilder = tesselator.getBuilder();
                         bufferbuilder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
                         bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
                         bufferbuilder.vertex(-1.0f, -3.0f, 0.0f).endVertex();
                         bufferbuilder.vertex(3.0f, 1.0f, 0.0f).endVertex();
-                    } else {
-                        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
-                        bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
-                        bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
-                        bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
-                        bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
-                    }
+                        RenderSystem.setShaderTexture(0, depthContext.lastTexture());
+                        tesselator.end();
+                        DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
+                    });
+                }
 
-                    RenderSystem.setShaderTexture(0, depthContext.lastTexture());
-                    tesselator.end();
-                    DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
-                });
 
                 bindMainFrameTarget();
             }

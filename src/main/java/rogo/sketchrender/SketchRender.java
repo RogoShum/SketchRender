@@ -3,6 +3,7 @@ package rogo.sketchrender;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -46,6 +47,7 @@ import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.*;
+import rogo.sketchrender.vertexbuffer.ScreenSpaceRenderer;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -61,6 +63,10 @@ public class SketchRender {
     public static final String MOD_ID = "sketchrender";
     public static final Logger LOGGER = LogUtils.getLogger();
     private static final ShaderManager shaderManager = new ShaderManager();
+    private static ScreenSpaceRenderer screenSpaceRenderer;
+    static {
+        RenderSystem.recordRenderCall(() -> screenSpaceRenderer = new ScreenSpaceRenderer());
+    }
 
     @SuppressWarnings("removal")
     public SketchRender() {
@@ -207,6 +213,10 @@ public class SketchRender {
 
     public static void pauseAsync() {
         fullChunkUpdateCooldown = 70;
+    }
+
+    public static ScreenSpaceRenderer getScreenRenderer() {
+        return screenSpaceRenderer;
     }
 
     @SubscribeEvent

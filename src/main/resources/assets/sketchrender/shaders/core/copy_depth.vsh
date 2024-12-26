@@ -1,6 +1,6 @@
-#version 150
+#version 330
 
-in vec3 Position;
+layout (location=0) in vec2 Position;
 
 uniform vec2 ScreenSize;
 uniform float[12] DepthSize;
@@ -19,5 +19,5 @@ void main() {
     yStep = int(ceil(yMult));
 
     ParentSize = ivec2(int(ScreenSize.x), int(ScreenSize.y));
-    gl_Position = vec4(Position, 1.0);
+    gl_Position = vec4(Position, 1.0, 1.0);
 }

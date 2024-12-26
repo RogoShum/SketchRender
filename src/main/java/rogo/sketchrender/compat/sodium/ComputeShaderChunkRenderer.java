@@ -177,8 +177,11 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
         for (int i = 0; i < cachedRegions.size(); ++i) {
             RenderRegion region = cachedRegions.get(i);
+            SectionRenderDataStorage storage = region.getStorage(pass);
+            if (storage == null) {
+                continue;
+            }
             if (!async) {
-                SectionRenderDataStorage storage = region.getStorage(pass);
                 SectionData dataStorage = (SectionData) storage;
                 dataStorage.bindCounterBuffer();
                 dataStorage.bindCommandBuffer();
