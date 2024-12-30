@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import rogo.sketchrender.culling.CollectChunkMesh;
 
 @Mixin(value = ChunkBuilderMeshingTask.class, remap = false)
 public class MixinChunkBuilderMeshingTask {
@@ -16,7 +17,7 @@ public class MixinChunkBuilderMeshingTask {
     private void repackageResults(ChunkBuildContext buildContext, CancellationToken cancellationToken, CallbackInfoReturnable<ChunkBuildOutput> cir) {
         ChunkBuildOutput result = cir.getReturnValue();
         if (result != null) {
-
+            CollectChunkMesh.update(buildContext, cancellationToken, cir.getReturnValue());
         }
     }
 }

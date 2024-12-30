@@ -4,7 +4,11 @@ public interface BufferObject {
 
     int getId();
 
-    int getSize();
+    long getDataNum();
+
+    long getSize();
+
+    long getStride();
 
     long getMemoryAddress();
 }

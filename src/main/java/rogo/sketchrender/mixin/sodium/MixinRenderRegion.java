@@ -52,7 +52,7 @@ public abstract class MixinRenderRegion implements RegionData {
                 layer = 1;
             }
 
-            sectionData.setMeshData(meshData, ChunkCullingUniform.addIndexedRegion((RenderRegion) (Object)this), layer);
+            sectionData.setMeshData(meshData, ChunkCullingUniform.getRegionIndex((RenderRegion) (Object)this), layer);
         }
     }
 

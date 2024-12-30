@@ -11,12 +11,14 @@ import rogo.sketchrender.api.BufferObject;
 public class CountBuffer implements BufferObject {
     private long bufferPointer;
     private final int bufferId;
-    private int size;
+    private long size;
+    private long counterCount;
     private final VertexFormatElement.Type counterType;
 
     public CountBuffer(VertexFormatElement.Type type) {
         counterType = type;
         bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, type.getSize());
+        counterCount = 1;
         MemoryUtil.memSet(bufferPointer, 0, type.getSize());
         this.size = type.getSize();
 
@@ -27,7 +29,8 @@ public class CountBuffer implements BufferObject {
     }
 
     public void resize(int count) {
-        this.size = getCounterStride() * count;
+        this.size = getStride() * count;
+        counterCount = count;
         MemoryUtil.nmemFree(bufferPointer);
         bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, this.size);
         MemoryUtil.memSet(bufferPointer, 0, this.size);
@@ -40,11 +43,17 @@ public class CountBuffer implements BufferObject {
         return bufferId;
     }
 
-    public int getSize() {
+    @Override
+    public long getDataNum() {
+        return counterCount;
+    }
+
+    public long getSize() {
         return size;
     }
 
-    public int getCounterStride() {
+    @Override
+    public long getStride() {
         return counterType.getSize();
     }
 

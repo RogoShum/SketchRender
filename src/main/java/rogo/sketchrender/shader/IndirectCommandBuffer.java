@@ -2,7 +2,6 @@ package rogo.sketchrender.shader;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import me.jellysquid.mods.sodium.client.model.quad.properties.ModelQuadFacing;
-import net.minecraft.core.BlockPos;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
@@ -15,13 +14,13 @@ public class IndirectCommandBuffer implements BufferObject {
     public static final IndirectCommandBuffer INSTANCE = new IndirectCommandBuffer(REGION_COMMAND_SIZE);
     private final int id = GL15.glGenBuffers();
     private long commandBuffer;
-    private int iCapacity;
+    private long iCapacity;
     private int commandCount;
     public int maxElementCount;
     public int position;
 
     public IndirectCommandBuffer(int capacity) {
-        iCapacity = capacity * 20;
+        iCapacity = capacity * getStride();
         commandCount = capacity;
         commandBuffer = MemoryUtil.nmemCalloc(1, iCapacity);
         bind();
@@ -30,7 +29,7 @@ public class IndirectCommandBuffer implements BufferObject {
     }
 
     public void resize(int capacity) {
-        iCapacity = capacity * 20;
+        iCapacity = capacity * getStride();
         commandCount = capacity;
         MemoryUtil.nmemFree(this.commandBuffer);
         commandBuffer = MemoryUtil.nmemCalloc(1, iCapacity);
@@ -51,13 +50,19 @@ public class IndirectCommandBuffer implements BufferObject {
         return id;
     }
 
-    public int getCommandCount() {
+    @Override
+    public long getDataNum() {
         return commandCount;
     }
 
     @Override
-    public int getSize() {
+    public long getSize() {
         return iCapacity;
+    }
+
+    @Override
+    public long getStride() {
+        return 20L;
     }
 
     public long getMemoryAddress() {

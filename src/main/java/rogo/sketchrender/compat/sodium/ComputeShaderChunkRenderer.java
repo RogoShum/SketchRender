@@ -38,6 +38,7 @@ import rogo.sketchrender.culling.ChunkCullingUniform;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -94,7 +95,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 cachedRegions = Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
                     SectionRenderDataStorage storage = r.getStorage(renderPass);
                     return storage != null && r.getResources() != null;
-                }).toList();
+                }).sorted(Comparator.comparingInt(ChunkCullingUniform::getRegionIndex)).toList();
             }
 
             if (cachedRegions != null) {
@@ -142,7 +143,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
                 MemoryUtil.memPutInt(ptr + offset + 12, ChunkCullingUniform.addIndexedRegion(region));
             }
-            ChunkCullingUniform.batchRegionIndex.position = ChunkCullingUniform.batchRegionIndex.getSize();
+            ChunkCullingUniform.batchRegionIndex.position = (int) ChunkCullingUniform.batchRegionIndex.getSize();
             ChunkCullingUniform.batchRegionIndex.upload();
             ChunkCullingUniform.batchMeshData.bindShaderSlot(0);
             ChunkCullingUniform.batchCommand.bindShaderSlot(1);

@@ -45,19 +45,23 @@ public class ChunkCullingUniform {
         });
     }
 
+    public static int getRegionIndex(RenderRegion region) {
+        return indexedRegions.add(new BlockPos(region.getChunkX(), region.getChunkY(), region.getChunkZ()));
+    }
+
     public static int addIndexedRegion(RenderRegion region) {
         int index = indexedRegions.add(new BlockPos(region.getChunkX(), region.getChunkY(), region.getChunkZ()));
         int regionSize = indexedRegions.size();
         int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
 
-        if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20 > IndirectCommandBuffer.INSTANCE.getSize()) {
+        if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getSize()) {
             IndirectCommandBuffer.INSTANCE.resize(indexedRegions.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
             batchCommand.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
             batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getSize());
             batchCommand.resetUpload(GL15.GL_STATIC_DRAW);
         }
 
-        if (passSize * cullingCounter.getCounterStride() > cullingCounter.getSize()) {
+        if (passSize * cullingCounter.getStride() > cullingCounter.getSize()) {
             cullingCounter.resize(passSize);
             batchCounter.setBufferPointer(cullingCounter.getMemoryAddress());
             batchCounter.setCapacity(cullingCounter.getSize());
@@ -65,7 +69,6 @@ public class ChunkCullingUniform {
         }
 
         batchMeshData.ensureCapacity(passSize * IndirectCommandBuffer.REGION_COMMAND_SIZE);
-
         batchRegionIndex.ensureCapacity(regionSize);
 
         return index;

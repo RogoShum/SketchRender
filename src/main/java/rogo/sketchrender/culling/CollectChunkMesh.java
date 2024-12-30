@@ -9,6 +9,7 @@ import me.jellysquid.mods.sodium.client.util.task.CancellationToken;
 
 public class CollectChunkMesh {
     public static void update(ChunkBuildContext buildContext, CancellationToken cancellationToken, ChunkBuildOutput chunkBuildOutput) {
+        /*
         if (this.allocations[localSectionIndex] != null) {
             this.allocations[localSectionIndex].delete();
             this.allocations[localSectionIndex] = null;
@@ -17,7 +18,7 @@ public class CollectChunkMesh {
         this.allocations[localSectionIndex] = allocation;
         long pMeshData = this.getDataPointer(localSectionIndex);
         int sliceMask = 0;
-        int vertexOffset = allocation.getOffset();
+        int vertexOffset = chunkBuildOutput.;
 
         for(int facingIndex = 0; facingIndex < ModelQuadFacing.COUNT; ++facingIndex) {
             VertexRange vertexRange = ranges[facingIndex];
@@ -38,5 +39,6 @@ public class CollectChunkMesh {
         }
 
         SectionRenderDataUnsafe.setSliceMask(pMeshData, sliceMask);
+         */
     }
 }
