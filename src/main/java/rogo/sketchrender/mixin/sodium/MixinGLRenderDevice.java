@@ -22,18 +22,4 @@ public class MixinGLRenderDevice implements TessellationDevice {
     public GlTessellation getTessellation() {
         return activeTessellation;
     }
-
-
-    @Mixin(targets = "me.jellysquid.mods.sodium.client.gl.device.GLRenderDevice$ImmediateDrawCommandList")
-    public abstract static class MixinDefaultChunkRenderer {
-        @Inject(remap = false, method = "multiDrawElementsBaseVertex", at = @At(value = "HEAD"), cancellable = true)
-        private void onExecuteDrawBatch(MultiDrawBatch batch, GlIndexType indexType, CallbackInfo ci) {
-
-        }
-
-        @Inject(remap = false, method = "multiDrawElementsBaseVertex", at = @At(value = "RETURN"))
-        private void endExecuteDrawBatch(MultiDrawBatch batch, GlIndexType indexType, CallbackInfo ci) {
-
-        }
-    }
 }

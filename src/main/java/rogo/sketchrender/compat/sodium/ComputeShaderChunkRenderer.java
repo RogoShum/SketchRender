@@ -141,7 +141,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 MemoryUtil.memPutInt(ptr + offset, region.getChunkX());
                 MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkY());
                 MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
-                MemoryUtil.memPutInt(ptr + offset + 12, ChunkCullingUniform.addIndexedRegion(region));
+                MemoryUtil.memPutInt(ptr + offset + 12, ChunkCullingUniform.getRegionIndex(region));
             }
             ChunkCullingUniform.batchRegionIndex.position = (int) ChunkCullingUniform.batchRegionIndex.getSize();
             ChunkCullingUniform.batchRegionIndex.upload();

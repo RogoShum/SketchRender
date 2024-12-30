@@ -122,7 +122,7 @@ void main() {
 
     ivec3 offset_chunk = ivec3(sectionPos.x - sketch_camera_offset.x, sectionPos.y - sketch_camera_offset.y, sectionPos.z - sketch_camera_offset.z);
 
-    if (true) {//!_is_chunk_culled(offset_chunk)
+    if (!_is_chunk_culled(offset_chunk)) {
         int passIndex = int(gl_LocalInvocationID.x);
 
         int meshOffset = (regionIndex * 256 * 16 * 3) + (256 * 16 * passIndex) + sectionIndex * 16;
@@ -136,7 +136,7 @@ void main() {
 
         slices &= sectionMesh[meshOffset];
 
-        if (true) {//slices != 0
+        if (slices != 0) {
             int drawCount = 0;
             int[14] drawVertex;
             int maxElementCount = 0;
@@ -149,17 +149,17 @@ void main() {
                 maxElementCount += elementCount;
                 drawVertex[outOffset] = elementCount;
                 drawVertex[outOffset + 1] = sectionMesh[meshOffset + 2 + chunkOffset];
-                drawCount += 1;//slices >> facing & 1
+                drawCount += slices >> facing & 1;
             }
 
             int currentCounter = 0;
 
             if (passIndex == 0) {
-                currentCounter = atomicAdd(counter[regionIndex].solidCount, drawCount);
+                currentCounter = atomicAdd(counter[outputIndex].solidCount, drawCount);
             } else if (passIndex == 1) {
-                currentCounter = atomicAdd(counter[regionIndex].cutoutCount, drawCount);
+                currentCounter = atomicAdd(counter[outputIndex].cutoutCount, drawCount);
             } else {
-                currentCounter = atomicAdd(counter[regionIndex].translucentCount, drawCount);
+                currentCounter = atomicAdd(counter[outputIndex].translucentCount, drawCount);
             }
 
             atomicMax(element_count, maxElementCount);

@@ -5,10 +5,11 @@ import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.core.BlockPos;
 import org.lwjgl.opengl.GL15;
+import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.SSBO;
-import rogo.sketchrender.util.IndexedQueue;
+import rogo.sketchrender.util.IndexPool;
 
 public class ChunkCullingUniform {
     private static int renderDistance = 0;
@@ -31,7 +32,7 @@ public class ChunkCullingUniform {
     private static int regionY;
     private static int regionZ;
 
-    private static final IndexedQueue<BlockPos> indexedRegions = new IndexedQueue<>();
+    private static final IndexPool<RenderRegion> indexedRegions = new IndexPool<>();
 
     static {
         RenderSystem.recordRenderCall(() -> {
@@ -46,11 +47,12 @@ public class ChunkCullingUniform {
     }
 
     public static int getRegionIndex(RenderRegion region) {
-        return indexedRegions.add(new BlockPos(region.getChunkX(), region.getChunkY(), region.getChunkZ()));
+        return indexedRegions.indexOf(region);
     }
 
     public static int addIndexedRegion(RenderRegion region) {
-        int index = indexedRegions.add(new BlockPos(region.getChunkX(), region.getChunkY(), region.getChunkZ()));
+        indexedRegions.add(region);
+        int index = indexedRegions.indexOf(region);
         int regionSize = indexedRegions.size();
         int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
 
@@ -75,7 +77,45 @@ public class ChunkCullingUniform {
     }
 
     public static void removeIndexedRegion(RenderRegion region) {
-        indexedRegions.remove(new BlockPos(region.getChunkX(), region.getChunkY(), region.getChunkZ()));
+        int removedIndex = indexedRegions.indexOf(region);
+        indexedRegions.remove(region);
+
+        // 如果删除的不是最后一个元素，需要移动数据
+        if (removedIndex < indexedRegions.size()) {
+            // 计算每个区域的数据大小
+            long regionDataSize = IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE;
+
+            // 计算需要移动的数据大小（从removedIndex+1到末尾的所有数据）
+            long dataToMove = (indexedRegions.size() - removedIndex) * regionDataSize;
+
+            // 移动MeshData
+            MemoryUtil.memCopy(
+                    batchMeshData.getMemoryAddress() + ((removedIndex + 1) * regionDataSize), // 源地址：被删除位置的下一个位置
+                    batchMeshData.getMemoryAddress() + (removedIndex * regionDataSize),       // 目标地址：被删除的位置
+                    dataToMove                                                                // 要移动的数据大小
+            );
+
+            // 移动RegionIndex数据
+            MemoryUtil.memCopy(
+                    batchRegionIndex.getMemoryAddress() + ((removedIndex + 1) * batchRegionIndex.getStride()),
+                    batchRegionIndex.getMemoryAddress() + (removedIndex * batchRegionIndex.getStride()),
+                    (indexedRegions.size() - removedIndex) * batchRegionIndex.getStride()
+            );
+
+            // 更新SSBO
+            batchMeshData.upload();
+            batchRegionIndex.upload();
+
+            // 如果数据量显著减少，可以考虑收缩缓冲区
+            if (indexedRegions.size() * 2L < batchMeshData.getDataNum()) {
+                int newSize = indexedRegions.size();
+                int passSize = IndirectCommandBuffer.PASS_SIZE * newSize;
+
+                // 调整缓冲区大小
+                batchMeshData.ensureCapacity(passSize * IndirectCommandBuffer.REGION_COMMAND_SIZE);
+                batchRegionIndex.ensureCapacity(newSize);
+            }
+        }
     }
 
     public static void clearRegions() {
