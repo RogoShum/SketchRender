@@ -34,7 +34,6 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.api.*;
-import rogo.sketchrender.culling.MeshUniform;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
@@ -151,7 +150,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             MeshUniform.batchRegionIndex.bindShaderSlot(3);
 
             MeshUniform.cullingCounter.updateCount(0);
-            ShaderManager.COLLECT_CHUNK_BATCH_CS.execute(256, cachedRegions.size(), 1);
+            ShaderManager.COLLECT_CHUNK_BATCH_CS.execute(12, cachedRegions.size(), 1);
             ShaderManager.COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
 

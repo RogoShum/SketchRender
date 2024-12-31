@@ -39,7 +39,7 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.culling.MeshUniform;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.culling.CullingRenderEvent;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.gui.ConfigScreen;

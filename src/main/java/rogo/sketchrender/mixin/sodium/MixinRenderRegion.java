@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.RegionData;
 import rogo.sketchrender.api.SectionData;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
-import rogo.sketchrender.culling.MeshUniform;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 @Mixin(RenderRegion.class)

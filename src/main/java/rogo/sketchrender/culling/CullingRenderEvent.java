@@ -22,6 +22,7 @@ import org.lwjgl.opengl.GL11;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.CullingShader;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorFrustum;
 import rogo.sketchrender.shader.ShaderManager;

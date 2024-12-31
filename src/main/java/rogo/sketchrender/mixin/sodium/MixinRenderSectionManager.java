@@ -28,7 +28,7 @@ import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.compat.sodium.ComputeShaderChunkRenderer;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
-import rogo.sketchrender.culling.MeshUniform;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;

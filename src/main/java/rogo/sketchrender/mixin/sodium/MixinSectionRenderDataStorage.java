@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.api.SectionData;
-import rogo.sketchrender.culling.MeshUniform;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.SSBO;

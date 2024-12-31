@@ -12,7 +12,6 @@ import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.world.level.Level;
 import rogo.sketchrender.api.CollectorAccessor;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.culling.MeshUniform;
 
 import java.util.ArrayDeque;
 import java.util.EnumMap;

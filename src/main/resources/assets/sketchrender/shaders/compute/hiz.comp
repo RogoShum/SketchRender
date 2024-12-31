@@ -6,12 +6,14 @@ uniform ivec2 sketch_screen_size;
 uniform ivec2 sketch_depth_size;
 uniform int sketch_depth_index;
 
-#define TILE_SIZE 16
-#define TILE_EDGE TILE_SIZE * 2
+#define TILE_SIZE_X 32
+#define TILE_SIZE_Y 28
+#define TILE_EDGE_X TILE_SIZE_X * 2
+#define TILE_EDGE_Y TILE_SIZE_Y * 2
 
-layout(local_size_x = TILE_SIZE, local_size_y = TILE_SIZE) in;
+layout(local_size_x = TILE_SIZE_X, local_size_y = TILE_SIZE_Y) in;
 
-shared float depthCache[TILE_EDGE][TILE_EDGE];
+shared float depthCache[TILE_EDGE_X][TILE_EDGE_Y];
 
 void main() {
     ivec2 groupStart = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);

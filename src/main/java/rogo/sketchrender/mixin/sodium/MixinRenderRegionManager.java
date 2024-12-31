@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.RegionData;
-import rogo.sketchrender.culling.MeshUniform;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 
 @Mixin(RenderRegionManager.class)
 public abstract class MixinRenderRegionManager implements RegionData {

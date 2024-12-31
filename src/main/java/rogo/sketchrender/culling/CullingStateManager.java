@@ -28,6 +28,7 @@ import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.DefaultShaderLoader;
 import rogo.sketchrender.api.EntitiesForRender;
 import rogo.sketchrender.api.RenderChunkInfo;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.mixin.AccessorLevelRender;
 import rogo.sketchrender.mixin.AccessorMinecraft;
@@ -437,7 +438,6 @@ public class CullingStateManager {
 
             MAIN_DEPTH_TEXTURE = depthTexture;
 
-            SketchRender.RENDER_TIMER.start("compute Hiz");
             if (Config.shouldComputeShader()) {
                 computeHizTexture();
             } else {
@@ -465,7 +465,7 @@ public class CullingStateManager {
                     });
                 }
             }
-            SketchRender.RENDER_TIMER.end("compute Hiz");
+
             bindMainFrameTarget();
 
             net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles cameraSetup = net.minecraftforge.client.ForgeHooksClient.onCameraSetup(Minecraft.getInstance().gameRenderer
@@ -501,8 +501,10 @@ public class CullingStateManager {
 
             shader.getUniforms().setUniform("sketch_screen_size"
                     , new Vector2i(screen.width, screen.height));
-            int groupsX = (depthContext.frame().width + 15) / 16;
-            int groupsY = (depthContext.frame().height + 15) / 16;
+            int tileSizeX = 32;
+            int tileSizeY = 28;
+            int groupsX = (depthContext.frame().width + tileSizeX - 1) / tileSizeX;
+            int groupsY = (depthContext.frame().height + tileSizeY - 1) / tileSizeY;
 
             GL43.glBindImageTexture(0, depthContext.frame().getColorTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R32F);
             RenderSystem.activeTexture(GL43.GL_TEXTURE0);
