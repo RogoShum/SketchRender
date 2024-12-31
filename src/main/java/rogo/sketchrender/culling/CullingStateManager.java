@@ -437,6 +437,7 @@ public class CullingStateManager {
 
             MAIN_DEPTH_TEXTURE = depthTexture;
 
+            SketchRender.RENDER_TIMER.start("compute Hiz");
             if (Config.shouldComputeShader()) {
                 computeHizTexture();
             } else {
@@ -464,7 +465,7 @@ public class CullingStateManager {
                     });
                 }
             }
-
+            SketchRender.RENDER_TIMER.end("compute Hiz");
             bindMainFrameTarget();
 
             net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles cameraSetup = net.minecraftforge.client.ForgeHooksClient.onCameraSetup(Minecraft.getInstance().gameRenderer
@@ -480,7 +481,7 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = ShaderManager.HIZ_CS;
+        ComputeShader shader = Config.getAutoDisableAsync() ? ShaderManager.HIZ_CS : ShaderManager.COPY_DEPTH_CS;
 
         shader.bind();
         shader.getUniforms().setUniform("sketch_render_distance", (float) Minecraft.getInstance().options.getEffectiveRenderDistance());
@@ -502,13 +503,17 @@ public class CullingStateManager {
                     , new Vector2i(screen.width, screen.height));
             int groupsX = (depthContext.frame().width + 15) / 16;
             int groupsY = (depthContext.frame().height + 15) / 16;
-            shader.getUniforms().setUniform("group_size", new Vector2i(groupsX, groupsY));
 
             GL43.glBindImageTexture(0, depthContext.frame().getColorTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R32F);
             RenderSystem.activeTexture(GL43.GL_TEXTURE0);
             RenderSystem.bindTexture(depthContext.lastTexture());
 
-            shader.execute(groupsX, groupsY, 1);
+            if (Config.getAutoDisableAsync()) {
+                shader.execute(groupsX, groupsY, 1);
+            } else {
+                shader.execute(depthContext.frame().width, depthContext.frame().height, 1);
+            }
+
             shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
             DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
         });
