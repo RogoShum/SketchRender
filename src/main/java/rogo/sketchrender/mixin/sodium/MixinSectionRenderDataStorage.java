@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.jellysquid.mods.sodium.client.gl.arena.GlBufferSegment;
 import me.jellysquid.mods.sodium.client.gl.util.VertexRange;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
+import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,9 +13,8 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.SectionData;
-import rogo.sketchrender.culling.ChunkCullingUniform;
+import rogo.sketchrender.culling.MeshUniform;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.SSBO;
@@ -31,41 +31,31 @@ public class MixinSectionRenderDataStorage implements SectionData {
     private SSBO counterCommand = new SSBO(drawCounter);
     private SSBO batchCommand = new SSBO(drawCommandBuffer);
     private SSBO meshData;
+    private RenderRegion region;
     private int passIndex;
     private long passOffset;
-    private long regionOffset;
     private int indexOffset;
-    private int regionIndexOffset;
-
-    @Inject(method = "<init>", at = @At(value = "RETURN"), remap = false)
-    private void afterInit(CallbackInfo ci) {
-
-    }
 
     @Inject(method = "setMeshes", at = @At(value = "RETURN"), remap = false)
     private void endSetMeshes(int localSectionIndex, GlBufferSegment allocation, VertexRange[] ranges, CallbackInfo ci) {
         copySectionMesh(localSectionIndex);
-        ChunkCullingUniform.batchMeshData.upload(localSectionIndex + regionIndexOffset);
         meshData.upload(localSectionIndex + indexOffset);
     }
 
     @Inject(method = "updateMeshes", at = @At(value = "RETURN"), remap = false)
     private void endSetMeshes(int sectionIndex, CallbackInfo ci) {
         copySectionMesh(sectionIndex);
-        ChunkCullingUniform.batchMeshData.upload(sectionIndex + regionIndexOffset);
         meshData.upload(sectionIndex + indexOffset);
     }
 
     @Override
-    public void setMeshData(SSBO meshData, int regionIndex, int passIndex) {
+    public void setMeshData(SSBO meshData, RenderRegion region, int passIndex) {
         this.meshData = meshData;
+        this.region = region;
 
         this.passIndex = passIndex;
         this.passOffset = 256L * 64L * passIndex;
         this.indexOffset = 256 * passIndex;
-
-        this.regionOffset = (regionIndex * 256L * 64L * 3) + this.passOffset;
-        this.regionIndexOffset = (regionIndex * 256 * 3) + this.indexOffset;
     }
 
     @Override
@@ -101,7 +91,6 @@ public class MixinSectionRenderDataStorage implements SectionData {
     @Inject(method = "removeMeshes", at = @At(value = "RETURN"), remap = false)
     private void endRemoveMeshes(int localSectionIndex, CallbackInfo ci) {
         copySectionMesh(localSectionIndex);
-        ChunkCullingUniform.batchMeshData.upload(localSectionIndex + regionIndexOffset);
         meshData.upload(localSectionIndex + indexOffset);
     }
 
@@ -113,8 +102,7 @@ public class MixinSectionRenderDataStorage implements SectionData {
 
     @Unique
     private void copySectionMesh(int index) {
-        MemoryUtil.memCopy(this.pMeshDataArray + 64L * index
-                , ChunkCullingUniform.batchMeshData.getMemoryAddress() + this.regionOffset + (64L * index), 64L);
         MemoryUtil.memCopy(this.pMeshDataArray + 64L * index, meshData.getMemoryAddress() + passOffset + (64L * index), 64L);
+        MeshUniform.meshManager.copySectionData(region, passIndex, index, this.pMeshDataArray + 64L * index);
     }
 }

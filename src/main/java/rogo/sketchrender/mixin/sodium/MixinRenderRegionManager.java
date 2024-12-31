@@ -7,13 +7,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.RegionData;
-import rogo.sketchrender.culling.ChunkCullingUniform;
+import rogo.sketchrender.culling.MeshUniform;
 
 @Mixin(RenderRegionManager.class)
 public abstract class MixinRenderRegionManager implements RegionData {
 
     @Inject(method = "create", at = @At(value = "RETURN", remap = false, target = "Lit/unimi/dsi/fastutil/longs/Long2ReferenceOpenHashMap;put(JLjava/lang/Object;)Ljava/lang/Object;"))
     private void onCreate(int x, int y, int z, CallbackInfoReturnable<RenderRegion> cir) {
-        ChunkCullingUniform.addIndexedRegion(cir.getReturnValue());
+        MeshUniform.addIndexedRegion(cir.getReturnValue());
     }
 }

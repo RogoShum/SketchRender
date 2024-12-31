@@ -295,8 +295,8 @@ public class CullingRenderEvent {
             uniformMap.setUniform("sketch_camera_offset", cameraPos);
             cameraPos = new BlockPos((int) pos.x, (int) pos.y, (int) pos.z);
             uniformMap.setUniform("sketch_camera_pos", cameraPos);
-            uniformMap.setUniform("sketch_render_distance", CullingStateManager.CHUNK_CULLING_UNIFORM.getRenderDistance());
-            uniformMap.setUniform("sketch_space_partition_size", CullingStateManager.CHUNK_CULLING_UNIFORM.getSpacePartitionSize());
+            uniformMap.setUniform("sketch_render_distance", MeshUniform.getRenderDistance());
+            uniformMap.setUniform("sketch_space_partition_size", MeshUniform.getSpacePartitionSize());
         }
     }
 
@@ -370,7 +370,7 @@ public class CullingRenderEvent {
                 }
 
                 if (Config.getCullChunk()) {
-                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + CullingStateManager.CHUNK_CULLING_UNIFORM.lastQueueUpdateCount;
+                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + MeshUniform.lastQueueUpdateCount;
                     addString(monitorTexts, chunkCullingCount);
                 }
             }

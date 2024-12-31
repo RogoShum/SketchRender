@@ -28,7 +28,7 @@ import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.compat.sodium.ComputeShaderChunkRenderer;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
-import rogo.sketchrender.culling.ChunkCullingUniform;
+import rogo.sketchrender.culling.MeshUniform;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
@@ -84,7 +84,7 @@ public abstract class MixinRenderSectionManager {
     @Inject(method = "update", at = @At(value = "HEAD"), remap = false)
     private void onUpdate(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
         CullingStateManager.updating();
-        ChunkCullingUniform.currentFrame = frame;
+        MeshUniform.currentFrame = frame;
     }
 
     @Inject(method = "createTerrainRenderList", at = @At(value = "HEAD"), remap = false, cancellable = true)

@@ -13,11 +13,5 @@ import rogo.sketchrender.culling.CollectChunkMesh;
 @Mixin(value = ChunkBuilderMeshingTask.class, remap = false)
 public class MixinChunkBuilderMeshingTask {
 
-    @Inject(method = "execute(Lme/jellysquid/mods/sodium/client/render/chunk/compile/ChunkBuildContext;Lme/jellysquid/mods/sodium/client/util/task/CancellationToken;)Lme/jellysquid/mods/sodium/client/render/chunk/compile/ChunkBuildOutput;", at = @At("RETURN"))
-    private void repackageResults(ChunkBuildContext buildContext, CancellationToken cancellationToken, CallbackInfoReturnable<ChunkBuildOutput> cir) {
-        ChunkBuildOutput result = cir.getReturnValue();
-        if (result != null) {
-            CollectChunkMesh.update(buildContext, cancellationToken, cir.getReturnValue());
-        }
-    }
+
 }

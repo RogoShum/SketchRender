@@ -34,13 +34,12 @@ import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
-import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.culling.ChunkCullingUniform;
+import rogo.sketchrender.culling.MeshUniform;
 import rogo.sketchrender.culling.CullingRenderEvent;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.gui.ConfigScreen;
@@ -50,9 +49,7 @@ import rogo.sketchrender.util.*;
 import rogo.sketchrender.vertexbuffer.ScreenSpaceRenderer;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.lang.Thread.MAX_PRIORITY;
@@ -225,8 +222,8 @@ public class SketchRender {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
-            if (ChunkCullingUniform.batchCommand != null) {
-                debugText.put("batchCommand", ChunkCullingUniform.batchCommand.getSize());
+            if (MeshUniform.batchCommand != null) {
+                debugText.put("batchCommand", MeshUniform.batchCommand.getSize());
             }
             debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getSize());
 

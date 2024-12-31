@@ -12,6 +12,7 @@ import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.world.level.Level;
 import rogo.sketchrender.api.CollectorAccessor;
 import rogo.sketchrender.culling.CullingStateManager;
+import rogo.sketchrender.culling.MeshUniform;
 
 import java.util.ArrayDeque;
 import java.util.EnumMap;
@@ -58,7 +59,7 @@ public class SodiumSectionAsyncUtil {
             occlusionCuller.findVisible(collector, viewport, searchDistance, useOcclusionCulling, frame);
             SodiumSectionAsyncUtil.collector = collector;
 
-            CullingStateManager.CHUNK_CULLING_UNIFORM.queueUpdateCount++;
+            MeshUniform.queueUpdateCount++;
             Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildList = SodiumSectionAsyncUtil.collector.getRebuildLists();
             for (ArrayDeque<RenderSection> arrayDeque : rebuildList.values()) {
                 if (!arrayDeque.isEmpty()) {

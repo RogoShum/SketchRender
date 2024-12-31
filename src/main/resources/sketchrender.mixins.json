@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "sketchrender.refmap.json",
   "mixins": [
+    "sodium.AccessorSectionUpload",
     "sodium.MixinRenderRegionManager"
   ],
   "client": [

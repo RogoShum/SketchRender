@@ -90,6 +90,14 @@ public class SSBO implements BufferObject {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
+    public void upload(long index, int stride) {
+        checkDisposed();
+        long indexOffset = index * stride;
+        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, indexOffset, stride, bufferPointer + indexOffset);
+        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
     public void resetUpload(int usage) {
         checkDisposed();
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);

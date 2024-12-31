@@ -34,7 +34,7 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.api.*;
-import rogo.sketchrender.culling.ChunkCullingUniform;
+import rogo.sketchrender.culling.MeshUniform;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
@@ -82,20 +82,20 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         }
 
         if (shaderInterface != null) {
-            if (maxElementCount < ChunkCullingUniform.sectionMaxElement[0]) {
-                sharedIndexBuffer.ensureCapacity(commandList, ChunkCullingUniform.sectionMaxElement[0]);
-                maxElementCount = ChunkCullingUniform.sectionMaxElement[0];
+            if (maxElementCount < MeshUniform.sectionMaxElement[0]) {
+                sharedIndexBuffer.ensureCapacity(commandList, MeshUniform.sectionMaxElement[0]);
+                maxElementCount = MeshUniform.sectionMaxElement[0];
             }
 
             boolean update = false;
-            if (lastUpdateFrame != ChunkCullingUniform.currentFrame) {
-                lastUpdateFrame = ChunkCullingUniform.currentFrame;
+            if (lastUpdateFrame != MeshUniform.currentFrame) {
+                lastUpdateFrame = MeshUniform.currentFrame;
                 update = true;
                 Iterator<ChunkRenderList> iterator = renderLists.iterator(renderPass.isReverseOrder());
                 cachedRegions = Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
                     SectionRenderDataStorage storage = r.getStorage(renderPass);
                     return storage != null && r.getResources() != null;
-                }).sorted(Comparator.comparingInt(ChunkCullingUniform::getRegionIndex)).toList();
+                }).sorted(Comparator.comparingInt(MeshUniform.meshManager::indexOf)).toList();
             }
 
             if (cachedRegions != null) {
@@ -112,12 +112,12 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     }
 
     public void preRender() {
-        ChunkCullingUniform.batchElement.bindShaderSlot(7);
+        MeshUniform.batchElement.bindShaderSlot(7);
 
         if (!Config.getAutoDisableAsync()) {
             ShaderManager.COLLECT_CHUNK_PASS_CS.bindUniforms();
             for (RenderRegion region : cachedRegions) {
-                ChunkCullingUniform.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
+                MeshUniform.switchRegion(region.getChunkX(), region.getChunkY(), region.getChunkZ());
                 ((RegionData) region).bindMeshData(0);
 
                 for (int j = 0; j < DefaultTerrainRenderPasses.ALL.length; ++j) {
@@ -134,23 +134,23 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             ShaderManager.COLLECT_CHUNK_PASS_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         } else {
             ShaderManager.COLLECT_CHUNK_BATCH_CS.bindUniforms();
-            long ptr = ChunkCullingUniform.batchRegionIndex.getMemoryAddress();
+            long ptr = MeshUniform.batchRegionIndex.getMemoryAddress();
             for (int i = 0; i < cachedRegions.size(); ++i) {
                 RenderRegion region = cachedRegions.get(i);
                 long offset = i * 16L;
                 MemoryUtil.memPutInt(ptr + offset, region.getChunkX());
                 MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkY());
                 MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
-                MemoryUtil.memPutInt(ptr + offset + 12, ChunkCullingUniform.getRegionIndex(region));
+                MemoryUtil.memPutInt(ptr + offset + 12, MeshUniform.meshManager.indexOf(region));
             }
-            ChunkCullingUniform.batchRegionIndex.position = (int) ChunkCullingUniform.batchRegionIndex.getSize();
-            ChunkCullingUniform.batchRegionIndex.upload();
-            ChunkCullingUniform.batchMeshData.bindShaderSlot(0);
-            ChunkCullingUniform.batchCommand.bindShaderSlot(1);
-            ChunkCullingUniform.batchCounter.bindShaderSlot(2);
-            ChunkCullingUniform.batchRegionIndex.bindShaderSlot(3);
+            MeshUniform.batchRegionIndex.position = (int) MeshUniform.batchRegionIndex.getSize();
+            MeshUniform.batchRegionIndex.upload();
+            MeshUniform.meshManager.bindMeshData(0);
+            MeshUniform.batchCommand.bindShaderSlot(1);
+            MeshUniform.batchCounter.bindShaderSlot(2);
+            MeshUniform.batchRegionIndex.bindShaderSlot(3);
 
-            ChunkCullingUniform.cullingCounter.updateCount(0);
+            MeshUniform.cullingCounter.updateCount(0);
             ShaderManager.COLLECT_CHUNK_BATCH_CS.execute(256, cachedRegions.size(), 1);
             ShaderManager.COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
@@ -160,10 +160,14 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     }
 
     public void executeShaderCulling() {
-        BlockPos regionPos = new BlockPos(ChunkCullingUniform.getRegionPos());
+        BlockPos regionPos = new BlockPos(MeshUniform.getRegionPos());
         ((ExtraUniform) ShaderManager.COLLECT_CHUNK_PASS_CS).getUniforms().setUniform("sketch_region_pos", regionPos);
         ShaderManager.COLLECT_CHUNK_PASS_CS.execute(256, 1, 1);
     }
+
+    public static final long FACING_COUNT = 7L;
+    public static final long REGION_MESH_STRIDE = 256L * 3L * FACING_COUNT * 20L;
+    public static final long LAYER_MESH_STRIDE = 256L * FACING_COUNT * 20L;
 
     public void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, TerrainRenderPass pass, CameraTransform camera) {
         boolean async = Config.getAutoDisableAsync();
@@ -173,8 +177,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         } else if (pass == DefaultTerrainRenderPasses.CUTOUT) {
             passIndex = 1;
         }
-        long passOffset = 256L * 64L * passIndex;
-        long regionStride = 256L * 64L * 3;
+
+        long passOffset = LAYER_MESH_STRIDE * passIndex;
 
         for (int i = 0; i < cachedRegions.size(); ++i) {
             RenderRegion region = cachedRegions.get(i);
@@ -188,7 +192,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 dataStorage.bindCommandBuffer();
             } else {
                 IndirectCommandBuffer.INSTANCE.bind();
-                ChunkCullingUniform.cullingCounter.bind();
+                MeshUniform.cullingCounter.bind();
             }
             GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
             renderer.sodiumModelMatrixUniforms(shader, region, camera);
@@ -199,7 +203,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 if (!async) {
                     GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), 0L, 0L, 1792, 20);
                 } else {
-                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), regionStride * i + passOffset, (i * 12L) + (passIndex * 4L), 1792, 20);
+                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * i + passOffset, (i * 12L) + (passIndex * 4L), 1792, 20);
                 }
             } catch (Throwable var7) {
                 if (drawCommandList != null) {
@@ -261,6 +265,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     @Override
     public void delete(CommandList commandList) {
         super.delete(commandList);
-        ChunkCullingUniform.clearRegions();
+        MeshUniform.clearRegions();
     }
 }

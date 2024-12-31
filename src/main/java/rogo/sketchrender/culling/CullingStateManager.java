@@ -51,7 +51,6 @@ import static org.lwjgl.opengl.GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class CullingStateManager {
     public static EntityCullingMap ENTITY_CULLING_MAP = null;
-    public static final ChunkCullingUniform CHUNK_CULLING_UNIFORM = new ChunkCullingUniform();
     public static Matrix4f VIEW_MATRIX = new Matrix4f();
     public static Matrix4f PROJECTION_MATRIX = new Matrix4f();
 
@@ -342,8 +341,8 @@ public class CullingStateManager {
                 entityCullingInitTime = preEntityCullingInitTime;
                 preEntityCullingInitTime = 0;
 
-                CullingStateManager.CHUNK_CULLING_UNIFORM.lastQueueUpdateCount = CullingStateManager.CHUNK_CULLING_UNIFORM.queueUpdateCount;
-                CullingStateManager.CHUNK_CULLING_UNIFORM.queueUpdateCount = 0;
+                MeshUniform.lastQueueUpdateCount = MeshUniform.queueUpdateCount;
+                MeshUniform.queueUpdateCount = 0;
 
                 if (preChunkCullingTime != 0) {
                     chunkCullingTime = preChunkCullingTime;
@@ -526,7 +525,7 @@ public class CullingStateManager {
                     CHUNK_CULLING_MAP_TARGET.resize(cullingSize, cullingSize, Minecraft.ON_OSX);
                 }
 
-                CHUNK_CULLING_UNIFORM.updateDistance(Minecraft.getInstance().options.getEffectiveRenderDistance());
+                MeshUniform.updateDistance(Minecraft.getInstance().options.getEffectiveRenderDistance());
             }
 
             if (Config.doEntityCulling()) {
