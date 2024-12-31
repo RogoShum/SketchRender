@@ -22,6 +22,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
     public static ShaderInstance INSTANCED_ENTITY_CULLING_SHADER;
     public static ShaderInstance CULL_TEST_SHADER;
 
+    public static ComputeShader HIZ_CS;
     public static ComputeShader COPY_DEPTH_CS;
     public static ComputeShader COLLECT_CHUNK_BATCH_CS;
     public static ComputeShader COLLECT_CHUNK_PASS_CS;
@@ -55,6 +56,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
             REMOVE_COLOR_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "remove_color"), DefaultVertexFormat.POSITION_COLOR_TEX);
             CULL_TEST_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
 
+            HIZ_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "hiz"));
             COPY_DEPTH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth"));
             COLLECT_CHUNK_PASS_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_pass"));
             COLLECT_CHUNK_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_batch"));

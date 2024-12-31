@@ -438,6 +438,8 @@ public class CullingStateManager {
             MAIN_DEPTH_TEXTURE = depthTexture;
 
             if (Config.shouldComputeShader()) {
+                computeHizTexture();
+            } else {
                 if (Config.getAutoDisableAsync()) {
                     useShader(ShaderManager.COPY_DEPTH_SHADER);
                     runOnDepthFrame((depthContext) -> {
@@ -461,10 +463,10 @@ public class CullingStateManager {
                         DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
                     });
                 }
-
-
-                bindMainFrameTarget();
             }
+
+            bindMainFrameTarget();
+
             net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles cameraSetup = net.minecraftforge.client.ForgeHooksClient.onCameraSetup(Minecraft.getInstance().gameRenderer
                     , CAMERA, Minecraft.getInstance().getFrameTime());
             PoseStack viewMatrix = new PoseStack();
@@ -478,7 +480,7 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = ShaderManager.COPY_DEPTH_CS;
+        ComputeShader shader = ShaderManager.HIZ_CS;
 
         shader.bind();
         shader.getUniforms().setUniform("sketch_render_distance", (float) Minecraft.getInstance().options.getEffectiveRenderDistance());
@@ -498,10 +500,15 @@ public class CullingStateManager {
 
             shader.getUniforms().setUniform("sketch_screen_size"
                     , new Vector2i(screen.width, screen.height));
-            GL43.glBindImageTexture(0, depthContext.frame().getColorTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R8);
+            int groupsX = (depthContext.frame().width + 15) / 16;
+            int groupsY = (depthContext.frame().height + 15) / 16;
+            shader.getUniforms().setUniform("group_size", new Vector2i(groupsX, groupsY));
+
+            GL43.glBindImageTexture(0, depthContext.frame().getColorTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R32F);
             RenderSystem.activeTexture(GL43.GL_TEXTURE0);
             RenderSystem.bindTexture(depthContext.lastTexture());
-            shader.execute(depthContext.frame().width, depthContext.frame().height, 1);
+
+            shader.execute(groupsX, groupsY, 1);
             shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
             DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
         });

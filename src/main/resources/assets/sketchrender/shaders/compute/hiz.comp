@@ -1,0 +1,63 @@
+#version 430
+
+layout(binding = 0, r32f) uniform image2D output_texture;
+uniform sampler2D sketch_sampler_texture;
+uniform ivec2 sketch_screen_size;
+uniform ivec2 sketch_depth_size;
+uniform int sketch_depth_index;
+
+#define TILE_SIZE 16
+#define TILE_EDGE TILE_SIZE * 2
+
+layout(local_size_x = TILE_SIZE, local_size_y = TILE_SIZE) in;
+
+shared float depthCache[TILE_EDGE][TILE_EDGE];
+
+void main() {
+    ivec2 groupStart = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);
+    ivec2 depthCoords = groupStart + ivec2(gl_LocalInvocationID.xy);
+
+    bool validPixel = true;
+
+    if(depthCoords.x >= sketch_depth_size.x ||
+    depthCoords.y >= sketch_depth_size.y) {
+        validPixel = false;
+    }
+
+    if (validPixel) {
+        ivec2 srcPos = depthCoords * 2;
+
+        for(int y = 0; y < 2; y++) {
+            for(int x = 0; x < 2; x++) {
+                ivec2 loadPos = srcPos + ivec2(x, y);
+                if(loadPos.x < sketch_screen_size.x &&
+                loadPos.y < sketch_screen_size.y) {
+                    depthCache[gl_LocalInvocationID.y * 2 + y]
+                    [gl_LocalInvocationID.x * 2 + x] =
+                    texelFetch(sketch_sampler_texture, loadPos, 0).r;
+                }
+            }
+        }
+    }
+
+    barrier();
+
+    if (validPixel) {
+        float maxDepth = depthCache[gl_LocalInvocationID.y * 2]
+            [gl_LocalInvocationID.x * 2];
+
+        maxDepth = max(maxDepth,
+            depthCache[gl_LocalInvocationID.y * 2]
+            [gl_LocalInvocationID.x * 2 + 1]);
+
+        maxDepth = max(maxDepth,
+            depthCache[gl_LocalInvocationID.y * 2 + 1]
+            [gl_LocalInvocationID.x * 2]);
+
+        maxDepth = max(maxDepth,
+            depthCache[gl_LocalInvocationID.y * 2 + 1]
+            [gl_LocalInvocationID.x * 2 + 1]);
+
+        imageStore(output_texture, depthCoords, vec4(maxDepth));
+    }
+}

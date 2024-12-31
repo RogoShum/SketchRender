@@ -84,7 +84,7 @@ public class CullingRenderEvent {
         if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
             return;
 
-        if (Config.getCullChunk() && Config.shouldComputeShader()) {
+        if (Config.getCullChunk()) {
             if (Config.getAutoDisableAsync()) {
                 CullingStateManager.callDepthTexture();
                 CullingStateManager.CHUNK_CULLING_MAP_TARGET.bindWrite(false);
@@ -250,6 +250,7 @@ public class CullingRenderEvent {
             event.getExtraUniform().getUniforms().createUniforms(copy_depth
                     , new String[]{
                             "sketch_depth_size",
+                            "group_size",
                             "sketch_sampler_texture",
                             "sketch_render_distance",
                             "sketch_screen_size",

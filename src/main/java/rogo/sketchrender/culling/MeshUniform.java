@@ -1,6 +1,5 @@
 package rogo.sketchrender.culling;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.core.BlockPos;
@@ -33,14 +32,12 @@ public class MeshUniform {
     public static final RegionMeshManager meshManager = new RegionMeshManager();
 
     static {
-        RenderSystem.recordRenderCall(() -> {
-            batchCommand = new SSBO(IndirectCommandBuffer.INSTANCE);
-            cullingCounter = new CountBuffer(VertexFormatElement.Type.INT);
-            batchCounter = new SSBO(cullingCounter);
-            elementCounter = new CountBuffer(VertexFormatElement.Type.INT);
-            batchElement = new SSBO(elementCounter);
-            batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
-        });
+        batchCommand = new SSBO(IndirectCommandBuffer.INSTANCE);
+        cullingCounter = new CountBuffer(VertexFormatElement.Type.INT);
+        batchCounter = new SSBO(cullingCounter);
+        elementCounter = new CountBuffer(VertexFormatElement.Type.INT);
+        batchElement = new SSBO(elementCounter);
+        batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
     }
 
     public static void addIndexedRegion(RenderRegion region) {
