@@ -1,19 +1,13 @@
 #version 430
 
-layout(binding = 0) uniform writeonly image2D output_texture_0;
-layout(binding = 1) uniform writeonly image2D output_texture_1;
-layout(binding = 2) uniform writeonly image2D output_texture_2;
-layout(binding = 3) uniform writeonly image2D output_texture_3;
-layout(binding = 4) uniform writeonly image2D output_texture_4;
-layout(binding = 5) uniform writeonly image2D output_texture_5;
+layout(binding = 0, r32f) uniform image2D output_texture_0;
+layout(binding = 1, r32f) uniform image2D output_texture_1;
+layout(binding = 2, r32f) uniform image2D output_texture_2;
+layout(binding = 3, r32f) uniform image2D output_texture_3;
+layout(binding = 4, r32f) uniform image2D output_texture_4;
+layout(binding = 5, r32f) uniform image2D output_texture_5;
 
 uniform sampler2D sketch_sampler_texture_0;
-uniform sampler2D sketch_sampler_texture_1;
-uniform sampler2D sketch_sampler_texture_2;
-uniform sampler2D sketch_sampler_texture_3;
-uniform sampler2D sketch_sampler_texture_4;
-uniform sampler2D sketch_sampler_texture_5;
-
 uniform ivec2 sketch_screen_size;
 uniform ivec2 sketch_depth_size;
 
@@ -42,11 +36,11 @@ void processLevel(int level, ivec2 depthCoords) {
                     float depth = 0.0;
                     switch(level) {
                         case 0: depth = texelFetch(sketch_sampler_texture_0, loadPos, 0).r; break;
-                        case 1: depth = texelFetch(sketch_sampler_texture_1, loadPos, 0).r; break;
-                        case 2: depth = texelFetch(sketch_sampler_texture_2, loadPos, 0).r; break;
-                        case 3: depth = texelFetch(sketch_sampler_texture_3, loadPos, 0).r; break;
-                        case 4: depth = texelFetch(sketch_sampler_texture_4, loadPos, 0).r; break;
-                        case 5: depth = texelFetch(sketch_sampler_texture_5, loadPos, 0).r; break;
+                        case 1: depth = imageLoad(output_texture_0, loadPos).r; break;
+                        case 2: depth = imageLoad(output_texture_1, loadPos).r; break;
+                        case 3: depth = imageLoad(output_texture_2, loadPos).r; break;
+                        case 4: depth = imageLoad(output_texture_3, loadPos).r; break;
+                        case 5: depth = imageLoad(output_texture_4, loadPos).r; break;
                     }
                     depthCache[gl_LocalInvocationID.y * 2 + y]
                     [gl_LocalInvocationID.x * 2 + x] = depth;

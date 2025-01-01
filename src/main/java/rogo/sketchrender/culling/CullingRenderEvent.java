@@ -251,11 +251,13 @@ public class CullingRenderEvent {
             event.getExtraUniform().getUniforms().createUniforms(copy_depth
                     , new String[]{
                             "sketch_depth_size",
-                            "group_size",
-                            "sketch_sampler_texture",
-                            "sketch_render_distance",
-                            "sketch_screen_size",
-                            "sketch_depth_index"
+                            "sketch_sampler_texture_0",
+                            "sketch_sampler_texture_1",
+                            "sketch_sampler_texture_2",
+                            "sketch_sampler_texture_3",
+                            "sketch_sampler_texture_4",
+                            "sketch_sampler_texture_5",
+                            "sketch_screen_size"
                     });
         });
         GlStateManager._glUseProgram(0);

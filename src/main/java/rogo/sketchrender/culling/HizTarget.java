@@ -26,7 +26,7 @@ public class HizTarget extends RenderTarget {
         GlStateManager._texParameter(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
         GlStateManager._texParameter(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
         if (storeDepth) {
-            GlStateManager._texImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R32F, this.width, this.height, 0, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, null);
+            GlStateManager._texImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R32F, this.width, this.height, 0, GL11.GL_RED, GL11.GL_FLOAT, null);
         } else {
             GlStateManager._texImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R8, this.width, this.height, 0, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, null);
         }

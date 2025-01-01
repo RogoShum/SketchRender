@@ -481,44 +481,58 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = Config.getAutoDisableAsync() ? ShaderManager.HIZ_CS : ShaderManager.COPY_DEPTH_CS;
+        ComputeShader shader = Config.getAutoDisableAsync() ? ShaderManager.COPY_DEPTH_CS : ShaderManager.HIZ_CS;
 
         shader.bind();
         shader.getUniforms().setUniform("sketch_render_distance", (float) Minecraft.getInstance().options.getEffectiveRenderDistance());
 
-        runOnDepthFrame((depthContext) -> {
-            shader.getUniforms().setUniform("sketch_depth_index", depthContext.index());
-            shader.getUniforms().setUniform("sketch_sampler_texture", 0);
+        if (Config.getAutoDisableAsync()) {
+            runOnDepthFrame((depthContext) -> {
+                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R32F);
+                RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
+                RenderSystem.bindTexture(depthContext.lastTexture());
+            });
+            RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+
+            RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
+            shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
+            shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
+            shader.getUniforms().setUniform("sketch_sampler_texture_2", 2);
+            shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
+            shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
+            shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
             shader.getUniforms().setUniform("sketch_depth_size"
-                    , new Vector2i(depthContext.frame().width, depthContext.frame().height));
-            RenderTarget screen;
-
-            if (depthContext.index() == 0) {
-                screen = Minecraft.getInstance().getMainRenderTarget();
-            } else {
-                screen = DEPTH_BUFFER_TARGET[depthContext.index() - 1];
-            }
-
+                    , new Vector2i(screen.width / 2, screen.height / 2));
             shader.getUniforms().setUniform("sketch_screen_size"
                     , new Vector2i(screen.width, screen.height));
-            int tileSizeX = 32;
-            int tileSizeY = 28;
-            int groupsX = (depthContext.frame().width + tileSizeX - 1) / tileSizeX;
-            int groupsY = (depthContext.frame().height + tileSizeY - 1) / tileSizeY;
 
-            GL43.glBindImageTexture(0, depthContext.frame().getColorTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R32F);
-            RenderSystem.activeTexture(GL43.GL_TEXTURE0);
-            RenderSystem.bindTexture(depthContext.lastTexture());
-
-            if (Config.getAutoDisableAsync()) {
-                shader.execute(groupsX, groupsY, 1);
-            } else {
-                shader.execute(depthContext.frame().width, depthContext.frame().height, 1);
-            }
-
+            int tileSizeX = 16;
+            int tileSizeY = 16;
+            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
+            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+            shader.execute(groupsX, groupsY, 1);
             shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-            DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
-        });
+        } else {
+            runOnDepthFrame((depthContext) -> {
+                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R32F);
+            });
+
+            RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+            RenderSystem.bindTexture(MAIN_DEPTH_TEXTURE);
+
+            RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
+            shader.getUniforms().setUniform("sketch_depth_size"
+                    , new Vector2i(screen.width / 2, screen.height / 2));
+            shader.getUniforms().setUniform("sketch_screen_size"
+                    , new Vector2i(screen.width, screen.height));
+
+            int tileSizeX = 16;
+            int tileSizeY = 16;
+            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
+            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+            shader.execute(groupsX, groupsY, 1);
+            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        }
 
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
     }
