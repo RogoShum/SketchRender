@@ -64,6 +64,13 @@ public class UnsafeUniformMap {
         }
     }
 
+    public void setUniform(String name, float[] value) {
+        int handle = getUniform(name);
+        if (handle > -1) {
+            GL20.glUniform1fv(handle, value);
+        }
+    }
+
     public void setUniform(String name, Vec3 value) {
         int handle = getUniform(name);
         if (handle > -1) {

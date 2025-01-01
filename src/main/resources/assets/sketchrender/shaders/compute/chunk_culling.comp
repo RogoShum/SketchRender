@@ -1,155 +1,242 @@
 #version 430
 
-layout(std430, binding = 3) readonly buffer SectionMeshSSBO {
-    int sectionMesh[];
-};
+layout(local_size_x = 512) in;
 
-layout(std430, binding = 4) writeonly buffer OutputSSBO {
-    int outputData[];
-};
+uniform sampler2D Sampler0;
+uniform sampler2D Sampler1;
+uniform sampler2D Sampler2;
+uniform sampler2D Sampler3;
+uniform sampler2D Sampler4;
+uniform sampler2D Sampler5;
 
-layout(std430, binding = 5) writeonly buffer CounterSSBO {
-    int counter;
-};
-
-layout(std430, binding = 6) writeonly buffer ElementSSBO {
-    int elementData;
-};
-
-uniform sampler2D sketch_culling_texture;
-uniform int sketch_level_section_range;
-uniform int sketch_render_distance;
-uniform int sketch_space_partition_size;
 uniform int sketch_culling_size;
-uniform int sketch_check_culling;
-uniform int sketch_cull_facing;
-uniform int sketch_translucent_sort;
-uniform int sketch_layer_pass;
-uniform ivec3 sketch_camera_offset;
-uniform ivec3 sketch_region_pos;
-uniform ivec3 sketch_camera_pos;
+uniform mat4 sketch_culling_view_mat;
+uniform mat4 sketch_culling_proj_mat;
+uniform vec3 sketch_culling_camera_pos;
+uniform vec3 sketch_frustum_pos;
+uniform int sketch_render_distance;
+uniform int sketch_level_section_range;
+uniform int sketch_level_min_pos;
+uniform int sketch_space_partition_size;
+uniform float[24] sketch_culling_frustum;
+uniform float[12] sketch_depth_size;
 
-#define MODEL_UNASSIGNED 6
-#define MODEL_NEG_Z 5
-#define MODEL_NEG_Y 4
-#define MODEL_NEG_X 3
-#define MODEL_POS_Z 2
-#define MODEL_POS_Y 1
-#define MODEL_POS_X 0
+layout(r8, binding = 0) uniform image2D outputVisibility;
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+const float near = 0.05;
+float far = 16.0;
 
-int _get_chunk_index(ivec3 chunk_offset) {
-    return (chunk_offset.x + sketch_render_distance) * sketch_space_partition_size * sketch_level_section_range + (chunk_offset.z + sketch_render_distance) * sketch_level_section_range + chunk_offset.y;
+vec4[6] getFrustumData() {
+    return vec4[](
+    vec4(sketch_culling_frustum[0], sketch_culling_frustum[1], sketch_culling_frustum[2], sketch_culling_frustum[3]),
+    vec4(sketch_culling_frustum[4], sketch_culling_frustum[5], sketch_culling_frustum[6], sketch_culling_frustum[7]),
+    vec4(sketch_culling_frustum[8], sketch_culling_frustum[9], sketch_culling_frustum[10], sketch_culling_frustum[11]),
+    vec4(sketch_culling_frustum[12], sketch_culling_frustum[13], sketch_culling_frustum[14], sketch_culling_frustum[15]),
+    vec4(sketch_culling_frustum[16], sketch_culling_frustum[17], sketch_culling_frustum[18], sketch_culling_frustum[19]),
+    vec4(sketch_culling_frustum[20], sketch_culling_frustum[21], sketch_culling_frustum[22], sketch_culling_frustum[23])
+    );
 }
 
-ivec2 _get_culling_uv_from_index(ivec3 chunk_offset) {
-    int screenIndex = _get_chunk_index(chunk_offset);
-
-    int fragX = screenIndex % sketch_culling_size;
-    int fragY = screenIndex / sketch_culling_size;
-
-    return ivec2(fragX, fragY);
+vec2[6] getDepthScreenSize() {
+    return vec2[](
+    vec2(sketch_depth_size[0], sketch_depth_size[1]),
+    vec2(sketch_depth_size[2], sketch_depth_size[3]),
+    vec2(sketch_depth_size[4], sketch_depth_size[5]),
+    vec2(sketch_depth_size[6], sketch_depth_size[7]),
+    vec2(sketch_depth_size[8], sketch_depth_size[9]),
+    vec2(sketch_depth_size[10], sketch_depth_size[11])
+    );
 }
 
-bool _is_chunk_culled(ivec3 chunk_offset) {
-    bool cull = texelFetch(sketch_culling_texture, _get_culling_uv_from_index(chunk_offset), 0).y <= 0.001;
-    if (sketch_check_culling > 0) {
-        return !cull;
+int getSampler(float xLength, float yLength) {
+    vec2[6] DepthScreenSize = getDepthScreenSize();
+    for (int i = 0; i < DepthScreenSize.length(); ++i) {
+        float xStep = 3.0 / DepthScreenSize[i].x;
+        float yStep = 3.0 / DepthScreenSize[i].y;
+        if (xStep > xLength && yStep > yLength) {
+            return i;
+        }
     }
-    return cull;
+    return DepthScreenSize.length() - 1;
 }
 
-int lessThan(int a, int b) {
-    return int(uint(a - b) >> 31);
+float LinearizeDepth(float depth) {
+    float z = depth * 2.0 - 1.0;
+    return (near * far) / (far + near - z * (far - near));
 }
 
-int greaterThan(int a, int b) {
-    return int(uint(b - a) >> 31);
+float calculateDistance(vec3 P, vec3 Q) {
+    return pow(Q.x - P.x, 2) + pow(Q.y - P.y, 2) + pow(Q.z - P.z, 2);
 }
 
-int getVisibleFaces(int originX, int originY, int originZ, int chunkX, int chunkY, int chunkZ) {
-    int boundsMinX = chunkX << 4;
-    int boundsMaxX = boundsMinX + 16;
-    int boundsMinY = chunkY << 4;
-    int boundsMaxY = boundsMinY + 16;
-    int boundsMinZ = chunkZ << 4;
-    int boundsMaxZ = boundsMinZ + 16;
-    int planes = 1 << MODEL_UNASSIGNED;
-    planes |= greaterThan(originX, boundsMinX - 3) << MODEL_POS_X;
-    planes |= greaterThan(originY, boundsMinY - 3) << MODEL_POS_Y;
-    planes |= greaterThan(originZ, boundsMinZ - 3) << MODEL_POS_Z;
-    planes |= lessThan(originX, boundsMaxX + 3) << MODEL_NEG_X;
-    planes |= lessThan(originY, boundsMaxY + 3) << MODEL_NEG_Y;
-    planes |= lessThan(originZ, boundsMaxZ + 3) << MODEL_NEG_Z;
-    return planes;
+vec3 worldToScreenSpace(vec3 pos) {
+    vec4 cameraSpace = sketch_culling_proj_mat * sketch_culling_view_mat * vec4(pos, 1);
+    vec3 ndc;
+
+    float w = cameraSpace.w;
+    if (w < 0.0) {
+        ndc.xy = cameraSpace.xy / -w;
+        ndc.z = -2;
+    } else {
+        ndc.xy = cameraSpace.xy / w;
+        ndc.z = cameraSpace.z / w;
+    }
+
+    return (ndc + vec3(1.0)) * 0.5;
 }
 
-int unpackX(int idx) {
-    return idx >> 5 & 7;
+vec3 moveTowardsCamera(vec3 pos, float distance) {
+    vec3 direction = normalize(pos - sketch_culling_camera_pos);
+    vec3 newPos = pos - direction * distance;
+    return newPos;
 }
 
-int unpackY(int idx) {
-    return idx >> 0 & 3;
+vec3 blockToChunk(vec3 blockPos) {
+    vec3 chunkPos;
+    chunkPos.x = floor(blockPos.x / 16.0);
+    chunkPos.y = floor(blockPos.y / 16.0);
+    chunkPos.z = floor(blockPos.z / 16.0);
+    return chunkPos;
 }
 
-int unpackZ(int idx) {
-    return idx >> 2 & 7;
+bool cubeInFrustum(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+    vec4[6] frustum = getFrustumData();
+    for (int i = 0; i < 6; ++i) {
+        vec4 plane = frustum[i];
+        if (!(dot(plane, vec4(minX, minY, minZ, 1.0)) > 0.0) &&
+        !(dot(plane, vec4(maxX, minY, minZ, 1.0)) > 0.0) &&
+        !(dot(plane, vec4(minX, maxY, minZ, 1.0)) > 0.0) &&
+        !(dot(plane, vec4(maxX, maxY, minZ, 1.0)) > 0.0) &&
+        !(dot(plane, vec4(minX, minY, maxZ, 1.0)) > 0.0) &&
+        !(dot(plane, vec4(maxX, minY, maxZ, 1.0)) > 0.0) &&
+        !(dot(plane, vec4(minX, maxY, maxZ, 1.0)) > 0.0) &&
+        !(dot(plane, vec4(maxX, maxY, maxZ, 1.0)) > 0.0)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool calculateCube(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+    float f = minX - sketch_frustum_pos.x;
+    float f1 = minY - sketch_frustum_pos.y;
+    float f2 = minZ - sketch_frustum_pos.z;
+    float f3 = maxX - sketch_frustum_pos.x;
+    float f4 = maxY - sketch_frustum_pos.y;
+    float f5 = maxZ - sketch_frustum_pos.z;
+    return cubeInFrustum(f, f1, f2, f3, f4, f5);
+}
+
+bool isVisible(vec3 vec) {
+    float minX = vec.x - 8;
+    float minY = vec.y - 8;
+    float minZ = vec.z - 8;
+    float maxX = vec.x + 8;
+    float maxY = vec.y + 8;
+    float maxZ = vec.z + 8;
+    return calculateCube(minX, minY, minZ, maxX, maxY, maxZ);
+}
+
+float getUVDepth(int idx, ivec2 uv) {
+    if (idx == 0)
+        return texelFetch(Sampler0, uv, 0).r;
+    else if (idx == 1)
+        return texelFetch(Sampler1, uv, 0).r;
+    else if (idx == 2)
+        return texelFetch(Sampler2, uv, 0).r;
+    else if (idx == 3)
+        return texelFetch(Sampler3, uv, 0).r;
+    else if (idx == 4)
+        return texelFetch(Sampler4, uv, 0).r;
+
+    return texelFetch(Sampler5, uv, 0).r;
 }
 
 void main() {
-    int screenIndex = int(gl_GlobalInvocationID.x);
-    ivec3 sectionPos = ivec3(
-    unpackX(screenIndex) + (sketch_region_pos.x),
-    unpackY(screenIndex) + (sketch_region_pos.y),
-    unpackZ(screenIndex) + (sketch_region_pos.z));
+    int globalIndex = int(gl_GlobalInvocationID.y * gl_NumWorkGroups.x * gl_WorkGroupSize.x
+    + gl_GlobalInvocationID.x);
 
-    ivec3 offset_chunk = ivec3(sectionPos.x - sketch_camera_offset.x, sectionPos.y - sketch_camera_offset.y, sectionPos.z - sketch_camera_offset.z);
+    if(globalIndex >= sketch_space_partition_size * sketch_space_partition_size * sketch_level_section_range) {
+        return;
+    }
 
-    if (!_is_chunk_culled(offset_chunk)) {
-        ivec3 regionPos = sketch_region_pos.xyz;
+    int chunkX = int(globalIndex) / (sketch_space_partition_size * sketch_level_section_range) - sketch_render_distance;
+    int chunkZ = (int(globalIndex) / sketch_level_section_range) % sketch_space_partition_size - sketch_render_distance;
+    int chunkY = int(globalIndex) % sketch_level_section_range + (sketch_level_min_pos / 16);
+    vec3 chunkBasePos = vec3(chunkX, chunkY, chunkZ);
+    vec3 chunkPos = vec3(chunkBasePos+blockToChunk(sketch_culling_camera_pos))*16;
+    chunkPos = vec3(chunkPos.x + 8.0, chunkY*16 + 8.0, chunkPos.z + 8.0);
 
-        int meshOffset = screenIndex * 16;
-        int slices;
+    ivec2 outputPos = ivec2(globalIndex % sketch_culling_size, globalIndex / sketch_culling_size);
 
-        if (sketch_cull_facing <= 0 || (sketch_translucent_sort > 1 && sketch_layer_pass == 2)) {
-            slices = 127;
+    if (!isVisible(chunkPos)) {
+        imageStore(outputVisibility, outputPos, vec4(0.0, 0.0, 1.0, 1.0));
+        return;
+    }
+
+    far = sketch_render_distance * 64.0;
+
+    float sizeOffset = 8.0;
+    vec3 aabb[8] = vec3[](
+        chunkPos+vec3(-sizeOffset, -sizeOffset, -sizeOffset),
+        chunkPos+vec3(sizeOffset, -sizeOffset, -sizeOffset),
+        chunkPos+vec3(-sizeOffset, sizeOffset, -sizeOffset),
+        chunkPos+vec3(sizeOffset, sizeOffset, -sizeOffset),
+        chunkPos+vec3(-sizeOffset, -sizeOffset, sizeOffset),
+        chunkPos+vec3(sizeOffset, -sizeOffset, sizeOffset),
+        chunkPos+vec3(-sizeOffset, sizeOffset, sizeOffset),
+        chunkPos+vec3(sizeOffset, sizeOffset, sizeOffset)
+    );
+
+    float maxX = 0.0;
+    float maxY = 0.0;
+    float minX = 1.0;
+    float minY = 1.0;
+
+    bool inside = false;
+    bool intersect = false;
+    float sectionDepth = 1.0;
+
+    for (int i = 0; i < 8; ++i) {
+        vec3 screenPos = worldToScreenSpace(aabb[i]);
+
+        if (screenPos.x >= 0 && screenPos.x <= 1
+        && screenPos.y >= 0 && screenPos.y <= 1
+        && screenPos.z >= 0 && screenPos.z <= 1) {
+            inside = true;
         } else {
-            slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, sectionPos.x, sectionPos.y, sectionPos.z);
+            intersect = true;
         }
 
-        slices &= sectionMesh[meshOffset];
+        maxX = max(screenPos.x, maxX);
+        maxY = max(screenPos.y, maxY);
+        minX = min(screenPos.x, minX);
+        minY = min(screenPos.y, minY);
 
-        if (slices != 0) {
-            int drawCount = 0;
-            int[14] drawVertex;
-            int maxElementCount = 0;
+        sectionDepth = min(screenPos.z, sectionDepth);
+    }
 
-            for (int facing = 0; facing < 7; ++facing) {
-                int chunkOffset = facing * 2;
-                int outOffset = drawCount * 2;
+    float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 12.0)).z;
 
-                int elementCount = sectionMesh[meshOffset + 3 + chunkOffset];
-                maxElementCount += elementCount;
-                drawVertex[outOffset] = elementCount;
-                drawVertex[outOffset + 1] = sectionMesh[meshOffset + 2 + chunkOffset];
-                drawCount += slices >> facing & 1;
-            }
+    int idx = getSampler(maxX-minX, maxY-minY);
+    vec2[6] DepthScreenSize = getDepthScreenSize();
+    int depthX = int(DepthScreenSize[idx].x);
+    int depthY = int(DepthScreenSize[idx].y);
 
-            atomicAdd(elementData, maxElementCount);
-            int currentCounter = atomicAdd(counter, drawCount);
-            memoryBarrierBuffer();
+    int coordMinX = max(int(floor(minX * depthX)), 0);
+    int coordMaxX = min(int(ceil(maxX * depthX)), depthX - 1);
+    int coordMinY = max(int(floor(minY * depthY)), 0);
+    int coordMaxY = min(int(ceil(maxY * depthY)), depthY - 1);
 
-            int outputOffset = currentCounter * 5;
-
-            for (int i = 0; i < drawCount; ++i) {
-                int offset = i * 5;
-                outputData[outputOffset + offset] = drawVertex[i * 2];
-                outputData[outputOffset + offset + 1] = 1;
-                outputData[outputOffset + offset + 2] = 0;
-                outputData[outputOffset + offset + 3] = drawVertex[i * 2 + 1];
-                outputData[outputOffset + offset + 4] = 0;
+    for (int x = coordMinX; x <= coordMaxX; x++) {
+        for (int y = coordMinY; y <= coordMaxY; y++) {
+            float pixelDepth = getUVDepth(idx, ivec2(x, y));
+            if (sectionDepth < pixelDepth) {
+                imageStore(outputVisibility, outputPos, vec4(1.0, 0.0, 0.0, 1.0));
+                return;
             }
         }
     }
+
+    imageStore(outputVisibility, outputPos, vec4(0.0, 1.0, 0.0, 1.0));
 }

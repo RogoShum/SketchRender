@@ -15,7 +15,7 @@ struct SectionMesh {
 
 struct SectionData {
     int mask;
-    int padding;
+    int visibility;
     SectionMesh[7] mesh;
 };
 

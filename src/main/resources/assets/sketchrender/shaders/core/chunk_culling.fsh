@@ -179,14 +179,10 @@ void main() {
             intersect = true;
         }
 
-        if (screenPos.x > maxX)
-        maxX = screenPos.x;
-        if (screenPos.y > maxY)
-        maxY = screenPos.y;
-        if (screenPos.x < minX)
-        minX = screenPos.x;
-        if (screenPos.y < minY)
-        minY = screenPos.y;
+        maxX = max(screenPos.x, maxX);
+        maxY = max(screenPos.y, maxY);
+        minX = min(screenPos.x, minX);
+        minY = min(screenPos.y, minY);
 
         sectionDepth = min(screenPos.z, sectionDepth);
     }
