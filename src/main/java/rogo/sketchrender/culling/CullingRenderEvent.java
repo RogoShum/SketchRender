@@ -565,7 +565,7 @@ public class CullingRenderEvent {
                 tessellator.end();
             }
 
-            if (Config.getCullChunk()) {//Config.getCullChunk()
+            if (false) {//Config.getCullChunk()
                 height = (int) (minecraft.getWindow().getGuiScaledHeight() * 0.25f);
                 bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
                 bufferbuilder.vertex(minecraft.getWindow().getGuiScaledWidth() - height, height * 2, 0.0D).uv(0.0F, 0.0F).color(255, 255, 255, 255).endVertex();
