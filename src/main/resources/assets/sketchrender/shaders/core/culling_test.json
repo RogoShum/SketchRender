@@ -113,6 +113,16 @@
       ]
     },
     {
+      "name": "CullingCameraDir",
+      "type": "float",
+      "count": 3,
+      "values": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
       "name": "FrustumPos",
       "type": "float",
       "count": 3,

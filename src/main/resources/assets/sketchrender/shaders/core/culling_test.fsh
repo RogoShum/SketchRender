@@ -11,6 +11,7 @@ uniform vec2 ScreenSize;
 uniform mat4 CullingViewMat;
 uniform mat4 CullingProjMat;
 uniform vec3 CullingCameraPos;
+uniform vec3 CullingCameraDir;
 uniform vec3 TestPos;
 uniform vec3 FrustumPos;
 uniform float RenderDistance;
@@ -50,12 +51,19 @@ vec3 worldToScreenSpace(vec3 pos) {
     vec3 ndc;
 
     float w = cameraSpace.w;
-    if (w < 0.0) {
+    if (w <= 0.0) {
         ndc.xy = cameraSpace.xy / -w;
-        ndc.z = -2;
+        ndc.z = cameraSpace.z / w;
     } else {
         ndc.xy = cameraSpace.xy / w;
         ndc.z = cameraSpace.z / w;
+    }
+
+    if (abs(ndc.x) > 1.0 || abs(ndc.y) > 1.0) {
+        float t = (-0.05f - cameraSpace.w) / (cameraSpace.w - 0.0);
+        vec3 intersectionPoint = pos + t * -CullingCameraDir * length(CullingCameraPos - pos);
+        vec4 clippedPos = CullingProjMat * CullingViewMat * vec4(intersectionPoint, 1.0);
+        ndc.z = clippedPos.z / clippedPos.w;
     }
 
     return (ndc + vec3(1.0)) * 0.5;
@@ -143,7 +151,7 @@ void main() {
         return;
     }
 
-    float sizeOffset = 12.0;
+    float sizeOffset = 10.0;
     vec3 aabb[8] = vec3[](
         chunkPos+vec3(-sizeOffset, -sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, -sizeOffset),
         chunkPos+vec3(-sizeOffset, sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, -sizeOffset),
@@ -151,40 +159,31 @@ void main() {
         chunkPos+vec3(-sizeOffset, sizeOffset, sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, sizeOffset)
     );
 
-    float maxX = 0.0;
-    float maxY = 0.0;
-    float minX = 1.0;
-    float minY = 1.0;
-
-    bool inside = false;
-    bool intersect = false;
+    float maxX = -1.0/0.0;
+    float maxY = -1.0/0.0;
+    float minX = 1.0/0.0;
+    float minY = 1.0/0.0;
     float sectionDepth = 1.0;
 
     for (int i = 0; i < 8; ++i) {
         vec3 screenPos = worldToScreenSpace(aabb[i]);
 
-        if (screenPos.x >= 0 && screenPos.x <= 1
-        && screenPos.y >= 0 && screenPos.y <= 1
-        && screenPos.z >= 0 && screenPos.z <= 1) {
-            inside = true;
-        } else {
-            intersect = true;
+        maxX = max(screenPos.x, maxX);
+        maxY = max(screenPos.y, maxY);
+        minX = min(screenPos.x, minX);
+        minY = min(screenPos.y, minY);
+
+        if (screenPos.z >= 0.0 && screenPos.z <= 1.0) {
+            sectionDepth = min(screenPos.z, sectionDepth);
         }
-
-        if (screenPos.x > maxX)
-        maxX = screenPos.x;
-        if (screenPos.y > maxY)
-        maxY = screenPos.y;
-        if (screenPos.x < minX)
-        minX = screenPos.x;
-        if (screenPos.y < minY)
-        minY = screenPos.y;
-
-        sectionDepth = min(screenPos.z, sectionDepth);
     }
 
+    minX = clamp(minX, 0.0, 1.0);
+    minY = clamp(minY, 0.0, 1.0);
+    maxX = clamp(maxX, 0.0, 1.0);
+    maxY = clamp(maxY, 0.0, 1.0);
+
     sectionDepth = LinearizeDepth(sectionDepth);
-    float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 16.0)).z;
 
     int idx = getSampler(maxX-minX, maxY-minY);
 

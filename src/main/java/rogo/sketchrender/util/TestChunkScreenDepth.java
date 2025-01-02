@@ -19,14 +19,46 @@ public class TestChunkScreenDepth {
     }
 
     public static Vec3 worldToScreenSpace(Vec3 pos) {
-        Vector4f cameraSpace = CullingStateManager.PROJECTION_MATRIX.transform(CullingStateManager.VIEW_MATRIX.transform(new Vector4f((float) pos.x, (float) pos.y, (float) pos.z, 1), new Vector4f()), new Vector4f());
+        Vector4f cameraSpace = CullingStateManager.PROJECTION_MATRIX.transform(
+                CullingStateManager.VIEW_MATRIX.transform(
+                        new Vector4f((float) pos.x, (float) pos.y, (float) pos.z, 1),
+                        new Vector4f()
+                ),
+                new Vector4f()
+        );
         Vec3 ndc;
 
         float w = cameraSpace.w;
-        if (w < 0.0) {
-            ndc = new Vec3(cameraSpace.x / -w, cameraSpace.y / -w, -2);
+        if (w <= 0.0) {
+            ndc = new Vec3(
+                    cameraSpace.x / -w,
+                    cameraSpace.y / -w,
+                    cameraSpace.z / w
+            );
         } else {
-            ndc = new Vec3(cameraSpace.x / w, cameraSpace.y / w, cameraSpace.z / w);
+            ndc = new Vec3(
+                    cameraSpace.x / w,
+                    cameraSpace.y / w,
+                    cameraSpace.z / w
+            );
+        }
+
+        if (Math.abs(ndc.x) > 1.0 || Math.abs(ndc.y) > 1.0) {
+            float t = (-0.05f - cameraSpace.w) / (cameraSpace.w - 0.0f);
+            Vec3 cameraDir = new Vec3(CullingStateManager.CAMERA.getLookVector());
+            Vec3 cameraPos = CullingStateManager.CAMERA.getPosition();
+            double distance = pos.subtract(cameraPos).length();
+
+            Vec3 intersectionPoint = pos.add(cameraDir.scale(-t * distance));
+            Vector4f clippedPos = CullingStateManager.PROJECTION_MATRIX.transform(
+                    CullingStateManager.VIEW_MATRIX.transform(
+                            new Vector4f((float) intersectionPoint.x, (float) intersectionPoint.y, (float) intersectionPoint.z, 1),
+                            new Vector4f()
+                    ),
+                    new Vector4f()
+            );
+
+            ndc = new Vec3(ndc.x, ndc.y, clippedPos.z / clippedPos.w);
         }
 
         return ndc.add(new Vec3(1.0, 1.0, 1.0)).scale(0.5);
