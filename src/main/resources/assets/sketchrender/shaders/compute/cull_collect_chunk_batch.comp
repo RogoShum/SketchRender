@@ -120,8 +120,8 @@ vec2[6] getDepthScreenSize() {
 int getSampler(float xLength, float yLength) {
     vec2[6] DepthScreenSize = getDepthScreenSize();
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 3.0 / DepthScreenSize[i].x;
-        float yStep = 3.0 / DepthScreenSize[i].y;
+        float xStep = 2.0 / DepthScreenSize[i].x;
+        float yStep = 2.0 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
@@ -131,6 +131,11 @@ int getSampler(float xLength, float yLength) {
 
 float calculateDistance(vec3 P, vec3 Q) {
     return pow(Q.x - P.x, 2) + pow(Q.y - P.y, 2) + pow(Q.z - P.z, 2);
+}
+
+float LinearizeDepth(float depth) {
+    float z = depth * 2.0 - 1.0;
+    return (near * far) / (far + near - z * (far - near));
 }
 
 vec3 worldToScreenSpace(vec3 pos) {
@@ -278,7 +283,7 @@ bool _is_chunk_culled(ivec3 sectionPos) {
 
         sectionDepth = min(screenPos.z, sectionDepth);
     }
-
+    sectionDepth = LinearizeDepth(sectionDepth);
     float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 12.0)).z;
 
     int idx = getSampler(maxX-minX, maxY-minY);

@@ -36,6 +36,6 @@ void main() {
     if(DepthIndex > 0) {
         fragColor = vec4(vec3(depth), 1.0);
     } else {
-        fragColor = vec4(vec3(depth), 1.0);
+        fragColor = vec4(vec3(LinearizeDepth(depth)), 1.0);
     }
 }

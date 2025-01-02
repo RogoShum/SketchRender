@@ -484,7 +484,7 @@ public class CullingStateManager {
         ComputeShader shader = Config.getAutoDisableAsync() ? ShaderManager.COPY_DEPTH_CS : ShaderManager.HIZ_CS;
 
         shader.bind();
-        shader.getUniforms().setUniform("sketch_render_distance", (float) Minecraft.getInstance().options.getEffectiveRenderDistance());
+        shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
 
         if (Config.getAutoDisableAsync()) {
             runOnDepthFrame((depthContext) -> {

@@ -279,7 +279,8 @@ public class CullingRenderEvent {
                             "sketch_sampler_texture_3",
                             "sketch_sampler_texture_4",
                             "sketch_sampler_texture_5",
-                            "sketch_screen_size"
+                            "sketch_screen_size",
+                            "sketch_render_distance"
                     });
         });
 
@@ -518,7 +519,7 @@ public class CullingRenderEvent {
             RenderSystem.defaultBlendFunc();
             RenderSystem.depthMask(false);
 
-            if (false) {
+            if (true) {
                 height = (int) (minecraft.getWindow().getGuiScaledHeight() * 0.25f);
                 width = (int) (minecraft.getWindow().getGuiScaledWidth() * 0.25f);
                 bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
@@ -529,7 +530,6 @@ public class CullingRenderEvent {
                 RenderSystem.setShaderTexture(0, SketchRender.CULL_TEST_TARGET.getColorTextureId());
                 tessellator.end();
             }
-
 
             if (!CullingStateManager.checkTexture)
                 return;

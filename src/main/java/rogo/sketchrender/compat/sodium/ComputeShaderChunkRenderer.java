@@ -28,13 +28,14 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
-import net.minecraft.core.BlockPos;
 import org.apache.commons.compress.utils.Lists;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.api.*;
+import rogo.sketchrender.api.Config;
+import rogo.sketchrender.api.ExtraChunkRenderer;
+import rogo.sketchrender.api.TessellationDevice;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
@@ -63,6 +64,23 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
     @Override
     public void render(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera) {
+        boolean update = false;
+        if (lastUpdateFrame != MeshUniform.currentFrame) {
+            lastUpdateFrame = MeshUniform.currentFrame;
+            update = true;
+            Iterator<ChunkRenderList> iterator = renderLists.iterator(renderPass.isReverseOrder());
+            cachedRegions = Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
+                SectionRenderDataStorage storage = r.getStorage(renderPass);
+                return storage != null && r.getResources() != null;
+            }).sorted(Comparator.comparingInt(MeshUniform.meshManager::indexOf)).toList();
+        }
+
+        if (cachedRegions != null) {
+            if (update) {
+                preRender();
+            }
+        }
+
         super.begin(renderPass);
         ChunkShaderInterface shaderInterface = null;
         if (this.activeProgram != null) {
@@ -89,22 +107,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 maxElementCount = MeshUniform.sectionMaxElement[0];
             }
 
-            boolean update = false;
-            if (lastUpdateFrame != MeshUniform.currentFrame) {
-                lastUpdateFrame = MeshUniform.currentFrame;
-                update = true;
-                Iterator<ChunkRenderList> iterator = renderLists.iterator(renderPass.isReverseOrder());
-                cachedRegions = Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
-                    SectionRenderDataStorage storage = r.getStorage(renderPass);
-                    return storage != null && r.getResources() != null;
-                }).sorted(Comparator.comparingInt(MeshUniform.meshManager::indexOf)).toList();
-            }
 
             if (cachedRegions != null) {
-                if (update) {
-                    preRender();
-                }
-
                 shaderInterface.setProjectionMatrix(matrices.projection());
                 shaderInterface.setModelViewMatrix(matrices.modelView());
                 onRender(this, shaderInterface, commandList, renderPass, camera);

@@ -222,10 +222,8 @@ public class SketchRender {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
-            if (MeshUniform.batchCommand != null) {
-                debugText.put("batchCommand", MeshUniform.batchCommand.getSize());
-            }
             debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getSize());
+            debugText.put("TestDepth", TestChunkScreenDepth.getChunkDepth(Vec3.atLowerCornerOf(testPos), CAMERA.getPosition()));
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
             debugText.putAll(commandTimer.getResults());

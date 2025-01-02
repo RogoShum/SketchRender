@@ -26,8 +26,8 @@ float far  = 16.0;
 
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 3.0 / DepthScreenSize[i].x;
-        float yStep = 3.0 / DepthScreenSize[i].y;
+        float xStep = 2.0 / DepthScreenSize[i].x;
+        float yStep = 2.0 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
@@ -143,7 +143,7 @@ void main() {
         return;
     }
 
-    float sizeOffset = 8.0;
+    float sizeOffset = 12.0;
     vec3 aabb[8] = vec3[](
         chunkPos+vec3(-sizeOffset, -sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, -sizeOffset),
         chunkPos+vec3(-sizeOffset, sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, -sizeOffset),
@@ -183,6 +183,7 @@ void main() {
         sectionDepth = min(screenPos.z, sectionDepth);
     }
 
+    sectionDepth = LinearizeDepth(sectionDepth);
     float chunkCenterDepth = worldToScreenSpace(moveTowardsCamera(chunkPos, 16.0)).z;
 
     int idx = getSampler(maxX-minX, maxY-minY);

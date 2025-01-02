@@ -10,6 +10,7 @@ layout(binding = 5, r16f) uniform image2D output_texture_5;
 uniform sampler2D sketch_sampler_texture_0;
 uniform ivec2 sketch_screen_size;
 uniform ivec2 sketch_depth_size;
+uniform int sketch_render_distance;
 
 #define MIP_LEVELS 6
 #define TILE_SIZE_X 16
@@ -20,6 +21,14 @@ uniform ivec2 sketch_depth_size;
 layout(local_size_x = TILE_SIZE_X, local_size_y = TILE_SIZE_Y) in;
 
 shared float depthCache[TILE_EDGE_X][TILE_EDGE_Y];
+
+float near = 0.05;
+float far  = 16.0;
+
+float LinearizeDepth(float depth) {
+    float z = depth * 2.0 - 1.0;
+    return (near * far) / (far + near - z * (far - near));
+}
 
 void processLevel(int level, ivec2 depthCoords) {
     ivec2 currentSize = sketch_depth_size >> level;
@@ -35,7 +44,7 @@ void processLevel(int level, ivec2 depthCoords) {
                 loadPos.y < (currentSize.y * 2)) {
                     float depth = 0.0;
                     switch(level) {
-                        case 0: depth = texelFetch(sketch_sampler_texture_0, loadPos, 0).r; break;
+                        case 0: depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, loadPos, 0).r); break;
                         case 1: depth = imageLoad(output_texture_0, loadPos).r; break;
                         case 2: depth = imageLoad(output_texture_1, loadPos).r; break;
                         case 3: depth = imageLoad(output_texture_2, loadPos).r; break;
@@ -81,6 +90,7 @@ void processLevel(int level, ivec2 depthCoords) {
 void main() {
     ivec2 groupStart = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);
     ivec2 depthCoords = groupStart + ivec2(gl_LocalInvocationID.xy);
+    far = sketch_render_distance * 64.0;
 
     for(int level = 0; level < MIP_LEVELS; level++) {
         processLevel(level, depthCoords);
