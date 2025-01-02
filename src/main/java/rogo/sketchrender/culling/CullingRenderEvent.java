@@ -35,11 +35,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
-import static org.lwjgl.opengl.GL13.*;
+import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
+import static org.lwjgl.opengl.GL13.GL_TEXTURE18;
 import static org.lwjgl.opengl.GL15.GL_READ_WRITE;
-import static org.lwjgl.opengl.GL30.GL_R32F;
 import static org.lwjgl.opengl.GL30.GL_R8;
-import static org.lwjgl.opengl.GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 import static rogo.sketchrender.gui.ConfigScreen.u;
 import static rogo.sketchrender.gui.ConfigScreen.v;
 
@@ -58,7 +57,7 @@ public class CullingRenderEvent {
         if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
             return;
 
-        if(SketchRender.CULL_TEST_TARGET.width != Minecraft.getInstance().getWindow().getWidth() || SketchRender.CULL_TEST_TARGET.height != Minecraft.getInstance().getWindow().getHeight()) {
+        if (SketchRender.CULL_TEST_TARGET.width != Minecraft.getInstance().getWindow().getWidth() || SketchRender.CULL_TEST_TARGET.height != Minecraft.getInstance().getWindow().getHeight()) {
             SketchRender.CULL_TEST_TARGET.resize(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), Minecraft.ON_OSX);
         }
 
@@ -93,16 +92,19 @@ public class CullingRenderEvent {
 
         if (Config.getCullChunk()) {
             if (Config.shouldComputeShader()) {
-                ComputeShader shader = ShaderManager.CHUNK_CULLING_CS;
-                shader.bindUniforms();
-                GL43.glBindImageTexture(0, CullingStateManager.CHUNK_CULLING_MAP_TARGET.getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R8);
-                CullingStateManager.runOnDepthFrame((depthContext) -> {
-                    RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
-                    RenderSystem.bindTexture(CullingStateManager.DEPTH_TEXTURE[depthContext.index()]);
-                });
-                shader.execute(64, 4, 1);
-                shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-                RenderSystem.activeTexture(GL_TEXTURE0);
+                if (Config.getAutoDisableAsync()) {
+                    ComputeShader shader = ShaderManager.CHUNK_CULLING_CS;
+                    shader.bindUniforms();
+                    GL43.glBindImageTexture(0, CullingStateManager.CHUNK_CULLING_MAP_TARGET.getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R8);
+                    CullingStateManager.runOnDepthFrame((depthContext) -> {
+                        RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
+                        RenderSystem.bindTexture(CullingStateManager.DEPTH_TEXTURE[depthContext.index()]);
+                    });
+                    int maxSection = MeshUniform.getSpacePartitionSize() * MeshUniform.getSpacePartitionSize() * CullingStateManager.LEVEL_SECTION_RANGE;
+                    int ySize = maxSection / 32768 + 1;
+                    shader.execute(64, ySize, 1);
+                    RenderSystem.activeTexture(GL_TEXTURE0);
+                }
             } else {
                 if (Config.getAutoDisableAsync()) {
                     CullingStateManager.callDepthTexture();
@@ -283,10 +285,11 @@ public class CullingRenderEvent {
 
         event.getExtraUniform().getUniforms().tryInsertUniform("sketch_culling_view_mat", () -> {
             event.getExtraUniform().getUniforms().createUniforms(culling_chunk
-                    , new String[] {
+                    , new String[]{
                             "sketch_culling_view_mat",
                             "sketch_culling_proj_mat",
                             "sketch_culling_camera_pos",
+                            "sketch_culling_camera_dir",
                             "sketch_frustum_pos",
                             "sketch_culling_frustum",
                             "sketch_depth_size",
@@ -346,7 +349,9 @@ public class CullingRenderEvent {
             uniformMap.setUniform("sketch_culling_view_mat", CullingStateManager.VIEW_MATRIX);
             uniformMap.setUniform("sketch_culling_proj_mat", CullingStateManager.PROJECTION_MATRIX);
             Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+            Vector3f dir = Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
             uniformMap.setUniform("sketch_culling_camera_pos", pos);
+            uniformMap.setUniform("sketch_culling_camera_dir", dir);
             pos = new Vec3(
                     ((AccessorFrustum) CullingStateManager.FRUSTUM).camX(),
                     ((AccessorFrustum) CullingStateManager.FRUSTUM).camY(),

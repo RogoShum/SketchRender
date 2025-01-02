@@ -60,7 +60,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
             CHUNK_CULLING_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "chunk_culling"));
             HIZ_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth_another"));
             COPY_DEPTH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth"));
-            COLLECT_CHUNK_PASS_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_pass"));
+            COLLECT_CHUNK_PASS_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "cull_collect_chunk_batch"));
             COLLECT_CHUNK_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_batch"));
         } catch (IOException e) {
             throw new RuntimeException(e);

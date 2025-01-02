@@ -488,7 +488,7 @@ public class CullingStateManager {
 
         if (Config.getAutoDisableAsync()) {
             runOnDepthFrame((depthContext) -> {
-                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R32F);
+                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
                 RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
                 RenderSystem.bindTexture(depthContext.lastTexture());
             });
@@ -514,7 +514,7 @@ public class CullingStateManager {
             shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         } else {
             runOnDepthFrame((depthContext) -> {
-                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R32F);
+                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
             });
 
             RenderSystem.activeTexture(GL43.GL_TEXTURE0);

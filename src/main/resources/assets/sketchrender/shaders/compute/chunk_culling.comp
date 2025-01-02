@@ -13,6 +13,7 @@ uniform int sketch_culling_size;
 uniform mat4 sketch_culling_view_mat;
 uniform mat4 sketch_culling_proj_mat;
 uniform vec3 sketch_culling_camera_pos;
+uniform vec3 sketch_culling_camera_dir;
 uniform vec3 sketch_frustum_pos;
 uniform int sketch_render_distance;
 uniform int sketch_level_section_range;
@@ -21,7 +22,21 @@ uniform int sketch_space_partition_size;
 uniform float[24] sketch_culling_frustum;
 uniform float[12] sketch_depth_size;
 
+struct SectionMesh {
+    int vertex_offset;
+    int element_count;
+};
+
+struct SectionData {
+    int mask;
+    int visibility;
+    SectionMesh[7] mesh;
+};
+
 layout(r8, binding = 0) uniform image2D outputVisibility;
+layout(std430, binding = 1) readonly buffer SectionMeshBuffer {
+    SectionData section_data[];
+};
 
 const float near = 0.05;
 float far = 16.0;
@@ -160,14 +175,15 @@ void main() {
         return;
     }
 
+    ivec2 outputPos = ivec2(globalIndex % sketch_culling_size, globalIndex / sketch_culling_size);
+
     int chunkX = int(globalIndex) / (sketch_space_partition_size * sketch_level_section_range) - sketch_render_distance;
     int chunkZ = (int(globalIndex) / sketch_level_section_range) % sketch_space_partition_size - sketch_render_distance;
     int chunkY = int(globalIndex) % sketch_level_section_range + (sketch_level_min_pos / 16);
     vec3 chunkBasePos = vec3(chunkX, chunkY, chunkZ);
+
     vec3 chunkPos = vec3(chunkBasePos+blockToChunk(sketch_culling_camera_pos))*16;
     chunkPos = vec3(chunkPos.x + 8.0, chunkY*16 + 8.0, chunkPos.z + 8.0);
-
-    ivec2 outputPos = ivec2(globalIndex % sketch_culling_size, globalIndex / sketch_culling_size);
 
     if (!isVisible(chunkPos)) {
         imageStore(outputVisibility, outputPos, vec4(0.0, 0.0, 1.0, 1.0));
@@ -238,5 +254,5 @@ void main() {
         }
     }
 
-    imageStore(outputVisibility, outputPos, vec4(0.0, 1.0, 0.0, 1.0));
+    imageStore(outputVisibility, outputPos, vec4(0.0, 0.0, 0.0, 1.0));
 }

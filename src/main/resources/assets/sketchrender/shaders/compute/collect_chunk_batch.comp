@@ -138,6 +138,7 @@ int unpackZ(int idx) {
 
 void main() {
     int xIndex = int(gl_LocalInvocationID.x) + 64 * int(gl_WorkGroupID.x);
+
     int outputIndex = int(gl_WorkGroupID.y);
     int posIndexOffset = outputIndex;
     RegionPos regionQueue = region_pos[posIndexOffset];
