@@ -481,12 +481,12 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = Config.getAutoDisableAsync() ? ShaderManager.COPY_DEPTH_CS : ShaderManager.HIZ_CS;
+        ComputeShader shader = !Config.getAutoDisableAsync() ? ShaderManager.COPY_DEPTH_CS : ShaderManager.HIZ_CS;
 
         shader.bind();
         shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
 
-        if (Config.getAutoDisableAsync()) {
+        if (!Config.getAutoDisableAsync()) {
             runOnDepthFrame((depthContext) -> {
                 GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
                 RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
