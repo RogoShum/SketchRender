@@ -26,6 +26,12 @@ out vec4 fragColor;
 float near = 0.05;
 float far  = 16.0;
 
+struct ClipResult {
+    float minDepth;
+    vec2 screenMin;
+    vec2 screenMax;
+};
+
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
         float xStep = 2.0 / DepthScreenSize[i].x;
@@ -47,27 +53,76 @@ float calculateDistance(vec3 P, vec3 Q) {
     return pow(Q.x - P.x, 2) + pow(Q.y - P.y, 2) + pow(Q.z - P.z, 2);
 }
 
-vec3 worldToScreenSpace(vec3 pos) {
-    vec4 cameraSpace = CullingProjMat * CullingViewMat * vec4(pos, 1);
-    vec3 ndc;
+vec4 computeNearIntersection(vec4 inside, vec4 outside) {
+    float t = (-inside.w) / (outside.w - inside.w);
+    return mix(inside, outside, t);
+}
 
-    float w = cameraSpace.w;
-    if (w <= 0.0) {
-        ndc.xy = cameraSpace.xy / -w;
-        ndc.z = cameraSpace.z / w;
-    } else {
-        ndc.xy = cameraSpace.xy / w;
-        ndc.z = cameraSpace.z / w;
+ClipResult getClippedMinDepth(vec3 center, float extent) {
+    ClipResult result;
+    result.minDepth = 1.0;
+    result.screenMin = vec2(1.0);
+    result.screenMax = vec2(0.0);
+
+    mat4 mvp = CullingProjMat * CullingViewMat;
+    bool hasValidPoint = false;
+
+    vec4 clipPositions[8];
+    for(int i = 0; i < 8; i++) {
+        vec3 vertex = center + vec3(
+        (i & 1) == 0 ? -extent : extent,
+        (i & 2) == 0 ? -extent : extent,
+        (i & 4) == 0 ? -extent : extent
+        );
+        clipPositions[i] = mvp * vec4(vertex, 1.0);
     }
 
-    if (abs(ndc.x) > 1.0 || abs(ndc.y) > 1.0) {
-        float t = (-0.05f - cameraSpace.w) / (cameraSpace.w - 0.0);
-        vec3 intersectionPoint = pos + t * -CullingCameraDir * length(CullingCameraPos - pos);
-        vec4 clippedPos = CullingProjMat * CullingViewMat * vec4(intersectionPoint, 1.0);
-        ndc.z = clippedPos.z / clippedPos.w;
+    for(int i = 0; i < 8; i++) {
+        vec4 clipPos = clipPositions[i];
+        vec2 ndcXY = clipPos.xy / clipPos.w;
+
+        if(clipPos.w > 0.0) {
+            ndcXY = clamp(ndcXY, -1.0, 1.0);
+            vec2 screenPos = (ndcXY + 1.0) * 0.5;
+
+            result.screenMin = min(result.screenMin, screenPos);
+            result.screenMax = max(result.screenMax, screenPos);
+
+            if (abs(ndcXY.x) < 1.0 && abs(ndcXY.y) < 1.0) {
+                result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
+            }
+
+            hasValidPoint = true;
+            continue;
+        }
+
+        int adjacent[3] = int[3](i^1, i^2, i^4);
+
+        for(int j = 0; j < 3; j++) {
+            vec4 neighborClipPos = clipPositions[adjacent[j]];
+            if (neighborClipPos.w <= 0.0) {
+                continue;
+            }
+
+            vec4 intersection = computeNearIntersection(neighborClipPos, clipPos);
+            vec2 ndcXY = intersection.xy / intersection.w;
+
+            if (abs(ndcXY.x) > 1.0 && abs(ndcXY.y) > 1.0) {
+                continue;
+            }
+
+            result.minDepth = min(result.minDepth, intersection.z / intersection.w);
+            hasValidPoint = true;
+        }
     }
 
-    return (ndc + vec3(1.0)) * 0.5;
+    if(!hasValidPoint) {
+        result.screenMin = vec2(0.0);
+        result.screenMax = vec2(0.0);
+        result.minDepth = 1.0;
+    }
+
+    return result;
 }
 
 vec3 moveTowardsCamera(vec3 pos, float distance) {
@@ -112,16 +167,28 @@ bool calculateCube(float minX, float minY, float minZ, float maxX, float maxY, f
     return cubeInFrustum(f, f1, f2, f3, f4, f5);
 }
 
-bool isVisible(vec3 vec) {
-    float minX, minY, minZ, maxX, maxY, maxZ;
-    minX = vec.x - 8;
-    minY = vec.y - 8;
-    minZ = vec.z - 8;
+bool isVisible(vec3 center) {
+    vec3 min = center - vec3(8.0);
+    vec3 max = center + vec3(8.0);
+    vec3 corners[8] = vec3[](
+    vec3(min.x, min.y, min.z),
+    vec3(max.x, min.y, min.z),
+    vec3(min.x, max.y, min.z),
+    vec3(max.x, max.y, min.z),
+    vec3(min.x, min.y, max.z),
+    vec3(max.x, min.y, max.z),
+    vec3(min.x, max.y, max.z),
+    vec3(max.x, max.y, max.z)
+    );
 
-    maxX = vec.x + 8;
-    maxY = vec.y + 8;
-    maxZ = vec.z + 8;
-    return calculateCube(minX, minY, minZ, maxX, maxY, maxZ);
+    for(int i = 0; i < 6; i++) {
+        bool inside = false;
+        for(int j = 0; j < 8 && !inside; j++) {
+            inside = dot(frustum[i], vec4(corners[j] - FrustumPos, 1.0)) > 0.0;
+        }
+        if(!inside) return false;
+    }
+    return true;
 }
 
 float getUVDepth(int idx, ivec2 uv) {
@@ -158,50 +225,23 @@ void main() {
 
     far = RenderDistance * 64.0;
 
-    float sizeOffset = 10.0;
+    ClipResult clip = getClippedMinDepth(chunkPos, 9.0);
 
-    vec3 aabb[8] = vec3[](
-        chunkPos + vec3(-sizeOffset, -sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, -sizeOffset),
-        chunkPos + vec3(-sizeOffset, sizeOffset, -sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, -sizeOffset),
-        chunkPos + vec3(-sizeOffset, -sizeOffset, sizeOffset), chunkPos+vec3(sizeOffset, -sizeOffset, sizeOffset),
-        chunkPos + vec3(-sizeOffset, sizeOffset, sizeOffset), chunkPos+vec3(sizeOffset, sizeOffset, sizeOffset)
-    );
-
-    float maxX = -1.0/0.0;
-    float maxY = -1.0/0.0;
-    float minX = 1.0/0.0;
-    float minY = 1.0/0.0;
-    float sectionDepth = 1.0;
-
-    for (int i = 0; i < 8; ++i) {
-        vec3 screenPos = worldToScreenSpace(aabb[i]);
-
-        maxX = max(screenPos.x, maxX);
-        maxY = max(screenPos.y, maxY);
-        minX = min(screenPos.x, minX);
-        minY = min(screenPos.y, minY);
-
-        if (screenPos.z >= 0.0 && screenPos.z <= 1.0) {
-            sectionDepth = min(screenPos.z, sectionDepth);
-        }
-    }
-
-    minX = clamp(minX, 0.0, 1.0);
-    minY = clamp(minY, 0.0, 1.0);
-    maxX = clamp(maxX, 0.0, 1.0);
-    maxY = clamp(maxY, 0.0, 1.0);
-
+    float sectionDepth = (clip.minDepth + 1.0) * 0.5;
     sectionDepth = LinearizeDepth(sectionDepth);
 
-    int idx = getSampler(maxX-minX, maxY-minY);
+    vec2 mins = clamp(clip.screenMin, 0.0, 1.0);
+    vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
+
+    int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
 
     int depthX = int(DepthScreenSize[idx].x);
     int depthY = int(DepthScreenSize[idx].y);
 
-    int coordMinX = max(int(floor(minX * depthX)), 0);
-    int coordMaxX = min(int(ceil(maxX * depthX)), depthX - 1);
-    int coordMinY = max(int(floor(minY * depthY)), 0);
-    int coordMaxY = min(int(ceil(maxY * depthY)), depthY - 1);
+    int coordMinX = max(int(floor(mins.x * depthX)), 0);
+    int coordMaxX = min(int(ceil(maxs.x * depthX)), depthX - 1);
+    int coordMinY = max(int(floor(mins.y * depthY)), 0);
+    int coordMaxY = min(int(ceil(maxs.y * depthY)), depthY - 1);
 
     for (int x = coordMinX; x <= coordMaxX; x++) {
         for (int y = coordMinY; y <= coordMaxY; y++) {
