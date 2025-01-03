@@ -66,13 +66,9 @@ vec4 computeNearIntersection(vec4 inside, vec4 outside, float clipValue, int axi
 }
 
 void updateMinDepth(vec4 intersection, inout ClipResult result, inout bool hasValidPoint) {
-    if(intersection.w > 0.0) {
-        vec2 intersectionNDC = intersection.xy / intersection.w;
-        if(abs(intersectionNDC.x) <= 1.0 && abs(intersectionNDC.y) <= 1.0) {
-            result.minDepth = min(result.minDepth, intersection.z / intersection.w);
-            hasValidPoint = true;
-        }
-    }
+    vec2 intersectionNDC = intersection.xy / intersection.w;
+    result.minDepth = min(result.minDepth, intersection.z / intersection.w);
+    hasValidPoint = true;
 }
 
 ClipResult getClippedMinDepth(vec3 center, float extent) {
@@ -96,12 +92,14 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
 
     for(int i = 0; i < 8; i++) {
         vec4 clipPos = clipPositions[i];
+        vec2 ndcXY;
 
-        if(clipPos.w <= 0.0) {
-            continue;
+        if(clipPos.w > 0.0) {
+            ndcXY = clipPos.xy / clipPos.w;
+        } else {
+            ndcXY = clipPos.xy / -clipPos.w;
         }
 
-        vec2 ndcXY = clipPos.xy / clipPos.w;
         vec2 screenPos = (ndcXY + 1.0) * 0.5;
 
         result.screenMin = min(result.screenMin, screenPos);
@@ -219,6 +217,11 @@ float getUVDepth(int idx, ivec2 uv) {
     return texelFetch(Sampler5, uv, 0).r;
 }
 
+bool isBehindCamera(vec3 center, vec3 cameraPos, vec3 cameraForward) {
+    vec3 toObject = center - cameraPos;
+    return dot(normalize(toObject), cameraForward) < 0.0;
+}
+
 void main() {
     far = RenderDistance * CHUNK_RANGE_SIZE;
     vec2 screenUV = gl_FragCoord.xy / ScreenSize.xy;
@@ -226,12 +229,24 @@ void main() {
     vec3 chunkBasePos = TestPos;
     vec3 chunkPos = chunkBasePos * CHUNK_SIZE + vec3(8.0);
 
+    /*
+        if(isBehindCamera(chunkPos + (CullingCameraDir * 16), CullingCameraPos, CullingCameraDir)) {
+        fragColor = vec4(0.0, 0.0, 1.0, 1.0);
+        return;
+    }
+
+    if(length(chunkPos - CullingCameraPos) <= 50) {
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        return;
+    }
+    */
+
     if(!isVisible(chunkPos)) {
         fragColor = vec4(0.0, 0.0, 1.0, 1.0);
         return;
     }
 
-    ClipResult clip = getClippedMinDepth(chunkPos, 9.0);
+    ClipResult clip = getClippedMinDepth(chunkPos + (CullingCameraDir * -2), 9.0);
 
     if(any(greaterThan(clip.screenMin, clip.screenMax))) {
         fragColor = vec4(0.0, 0.0, 0.5, 1.0);
