@@ -54,9 +54,25 @@ float calculateDistance(vec3 P, vec3 Q) {
     return pow(Q.x - P.x, 2) + pow(Q.y - P.y, 2) + pow(Q.z - P.z, 2);
 }
 
-vec4 computeNearIntersection(vec4 inside, vec4 outside) {
-    float t = (-inside.w) / (outside.w - inside.w);
+vec4 computeNearIntersection(vec4 inside, vec4 outside, float clipValue, int axis) {
+    // axis: 0 for X plane, 1 for Y plane
+    float wa = inside.w;
+    float wb = outside.w;
+    float pa = axis == 0 ? inside.x : inside.y;
+    float pb = axis == 0 ? outside.x : outside.y;
+
+    float t = (wa * clipValue - pa) / ((pb - pa) - (wb - wa) * clipValue);
     return mix(inside, outside, t);
+}
+
+void updateMinDepth(vec4 intersection, inout ClipResult result, inout bool hasValidPoint) {
+    if(intersection.w > 0.0) {
+        vec2 intersectionNDC = intersection.xy / intersection.w;
+        if(abs(intersectionNDC.x) <= 1.0 && abs(intersectionNDC.y) <= 1.0) {
+            result.minDepth = min(result.minDepth, intersection.z / intersection.w);
+            hasValidPoint = true;
+        }
+    }
 }
 
 ClipResult getClippedMinDepth(vec3 center, float extent) {
@@ -80,47 +96,50 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
 
     for(int i = 0; i < 8; i++) {
         vec4 clipPos = clipPositions[i];
-        vec2 ndcXY = clipPos.xy / clipPos.w;
 
-        if(clipPos.w > 0.0) {
-            ndcXY = clamp(ndcXY, -1.0, 1.0);
-            vec2 screenPos = (ndcXY + 1.0) * 0.5;
-
-            result.screenMin = min(result.screenMin, screenPos);
-            result.screenMax = max(result.screenMax, screenPos);
-
-            if (abs(ndcXY.x) < 1.0 && abs(ndcXY.y) < 1.0) {
-                result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
-            }
-
-            hasValidPoint = true;
+        if(clipPos.w <= 0.0) {
             continue;
         }
 
-        int adjacent[3] = int[3](i^1, i^2, i^4);
+        vec2 ndcXY = clipPos.xy / clipPos.w;
+        vec2 screenPos = (ndcXY + 1.0) * 0.5;
 
-        for(int j = 0; j < 3; j++) {
-            vec4 neighborClipPos = clipPositions[adjacent[j]];
-            if (neighborClipPos.w <= 0.0) {
-                continue;
-            }
+        result.screenMin = min(result.screenMin, screenPos);
+        result.screenMax = max(result.screenMax, screenPos);
 
-            vec4 intersection = computeNearIntersection(neighborClipPos, clipPos);
-            vec2 ndcXY = intersection.xy / intersection.w;
-
-            if (abs(ndcXY.x) > 1.0 && abs(ndcXY.y) > 1.0) {
-                continue;
-            }
-
-            result.minDepth = min(result.minDepth, intersection.z / intersection.w);
+        if (abs(ndcXY.x) < 1.0 && abs(ndcXY.y) < 1.0) {
+            result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
             hasValidPoint = true;
-        }
-    }
+        } else {
+            int adjacent[3] = int[3](i^1, i^2, i^4);
 
-    if(!hasValidPoint) {
-        result.screenMin = vec2(0.0);
-        result.screenMax = vec2(0.0);
-        result.minDepth = 1.0;
+            for(int j = 0; j < 3; j++) {
+                vec4 neighborClipPos = clipPositions[adjacent[j]];
+                if (neighborClipPos.w <= 0.0) continue;
+
+                vec2 neighborNDC = neighborClipPos.xy / neighborClipPos.w;
+
+                if (sign(ndcXY.x) != sign(neighborNDC.x) && abs(ndcXY.x) > 1.0) {
+                    vec4 intersection = computeNearIntersection(
+                    neighborClipPos,
+                    clipPos,
+                    sign(ndcXY.x),
+                    0
+                    );
+                    updateMinDepth(intersection, result, hasValidPoint);
+                }
+
+                if (sign(ndcXY.y) != sign(neighborNDC.y) && abs(ndcXY.y) > 1.0) {
+                    vec4 intersection = computeNearIntersection(
+                    neighborClipPos,
+                    clipPos,
+                    sign(ndcXY.y),
+                    1
+                    );
+                    updateMinDepth(intersection, result, hasValidPoint);
+                }
+            }
+        }
     }
 
     return result;
