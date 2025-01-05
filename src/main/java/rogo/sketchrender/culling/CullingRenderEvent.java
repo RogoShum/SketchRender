@@ -269,7 +269,7 @@ public class CullingRenderEvent {
                     });
         });
 
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_depth_size", () -> {
+        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_screen_size", () -> {
             event.getExtraUniform().getUniforms().createUniforms(copy_depth
                     , new String[]{
                             "sketch_depth_size",

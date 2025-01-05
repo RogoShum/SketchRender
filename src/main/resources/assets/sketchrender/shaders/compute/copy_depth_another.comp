@@ -31,60 +31,87 @@ float LinearizeDepth(float depth) {
 }
 
 void processLevel(int level, ivec2 depthCoords) {
-    ivec2 currentSize = sketch_depth_size >> level;
+    ivec2 currentSize = sketch_screen_size >> (level + 1);
     bool validPixel = depthCoords.x < currentSize.x &&
     depthCoords.y < currentSize.y;
 
     if (validPixel) {
         ivec2 srcPos = depthCoords * 2;
-        for(int y = 0; y < 2; y++) {
-            for(int x = 0; x < 2; x++) {
-                ivec2 loadPos = srcPos + ivec2(x, y);
-                if(loadPos.x < (currentSize.x * 2) &&
-                loadPos.y < (currentSize.y * 2)) {
-                    float depth = 0.0;
-                    switch(level) {
-                        case 0: depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, loadPos, 0).r); break;
-                        case 1: depth = imageLoad(output_texture_0, loadPos).r; break;
-                        case 2: depth = imageLoad(output_texture_1, loadPos).r; break;
-                        case 3: depth = imageLoad(output_texture_2, loadPos).r; break;
-                        case 4: depth = imageLoad(output_texture_3, loadPos).r; break;
-                        case 5: depth = imageLoad(output_texture_4, loadPos).r; break;
-                    }
-                    depthCache[gl_LocalInvocationID.y * 2 + y]
-                    [gl_LocalInvocationID.x * 2 + x] = depth;
-                }
-            }
+        float maxDepth = 0.0;
+        float depth;
+
+        if (level == 0) {
+            depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, srcPos, 0).r);
+            maxDepth = depth;
+            depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, srcPos + ivec2(1,0), 0).r);
+            maxDepth = max(maxDepth, depth);
+            depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, srcPos + ivec2(0,1), 0).r);
+            maxDepth = max(maxDepth, depth);
+            depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, srcPos + ivec2(1,1), 0).r);
+            maxDepth = max(maxDepth, depth);
+        } else if (level == 1) {
+            depth = imageLoad(output_texture_0, srcPos).r;
+            maxDepth = depth;
+            depth = imageLoad(output_texture_0, srcPos + ivec2(1,0)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_0, srcPos + ivec2(0,1)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_0, srcPos + ivec2(1,1)).r;
+            maxDepth = max(maxDepth, depth);
+        } else if (level == 2) {
+            depth = imageLoad(output_texture_1, srcPos).r;
+            maxDepth = depth;
+            depth = imageLoad(output_texture_1, srcPos + ivec2(1,0)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_1, srcPos + ivec2(0,1)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_1, srcPos + ivec2(1,1)).r;
+            maxDepth = max(maxDepth, depth);
+        } else if (level == 3) {
+            depth = imageLoad(output_texture_2, srcPos).r;
+            maxDepth = depth;
+            depth = imageLoad(output_texture_2, srcPos + ivec2(1,0)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_2, srcPos + ivec2(0,1)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_2, srcPos + ivec2(1,1)).r;
+            maxDepth = max(maxDepth, depth);
+        } else if (level == 4) {
+            depth = imageLoad(output_texture_3, srcPos).r;
+            maxDepth = depth;
+            depth = imageLoad(output_texture_3, srcPos + ivec2(1,0)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_3, srcPos + ivec2(0,1)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_3, srcPos + ivec2(1,1)).r;
+            maxDepth = max(maxDepth, depth);
+        } else { // level == 5
+            depth = imageLoad(output_texture_4, srcPos).r;
+            maxDepth = depth;
+            depth = imageLoad(output_texture_4, srcPos + ivec2(1,0)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_4, srcPos + ivec2(0,1)).r;
+            maxDepth = max(maxDepth, depth);
+            depth = imageLoad(output_texture_4, srcPos + ivec2(1,1)).r;
+            maxDepth = max(maxDepth, depth);
         }
 
-        barrier();
-
-        float maxDepth = depthCache[gl_LocalInvocationID.y * 2]
-            [gl_LocalInvocationID.x * 2];
-
-        maxDepth = max(maxDepth,
-            depthCache[gl_LocalInvocationID.y * 2]
-            [gl_LocalInvocationID.x * 2 + 1]);
-
-        maxDepth = max(maxDepth,
-            depthCache[gl_LocalInvocationID.y * 2 + 1]
-            [gl_LocalInvocationID.x * 2]);
-
-        maxDepth = max(maxDepth,
-            depthCache[gl_LocalInvocationID.y * 2 + 1]
-            [gl_LocalInvocationID.x * 2 + 1]);
-
-        switch(level) {
-            case 0: imageStore(output_texture_0, depthCoords, vec4(maxDepth)); break;
-            case 1: imageStore(output_texture_1, depthCoords, vec4(maxDepth)); break;
-            case 2: imageStore(output_texture_2, depthCoords, vec4(maxDepth)); break;
-            case 3: imageStore(output_texture_3, depthCoords, vec4(maxDepth)); break;
-            case 4: imageStore(output_texture_4, depthCoords, vec4(maxDepth)); break;
-            case 5: imageStore(output_texture_5, depthCoords, vec4(maxDepth)); break;
+        if (level == 0) {
+            imageStore(output_texture_0, depthCoords, vec4(maxDepth));
+        } else if (level == 1) {
+            imageStore(output_texture_1, depthCoords, vec4(maxDepth));
+        } else if (level == 2) {
+            imageStore(output_texture_2, depthCoords, vec4(maxDepth));
+        } else if (level == 3) {
+            imageStore(output_texture_3, depthCoords, vec4(maxDepth));
+        } else if (level == 4) {
+            imageStore(output_texture_4, depthCoords, vec4(maxDepth));
+        } else { // level == 5
+            imageStore(output_texture_5, depthCoords, vec4(maxDepth));
         }
     }
 
-    barrier();
+    memoryBarrierImage();
 }
 
 void main() {

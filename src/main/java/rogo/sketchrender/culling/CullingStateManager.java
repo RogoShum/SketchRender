@@ -402,14 +402,13 @@ public class CullingStateManager {
     public static void updateDepthMap() {
         CullingStateManager.PROJECTION_MATRIX = new Matrix4f(RenderSystem.getProjectionMatrix());
         if (anyCulling() && !checkCulling && continueUpdateDepth()) {
-            float sampling = (float) Config.getSampling();
             Window window = Minecraft.getInstance().getWindow();
             int width = window.getWidth();
             int height = window.getHeight();
 
             runOnDepthFrame((depthContext) -> {
-                int scaleWidth = Math.max(1, (int) (width * sampling * depthContext.scale()));
-                int scaleHeight = Math.max(1, (int) (height * sampling * depthContext.scale()));
+                int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
+                int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
                 if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
                     depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
                 }
