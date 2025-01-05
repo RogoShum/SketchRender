@@ -104,38 +104,12 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
         result.screenMin = min(result.screenMin, screenPos);
         result.screenMax = max(result.screenMax, screenPos);
 
-        if (abs(ndcXY.x) < 1.0 && abs(ndcXY.y) < 1.0) {
+        if (clipPos.w > 0.0) {
             result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
             hasValidPoint = true;
         } else {
-            int adjacent[3] = int[3](i^1, i^2, i^4);
-
-            for(int j = 0; j < 3; j++) {
-                vec4 neighborClipPos = clipPositions[adjacent[j]];
-                if (neighborClipPos.w <= 0.0) continue;
-
-                vec2 neighborNDC = neighborClipPos.xy / neighborClipPos.w;
-
-                if (sign(ndcXY.x) != sign(neighborNDC.x) && abs(ndcXY.x) > 1.0) {
-                    vec4 intersection = computeNearIntersection(
-                    neighborClipPos,
-                    clipPos,
-                    sign(ndcXY.x),
-                    0
-                    );
-                    updateMinDepth(intersection, result, hasValidPoint);
-                }
-
-                if (sign(ndcXY.y) != sign(neighborNDC.y) && abs(ndcXY.y) > 1.0) {
-                    vec4 intersection = computeNearIntersection(
-                    neighborClipPos,
-                    clipPos,
-                    sign(ndcXY.y),
-                    1
-                    );
-                    updateMinDepth(intersection, result, hasValidPoint);
-                }
-            }
+            result.minDepth = -2.0;
+            hasValidPoint = true;
         }
     }
 

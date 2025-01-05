@@ -149,14 +149,29 @@ bool calculateCube(float minX, float minY, float minZ, float maxX, float maxY, f
     return cubeInFrustum(f, f1, f2, f3, f4, f5);
 }
 
-bool isVisible(vec3 vec) {
-    float minX = vec.x - 8;
-    float minY = vec.y - 8;
-    float minZ = vec.z - 8;
-    float maxX = vec.x + 8;
-    float maxY = vec.y + 8;
-    float maxZ = vec.z + 8;
-    return calculateCube(minX, minY, minZ, maxX, maxY, maxZ);
+bool isVisible(vec3 center) {
+    vec3 min = center - vec3(8.0);
+    vec3 max = center + vec3(8.0);
+    vec3 corners[8] = vec3[](
+    vec3(min.x, min.y, min.z),
+    vec3(max.x, min.y, min.z),
+    vec3(min.x, max.y, min.z),
+    vec3(max.x, max.y, min.z),
+    vec3(min.x, min.y, max.z),
+    vec3(max.x, min.y, max.z),
+    vec3(min.x, max.y, max.z),
+    vec3(max.x, max.y, max.z)
+    );
+    vec4[6] frustum = getFrustumData();
+
+    for(int i = 0; i < 6; i++) {
+        bool inside = false;
+        for(int j = 0; j < 8 && !inside; j++) {
+            inside = dot(frustum[i], vec4(corners[j] - sketch_frustum_pos, 1.0)) > 0.0;
+        }
+        if(!inside) return false;
+    }
+    return true;
 }
 
 float getUVDepth(int idx, ivec2 uv) {

@@ -105,38 +105,12 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
         result.screenMin = min(result.screenMin, screenPos);
         result.screenMax = max(result.screenMax, screenPos);
 
-        if (abs(ndcXY.x) < 1.0 && abs(ndcXY.y) < 1.0) {
+        if (clipPos.w > 0.0) {
             result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
             hasValidPoint = true;
         } else {
-            int adjacent[3] = int[3](i^1, i^2, i^4);
-
-            for(int j = 0; j < 3; j++) {
-                vec4 neighborClipPos = clipPositions[adjacent[j]];
-                if (neighborClipPos.w <= 0.0) continue;
-
-                vec2 neighborNDC = neighborClipPos.xy / neighborClipPos.w;
-
-                if (sign(ndcXY.x) != sign(neighborNDC.x) && abs(ndcXY.x) > 1.0) {
-                    vec4 intersection = computeNearIntersection(
-                    neighborClipPos,
-                    clipPos,
-                    sign(ndcXY.x),
-                    0
-                    );
-                    updateMinDepth(intersection, result, hasValidPoint);
-                }
-
-                if (sign(ndcXY.y) != sign(neighborNDC.y) && abs(ndcXY.y) > 1.0) {
-                    vec4 intersection = computeNearIntersection(
-                    neighborClipPos,
-                    clipPos,
-                    sign(ndcXY.y),
-                    1
-                    );
-                    updateMinDepth(intersection, result, hasValidPoint);
-                }
-            }
+            result.minDepth = -2.0;
+            hasValidPoint = true;
         }
     }
 
@@ -224,7 +198,7 @@ bool isBehindCamera(vec3 center, vec3 cameraPos, vec3 cameraForward) {
 
 void main() {
     far = RenderDistance * CHUNK_RANGE_SIZE;
-    vec2 screenUV = gl_FragCoord.xy / ScreenSize.xy;
+    vec2 screenUV = (gl_FragCoord.xy - vec2(0.5)) / ScreenSize.xy;
 
     vec3 chunkBasePos = TestPos;
     vec3 chunkPos = chunkBasePos * CHUNK_SIZE + vec3(8.0);
@@ -272,8 +246,8 @@ void main() {
 
     fragColor = vec4(0.0, 0.0, 0.0, 1.0);
 
-    if(all(greaterThanEqual(gl_FragCoord.xy, vec2(aabbMinScreen))) &&
-    all(lessThanEqual(gl_FragCoord.xy, vec2(aabbMaxScreen)))) {
+    if(all(greaterThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMinScreen))) &&
+    all(lessThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMaxScreen)))) {
         fragColor = vec4(1.0, 1.0, 0.0, 1.0);
 
         if(all(greaterThanEqual(screenCoords, coordMin)) &&

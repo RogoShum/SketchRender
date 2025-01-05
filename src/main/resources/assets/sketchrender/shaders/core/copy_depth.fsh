@@ -22,8 +22,8 @@ float LinearizeDepth(float depth) {
 
 void main() {
     far = RenderDistance * 64.0;
-    int px = int(gl_FragCoord.x * xMult);
-    int py = int(gl_FragCoord.y * yMult);
+    int px = int((gl_FragCoord.x - 0.5) * xMult);
+    int py = int((gl_FragCoord.y - 0.5) * yMult);
     ivec2 depthUV = ivec2(px, py);
     float depth = 0.0;
 
