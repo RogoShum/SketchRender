@@ -21,6 +21,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector2i;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.Checks;
 import rogo.sketchrender.SketchRender;
@@ -399,6 +400,15 @@ public class CullingStateManager {
         }
     }
 
+    public static void blitFrameBufferColor(int srcID, int dstID, int height, int width, boolean bindMainFrame) {
+        GlStateManager._glBindFramebuffer(GL_READ_FRAMEBUFFER, srcID);
+        GlStateManager._glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dstID);
+        GL30.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        if (bindMainFrame) {
+            SHADER_LOADER.bindDefaultFrameBuffer();
+        }
+    }
+
     public static void updateDepthMap() {
         CullingStateManager.PROJECTION_MATRIX = new Matrix4f(RenderSystem.getProjectionMatrix());
         if (anyCulling() && !checkCulling && continueUpdateDepth()) {
@@ -407,8 +417,8 @@ public class CullingStateManager {
             int height = window.getHeight();
 
             runOnDepthFrame((depthContext) -> {
-                int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
-                int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
+                int scaleWidth = Math.max(1, width >> (depthContext.index()));
+                int scaleHeight = Math.max(1, height >> (depthContext.index()));
                 if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
                     depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
                 }
@@ -436,6 +446,7 @@ public class CullingStateManager {
             }
 
             MAIN_DEPTH_TEXTURE = depthTexture;
+            blitFrameBufferColor(SHADER_LOADER.getFrameBufferID(), DEPTH_BUFFER_TARGET[0].frameBufferId, height, width, false);
 
             if (Config.shouldComputeShader()) {
                 computeHizTexture();
@@ -608,11 +619,13 @@ public class CullingStateManager {
     }
 
     public static void runOnDepthFrame(Consumer<DepthContext> consumer) {
-        float f = 1.0f;
-        for (DEPTH_INDEX = 0; DEPTH_INDEX < DEPTH_BUFFER_TARGET.length; ++DEPTH_INDEX) {
+        runOnDepthFrame(consumer, 0);
+    }
+
+    public static void runOnDepthFrame(Consumer<DepthContext> consumer, int startAtIndex) {
+        for (DEPTH_INDEX = startAtIndex; DEPTH_INDEX < DEPTH_BUFFER_TARGET.length; ++DEPTH_INDEX) {
             int lastTexture = DEPTH_INDEX == 0 ? MAIN_DEPTH_TEXTURE : DEPTH_BUFFER_TARGET[DEPTH_INDEX - 1].getColorTextureId();
-            consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, f, lastTexture));
-            f *= 0.5f;
+            consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, lastTexture));
         }
     }
 

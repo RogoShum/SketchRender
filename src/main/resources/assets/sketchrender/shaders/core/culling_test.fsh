@@ -35,8 +35,8 @@ struct ClipResult {
 
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 2.0 / DepthScreenSize[i].x;
-        float yStep = 2.0 / DepthScreenSize[i].y;
+        float xStep = 3.0 / DepthScreenSize[i].x;
+        float yStep = 3.0 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }

@@ -4,7 +4,6 @@ uniform sampler2D Sampler0;
 uniform float RenderDistance;
 uniform int DepthIndex;
 
-flat in ivec2 ParentSize;
 flat in float xMult;
 flat in float yMult;
 flat in int xStep;

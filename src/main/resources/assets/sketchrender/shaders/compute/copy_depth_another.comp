@@ -31,7 +31,7 @@ float LinearizeDepth(float depth) {
 }
 
 void processLevel(int level, ivec2 depthCoords) {
-    ivec2 currentSize = sketch_screen_size >> (level + 1);
+    ivec2 currentSize = sketch_screen_size >> level;
     bool validPixel = depthCoords.x < currentSize.x &&
     depthCoords.y < currentSize.y;
 
@@ -41,14 +41,7 @@ void processLevel(int level, ivec2 depthCoords) {
         float depth;
 
         if (level == 0) {
-            depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, srcPos, 0).r);
-            maxDepth = depth;
-            depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, srcPos + ivec2(1,0), 0).r);
-            maxDepth = max(maxDepth, depth);
-            depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, srcPos + ivec2(0,1), 0).r);
-            maxDepth = max(maxDepth, depth);
-            depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, srcPos + ivec2(1,1), 0).r);
-            maxDepth = max(maxDepth, depth);
+            maxDepth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, depthCoords, 0).r);
         } else if (level == 1) {
             depth = imageLoad(output_texture_0, srcPos).r;
             maxDepth = depth;

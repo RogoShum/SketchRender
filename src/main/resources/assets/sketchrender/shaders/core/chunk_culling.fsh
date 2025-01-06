@@ -7,6 +7,7 @@ uniform sampler2D Sampler3;
 uniform sampler2D Sampler4;
 uniform sampler2D Sampler5;
 
+uniform vec2 ScreenSize;
 uniform vec2 CullingSize;
 uniform mat4 CullingViewMat;
 uniform mat4 CullingProjMat;
@@ -34,8 +35,8 @@ struct ClipResult {
 
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 2.0 / DepthScreenSize[i].x;
-        float yStep = 2.0 / DepthScreenSize[i].y;
+        float xStep = 3.0 / DepthScreenSize[i].x;
+        float yStep = 3.0 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
@@ -245,6 +246,16 @@ void main() {
 
     int depthX = int(DepthScreenSize[idx].x);
     int depthY = int(DepthScreenSize[idx].y);
+
+    // 计算屏幕空间AABB的宽度和高度
+    float screenWidth = (maxs.x - mins.x) * ScreenSize.x;
+    float screenHeight = (maxs.y - mins.y) * ScreenSize.y;
+
+    // 如果AABB小于一个像素，则标记为被剔除
+    if (screenWidth < 2.0 && screenHeight < 2.0) {
+        fragColor = vec4(0.0, 1.0, 0.0, 1.0); // 标记为剔除
+        return;
+    }
 
     int coordMinX = max(int(floor(mins.x * depthX)), 0);
     int coordMaxX = min(int(ceil(maxs.x * depthX)), depthX - 1);

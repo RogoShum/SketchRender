@@ -37,22 +37,33 @@ float LinearizeDepth(float depth) {
 }
 
 void processLevel(int level, ivec2 depthCoords) {
-    ivec2 currentSize = sketch_screen_size >> (level + 1);
+    ivec2 currentSize = sketch_screen_size >> level;
     bool validPixel = depthCoords.x < currentSize.x &&
     depthCoords.y < currentSize.y;
 
     if (validPixel) {
         ivec2 srcPos = depthCoords * 2;
+        if (level == 0) {
+            srcPos = depthCoords;
+        }
         ivec2 cachePos = ivec2(gl_LocalInvocationID.xy * 2);
+        if (level == 0) {
+            cachePos = ivec2(gl_LocalInvocationID.xy);
+        }
+        int pixelSize = 2;
+        if (level == 0) {
+            pixelSize = 1;
+        }
 
-        for(int y = 0; y < 2; y++) {
-            for(int x = 0; x < 2; x++) {
+
+        for(int y = 0; y < pixelSize; y++) {
+            for(int x = 0; x < pixelSize; x++) {
                 ivec2 loadPos = srcPos + ivec2(x, y);
                 if(loadPos.x < (currentSize.x * 2) &&
                 loadPos.y < (currentSize.y * 2)) {
                     float depth = 0.0;
                     switch(level) {
-                        case 0: depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, loadPos, 0).r); break;
+                        case 0: depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, depthCoords, 0).r); break;
                         case 1: depth = texelFetch(sketch_sampler_texture_1, loadPos, 0).r; break;
                         case 2: depth = texelFetch(sketch_sampler_texture_2, loadPos, 0).r; break;
                         case 3: depth = texelFetch(sketch_sampler_texture_3, loadPos, 0).r; break;
@@ -65,12 +76,13 @@ void processLevel(int level, ivec2 depthCoords) {
             }
         }
 
-        barrier();
-
         float maxDepth = depthCache[cachePos.y][cachePos.x];
-        maxDepth = max(maxDepth, depthCache[cachePos.y][cachePos.x + 1]);
-        maxDepth = max(maxDepth, depthCache[cachePos.y + 1][cachePos.x]);
-        maxDepth = max(maxDepth, depthCache[cachePos.y + 1][cachePos.x + 1]);
+
+        if (level > 0) {
+            maxDepth = max(maxDepth, depthCache[cachePos.y][cachePos.x + 1]);
+            maxDepth = max(maxDepth, depthCache[cachePos.y + 1][cachePos.x]);
+            maxDepth = max(maxDepth, depthCache[cachePos.y + 1][cachePos.x + 1]);
+        }
 
         switch(level) {
             case 0: imageStore(output_texture_0, depthCoords, vec4(maxDepth)); break;
@@ -82,7 +94,7 @@ void processLevel(int level, ivec2 depthCoords) {
         }
     }
 
-    barrier();
+    memoryBarrierImage();
 }
 
 void main() {
