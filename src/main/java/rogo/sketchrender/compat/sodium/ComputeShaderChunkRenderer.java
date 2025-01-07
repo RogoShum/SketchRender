@@ -28,6 +28,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
+import net.minecraft.core.particles.DustParticleOptions;
 import org.apache.commons.compress.utils.Lists;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
