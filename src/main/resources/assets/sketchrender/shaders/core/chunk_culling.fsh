@@ -35,8 +35,8 @@ struct ClipResult {
 
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 3.0 / DepthScreenSize[i].x;
-        float yStep = 3.0 / DepthScreenSize[i].y;
+        float xStep = 4.0 / DepthScreenSize[i].x;
+        float yStep = 4.0 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
@@ -63,12 +63,6 @@ vec4 computeNearIntersection(vec4 inside, vec4 outside, float clipValue, int axi
 
     float t = (wa * clipValue - pa) / ((pb - pa) - (wb - wa) * clipValue);
     return mix(inside, outside, t);
-}
-
-void updateMinDepth(vec4 intersection, inout ClipResult result, inout bool hasValidPoint) {
-    vec2 intersectionNDC = intersection.xy / intersection.w;
-    result.minDepth = min(result.minDepth, intersection.z / intersection.w);
-    hasValidPoint = true;
 }
 
 ClipResult getClippedMinDepth(vec3 center, float extent) {
@@ -252,7 +246,7 @@ void main() {
     float screenHeight = (maxs.y - mins.y) * ScreenSize.y;
 
     // 如果AABB小于一个像素，则标记为被剔除
-    if (screenWidth < 2.0 && screenHeight < 2.0) {
+    if (screenWidth < 3.0 && screenHeight < 3.0) {
         fragColor = vec4(0.0, 1.0, 0.0, 1.0); // 标记为剔除
         return;
     }

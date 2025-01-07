@@ -417,8 +417,8 @@ public class CullingStateManager {
             int height = window.getHeight();
 
             runOnDepthFrame((depthContext) -> {
-                int scaleWidth = Math.max(1, width >> (depthContext.index()));
-                int scaleHeight = Math.max(1, height >> (depthContext.index()));
+                int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
+                int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
                 if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
                     depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
                 }
@@ -446,7 +446,7 @@ public class CullingStateManager {
             }
 
             MAIN_DEPTH_TEXTURE = depthTexture;
-            blitFrameBufferColor(SHADER_LOADER.getFrameBufferID(), DEPTH_BUFFER_TARGET[0].frameBufferId, height, width, false);
+            //blitFrameBufferColor(SHADER_LOADER.getFrameBufferID(), DEPTH_BUFFER_TARGET[0].frameBufferId, height, width, false);
 
             if (Config.shouldComputeShader()) {
                 computeHizTexture();

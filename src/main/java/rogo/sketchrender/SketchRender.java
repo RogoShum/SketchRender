@@ -223,7 +223,6 @@ public class SketchRender {
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
             debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getSize());
-            debugText.put("TestDepth", TestChunkScreenDepth.getChunkDepth(Vec3.atLowerCornerOf(testPos), CAMERA.getPosition()));
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
             debugText.putAll(commandTimer.getResults());
