@@ -524,7 +524,7 @@ public class CullingStateManager {
             int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
             int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
             shader.execute(groupsX, groupsY, 1);
-            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            //shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         } else {
             GL43.glBindImageTexture(0, arrayTexture.getTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R16F);
 
@@ -541,7 +541,7 @@ public class CullingStateManager {
             int groupsX = ((screen.width >> 1) + tileSizeX - 1) / tileSizeX;
             int groupsY = ((screen.height >> 1) + tileSizeY - 1) / tileSizeY;
             shader.execute(groupsX, groupsY, 1);
-            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            //shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         }
 
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
