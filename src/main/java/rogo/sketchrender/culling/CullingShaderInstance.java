@@ -143,9 +143,6 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
 
     @Override
     public void apply() {
-
-
-
         super.apply();
         if (CullingStateManager.updatingDepth)
             ProgramManager.glUseProgram(getId());

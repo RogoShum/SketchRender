@@ -56,10 +56,7 @@ layout(std430, binding = 7) writeonly buffer ElementCountBuffer {
     int element_count;
 };
 
-uniform int sketch_level_section_range;
 uniform int sketch_render_distance;
-uniform int sketch_space_partition_size;
-uniform int sketch_culling_size;
 uniform int sketch_check_culling;
 uniform int sketch_cull_facing;
 uniform int sketch_translucent_sort;
@@ -77,7 +74,6 @@ uniform mat4 sketch_culling_proj_mat;
 uniform vec3 sketch_culling_camera_pos;
 uniform vec3 sketch_culling_camera_dir;
 uniform vec3 sketch_frustum_pos;
-uniform int sketch_level_min_pos;
 uniform float[24] sketch_culling_frustum;
 uniform float[12] sketch_depth_size;
 
@@ -270,19 +266,6 @@ float getUVDepth(int idx, ivec2 uv) {
     return texelFetch(Sampler4, uv, 0).r;
 
     return texelFetch(Sampler5, uv, 0).r;
-}
-
-int _get_chunk_index(ivec3 chunk_offset) {
-    return (chunk_offset.x + sketch_render_distance) * sketch_space_partition_size * sketch_level_section_range + (chunk_offset.z + sketch_render_distance) * sketch_level_section_range + chunk_offset.y;
-}
-
-ivec2 _get_culling_uv_from_index(ivec3 chunk_offset) {
-    int screenIndex = _get_chunk_index(chunk_offset);
-
-    int fragX = screenIndex % sketch_culling_size;
-    int fragY = screenIndex / sketch_culling_size;
-
-    return ivec2(fragX, fragY);
 }
 
 bool _is_chunk_culled(ivec3 sectionPos) {

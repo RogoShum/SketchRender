@@ -36,6 +36,7 @@ import rogo.sketchrender.mixin.AccessorMinecraft;
 import rogo.sketchrender.shader.ComputeShader;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.shader.ShaderModifier;
+import rogo.sketchrender.shader.uniform.HalfFloatArrayTexture;
 import rogo.sketchrender.util.DepthContext;
 import rogo.sketchrender.util.LifeTimer;
 import rogo.sketchrender.util.OcclusionCullerThread;
@@ -63,6 +64,7 @@ public class CullingStateManager {
     public static final int DEPTH_SIZE = 6;
     public static int DEPTH_INDEX;
     public static int MAIN_DEPTH_TEXTURE = 0;
+    public static HalfFloatArrayTexture arrayTexture;
     public static RenderTarget[] DEPTH_BUFFER_TARGET = new RenderTarget[DEPTH_SIZE];
     public static RenderTarget CHUNK_CULLING_MAP_TARGET;
     public static RenderTarget ENTITY_CULLING_MAP_TARGET;
@@ -121,6 +123,7 @@ public class CullingStateManager {
             CHUNK_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
             ENTITY_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false);
             ENTITY_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+            arrayTexture = new HalfFloatArrayTexture(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), DEPTH_SIZE);
         });
     }
 
@@ -416,6 +419,8 @@ public class CullingStateManager {
             int width = window.getWidth();
             int height = window.getHeight();
 
+            arrayTexture.resize(width >> 1, height >> 1, DEPTH_SIZE);
+
             runOnDepthFrame((depthContext) -> {
                 int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
                 int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
@@ -491,7 +496,7 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = !Config.getAutoDisableAsync() ? ShaderManager.COPY_DEPTH_CS : ShaderManager.HIZ_CS;
+        ComputeShader shader = !Config.getAutoDisableAsync() ? ShaderManager.COPY_DEPTH_CS : ShaderManager.COPY_DEPTH_ARRAY_CS;
 
         shader.bind();
         shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
@@ -511,8 +516,6 @@ public class CullingStateManager {
             shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
             shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
             shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
-            shader.getUniforms().setUniform("sketch_depth_size"
-                    , new Vector2i(screen.width / 2, screen.height / 2));
             shader.getUniforms().setUniform("sketch_screen_size"
                     , new Vector2i(screen.width, screen.height));
 
@@ -523,23 +526,20 @@ public class CullingStateManager {
             shader.execute(groupsX, groupsY, 1);
             shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         } else {
-            runOnDepthFrame((depthContext) -> {
-                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
-            });
+            GL43.glBindImageTexture(0, arrayTexture.getTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R16F);
 
+            RenderSystem.activeTexture(GL43.GL_TEXTURE1);
+            arrayTexture.bindArrayTexture();
             RenderSystem.activeTexture(GL43.GL_TEXTURE0);
             RenderSystem.bindTexture(MAIN_DEPTH_TEXTURE);
 
             RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
-            shader.getUniforms().setUniform("sketch_depth_size"
-                    , new Vector2i(screen.width / 2, screen.height / 2));
-            shader.getUniforms().setUniform("sketch_screen_size"
-                    , new Vector2i(screen.width, screen.height));
-
+            shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
+            shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
             int tileSizeX = 16;
             int tileSizeY = 16;
-            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
-            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+            int groupsX = ((screen.width >> 1) + tileSizeX - 1) / tileSizeX;
+            int groupsY = ((screen.height >> 1) + tileSizeY - 1) / tileSizeY;
             shader.execute(groupsX, groupsY, 1);
             shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         }

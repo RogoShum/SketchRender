@@ -5,7 +5,6 @@ import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
-import net.minecraft.world.entity.TamableAnimal;
 import org.apache.commons.compress.utils.Lists;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.ShaderCollector;
@@ -25,8 +24,10 @@ public class ShaderManager implements ResourceManagerReloadListener {
     public static ComputeShader CHUNK_CULLING_CS;
     public static ComputeShader HIZ_CS;
     public static ComputeShader COPY_DEPTH_CS;
+    public static ComputeShader COPY_DEPTH_ARRAY_CS;
+    public static ComputeShader COPY_DEPTH_ARRAY_LINER_CS;
     public static ComputeShader COLLECT_CHUNK_BATCH_CS;
-    public static ComputeShader COLLECT_CHUNK_PASS_CS;
+    public static ComputeShader CULL_COLLECT_CHUNK_BATCH_CS;
 
     public void onShaderLoad(ShaderCollector a) {
         shaders.add(a);
@@ -59,8 +60,10 @@ public class ShaderManager implements ResourceManagerReloadListener {
 
             CHUNK_CULLING_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "chunk_culling"));
             HIZ_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth_another"));
+            COPY_DEPTH_ARRAY_LINER_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth_array_liner"));
+            COPY_DEPTH_ARRAY_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth_array"));
             COPY_DEPTH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth"));
-            COLLECT_CHUNK_PASS_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "cull_collect_chunk_batch"));
+            CULL_COLLECT_CHUNK_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "cull_collect_chunk_batch"));
             COLLECT_CHUNK_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "collect_chunk_batch"));
         } catch (IOException e) {
             throw new RuntimeException(e);

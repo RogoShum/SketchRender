@@ -28,7 +28,6 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
-import net.minecraft.core.particles.DustParticleOptions;
 import org.apache.commons.compress.utils.Lists;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
@@ -143,9 +142,9 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 RenderSystem.bindTexture(CullingStateManager.DEPTH_TEXTURE[depthContext.index()]);
             });
             RenderSystem.activeTexture(GL_TEXTURE0);
-            ShaderManager.COLLECT_CHUNK_PASS_CS.bindUniforms();
-            ShaderManager.COLLECT_CHUNK_PASS_CS.execute(12, cachedRegions.size(), 1);
-            ShaderManager.COLLECT_CHUNK_PASS_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, cachedRegions.size(), 1);
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         } else {
             ShaderManager.COLLECT_CHUNK_BATCH_CS.bindUniforms();
             ShaderManager.COLLECT_CHUNK_BATCH_CS.execute(12, cachedRegions.size(), 1);

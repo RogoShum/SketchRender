@@ -243,7 +243,7 @@ public class CullingRenderEvent {
     @SubscribeEvent
     public void onBind(ProgramEvent.Init event) {
         GlStateManager._glUseProgram(event.getProgramId());
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_space_partition_size", () -> {
+        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_render_distance", () -> {
             event.getExtraUniform().getUniforms().createUniforms(culling_terrain
                     , new String[]{
                             "sketch_culling_texture",
@@ -259,13 +259,11 @@ public class CullingRenderEvent {
                     });
         });
 
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_region_pos", () -> {
+        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_cull_facing", () -> {
             event.getExtraUniform().getUniforms().createUniforms(collect_chunk
                     , new String[]{
                             "sketch_cull_facing",
-                            "sketch_translucent_sort",
-                            "sketch_region_pos",
-                            "sketch_layer_pass"
+                            "sketch_translucent_sort"
                     });
         });
 
