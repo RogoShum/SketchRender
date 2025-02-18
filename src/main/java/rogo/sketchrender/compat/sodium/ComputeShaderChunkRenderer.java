@@ -49,17 +49,17 @@ import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
     private final SharedQuadIndexBuffer sharedIndexBuffer;
-    private final GlVertexAttributeBinding[] vertexAttributeBindings;
     protected int maxElementCount = 0;
     protected Class<?> extraShaderInterface;
     protected boolean checkedShaderInterface = false;
     private int lastUpdateFrame;
     private List<RenderRegion> cachedRegions;
+    private final ExtraChunkRenderer defaultChunkRenderer;
 
-    public ComputeShaderChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {
+    public ComputeShaderChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
         super(device, vertexType);
         this.sharedIndexBuffer = new SharedQuadIndexBuffer(device.createCommandList(), SharedQuadIndexBuffer.IndexType.INTEGER);
-        this.vertexAttributeBindings = this.getBindingsForType();
+        defaultChunkRenderer = renderer;
     }
 
     @Override
@@ -111,7 +111,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             if (cachedRegions != null) {
                 shaderInterface.setProjectionMatrix(matrices.projection());
                 shaderInterface.setModelViewMatrix(matrices.modelView());
-                onRender(this, shaderInterface, commandList, renderPass, camera);
+                onRender(defaultChunkRenderer, shaderInterface, commandList, renderPass, camera);
             }
         }
         super.end(renderPass);
@@ -217,7 +217,12 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     }
 
     private GlTessellation createRegionTessellation(CommandList commandList, RenderRegion.DeviceResources resources) {
-        return commandList.createTessellation(GlPrimitiveType.TRIANGLES, new TessellationBinding[]{TessellationBinding.forVertexBuffer(resources.getVertexBuffer(), this.vertexAttributeBindings), TessellationBinding.forElementBuffer(this.sharedIndexBuffer.getBufferObject())});
+        return commandList.createTessellation(GlPrimitiveType.TRIANGLES, new TessellationBinding[]{TessellationBinding.forVertexBuffer(resources.getVertexBuffer(), defaultChunkRenderer.getAttributeBindings()), TessellationBinding.forElementBuffer(this.sharedIndexBuffer.getBufferObject())});
+    }
+
+    @Override
+    public GlVertexAttributeBinding[] getAttributeBindings() {
+        return this.defaultChunkRenderer.getAttributeBindings();
     }
 
     @Override

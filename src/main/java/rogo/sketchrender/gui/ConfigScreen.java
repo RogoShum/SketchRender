@@ -142,14 +142,6 @@ public class ConfigScreen extends Screen {
         addConfigButton(Config::shouldComputeShader, Config::setComputeShader, () -> Component.translatable(SketchRender.MOD_ID + ".compute_shader"))
                 .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.compute_shader"));
 
-        addConfigButton(Config::getSampling, (value) -> {
-            double format = Mth.floor(value * 20) * 0.05;
-            format = Double.parseDouble(String.format("%.2f", format));
-            Config.setSampling(format);
-            return format;
-        }, (value) -> String.valueOf(Mth.floor(value * 100) + "%"), () -> Component.translatable(SketchRender.MOD_ID + ".sampler"))
-                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.sampler"));
-
         addConfigButton(() -> Config.getDepthUpdateDelay() / 10d, (value) -> {
             int format = Mth.floor(value * 10);
             if (format > 0) {

@@ -437,9 +437,6 @@ public class CullingRenderEvent {
             addString(monitorTexts, cull_chunk);
 
             if (CullingStateManager.DEBUG > 1) {
-                String Sampler = Component.translatable(SketchRender.MOD_ID + ".sampler").getString() + ": " + String.valueOf((Float.parseFloat(String.format("%.0f", Config.getSampling() * 100.0D))) + "%");
-                addString(monitorTexts, Sampler);
-
                 if (Config.doEntityCulling()) {
                     String blockCullingTime = Component.translatable(SketchRender.MOD_ID + ".block_culling_time").getString() + ": " + (CullingStateManager.blockCullingTime / 1000 / CullingStateManager.fps) + " μs";
                     addString(monitorTexts, blockCullingTime);

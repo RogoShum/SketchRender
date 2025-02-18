@@ -10,7 +10,6 @@ import java.util.List;
 
 public class Config {
     public static ForgeConfigSpec CLIENT_CONFIG;
-    private static ForgeConfigSpec.DoubleValue SAMPLING;
     private static ForgeConfigSpec.BooleanValue CULL_ENTITY;
     private static ForgeConfigSpec.BooleanValue CULL_BLOCK_ENTITY;
     private static ForgeConfigSpec.BooleanValue CULL_CHUNK;
@@ -20,18 +19,6 @@ public class Config {
     private static ForgeConfigSpec.IntValue UPDATE_DELAY;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> ENTITY_SKIP;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_ENTITY_SKIP;
-
-    public static double getSampling() {
-        if (unload())
-            return 0.5;
-
-        return Math.max(SAMPLING.get(), 0.05);
-    }
-
-    public static void setSampling(double value) {
-        SAMPLING.set(Math.max(0.05, value));
-        SAMPLING.save();
-    }
 
     public static boolean doEntityCulling() {
         return getCullBlockEntity() || getCullEntity();
@@ -94,10 +81,8 @@ public class Config {
         if (unload())
             return false;
 
-        /*
-                if (!shouldCullChunk())
+        if (!shouldCullChunk())
             return false;
-         */
 
         if (CullingStateManager.needPauseRebuild())
             return false;
@@ -182,9 +167,6 @@ public class Config {
 
     static {
         ForgeConfigSpec.Builder CLIENT_BUILDER = new ForgeConfigSpec.Builder();
-        CLIENT_BUILDER.push("Sampling multiple");
-        SAMPLING = CLIENT_BUILDER.defineInRange("multiple", 0.5, 0.0, 1.0);
-        CLIENT_BUILDER.pop();
 
         CLIENT_BUILDER.push("Culling Map update delay");
         UPDATE_DELAY = CLIENT_BUILDER.defineInRange("delay frame", 1, 0, 10);

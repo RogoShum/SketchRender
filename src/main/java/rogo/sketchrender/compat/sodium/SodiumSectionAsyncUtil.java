@@ -9,14 +9,12 @@ import me.jellysquid.mods.sodium.client.render.chunk.lists.VisibleChunkCollector
 import me.jellysquid.mods.sodium.client.render.chunk.occlusion.OcclusionCuller;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
+import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.Level;
 import rogo.sketchrender.api.CollectorAccessor;
 import rogo.sketchrender.culling.CullingStateManager;
 
-import java.util.ArrayDeque;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Semaphore;
 
 public class SodiumSectionAsyncUtil {
@@ -33,6 +31,8 @@ public class SodiumSectionAsyncUtil {
     public static boolean renderingEntities;
     private static final Semaphore shouldUpdate = new Semaphore(0);
     public static boolean needSyncRebuild;
+    private static Set<Integer> visibleSections = new HashSet<>();
+    private static Set<Integer> swapVisibleSections = new HashSet<>();
 
     public static void fromSectionManager(Long2ReferenceMap<RenderSection> sections, Level world) {
         SodiumSectionAsyncUtil.occlusionCuller = new OcclusionCuller(sections, world);
@@ -54,9 +54,11 @@ public class SodiumSectionAsyncUtil {
 
         if (viewport != null) {
             frame++;
+            SodiumSectionAsyncUtil.swapVisibleSections = new HashSet<>();
             VisibleChunkCollector collector = new AsynchronousChunkCollector(frame);
             occlusionCuller.findVisible(collector, viewport, searchDistance, useOcclusionCulling, frame);
             SodiumSectionAsyncUtil.collector = collector;
+            SodiumSectionAsyncUtil.visibleSections = swapVisibleSections;
 
             MeshUniform.queueUpdateCount++;
             Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildList = SodiumSectionAsyncUtil.collector.getRebuildLists();
@@ -84,6 +86,10 @@ public class SodiumSectionAsyncUtil {
             SodiumSectionAsyncUtil.searchDistance = searchDistance;
             SodiumSectionAsyncUtil.useOcclusionCulling = useOcclusionCulling;
         }
+    }
+
+    public static boolean isSectionVisible(int x, int y, int z) {
+        return visibleSections.contains(Objects.hash(x, y, z));
     }
 
     public static VisibleChunkCollector getChunkCollector() {
@@ -135,7 +141,11 @@ public class SodiumSectionAsyncUtil {
                 } else {
                     renderList = renderListMap.get(region);
                 }
+
                 renderList.add(section);
+                SectionPos sectionPos = section.getPosition();
+                
+                swapVisibleSections.add(Objects.hash(sectionPos.getX(), sectionPos.getY(), sectionPos.getZ()));
             }
 
             ((CollectorAccessor) this).addAsyncToRebuildLists(section);

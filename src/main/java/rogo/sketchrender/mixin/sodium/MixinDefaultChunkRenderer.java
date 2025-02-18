@@ -1,5 +1,6 @@
 package rogo.sketchrender.mixin.sodium;
 
+import me.jellysquid.mods.sodium.client.gl.attribute.GlVertexAttributeBinding;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.gl.device.RenderDevice;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
@@ -9,6 +10,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.chunk.shader.ChunkShaderInterface;
 import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexType;
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import rogo.sketchrender.api.ExtraChunkRenderer;
@@ -27,11 +29,20 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
     private static void setModelMatrixUniforms(ChunkShaderInterface shader, RenderRegion region, CameraTransform camera) {
     }
 
+    @Shadow
+    @Final
+    private GlVertexAttributeBinding[] vertexAttributeBindings;
+
     public GlTessellation sodiumTessellation(CommandList commandList, RenderRegion region) {
         return prepareTessellation(commandList, region);
     }
 
     public void sodiumModelMatrixUniforms(ChunkShaderInterface shader, RenderRegion region, CameraTransform camera) {
         setModelMatrixUniforms(shader, region, camera);
+    }
+
+    @Override
+    public GlVertexAttributeBinding[] getAttributeBindings() {
+        return this.vertexAttributeBindings;
     }
 }

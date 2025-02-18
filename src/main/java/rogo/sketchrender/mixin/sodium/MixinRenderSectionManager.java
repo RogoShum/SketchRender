@@ -3,10 +3,7 @@ package rogo.sketchrender.mixin.sodium;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.gl.device.RenderDevice;
-import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
-import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderer;
-import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
-import me.jellysquid.mods.sodium.client.render.chunk.RenderSectionManager;
+import me.jellysquid.mods.sodium.client.render.chunk.*;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.SortedRenderLists;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.VisibleChunkCollector;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
@@ -24,14 +21,19 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.api.ExtraChunkRenderer;
 import rogo.sketchrender.compat.sodium.ComputeShaderChunkRenderer;
-import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.compat.sodium.MeshUniform;
+import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
+
+import java.util.ArrayDeque;
+import java.util.Map;
 
 @Mixin(RenderSectionManager.class)
 public abstract class MixinRenderSectionManager {
@@ -47,13 +49,18 @@ public abstract class MixinRenderSectionManager {
     @Final
     private ChunkVertexType vertexType;
 
+    @Shadow
+    private @NotNull Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildLists;
+    @Shadow
+    @Final
+    private ChunkRenderer chunkRenderer;
     @Unique
     private ChunkRenderer sketchlib$computeChunkRenderer;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(ClientLevel world, int renderDistance, CommandList commandList, CallbackInfo ci) {
         SodiumSectionAsyncUtil.fromSectionManager(this.sectionByPosition, world);
-        sketchlib$computeChunkRenderer = new ComputeShaderChunkRenderer(RenderDevice.INSTANCE, this.vertexType);
+        sketchlib$computeChunkRenderer = new ComputeShaderChunkRenderer(RenderDevice.INSTANCE, this.chunkRenderer.getVertexType(), (ExtraChunkRenderer) this.chunkRenderer);
     }
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false, cancellable = true)
@@ -87,12 +94,23 @@ public abstract class MixinRenderSectionManager {
         MeshUniform.currentFrame = frame;
     }
 
+    @Inject(method = "isSectionVisible", at = @At(value = "HEAD"), remap = false, cancellable = true)
+    private void onIsSectionVisible(int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
+        if (Config.getAsyncChunkRebuild()) {
+            cir.setReturnValue(SodiumSectionAsyncUtil.isSectionVisible(x, y, z));
+        }
+    }
+
     @Inject(method = "createTerrainRenderList", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onCreateTerrainRenderList(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
         if (Config.getAsyncChunkRebuild()) {
             VisibleChunkCollector collector = CullingStateManager.renderingIris() ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
-            if (collector != null)
+
+            if (collector != null) {
                 this.renderLists = collector.createRenderLists();
+                this.rebuildLists = collector.getRebuildLists();
+            }
+
             ci.cancel();
         }
     }
