@@ -137,6 +137,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         MeshUniform.cullingCounter.updateCount(0);
 
         if (!Config.getAutoDisableAsync()) {
+            //这段或将弃用
             CullingStateManager.runOnDepthFrame((depthContext) -> {
                 RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
                 RenderSystem.bindTexture(CullingStateManager.DEPTH_TEXTURE[depthContext.index()]);

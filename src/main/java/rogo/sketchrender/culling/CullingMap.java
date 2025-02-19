@@ -69,6 +69,7 @@ public abstract class CullingMap {
     abstract int configDelayCount();
 
     public int dynamicDelayCount() {
+
         if (CullingStateManager.fps > 100) {
             return CullingStateManager.fps / 100;
         }

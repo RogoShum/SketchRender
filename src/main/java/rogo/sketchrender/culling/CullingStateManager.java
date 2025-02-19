@@ -50,7 +50,6 @@ import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
-import static org.lwjgl.opengl.GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class CullingStateManager {
     public static EntityCullingMap ENTITY_CULLING_MAP = null;
@@ -516,8 +515,7 @@ public class CullingStateManager {
             shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
             shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
             shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
-            shader.getUniforms().setUniform("sketch_screen_size"
-                    , new Vector2i(screen.width, screen.height));
+            shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
 
             int tileSizeX = 16;
             int tileSizeY = 16;
