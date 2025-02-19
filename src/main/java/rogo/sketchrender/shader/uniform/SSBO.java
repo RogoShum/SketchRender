@@ -105,10 +105,10 @@ public class SSBO implements BufferObject {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    public void ensureCapacity(int requiredCount) {
+    public void ensureCapacity(int requiredCount, boolean force) {
         checkDisposed();
 
-        if (requiredCount * stride <= capacity) {
+        if (requiredCount * stride <= capacity && !force) {
             return;
         }
 
@@ -120,6 +120,10 @@ public class SSBO implements BufferObject {
         this.capacity = requiredCount * stride;
 
         resetUpload(GL15.GL_DYNAMIC_DRAW);
+    }
+
+    public void ensureCapacity(int requiredCount) {
+        ensureCapacity(requiredCount, false);
     }
 
     public void setBufferPointer(long bufferPointer) {

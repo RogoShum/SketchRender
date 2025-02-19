@@ -1,11 +1,11 @@
 #version 430
 
-layout(binding = 0) uniform writeonly image2D output_texture_0;
-layout(binding = 1) uniform writeonly image2D output_texture_1;
-layout(binding = 2) uniform writeonly image2D output_texture_2;
-layout(binding = 3) uniform writeonly image2D output_texture_3;
-layout(binding = 4) uniform writeonly image2D output_texture_4;
-layout(binding = 5) uniform writeonly image2D output_texture_5;
+layout(binding = 0, r16f) uniform writeonly image2D output_texture_0;
+layout(binding = 1, r16f) uniform writeonly image2D output_texture_1;
+layout(binding = 2, r16f) uniform writeonly image2D output_texture_2;
+layout(binding = 3, r16f) uniform writeonly image2D output_texture_3;
+layout(binding = 4, r16f) uniform writeonly image2D output_texture_4;
+layout(binding = 5, r16f) uniform writeonly image2D output_texture_5;
 
 uniform sampler2D sketch_sampler_texture_0;
 uniform sampler2D sketch_sampler_texture_1;

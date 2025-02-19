@@ -4,7 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -36,16 +36,13 @@ import rogo.sketchrender.mixin.AccessorMinecraft;
 import rogo.sketchrender.shader.ComputeShader;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.shader.ShaderModifier;
-import rogo.sketchrender.shader.uniform.HalfFloatArrayTexture;
 import rogo.sketchrender.util.DepthContext;
 import rogo.sketchrender.util.LifeTimer;
 import rogo.sketchrender.util.OcclusionCullerThread;
 import rogo.sketchrender.util.ShaderLoader;
 
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
@@ -53,6 +50,7 @@ import static org.lwjgl.opengl.GL30.*;
 
 public class CullingStateManager {
     public static EntityCullingMap ENTITY_CULLING_MAP = null;
+    public static EntityCullingSSBOMask ENTITY_CULLING_MASK = null;
     public static Matrix4f VIEW_MATRIX = new Matrix4f();
     public static Matrix4f PROJECTION_MATRIX = new Matrix4f();
 
@@ -63,7 +61,6 @@ public class CullingStateManager {
     public static final int DEPTH_SIZE = 6;
     public static int DEPTH_INDEX;
     public static int MAIN_DEPTH_TEXTURE = 0;
-    public static HalfFloatArrayTexture arrayTexture;
     public static RenderTarget[] DEPTH_BUFFER_TARGET = new RenderTarget[DEPTH_SIZE];
     public static RenderTarget CHUNK_CULLING_MAP_TARGET;
     public static RenderTarget ENTITY_CULLING_MAP_TARGET;
@@ -71,9 +68,7 @@ public class CullingStateManager {
     public static boolean updatingDepth;
     public static boolean applyFrustum;
     public static int DEBUG = 0;
-    public static int[] DEPTH_TEXTURE = new int[DEPTH_SIZE];
     public static ShaderLoader SHADER_LOADER = null;
-    public static Class<?> OptiFine = null;
 
     public static final LifeTimer<Entity> visibleEntity = new LifeTimer<>();
     public static final LifeTimer<BlockPos> visibleBlock = new LifeTimer<>();
@@ -101,7 +96,6 @@ public class CullingStateManager {
     public static boolean checkTexture = false;
     private static boolean usingShader = false;
     public static int fullChunkUpdateCooldown = 0;
-    private static String shaderName = "";
     public static int LEVEL_SECTION_RANGE;
     public static int LEVEL_POS_RANGE;
     public static int LEVEL_MIN_SECTION_ABS;
@@ -116,13 +110,13 @@ public class CullingStateManager {
             for (int i = 0; i < DEPTH_BUFFER_TARGET.length; ++i) {
                 DEPTH_BUFFER_TARGET[i] = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), true);
                 DEPTH_BUFFER_TARGET[i].setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+                DEPTH_BUFFER_TARGET[i].clear(Minecraft.ON_OSX);
             }
 
             CHUNK_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false);
             CHUNK_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
             ENTITY_CULLING_MAP_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false);
             ENTITY_CULLING_MAP_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-            arrayTexture = new HalfFloatArrayTexture(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), DEPTH_SIZE);
         });
     }
 
@@ -156,6 +150,11 @@ public class CullingStateManager {
             ENTITY_CULLING_MAP.cleanup();
             ENTITY_CULLING_MAP = null;
         }
+
+        if (ENTITY_CULLING_MASK != null) {
+            ENTITY_CULLING_MASK.cleanup();
+            ENTITY_CULLING_MASK = null;
+        }
         SHADER_DEPTH_BUFFER_ID.clear();
         SketchRender.pauseAsync();
         if (SketchRender.hasSodium()) {
@@ -172,7 +171,7 @@ public class CullingStateManager {
             return false;
         }
 
-        if (ENTITY_CULLING_MAP == null || !Config.getCullBlockEntity()) return false;
+        if (ENTITY_CULLING_MASK == null || !Config.getCullBlockEntity()) return false;
         String type = BlockEntityType.getKey(blockEntity.getType()).toString();
         if (Config.getBlockEntitiesSkip().contains(type))
             return false;
@@ -181,7 +180,7 @@ public class CullingStateManager {
         boolean actualVisible;
 
         if (DEBUG < 2) {
-            if (ENTITY_CULLING_MAP.isObjectVisible(blockEntity)) {
+            if (ENTITY_CULLING_MASK.isObjectVisible(blockEntity)) {
                 visibleBlock.updateUsageTick(pos, clientTickCount);
                 visible = true;
             } else if (visibleBlock.contains(pos)) {
@@ -192,7 +191,7 @@ public class CullingStateManager {
 
         long time = System.nanoTime();
 
-        actualVisible = ENTITY_CULLING_MAP.isObjectVisible(blockEntity);
+        actualVisible = ENTITY_CULLING_MASK.isObjectVisible(blockEntity);
 
         if (actualVisible) {
             visible = true;
@@ -220,13 +219,13 @@ public class CullingStateManager {
         if (entity.distanceToSqr(CAMERA.getPosition()) < 4) return false;
         if (Config.getEntitiesSkip().contains(entity.getType().getDescriptionId()))
             return false;
-        if (ENTITY_CULLING_MAP == null || !Config.getCullEntity()) return false;
+        if (ENTITY_CULLING_MASK == null || !Config.getCullEntity()) return false;
 
         boolean visible = false;
         boolean actualVisible;
 
         if (DEBUG < 2) {
-            if (ENTITY_CULLING_MAP.isObjectVisible(entity)) {
+            if (ENTITY_CULLING_MASK.isObjectVisible(entity)) {
                 visibleEntity.updateUsageTick(entity, clientTickCount);
                 visible = true;
             } else if (visibleEntity.contains(entity)) {
@@ -237,7 +236,7 @@ public class CullingStateManager {
 
         long time = System.nanoTime();
 
-        actualVisible = ENTITY_CULLING_MAP.isObjectVisible(entity);
+        actualVisible = ENTITY_CULLING_MASK.isObjectVisible(entity);
 
         if (actualVisible) {
             visible = true;
@@ -330,6 +329,9 @@ public class CullingStateManager {
                 if (CullingStateManager.ENTITY_CULLING_MAP != null)
                     CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().tickTemp(clientTickCount);
 
+                if (CullingStateManager.ENTITY_CULLING_MASK != null)
+                    CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().tickTemp(clientTickCount);
+
                 applyFrustumTime = preApplyFrustumTime;
                 preApplyFrustumTime = 0;
 
@@ -363,6 +365,11 @@ public class CullingStateManager {
                 if (ENTITY_CULLING_MAP != null && ENTITY_CULLING_MAP.isTransferred()) {
                     ENTITY_CULLING_MAP.readData();
                 }
+
+                if (ENTITY_CULLING_MASK != null) {
+                    ENTITY_CULLING_MASK.readData();
+                }
+
                 preEntityCullingInitTime += System.nanoTime() - time;
             }
         }
@@ -379,21 +386,6 @@ public class CullingStateManager {
             if (!SHADER_LOADER.enabledShader() && usingShader) {
                 clear = true;
                 usingShader = false;
-            }
-
-            if (SHADER_LOADER.enabledShader() && OptiFine != null) {
-                String shaderPack = "";
-                try {
-                    Field field = CullingStateManager.OptiFine.getDeclaredField("currentShaderName");
-                    field.setAccessible(true);
-                    shaderPack = (String) field.get(null);
-                } catch (NoSuchFieldException | IllegalAccessException e) {
-                    e.fillInStackTrace();
-                }
-                if (!Objects.equals(shaderName, shaderPack)) {
-                    shaderName = shaderPack;
-                    clear = true;
-                }
             }
 
             if (clear) {
@@ -418,13 +410,17 @@ public class CullingStateManager {
             int width = window.getWidth();
             int height = window.getHeight();
 
-            arrayTexture.resize(width >> 1, height >> 1, DEPTH_SIZE);
-
             runOnDepthFrame((depthContext) -> {
                 int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
                 int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
                 if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
                     depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
+                    RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
+                    GlStateManager._glBindFramebuffer(36008, target.frameBufferId);
+                    GlStateManager._glBindFramebuffer(36009, depthContext.frame().frameBufferId);
+                    GlStateManager._glBlitFrameBuffer(0, 0, target.width, target.height, 0, 0, depthContext.frame().width, depthContext.frame().height, GL_COLOR_BUFFER_BIT, 9728);
+                    GlStateManager._glBindFramebuffer(36160, 0);
+                    //depthContext.frame().clear(Minecraft.ON_OSX);
                 }
             });
 
@@ -452,33 +448,7 @@ public class CullingStateManager {
             MAIN_DEPTH_TEXTURE = depthTexture;
             //blitFrameBufferColor(SHADER_LOADER.getFrameBufferID(), DEPTH_BUFFER_TARGET[0].frameBufferId, height, width, false);
 
-            if (Config.shouldComputeShader()) {
-                computeHizTexture();
-            } else {
-                if (Config.getAutoDisableAsync()) {
-                    useShader(ShaderManager.COPY_DEPTH_SHADER);
-                    runOnDepthFrame((depthContext) -> {
-                        depthContext.frame().bindWrite(false);
-                        RenderSystem.setShaderTexture(0, depthContext.lastTexture());
-                        SketchRender.getScreenRenderer().drawWithShader(ShaderManager.COPY_DEPTH_SHADER, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
-                        DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
-                    });
-                } else {
-                    useShader(ShaderManager.COPY_DEPTH_SHADER);
-                    runOnDepthFrame((depthContext) -> {
-                        depthContext.frame().bindWrite(false);
-                        Tesselator tesselator = Tesselator.getInstance();
-                        BufferBuilder bufferbuilder = tesselator.getBuilder();
-                        bufferbuilder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
-                        bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
-                        bufferbuilder.vertex(-1.0f, -3.0f, 0.0f).endVertex();
-                        bufferbuilder.vertex(3.0f, 1.0f, 0.0f).endVertex();
-                        RenderSystem.setShaderTexture(0, depthContext.lastTexture());
-                        tesselator.end();
-                        DEPTH_TEXTURE[depthContext.index()] = depthContext.frame().getColorTextureId();
-                    });
-                }
-            }
+            computeHizTexture();
 
             bindMainFrameTarget();
 
@@ -495,54 +465,47 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = !Config.getAutoDisableAsync() ? ShaderManager.COPY_DEPTH_CS : ShaderManager.COPY_DEPTH_ARRAY_CS;
+        ComputeShader shader = ShaderManager.COPY_DEPTH_CS;
 
         shader.bind();
         shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
 
-        if (!Config.getAutoDisableAsync()) {
-            runOnDepthFrame((depthContext) -> {
-                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
-                RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
-                RenderSystem.bindTexture(depthContext.lastTexture());
-            });
-            RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+        runOnDepthFrame((depthContext) -> {
+            GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
+            RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
+            RenderSystem.bindTexture(depthContext.lastTexture());
+        });
+        RenderSystem.activeTexture(GL43.GL_TEXTURE0);
 
-            RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
-            shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
-            shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
-            shader.getUniforms().setUniform("sketch_sampler_texture_2", 2);
-            shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
-            shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
-            shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
-            shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
+        RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
+        shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
+        shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
+        shader.getUniforms().setUniform("sketch_sampler_texture_2", 2);
+        shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
+        shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
+        shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
+        shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
 
-            int tileSizeX = 16;
-            int tileSizeY = 16;
-            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
-            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
-            shader.execute(groupsX, groupsY, 1);
-            //shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-        } else {
-            GL43.glBindImageTexture(0, arrayTexture.getTextureId(), 0, false, 0, GL_WRITE_ONLY, GL_R16F);
-
-            RenderSystem.activeTexture(GL43.GL_TEXTURE1);
-            arrayTexture.bindArrayTexture();
-            RenderSystem.activeTexture(GL43.GL_TEXTURE0);
-            RenderSystem.bindTexture(MAIN_DEPTH_TEXTURE);
-
-            RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
-            shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
-            shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
-            int tileSizeX = 16;
-            int tileSizeY = 16;
-            int groupsX = ((screen.width >> 1) + tileSizeX - 1) / tileSizeX;
-            int groupsY = ((screen.height >> 1) + tileSizeY - 1) / tileSizeY;
-            shader.execute(groupsX, groupsY, 1);
-            //shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-        }
+        int tileSizeX = 16;
+        int tileSizeY = 16;
+        int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
+        int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+        shader.execute(groupsX, groupsY, 1);
+        //shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
+    }
+
+    public static void computeEntityCulling() {
+        ComputeShader shader = ShaderManager.CULL_ENTITY_BATCH_CS;
+        shader.bindUniforms();
+        CullingStateManager.runOnDepthFrame((depthContext) -> {
+            RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
+            RenderSystem.bindTexture(depthContext.frame().getColorTextureId());
+        });
+        RenderSystem.activeTexture(GL_TEXTURE0);
+        CullingStateManager.ENTITY_CULLING_MASK.bindSSBO();
+        shader.execute((CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().size() / 64 + 1), 1, 1);
     }
 
     public static void updateMapData() {
@@ -569,6 +532,10 @@ public class CullingStateManager {
                     ENTITY_CULLING_MAP = new EntityCullingMap(ENTITY_CULLING_MAP_TARGET.width, ENTITY_CULLING_MAP_TARGET.height);
                 }
 
+                if (ENTITY_CULLING_MASK == null) {
+                    ENTITY_CULLING_MASK = new EntityCullingSSBOMask(64);
+                }
+
                 int cullingSize = (CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().size() / 64 * 64 + 64) / 8 + 1;
                 if (CullingStateManager.ENTITY_CULLING_MAP_TARGET.width != 8 || CullingStateManager.ENTITY_CULLING_MAP_TARGET.height != cullingSize) {
                     CullingStateManager.ENTITY_CULLING_MAP_TARGET.resize(8, cullingSize, Minecraft.ON_OSX);
@@ -585,21 +552,32 @@ public class CullingStateManager {
                 preEntityCullingInitTime += System.nanoTime() - time;
 
                 if (Minecraft.getInstance().level != null) {
-                    CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().clearIndexMap();
+                    //CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().clearIndexMap();
+                    CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().clearIndexMap();
                     Iterable<Entity> entities = Minecraft.getInstance().level.entitiesForRendering();
-                    entities.forEach(entity -> CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addObject(entity));
+                    entities.forEach(entity -> {
+                        //CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addObject(entity);
+                        CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().addObject(entity);
+                    });
                     for (Object levelrenderer$renderchunkinfo : ((EntitiesForRender) Minecraft.getInstance().levelRenderer).renderChunksInFrustum()) {
                         List<BlockEntity> list = ((RenderChunkInfo) levelrenderer$renderchunkinfo).getRenderChunk().getCompiledChunk().getRenderableBlockEntities();
-                        list.forEach(entity -> CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addObject(entity));
+                        //list.forEach(entity -> CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addObject(entity));
+                        list.forEach(entity -> CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().addObject(entity));
                     }
 
-                    CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addAllTemp();
+                    //CullingStateManager.ENTITY_CULLING_MAP.getEntityTable().addAllTemp();
+                    CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().addAllTemp();
                 }
             }
         } else {
             if (ENTITY_CULLING_MAP != null) {
                 ENTITY_CULLING_MAP.cleanup();
                 ENTITY_CULLING_MAP = null;
+            }
+
+            if (ENTITY_CULLING_MASK != null) {
+                ENTITY_CULLING_MASK.cleanup();
+                ENTITY_CULLING_MASK = null;
             }
         }
     }
@@ -629,12 +607,12 @@ public class CullingStateManager {
 
     public static void callDepthTexture() {
         CullingStateManager.runOnDepthFrame((depthContext) -> {
-            RenderSystem.setShaderTexture(depthContext.index(), CullingStateManager.DEPTH_TEXTURE[depthContext.index()]);
+            RenderSystem.setShaderTexture(depthContext.index(), depthContext.frame().getColorTextureId());
         });
     }
 
     public static boolean renderingIris() {
-        return renderingShader() && OptiFine == null;
+        return renderingShader();
     }
 
     public static boolean renderingShader() {

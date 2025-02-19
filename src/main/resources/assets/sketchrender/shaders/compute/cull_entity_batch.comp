@@ -1,6 +1,6 @@
 #version 430
 
-layout(local_size_x = 512) in;
+layout(local_size_x = 64) in;
 
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
@@ -9,7 +9,6 @@ uniform sampler2D Sampler3;
 uniform sampler2D Sampler4;
 uniform sampler2D Sampler5;
 
-uniform int sketch_culling_size;
 uniform mat4 sketch_culling_view_mat;
 uniform mat4 sketch_culling_proj_mat;
 uniform vec3 sketch_culling_camera_pos;
@@ -17,35 +16,27 @@ uniform vec3 sketch_culling_camera_dir;
 uniform vec3 sketch_frustum_pos;
 uniform int sketch_render_distance;
 uniform int sketch_level_section_range;
-uniform int sketch_level_min_pos;
-uniform int sketch_space_partition_size;
+uniform int sketch_entity_count;
 uniform float[24] sketch_culling_frustum;
 uniform float[12] sketch_depth_size;
 
-struct SectionMesh {
-    int vertex_offset;
-    int element_count;
+layout(std430, binding = 0) readonly buffer EntityDataBuffer {
+    float entityData[]; // float x 8: center.x, center.y, center.z, size.x, size.y, size.z, index
 };
 
-struct SectionData {
-    int mask;
-    int visibility;
-    SectionMesh[7] mesh;
+layout(std430, binding = 1) writeonly buffer CullingResultBuffer {
+    int cullingResult[];
 };
+
+
+const float near = 0.05;
+float far = 16.0;
 
 struct ClipResult {
     float minDepth;
     vec2 screenMin;
     vec2 screenMax;
 };
-
-layout(r8, binding = 0) uniform image2D outputVisibility;
-layout(std430, binding = 1) readonly buffer SectionMeshBuffer {
-    SectionData section_data[];
-};
-
-const float near = 0.05;
-float far = 16.0;
 
 vec4[6] getFrustumData() {
     return vec4[](
@@ -150,37 +141,7 @@ vec3 blockToChunk(vec3 blockPos) {
     return chunkPos;
 }
 
-bool cubeInFrustum(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-    vec4[6] frustum = getFrustumData();
-    for (int i = 0; i < 6; ++i) {
-        vec4 plane = frustum[i];
-        if (!(dot(plane, vec4(minX, minY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, minY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, maxY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, maxY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, minY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, minY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, maxY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, maxY, maxZ, 1.0)) > 0.0)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool calculateCube(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-    float f = minX - sketch_frustum_pos.x;
-    float f1 = minY - sketch_frustum_pos.y;
-    float f2 = minZ - sketch_frustum_pos.z;
-    float f3 = maxX - sketch_frustum_pos.x;
-    float f4 = maxY - sketch_frustum_pos.y;
-    float f5 = maxZ - sketch_frustum_pos.z;
-    return cubeInFrustum(f, f1, f2, f3, f4, f5);
-}
-
-bool isVisible(vec3 center) {
-    vec3 min = center - vec3(8.0);
-    vec3 max = center + vec3(8.0);
+bool isVisible(vec3 center, vec3 min, vec3 max) {
     vec3 corners[8] = vec3[](
     vec3(min.x, min.y, min.z),
     vec3(max.x, min.y, min.z),
@@ -205,45 +166,45 @@ bool isVisible(vec3 center) {
 
 float getUVDepth(int idx, ivec2 uv) {
     if (idx == 0)
-        return texelFetch(Sampler0, uv, 0).r;
+    return texelFetch(Sampler0, uv, 0).r;
     else if (idx == 1)
-        return texelFetch(Sampler1, uv, 0).r;
+    return texelFetch(Sampler1, uv, 0).r;
     else if (idx == 2)
-        return texelFetch(Sampler2, uv, 0).r;
+    return texelFetch(Sampler2, uv, 0).r;
     else if (idx == 3)
-        return texelFetch(Sampler3, uv, 0).r;
+    return texelFetch(Sampler3, uv, 0).r;
     else if (idx == 4)
-        return texelFetch(Sampler4, uv, 0).r;
+    return texelFetch(Sampler4, uv, 0).r;
 
     return texelFetch(Sampler5, uv, 0).r;
 }
 
 void main() {
-    int globalIndex = int(gl_GlobalInvocationID.y * gl_NumWorkGroups.x * gl_WorkGroupSize.x
-    + gl_GlobalInvocationID.x);
+    int globalIndex = int(gl_GlobalInvocationID.x);
 
-    if(globalIndex >= sketch_space_partition_size * sketch_space_partition_size * sketch_level_section_range) {
+    if(globalIndex >= sketch_entity_count) {
         return;
     }
 
-    ivec2 outputPos = ivec2(globalIndex % sketch_culling_size, globalIndex / sketch_culling_size);
+    int dataOffset = globalIndex * 8;
 
-    int chunkX = int(globalIndex) / (sketch_space_partition_size * sketch_level_section_range) - sketch_render_distance;
-    int chunkZ = (int(globalIndex) / sketch_level_section_range) % sketch_space_partition_size - sketch_render_distance;
-    int chunkY = int(globalIndex) % sketch_level_section_range + (sketch_level_min_pos / 16);
-    vec3 chunkBasePos = vec3(chunkX, chunkY, chunkZ);
+    vec3 center = vec3(entityData[dataOffset], entityData[dataOffset + 1], entityData[dataOffset + 2]);
+    float sizeX = entityData[dataOffset + 3];
+    float sizeY = entityData[dataOffset + 4];
+    float sizeZ = entityData[dataOffset + 5];
+    float halfWidth = sizeX * 0.5;
+    float halfHeight = sizeY * 0.5;
 
-    vec3 chunkPos = vec3(chunkBasePos+blockToChunk(sketch_culling_camera_pos))*16;
-    chunkPos = vec3(chunkPos.x + 8.0, chunkY*16 + 8.0, chunkPos.z + 8.0);
+    bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
 
-    if (!isVisible(chunkPos)) {
-        imageStore(outputVisibility, outputPos, vec4(0.0, 0.0, 1.0, 1.0));
+    if (!visible) {
+        cullingResult[globalIndex] = visible ? 1 : 0;
         return;
     }
 
     far = sketch_render_distance * 64.0;
 
-    ClipResult clip = getClippedMinDepth(chunkPos + (sketch_culling_camera_dir * -2), 9.0);
+    ClipResult clip = getClippedMinDepth(center + sketch_culling_camera_dir, max(halfWidth, halfHeight) + 1.0);
 
     float sectionDepth = (clip.minDepth + 1.0) * 0.5;
     sectionDepth = LinearizeDepth(sectionDepth);
@@ -265,11 +226,11 @@ void main() {
         for (int y = coordMinY; y <= coordMaxY; y++) {
             float pixelDepth = getUVDepth(idx, ivec2(x, y));
             if (sectionDepth < pixelDepth) {
-                imageStore(outputVisibility, outputPos, vec4(1.0, 0.0, 0.0, 1.0));
+                cullingResult[globalIndex] = 1;
                 return;
             }
         }
     }
 
-    imageStore(outputVisibility, outputPos, vec4(0.0, 0.0, 0.0, 1.0));
+    cullingResult[globalIndex] = 0;
 }

@@ -136,21 +136,15 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         MeshUniform.batchRegionIndex.bindShaderSlot(3);
         MeshUniform.cullingCounter.updateCount(0);
 
-        if (!Config.getAutoDisableAsync()) {
-            //这段或将弃用
-            CullingStateManager.runOnDepthFrame((depthContext) -> {
-                RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
-                RenderSystem.bindTexture(CullingStateManager.DEPTH_TEXTURE[depthContext.index()]);
-            });
-            RenderSystem.activeTexture(GL_TEXTURE0);
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, cachedRegions.size(), 1);
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-        } else {
-            ShaderManager.COLLECT_CHUNK_BATCH_CS.bindUniforms();
-            ShaderManager.COLLECT_CHUNK_BATCH_CS.execute(12, cachedRegions.size(), 1);
-            ShaderManager.COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-        }
+        CullingStateManager.runOnDepthFrame((depthContext) -> {
+            RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
+            RenderSystem.bindTexture(depthContext.frame().getColorTextureId());
+        });
+
+        RenderSystem.activeTexture(GL_TEXTURE0);
+        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
+        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, cachedRegions.size(), 1);
+        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
