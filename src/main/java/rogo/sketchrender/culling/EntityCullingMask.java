@@ -4,8 +4,12 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.lwjgl.opengl.GL43;
+import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
+import rogo.sketchrender.shader.uniform.SSBO;
 import rogo.sketchrender.util.IndexedSet;
 import rogo.sketchrender.util.LifeTimer;
 
@@ -16,26 +20,33 @@ import java.util.function.Consumer;
 
 import static net.minecraftforge.common.extensions.IForgeBlockEntity.INFINITE_EXTENT_AABB;
 
-public class EntityCullingMap extends CullingMap {
+public class EntityCullingMask {
     private final EntityMap entityMap = new EntityMap();
 
-    public EntityCullingMap(int width, int height) {
-        super(width, height);
+    private SSBO entityDataSSBO;
+    private PersistentReadSSBO cullingResultSSBO;
+
+    public EntityCullingMask(int initialCapacity) {
+        int adjustedCapacity = Math.max(64, ((initialCapacity / 64) + 1) * 64);
+        initializeSSBOs(adjustedCapacity);
     }
 
-    @Override
+    private void initializeSSBOs(int initialCapacity) {
+        entityDataSSBO = new SSBO(initialCapacity, 8 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
+        cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Integer.BYTES);
+    }
+
+    public void bindSSBO() {
+        entityDataSSBO.bindShaderSlot(0);
+        cullingResultSSBO.bindShaderSlot(1);
+    }
+
     protected boolean shouldUpdate() {
         return true;
     }
 
-    @Override
     int configDelayCount() {
         return Config.getDepthUpdateDelay();
-    }
-
-    @Override
-    int bindFrameBufferId() {
-        return CullingStateManager.ENTITY_CULLING_MAP_TARGET.frameBufferId;
     }
 
     public boolean isObjectVisible(Object o) {
@@ -50,28 +61,79 @@ public class EntityCullingMap extends CullingMap {
         if (getEntityTable().tempObjectTimer.contains(o))
             getEntityTable().addTemp(o, CullingStateManager.clientTickCount);
 
-        if (idx > -1 && idx < cullingBuffer.limit()) {
-            return (cullingBuffer.get(idx) & 0xFF) > 0;
+        if (idx > -1 && idx < cullingResultSSBO.getDataNum() / Integer.BYTES) {
+            return cullingResultSSBO.getInt(idx) > 0;
         } else {
             getEntityTable().addTemp(o, CullingStateManager.clientTickCount);
         }
+
         return true;
     }
 
-    @Override
+
     public void readData() {
-        super.readData();
         getEntityTable().readUpload();
+    }
+
+    public void cleanup() {
+        if (entityDataSSBO != null) {
+            entityDataSSBO.discard();
+        }
+        if (cullingResultSSBO != null) {
+            cullingResultSSBO.discard();
+        }
+    }
+
+    private void checkAndAdjustCapacity() {
+        int currentEntityCount = getEntityTable().size();
+        int currentCapacity = (int) entityDataSSBO.getDataNum();
+
+        if (currentEntityCount > currentCapacity * 0.75) {
+            int newCapacity = calculateNewCapacity(currentEntityCount);
+            entityDataSSBO.ensureCapacity(newCapacity);
+            cullingResultSSBO.ensureCapacity(newCapacity);
+        } else if (currentEntityCount < currentCapacity * 0.25 && currentCapacity > 64) {
+            int newCapacity = Math.max(64, currentEntityCount);
+            entityDataSSBO.ensureCapacity(newCapacity, true);
+            cullingResultSSBO.ensureCapacity(newCapacity, true);
+        }
+    }
+
+    private int calculateNewCapacity(int requiredCapacity) {
+        return ((requiredCapacity / 64) + 1) * 64;
+    }
+
+    public void updateEntityData() {
+        checkAndAdjustCapacity();
+
+        long bufferPointer = entityDataSSBO.getMemoryAddress();
+        getEntityTable().clearUpload();
+        getEntityTable().indexMap.forEach((obj, index) -> {
+            AABB aabb = SketchRender.getObjectAABB(obj);
+            Vec3 center = aabb.getCenter();
+
+            int offset = index * 8 * Float.BYTES;
+            MemoryUtil.memPutFloat(bufferPointer + offset, (float) center.x);
+            MemoryUtil.memPutFloat(bufferPointer + offset + 4, (float) center.y);
+            MemoryUtil.memPutFloat(bufferPointer + offset + 8, (float) center.z);
+            MemoryUtil.memPutFloat(bufferPointer + offset + 12, (float) aabb.getXsize());
+            MemoryUtil.memPutFloat(bufferPointer + offset + 16, (float) aabb.getYsize());
+            MemoryUtil.memPutFloat(bufferPointer + offset + 20, (float) aabb.getZsize());
+            MemoryUtil.memPutFloat(bufferPointer + offset + 24, index);
+            MemoryUtil.memPutFloat(bufferPointer + offset + 28, 0);
+            entityDataSSBO.position = offset + 32;
+
+            getEntityTable().uploadTemp.add(obj);
+            getEntityTable().uploadEntity.put(obj, index);
+        });
+
+
+        entityDataSSBO.upload();
+        entityDataSSBO.position = 0;
     }
 
     public EntityMap getEntityTable() {
         return entityMap;
-    }
-
-    @Override
-    public void cleanup() {
-        super.cleanup();
-        getEntityTable().clear();
     }
 
     public static class EntityMap {
@@ -169,5 +231,4 @@ public class EntityCullingMap extends CullingMap {
             return indexMap.size();
         }
     }
-
 }
