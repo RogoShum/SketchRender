@@ -179,14 +179,13 @@ public class CullingStateManager {
         boolean visible = false;
         boolean actualVisible;
 
-        if (DEBUG < 2) {
-            if (ENTITY_CULLING_MASK.isObjectVisible(blockEntity)) {
-                visibleBlock.updateUsageTick(pos, clientTickCount);
-                visible = true;
-            } else if (visibleBlock.contains(pos)) {
-                visible = true;
+        if (true) {
+            if (!ENTITY_CULLING_MASK.isObjectVisible(blockEntity)) {
+                blockCulling++;
+                return true;
             }
-            return !visible;
+
+            return false;
         }
 
         long time = System.nanoTime();
@@ -224,14 +223,13 @@ public class CullingStateManager {
         boolean visible = false;
         boolean actualVisible;
 
-        if (DEBUG < 2) {
-            if (ENTITY_CULLING_MASK.isObjectVisible(entity)) {
-                visibleEntity.updateUsageTick(entity, clientTickCount);
-                visible = true;
-            } else if (visibleEntity.contains(entity)) {
-                visible = true;
+        if (true) {
+            if (!ENTITY_CULLING_MASK.isObjectVisible(entity)) {
+                entityCulling++;
+                return true;
             }
-            return !visible;
+
+            return false;
         }
 
         long time = System.nanoTime();
@@ -363,7 +361,7 @@ public class CullingStateManager {
             if (Config.doEntityCulling()) {
                 long time = System.nanoTime();
                 if (ENTITY_CULLING_MAP != null && ENTITY_CULLING_MAP.isTransferred()) {
-                    ENTITY_CULLING_MAP.readData();
+                    //ENTITY_CULLING_MAP.readData();
                 }
 
                 if (ENTITY_CULLING_MASK != null) {
@@ -523,9 +521,9 @@ public class CullingStateManager {
                 if (CHUNK_CULLING_MAP_TARGET.width != cullingSize || CHUNK_CULLING_MAP_TARGET.height != cullingSize) {
                     CHUNK_CULLING_MAP_TARGET.resize(cullingSize, cullingSize, Minecraft.ON_OSX);
                 }
-
-                MeshUniform.updateDistance(Minecraft.getInstance().options.getEffectiveRenderDistance());
             }
+
+            MeshUniform.updateDistance(Minecraft.getInstance().options.getEffectiveRenderDistance());
 
             if (Config.doEntityCulling()) {
                 if (ENTITY_CULLING_MAP == null) {

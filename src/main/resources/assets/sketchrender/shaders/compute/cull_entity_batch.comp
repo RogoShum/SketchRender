@@ -198,13 +198,13 @@ void main() {
     bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
 
     if (!visible) {
-        cullingResult[globalIndex] = visible ? 1 : 0;
+        cullingResult[globalIndex] = 0;
         return;
     }
 
     far = sketch_render_distance * 64.0;
 
-    ClipResult clip = getClippedMinDepth(center + sketch_culling_camera_dir, max(halfWidth, halfHeight) + 1.0);
+    ClipResult clip = getClippedMinDepth(center + sketch_culling_camera_dir, max(halfWidth, halfHeight));
 
     float sectionDepth = (clip.minDepth + 1.0) * 0.5;
     sectionDepth = LinearizeDepth(sectionDepth);
