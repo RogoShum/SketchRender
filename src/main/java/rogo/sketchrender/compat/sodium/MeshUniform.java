@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import org.lwjgl.opengl.GL15;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
+import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 public class MeshUniform {

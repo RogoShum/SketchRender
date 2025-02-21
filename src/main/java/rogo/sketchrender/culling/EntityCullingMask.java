@@ -41,18 +41,12 @@ public class EntityCullingMask {
         cullingResultSSBO.bindShaderSlot(1);
     }
 
-    protected boolean shouldUpdate() {
-        return true;
-    }
-
-    int configDelayCount() {
-        return Config.getDepthUpdateDelay();
-    }
-
     public boolean isObjectVisible(Object o) {
+        SketchRender.COMMAND_TIMER.start("isObjectVisible");
         AABB aabb = SketchRender.getObjectAABB(o);
 
         if (aabb == INFINITE_EXTENT_AABB) {
+            SketchRender.COMMAND_TIMER.end("isObjectVisible");
             return true;
         }
 
@@ -61,12 +55,14 @@ public class EntityCullingMask {
         if (getEntityTable().tempObjectTimer.contains(o))
             getEntityTable().addTemp(o, CullingStateManager.clientTickCount);
 
-        if (idx > -1 && idx < cullingResultSSBO.getDataNum() / Integer.BYTES) {
+        if (idx > -1 && idx < cullingResultSSBO.getDataNum()) {
+            SketchRender.COMMAND_TIMER.end("isObjectVisible");
             return cullingResultSSBO.getInt(idx) > 0;
         } else {
             getEntityTable().addTemp(o, CullingStateManager.clientTickCount);
         }
 
+        SketchRender.COMMAND_TIMER.end("isObjectVisible");
         return true;
     }
 

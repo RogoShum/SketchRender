@@ -20,12 +20,10 @@ public class MixinMinecraft {
     @Inject(method = "runTick", at = @At(value = "HEAD"))
     public void beforeRunTick(boolean p_91384_, CallbackInfo ci) {
         CullingStateManager.onProfilerPopPush("beforeRunTick");
-        SketchRender.COMMAND_TIMER.end("postRunTick");
     }
 
     @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/Window;updateDisplay()V"))
     public void timerUpdateDisplay(boolean p_91384_, CallbackInfo ci) {
-        SketchRender.COMMAND_TIMER.start("postRunTick");
     }
 
     @Inject(method = "setLevel", at = @At(value = "HEAD"))

@@ -21,7 +21,6 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector2i;
 import org.lwjgl.opengl.GL;
-import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.Checks;
 import rogo.sketchrender.SketchRender;
@@ -151,7 +150,7 @@ public class CullingStateManager {
 
     public static boolean shouldSkipBlockEntity(BlockEntity blockEntity, AABB aabb, BlockPos pos) {
         blockCount++;
-
+        long time = System.nanoTime();
         //for valkyrien skies
         if (CAMERA.getPosition().distanceToSqr(pos.getX(), pos.getY(), pos.getZ()) >
                 Minecraft.getInstance().options.getEffectiveRenderDistance() * 16 * Minecraft.getInstance().options.getEffectiveRenderDistance() * 16 * 2) {
@@ -166,7 +165,7 @@ public class CullingStateManager {
         boolean visible = false;
         boolean actualVisible;
 
-        if (true) {
+        if (DEBUG < 2) {
             if (!ENTITY_CULLING_MASK.isObjectVisible(blockEntity)) {
                 blockCulling++;
                 return true;
@@ -175,7 +174,7 @@ public class CullingStateManager {
             return false;
         }
 
-        long time = System.nanoTime();
+
 
         actualVisible = ENTITY_CULLING_MASK.isObjectVisible(blockEntity);
 
@@ -201,6 +200,7 @@ public class CullingStateManager {
 
     public static boolean shouldSkipEntity(Entity entity) {
         entityCount++;
+        long time = System.nanoTime();
         if (entity instanceof Player || entity.isCurrentlyGlowing()) return false;
         if (entity.distanceToSqr(CAMERA.getPosition()) < 4) return false;
         if (Config.getEntitiesSkip().contains(entity.getType().getDescriptionId()))
@@ -210,7 +210,7 @@ public class CullingStateManager {
         boolean visible = false;
         boolean actualVisible;
 
-        if (true) {
+        if (DEBUG < 2) {
             if (!ENTITY_CULLING_MASK.isObjectVisible(entity)) {
                 entityCulling++;
                 return true;
@@ -218,8 +218,6 @@ public class CullingStateManager {
 
             return false;
         }
-
-        long time = System.nanoTime();
 
         actualVisible = ENTITY_CULLING_MASK.isObjectVisible(entity);
 
@@ -375,15 +373,6 @@ public class CullingStateManager {
         }
     }
 
-    public static void blitFrameBufferColor(int srcID, int dstID, int height, int width, boolean bindMainFrame) {
-        GlStateManager._glBindFramebuffer(GL_READ_FRAMEBUFFER, srcID);
-        GlStateManager._glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dstID);
-        GL30.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        if (bindMainFrame) {
-            SHADER_LOADER.bindDefaultFrameBuffer();
-        }
-    }
-
     public static void updateDepthMap() {
         CullingStateManager.PROJECTION_MATRIX = new Matrix4f(RenderSystem.getProjectionMatrix());
         if (anyCulling() && !checkCulling && continueUpdateDepth()) {
@@ -396,12 +385,6 @@ public class CullingStateManager {
                 int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
                 if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
                     depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
-                    RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
-                    GlStateManager._glBindFramebuffer(36008, target.frameBufferId);
-                    GlStateManager._glBindFramebuffer(36009, depthContext.frame().frameBufferId);
-                    GlStateManager._glBlitFrameBuffer(0, 0, target.width, target.height, 0, 0, depthContext.frame().width, depthContext.frame().height, GL_COLOR_BUFFER_BIT, 9728);
-                    GlStateManager._glBindFramebuffer(36160, 0);
-                    //depthContext.frame().clear(Minecraft.ON_OSX);
                 }
             });
 
@@ -427,7 +410,6 @@ public class CullingStateManager {
             }
 
             MAIN_DEPTH_TEXTURE = depthTexture;
-            //blitFrameBufferColor(SHADER_LOADER.getFrameBufferID(), DEPTH_BUFFER_TARGET[0].frameBufferId, height, width, false);
 
             computeHizTexture();
 
@@ -582,14 +564,14 @@ public class CullingStateManager {
         return Config.getCullChunk() || Config.doEntityCulling();
     }
 
-    private static int gl33 = -1;
+    private static int gl44 = -1;
 
-    public static boolean gl33() {
+    public static boolean gl44() {
         if (RenderSystem.isOnRenderThread()) {
-            if (gl33 < 0)
-                gl33 = (GL.getCapabilities().OpenGL33 || Checks.checkFunctions(GL.getCapabilities().glVertexAttribDivisor)) ? 1 : 0;
+            if (gl44 < 0)
+                gl44 = (GL.getCapabilities().OpenGL44 || Checks.checkFunctions(GL.getCapabilities().glBufferStorage)) ? 1 : 0;
         }
-        return gl33 == 1;
+        return gl44 == 1;
     }
 
     public static boolean needPauseRebuild() {

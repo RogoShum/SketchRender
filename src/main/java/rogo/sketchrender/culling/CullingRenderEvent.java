@@ -62,7 +62,7 @@ public class CullingRenderEvent {
 
         CullingStateManager.callDepthTexture();
 
-        if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MASK != null && CullingStateManager.ENTITY_CULLING_MASK.shouldUpdate()) {
+        if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MASK != null) {
             CullingStateManager.ENTITY_CULLING_MASK.updateEntityData();
             CullingStateManager.computeEntityCulling();
         }

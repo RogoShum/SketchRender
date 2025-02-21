@@ -172,7 +172,7 @@ public class ConfigScreen extends Screen {
                 .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.cull_chunk"));
         addConfigButton(Config::getCullBlockEntity, Config::setCullBlockEntity, () -> Component.translatable(SketchRender.MOD_ID + ".cull_block_entity"))
                 .setDetailMessage(() -> {
-                    if (CullingStateManager.gl33()) {
+                    if (CullingStateManager.gl44()) {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.cull_block_entity");
                     } else {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.gl33");
@@ -180,7 +180,7 @@ public class ConfigScreen extends Screen {
                 });
         addConfigButton(Config::getCullEntity, Config::setCullEntity, () -> Component.translatable(SketchRender.MOD_ID + ".cull_entity"))
                 .setDetailMessage(() -> {
-                    if (CullingStateManager.gl33()) {
+                    if (CullingStateManager.gl44()) {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.cull_entity");
                     } else {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.gl33");

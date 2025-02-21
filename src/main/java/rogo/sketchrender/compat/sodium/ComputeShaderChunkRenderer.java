@@ -102,11 +102,11 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         }
 
         if (shaderInterface != null) {
-            if (maxElementCount < MeshUniform.sectionMaxElement[0]) {
-                sharedIndexBuffer.ensureCapacity(commandList, MeshUniform.sectionMaxElement[0]);
-                maxElementCount = MeshUniform.sectionMaxElement[0];
+            int maxElement = MeshUniform.sectionMaxElement[0];
+            if (maxElementCount < maxElement) {
+                sharedIndexBuffer.ensureCapacity(commandList, maxElement);
+                maxElementCount = maxElement;
             }
-
 
             if (cachedRegions != null) {
                 shaderInterface.setProjectionMatrix(matrices.projection());
@@ -197,7 +197,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 drawCommandList.close();
             }
         }
-        //ChunkRenderMixinHook.asyncReadInt(ChunkCullingUniform.batchElement.getId(), 0, ChunkCullingUniform.sectionMaxElement);
     }
 
     private GlVertexAttributeBinding[] getBindingsForType() {

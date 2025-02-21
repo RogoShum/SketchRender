@@ -25,7 +25,7 @@ public class Config {
     }
 
     public static boolean getCullEntity() {
-        if (unload() || !CullingStateManager.gl33())
+        if (unload() || !CullingStateManager.gl44())
             return false;
         return CULL_ENTITY.get();
     }
@@ -36,7 +36,7 @@ public class Config {
     }
 
     public static boolean getCullBlockEntity() {
-        if (unload() || !CullingStateManager.gl33())
+        if (unload() || !CullingStateManager.gl44())
             return false;
         return CULL_BLOCK_ENTITY.get();
     }
