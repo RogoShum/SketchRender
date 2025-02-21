@@ -14,6 +14,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Vector3f;
@@ -313,6 +314,29 @@ public class CullingRenderEvent {
             uniformMap.setUniform("Sampler3", 3);
             uniformMap.setUniform("Sampler4", 4);
             uniformMap.setUniform("Sampler5", 5);
+        }
+    }
+
+    @SubscribeEvent
+    public void onLevelStage(RenderLevelStageEvent event) {
+        SketchRender.COMMAND_TIMER.end("after_sky");
+        SketchRender.COMMAND_TIMER.end("after_entities");
+        SketchRender.COMMAND_TIMER.end("after_block_entities");
+
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_SKY) {
+            SketchRender.COMMAND_TIMER.start("after_sky");
+        }
+
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
+            SketchRender.COMMAND_TIMER.start("after_entities");
+        }
+
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES) {
+            SketchRender.COMMAND_TIMER.start("after_block_entities");
+        }
+
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+
         }
     }
 

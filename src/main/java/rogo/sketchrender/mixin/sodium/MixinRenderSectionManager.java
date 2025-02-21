@@ -73,7 +73,7 @@ public abstract class MixinRenderSectionManager {
             commandList.flush();
             ci.cancel();
             SketchRender.COMMAND_TIMER.end("renderLayer");
-            SketchRender.RENDER_TIMER.end("renderLayer_R");
+            //SketchRender.RENDER_TIMER.end("renderLayer_R");
         }
     }
 
@@ -81,7 +81,7 @@ public abstract class MixinRenderSectionManager {
     private void onRenderEnd(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
         IndirectCommandBuffer.INSTANCE.unBind();
         SketchRender.COMMAND_TIMER.end("renderLayer");
-        SketchRender.RENDER_TIMER.end("renderLayer_R");
+        //SketchRender.RENDER_TIMER.end("renderLayer_R");
     }
 
     @ModifyArg(method = "destroy", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/ChunkRenderer;delete(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;)V"), remap = false)

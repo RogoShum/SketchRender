@@ -179,6 +179,10 @@ dependencies {
 
     compileOnly fg.deobf("maven.modrinth:embeddium:0.3.12+mc1.20.1")
     implementation fg.deobf("maven.modrinth:embeddium:0.3.12+mc1.20.1")
+
+    //spark
+    compileOnly fg.deobf("maven.modrinth:l6YH9Als:4FXHDE9F")
+    implementation fg.deobf("maven.modrinth:l6YH9Als:4FXHDE9F")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

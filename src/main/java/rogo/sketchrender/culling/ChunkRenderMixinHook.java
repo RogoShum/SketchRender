@@ -40,7 +40,7 @@ public class ChunkRenderMixinHook {
 
     public static void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
         SketchRender.COMMAND_TIMER.start("renderLayer");
-        SketchRender.RENDER_TIMER.start("renderLayer_R");
+        //SketchRender.RENDER_TIMER.start("renderLayer_R");
     }
 
     public static void asyncReadInt(int ssboId, int offset, int[] outputBuffer) {
