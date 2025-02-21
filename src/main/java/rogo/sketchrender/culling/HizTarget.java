@@ -9,7 +9,7 @@ import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL30;
 
 public class HizTarget extends RenderTarget {
-    private boolean storeDepth;
+    private final boolean storeDepth;
     public HizTarget(int width, int height, boolean storeDepth) {
         super(false);
         this.storeDepth = storeDepth;

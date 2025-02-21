@@ -7,16 +7,13 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.SketchRender;
-import rogo.sketchrender.api.Config;
 import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
 import rogo.sketchrender.util.IndexedSet;
 import rogo.sketchrender.util.LifeTimer;
 
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.function.Consumer;
 
 import static net.minecraftforge.common.extensions.IForgeBlockEntity.INFINITE_EXTENT_AABB;
 
@@ -197,30 +194,6 @@ public class EntityCullingMask {
         public void clear() {
             indexMap.clear();
             tempObjectTimer.clear();
-        }
-
-        private void addAttribute(Consumer<Consumer<ByteBuffer>> consumer, AABB aabb, int index) {
-            consumer.accept(buffer -> {
-                buffer.putFloat(index);
-
-                float size = (float) Math.max(aabb.getXsize(), aabb.getZsize());
-                buffer.putFloat(size + 0.5F);
-                buffer.putFloat((float) aabb.getYsize() + 0.5F);
-
-                Vec3 pos = aabb.getCenter();
-                buffer.putFloat((float) pos.x);
-                buffer.putFloat((float) pos.y);
-                buffer.putFloat((float) pos.z);
-            });
-        }
-
-        public void addEntityAttribute(Consumer<Consumer<ByteBuffer>> consumer) {
-            clearUpload();
-            indexMap.forEach((o, index) -> {
-                addAttribute(consumer, SketchRender.getObjectAABB(o), index);
-                uploadTemp.add(o);
-                uploadEntity.put(o, index);
-            });
         }
 
         public int size() {

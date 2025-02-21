@@ -428,35 +428,72 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = ShaderManager.COPY_DEPTH_CS;
+        if (!Config.shouldComputeShader()) {
+            ComputeShader shader = ShaderManager.COPY_DEPTH_CS;
 
-        shader.bind();
-        shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
+            shader.bind();
+            shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
 
-        runOnDepthFrame((depthContext) -> {
-            GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
-            RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
-            RenderSystem.bindTexture(depthContext.lastTexture());
-        });
-        RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+            runOnDepthFrame((depthContext) -> {
+                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
+                RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
+                RenderSystem.bindTexture(depthContext.lastTexture());
+            });
+            RenderSystem.activeTexture(GL43.GL_TEXTURE0);
 
-        RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
-        shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
-        shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
-        shader.getUniforms().setUniform("sketch_sampler_texture_2", 2);
-        shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
-        shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
-        shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
-        shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
+            RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
+            shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
+            shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
+            shader.getUniforms().setUniform("sketch_sampler_texture_2", 2);
+            shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
+            shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
+            shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
+            shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
 
-        int tileSizeX = 16;
-        int tileSizeY = 16;
-        int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
-        int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
-        shader.execute(groupsX, groupsY, 1);
-        //shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            int tileSizeX = 16;
+            int tileSizeY = 16;
+            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
+            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+            shader.execute(groupsX, groupsY, 1);
+            //shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
+            GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
+        } else {
+            ComputeShader shader = ShaderManager.COPY_DEPTH_TEXTURE_CS;
+
+            shader.bind();
+            shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
+            shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
+            shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
+            shader.getUniforms().setUniform("sketch_sampler_texture_2", 2);
+            shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
+            shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
+            shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
+
+            runOnDepthFrame((depthContext) -> {
+                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
+                RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
+                RenderSystem.bindTexture(depthContext.lastTexture());
+            });
+            RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+
+            for (int i = 0; i < DEPTH_SIZE; i++) {
+                RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
+                shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
+                shader.getUniforms().setUniform("sketch_depth_level", i);
+
+                int width = screen.width >> (i);
+                int height = screen.height >> (i);
+
+                int tileSizeX = 16;
+                int tileSizeY = 16;
+                int groupsX = (width / 2 + tileSizeX - 1) / tileSizeX;
+                int groupsY = (height / 2 + tileSizeY - 1) / tileSizeY;
+                shader.execute(groupsX, groupsY, 1);
+            }
+
+            GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
+        }
     }
 
     public static void computeEntityCulling() {

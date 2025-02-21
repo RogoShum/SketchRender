@@ -19,6 +19,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
     public static ShaderInstance CULL_TEST_SHADER;
 
     public static ComputeShader COPY_DEPTH_CS;
+    public static ComputeShader COPY_DEPTH_TEXTURE_CS;
     public static ComputeShader CULL_COLLECT_CHUNK_BATCH_CS;
     public static ComputeShader CULL_ENTITY_BATCH_CS;
 
@@ -49,6 +50,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
             CULL_TEST_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
 
             COPY_DEPTH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth"));
+            COPY_DEPTH_TEXTURE_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth_texture"));
             CULL_ENTITY_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "cull_entity_batch"));
             CULL_COLLECT_CHUNK_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "cull_collect_chunk_batch"));
         } catch (IOException e) {

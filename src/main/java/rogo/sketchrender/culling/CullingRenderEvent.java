@@ -212,7 +212,8 @@ public class CullingRenderEvent {
                             "sketch_sampler_texture_4",
                             "sketch_sampler_texture_5",
                             "sketch_screen_size",
-                            "sketch_render_distance"
+                            "sketch_render_distance",
+                            "sketch_depth_level"
                     });
         });
 
