@@ -33,8 +33,8 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.ExtraChunkRenderer;
+import rogo.sketchrender.api.SectionData;
 import rogo.sketchrender.api.TessellationDevice;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
@@ -171,6 +171,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 continue;
             }
 
+            int meshCount = ((SectionData) storage).facingCount();
+
             IndirectCommandBuffer.INSTANCE.bind();
             MeshUniform.cullingCounter.bind();
 
@@ -180,7 +182,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
             try {
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * i + passOffset, (i * 12L) + (passIndex * 4L), 1793, 20);
+                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * i + passOffset, (i * 12L) + (passIndex * 4L), meshCount, 20);
             } catch (Throwable var7) {
                 if (drawCommandList != null) {
                     try {

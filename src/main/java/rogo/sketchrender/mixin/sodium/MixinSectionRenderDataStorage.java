@@ -1,9 +1,9 @@
 package rogo.sketchrender.mixin.sodium;
 
-import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.jellysquid.mods.sodium.client.gl.arena.GlBufferSegment;
 import me.jellysquid.mods.sodium.client.gl.util.VertexRange;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
+import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataUnsafe;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
@@ -15,8 +15,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.api.SectionData;
 import rogo.sketchrender.compat.sodium.MeshUniform;
-import rogo.sketchrender.shader.IndirectCommandBuffer;
-import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 @Mixin(SectionRenderDataStorage.class)
@@ -26,20 +24,36 @@ public class MixinSectionRenderDataStorage implements SectionData {
     @Final
     private long pMeshDataArray;
 
-    private IndirectCommandBuffer drawCommandBuffer = new IndirectCommandBuffer(IndirectCommandBuffer.REGION_COMMAND_SIZE + 1);
-    private CountBuffer drawCounter = new CountBuffer(VertexFormatElement.Type.INT);
-    private SSBO counterCommand = new SSBO(drawCounter);
-    private SSBO batchCommand = new SSBO(drawCommandBuffer);
+    @Shadow
+    @Final
+    private GlBufferSegment[] allocations;
     private SSBO meshData;
     private RenderRegion region;
     private int passIndex;
     private long passOffset;
     private int indexOffset;
 
+    private int totalFacingCount = 0;
+
+    @Inject(method = "setMeshes", at = @At("HEAD"))
+    public void onSetMeshesHead(int localSectionIndex, GlBufferSegment allocation, VertexRange[] ranges, CallbackInfo ci) {
+        if (this.allocations[localSectionIndex] != null) {
+            long pMeshData = this.getDataPointer(localSectionIndex);
+            int oldSliceMask = SectionRenderDataUnsafe.getSliceMask(pMeshData);
+            int oldFacingCount = Integer.bitCount(oldSliceMask);
+            totalFacingCount -= oldFacingCount;
+        }
+    }
+
     @Inject(method = "setMeshes", at = @At(value = "RETURN"), remap = false)
     private void endSetMeshes(int localSectionIndex, GlBufferSegment allocation, VertexRange[] ranges, CallbackInfo ci) {
         copySectionMesh(localSectionIndex);
         meshData.upload(localSectionIndex + indexOffset);
+
+        long pMeshData = this.getDataPointer(localSectionIndex);
+        int sliceMask = SectionRenderDataUnsafe.getSliceMask(pMeshData);
+        int facingCount = Integer.bitCount(sliceMask);
+        totalFacingCount += facingCount;
     }
 
     @Inject(method = "updateMeshes", at = @At(value = "RETURN"), remap = false)
@@ -59,50 +73,29 @@ public class MixinSectionRenderDataStorage implements SectionData {
     }
 
     @Override
-    public void bindMeshData(int slot) {
-        this.meshData.bindShaderSlot(slot);
-    }
-
-    @Override
-    public void bindCounter(int slot) {
-        this.counterCommand.bindShaderSlot(slot);
-    }
-
-    @Override
-    public void bindIndirectCommand(int slot) {
-        this.batchCommand.bindShaderSlot(slot);
-    }
-
-    @Override
-    public void bindCommandBuffer() {
-        drawCommandBuffer.bind();
-    }
-
-    @Override
-    public void bindCounterBuffer() {
-        drawCounter.bind();
-    }
-
-    @Override
-    public void clearCounter() {
-        drawCounter.updateCount(0);
+    public int facingCount() {
+        return totalFacingCount;
     }
 
     @Inject(method = "removeMeshes", at = @At(value = "RETURN"), remap = false)
     private void endRemoveMeshes(int localSectionIndex, CallbackInfo ci) {
         copySectionMesh(localSectionIndex);
         meshData.upload(localSectionIndex + indexOffset);
-    }
 
-    @Inject(method = "delete", at = @At(value = "RETURN"), remap = false)
-    private void endDelete(CallbackInfo ci) {
-        counterCommand.discard();
-        batchCommand.discard();
+        long pMeshData = this.getDataPointer(localSectionIndex);
+        int sliceMask = SectionRenderDataUnsafe.getSliceMask(pMeshData);
+        int facingCount = Integer.bitCount(sliceMask);
+        totalFacingCount -= facingCount;
     }
 
     @Unique
     private void copySectionMesh(int index) {
         MemoryUtil.memCopy(this.pMeshDataArray + 64L * index, meshData.getMemoryAddress() + passOffset + (64L * index), 64L);
         MeshUniform.meshManager.copySectionData(region, passIndex, index, this.pMeshDataArray + 64L * index);
+    }
+
+    @Unique
+    private long getDataPointer(int sectionIndex) {
+        return SectionRenderDataUnsafe.heapPointer(this.pMeshDataArray, sectionIndex);
     }
 }
