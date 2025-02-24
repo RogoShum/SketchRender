@@ -6,6 +6,7 @@
   "refmap": "sketchrender.refmap.json",
   "mixins": [
     "sodium.AccessorSectionUpload",
+    "sodium.MixinGLRenderDevice$MixinImmediateDrawCommandList",
     "sodium.MixinRenderRegionManager"
   ],
   "client": [
