@@ -31,10 +31,16 @@ public class RegionMeshManager {
         int index = regionIndex.indexOf(region);
 
         if (index >= currentCapacity) {
-            expandCapacity((int) ((currentCapacity + 1) * 1.5));
+            expandCapacity((int) ((currentCapacity + 1) * 1.2));
         }
 
         return index;
+    }
+
+    public void initCapacity(int capacity) {
+        if (capacity > currentCapacity) {
+            expandCapacity(capacity);
+        }
     }
 
     public void removeRegion(RenderRegion region) {

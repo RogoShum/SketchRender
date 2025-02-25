@@ -2,11 +2,11 @@ package rogo.sketchrender.compat.sodium;
 
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
-import net.minecraft.core.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.SectionPos;
 import org.lwjgl.opengl.GL15;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
-import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 public class MeshUniform {
@@ -14,6 +14,7 @@ public class MeshUniform {
     private static int spacePartitionSize = 0;
     public static int queueUpdateCount = 0;
     public static int lastQueueUpdateCount = 0;
+    public static int theoreticalRegionQuantity = 0;
 
     public static int currentFrame = 0;
     public static int[] sectionMaxElement = new int[]{393210};
@@ -24,10 +25,6 @@ public class MeshUniform {
     public static SSBO batchElement;
     public static CountBuffer cullingCounter;
     public static CountBuffer elementCounter;
-
-    private static int regionX;
-    private static int regionY;
-    private static int regionZ;
 
     public static final RegionMeshManager meshManager = new RegionMeshManager();
 
@@ -76,6 +73,11 @@ public class MeshUniform {
     public static void updateDistance(int renderDistance) {
         MeshUniform.renderDistance = renderDistance;
         spacePartitionSize = 2 * renderDistance + 1;
+
+        if (Minecraft.getInstance().level != null) {
+            theoreticalRegionQuantity = spacePartitionSize * spacePartitionSize * Minecraft.getInstance().level.getSectionsCount();
+            meshManager.initCapacity(theoreticalRegionQuantity);
+        }
     }
 
     public static int getRenderDistance() {
@@ -84,15 +86,5 @@ public class MeshUniform {
 
     public static int getSpacePartitionSize() {
         return spacePartitionSize;
-    }
-
-    public static void switchRegion(int x, int y, int z) {
-        regionX = x;
-        regionY = y;
-        regionZ = z;
-    }
-
-    public static BlockPos getRegionPos() {
-        return new BlockPos(regionX, regionY, regionZ);
     }
 }
