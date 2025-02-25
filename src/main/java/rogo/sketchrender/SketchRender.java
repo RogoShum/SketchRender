@@ -222,7 +222,7 @@ public class SketchRender {
             debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getSize());
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
-            debugText.putAll(commandTimer.getResults());
+            //debugText.putAll(commandTimer.getResults());
 
             RenderCallTimer renderTimer = SketchRender.RENDER_TIMER;
             debugText.putAll(renderTimer.getResults());
