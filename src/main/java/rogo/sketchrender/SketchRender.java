@@ -150,7 +150,7 @@ public class SketchRender {
                     LEVEL_MIN_POS = Minecraft.getInstance().level.getMinBuildHeight();
                     LEVEL_POS_RANGE = Minecraft.getInstance().level.getMaxBuildHeight() - Minecraft.getInstance().level.getMinBuildHeight();
 
-                    if (OcclusionCullerThread.INSTANCE == null) {
+                    if (OcclusionCullerThread.INSTANCE == null || !OcclusionCullerThread.INSTANCE.isAlive()) {
                         OcclusionCullerThread occlusionCullerThread = new OcclusionCullerThread();
                         OcclusionCullerThread.INSTANCE = occlusionCullerThread;
                         occlusionCullerThread.setName("Chunk Depth Occlusion Cull thread");

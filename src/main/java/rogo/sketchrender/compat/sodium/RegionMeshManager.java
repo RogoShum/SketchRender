@@ -95,7 +95,7 @@ public class RegionMeshManager {
     }
 
     public int size() {
-        return regionIndex.size();
+        return Math.max(currentCapacity, regionIndex.size());
     }
 
     public void refresh() {
