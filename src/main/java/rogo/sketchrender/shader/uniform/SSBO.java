@@ -105,7 +105,7 @@ public class SSBO implements BufferObject {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    public void ensureCapacity(int requiredCount, boolean force) {
+    public void ensureCapacity(int requiredCount, boolean copy, boolean force) {
         checkDisposed();
 
         if (requiredCount * stride <= capacity && !force) {
@@ -113,17 +113,21 @@ public class SSBO implements BufferObject {
         }
 
         long newBufferPointer = MemoryUtil.nmemCalloc(requiredCount, stride);
-        MemoryUtil.memCopy(bufferPointer, newBufferPointer, capacity);
+        this.capacity = requiredCount * stride;
+
+        if (copy) {
+            MemoryUtil.memCopy(bufferPointer, newBufferPointer, capacity);
+        }
+
         MemoryUtil.nmemFree(bufferPointer);
         this.bufferPointer = newBufferPointer;
         this.dataCount = requiredCount;
-        this.capacity = requiredCount * stride;
 
         resetUpload(GL15.GL_DYNAMIC_DRAW);
     }
 
-    public void ensureCapacity(int requiredCount) {
-        ensureCapacity(requiredCount, false);
+    public void ensureCapacity(int requiredCount, boolean copy) {
+        ensureCapacity(requiredCount, copy, false);
     }
 
     public void setBufferPointer(long bufferPointer) {

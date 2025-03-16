@@ -159,11 +159,9 @@ public class ConfigScreen extends Screen {
         addConfigButton(Config::getAutoDisableAsync, Config::setAutoDisableAsync, () -> Component.translatable(SketchRender.MOD_ID + ".auto_shader_async"))
                 .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.auto_shader_async"));
 
-        addConfigButton(() -> Config.getCullChunk() && SketchRender.hasSodium() && !SketchRender.hasNvidium(), Config::getAsyncChunkRebuild, Config::setAsyncChunkRebuild, () -> Component.translatable(SketchRender.MOD_ID + ".async"))
+        addConfigButton(() -> Config.getCullChunk() && SketchRender.hasSodium(), Config::getAsyncChunkRebuild, Config::setAsyncChunkRebuild, () -> Component.translatable(SketchRender.MOD_ID + ".async"))
                 .setDetailMessage(() -> {
-                    if (SketchRender.hasNvidium()) {
-                        return Component.translatable(SketchRender.MOD_ID + ".detail.nvidium");
-                    } else if (!SketchRender.hasSodium()) {
+                    if (!SketchRender.hasSodium()) {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.sodium");
                     } else
                         return Component.translatable(SketchRender.MOD_ID + ".detail.async");

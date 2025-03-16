@@ -13,13 +13,15 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.*;
+import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.common.MinecraftForge;
@@ -37,13 +39,14 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.culling.CullingRenderEvent;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
-import rogo.sketchrender.util.*;
+import rogo.sketchrender.util.CommandCallTimer;
+import rogo.sketchrender.util.OcclusionCullerThread;
+import rogo.sketchrender.util.RenderCallTimer;
 import rogo.sketchrender.vertexbuffer.ScreenSpaceRenderer;
 
 import java.lang.reflect.Field;
@@ -59,6 +62,7 @@ public class SketchRender {
     public static final Logger LOGGER = LogUtils.getLogger();
     private static final ShaderManager shaderManager = new ShaderManager();
     private static ScreenSpaceRenderer screenSpaceRenderer;
+
     static {
         RenderSystem.recordRenderCall(() -> screenSpaceRenderer = new ScreenSpaceRenderer());
     }
@@ -187,10 +191,6 @@ public class SketchRender {
 
     public static boolean hasIris() {
         return FMLLoader.getLoadingModList().getMods().stream().anyMatch(modInfo -> modInfo.getModId().equals("iris") || modInfo.getModId().equals("oculus"));
-    }
-
-    public static boolean hasNvidium() {
-        return FMLLoader.getLoadingModList().getMods().stream().anyMatch(modInfo -> modInfo.getModId().equals("nvidium")) && NvidiumUtil.nvidiumBfs();
     }
 
     public static AABB getObjectAABB(Object o) {

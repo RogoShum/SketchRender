@@ -90,10 +90,7 @@ public class Config {
         if (!SketchRender.hasSodium())
             return false;
 
-        if (SketchRender.hasNvidium())
-            return false;
-
-        if(getAutoDisableAsync() && CullingStateManager.enabledShader())
+        if (getAutoDisableAsync() && CullingStateManager.enabledShader())
             return false;
 
         return ASYNC.get();
@@ -107,9 +104,6 @@ public class Config {
             return;
 
         if (CullingStateManager.needPauseRebuild())
-            return;
-
-        if (SketchRender.hasNvidium())
             return;
 
         ASYNC.set(value);

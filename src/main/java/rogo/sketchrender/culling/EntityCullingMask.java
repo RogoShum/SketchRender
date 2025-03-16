@@ -9,11 +9,10 @@ import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
-import rogo.sketchrender.util.IndexedSet;
+import rogo.sketchrender.util.IndexPool;
 import rogo.sketchrender.util.LifeTimer;
 
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Set;
 
 import static net.minecraftforge.common.extensions.IForgeBlockEntity.INFINITE_EXTENT_AABB;
 
@@ -39,33 +38,25 @@ public class EntityCullingMask {
     }
 
     public boolean isObjectVisible(Object o) {
-        SketchRender.COMMAND_TIMER.start("isObjectVisible");
         AABB aabb = SketchRender.getObjectAABB(o);
 
         if (aabb == INFINITE_EXTENT_AABB) {
-            SketchRender.COMMAND_TIMER.end("isObjectVisible");
             return true;
         }
 
         int idx = getEntityTable().getIndex(o);
 
-        if (getEntityTable().tempObjectTimer.contains(o))
-            getEntityTable().addTemp(o, CullingStateManager.clientTickCount);
-
-        if (idx > -1 && idx < cullingResultSSBO.getDataNum()) {
-            SketchRender.COMMAND_TIMER.end("isObjectVisible");
-            return cullingResultSSBO.getInt(idx) > 0;
-        } else {
-            getEntityTable().addTemp(o, CullingStateManager.clientTickCount);
+        if (getEntityTable().objectTimer.contains(o)) {
+            getEntityTable().add(o, CullingStateManager.clientTickCount);
         }
 
-        SketchRender.COMMAND_TIMER.end("isObjectVisible");
+        if (idx > -1 && idx < cullingResultSSBO.getDataNum()) {
+            return cullingResultSSBO.getInt(idx) > 0;
+        } else {
+            getEntityTable().add(o, CullingStateManager.clientTickCount);
+        }
+
         return true;
-    }
-
-
-    public void readData() {
-        getEntityTable().readUpload();
     }
 
     public void cleanup() {
@@ -83,11 +74,11 @@ public class EntityCullingMask {
 
         if (currentEntityCount > currentCapacity * 0.75) {
             int newCapacity = calculateNewCapacity(currentEntityCount);
-            entityDataSSBO.ensureCapacity(newCapacity);
+            entityDataSSBO.ensureCapacity(newCapacity, false);
             cullingResultSSBO.ensureCapacity(newCapacity);
         } else if (currentEntityCount < currentCapacity * 0.25 && currentCapacity > 64) {
             int newCapacity = Math.max(64, currentEntityCount);
-            entityDataSSBO.ensureCapacity(newCapacity, true);
+            entityDataSSBO.ensureCapacity(newCapacity, false, true);
             cullingResultSSBO.ensureCapacity(newCapacity, true);
         }
     }
@@ -100,7 +91,6 @@ public class EntityCullingMask {
         checkAndAdjustCapacity();
 
         long bufferPointer = entityDataSSBO.getMemoryAddress();
-        getEntityTable().clearUpload();
         getEntityTable().indexMap.forEach((obj, index) -> {
             AABB aabb = SketchRender.getObjectAABB(obj);
             Vec3 center = aabb.getCenter();
@@ -115,11 +105,7 @@ public class EntityCullingMask {
             MemoryUtil.memPutFloat(bufferPointer + offset + 24, index);
             MemoryUtil.memPutFloat(bufferPointer + offset + 28, 0);
             entityDataSSBO.position = offset + 32;
-
-            getEntityTable().uploadTemp.add(obj);
-            getEntityTable().uploadEntity.put(obj, index);
         });
-
 
         entityDataSSBO.upload();
         entityDataSSBO.position = 0;
@@ -130,12 +116,8 @@ public class EntityCullingMask {
     }
 
     public static class EntityMap {
-        private final IndexedSet<Object> indexMap = new IndexedSet<>();
-        private final LifeTimer<Object> tempObjectTimer = new LifeTimer<>();
-        private HashSet<Object> uploadTemp = new HashSet<>();
-        private HashSet<Object> readTemp = new HashSet<>();
-        private HashMap<Object, Integer> uploadEntity = new HashMap<>();
-        private HashMap<Object, Integer> readEntity = new HashMap<>();
+        private final IndexPool<Object> indexMap = new IndexPool<>();
+        private final LifeTimer<Object> objectTimer = new LifeTimer<>();
 
         public EntityMap() {
         }
@@ -149,51 +131,26 @@ public class EntityCullingMask {
                 indexMap.add(obj);
         }
 
-        public void addTemp(Object obj, int tickCount) {
-            tempObjectTimer.updateUsageTick(obj, tickCount);
-        }
-
-        public void copyTemp(EntityMap entityMap, int tickCount) {
-            entityMap.tempObjectTimer.foreach(o -> addTemp(o, tickCount));
-            this.uploadTemp.addAll(entityMap.uploadTemp);
-            this.uploadEntity.putAll(entityMap.uploadEntity);
-            this.readTemp = uploadTemp;
-            this.readEntity = uploadEntity;
+        public void add(Object obj, int tickCount) {
+            objectTimer.updateUsageTick(obj, tickCount);
+            addObject(obj);
         }
 
         public Integer getIndex(Object obj) {
-            if (!readTemp.contains(obj))
+            if (!indexMap.contains(obj))
                 return -1;
-            return readEntity.getOrDefault(obj, -1);
-        }
 
-        public void readUpload() {
-            readTemp = uploadTemp;
-            uploadTemp = new HashSet<>();
-            readEntity = uploadEntity;
-            uploadEntity = new HashMap<>();
-        }
-
-        public void clearUpload() {
-            uploadTemp.clear();
-            uploadEntity.clear();
-        }
-
-        public void clearIndexMap() {
-            indexMap.clear();
+            return indexMap.indexOf(obj);
         }
 
         public void tickTemp(int tickCount) {
-            tempObjectTimer.tick(tickCount, 3);
-        }
-
-        public void addAllTemp() {
-            tempObjectTimer.foreach(this::addObject);
+            Set<Object> removed = objectTimer.tick(tickCount, 20);
+            removed.forEach(indexMap::remove);
         }
 
         public void clear() {
             indexMap.clear();
-            tempObjectTimer.clear();
+            objectTimer.clear();
         }
 
         public int size() {

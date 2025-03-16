@@ -56,7 +56,7 @@ public class MeshUniform {
             batchCounter.resetUpload(GL15.GL_STATIC_DRAW);
         }
 
-        batchRegionIndex.ensureCapacity(regionSize);
+        batchRegionIndex.ensureCapacity(regionSize, true);
     }
 
     public static void removeRegion(RenderRegion region) {
