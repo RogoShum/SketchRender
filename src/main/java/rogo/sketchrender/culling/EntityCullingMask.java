@@ -51,7 +51,7 @@ public class EntityCullingMask {
         }
 
         if (idx > -1 && idx < cullingResultSSBO.getDataNum()) {
-            return cullingResultSSBO.getInt(idx) > 0;
+            return cullingResultSSBO.getInt(idx) < 1;
         } else {
             getEntityTable().add(o, CullingStateManager.clientTickCount);
         }

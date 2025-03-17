@@ -194,12 +194,12 @@ void main() {
     float sizeZ = entityData[dataOffset + 5];
     float halfWidth = sizeX * 0.5;
     float halfHeight = sizeY * 0.5;
-    int resultIndex = int(entityData[dataOffset + 6]);
+    //int resultIndex = int(entityData[dataOffset + 6]);
 
     bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
 
     if (!visible) {
-        cullingResult[resultIndex] = 0;
+        cullingResult[globalIndex] = 1;
         return;
     }
 
@@ -227,11 +227,11 @@ void main() {
         for (int y = coordMinY; y <= coordMaxY; y++) {
             float pixelDepth = getUVDepth(idx, ivec2(x, y));
             if (sectionDepth < pixelDepth) {
-                cullingResult[resultIndex] = 1;
+                cullingResult[globalIndex] = 0;
                 return;
             }
         }
     }
 
-    cullingResult[resultIndex] = 0;
+    cullingResult[globalIndex] = 1;
 }
