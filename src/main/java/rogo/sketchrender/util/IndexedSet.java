@@ -1,32 +1,39 @@
 package rogo.sketchrender.util;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.function.BiConsumer;
 
 public class IndexedSet<E> {
     private final ArrayList<E> list;
-    private final HashSet<E> set;
+    private final HashMap<E, Integer> elementToIndex;
 
     public IndexedSet() {
         list = new ArrayList<>();
-        set = new HashSet<>();
+        elementToIndex = new HashMap<>();
     }
 
     public boolean add(E element) {
-        if (set.add(element)) {
-            list.add(element);
-            return true;
-        }
-        return false;
+        if (elementToIndex.containsKey(element)) return false;
+        elementToIndex.put(element, list.size());
+        list.add(element);
+        return true;
+    }
+
+    public E get(int index) {
+        return list.get(index);
+    }
+
+    public int indexOf(E element) {
+        return elementToIndex.getOrDefault(element, -1);
     }
 
     public boolean remove(E element) {
-        if (set.remove(element)) {
-            list.remove(element);
-            return true;
-        }
-        return false;
+        Integer index = elementToIndex.get(element);
+        if (index == null) return false;
+        list.remove(element);
+        elementToIndex.remove(element);
+        return true;
     }
 
     public void forEach(BiConsumer<? super E, Integer> action) {
@@ -35,21 +42,17 @@ public class IndexedSet<E> {
         }
     }
 
-    public E get(int index) {
-        return list.get(index);
-    }
-
     public int size() {
         return list.size();
     }
 
     public boolean contains(E element) {
-        return set.contains(element);
+        return elementToIndex.containsKey(element);
     }
 
     public void clear() {
         list.clear();
-        set.clear();
+        elementToIndex.clear();
     }
 
     @Override

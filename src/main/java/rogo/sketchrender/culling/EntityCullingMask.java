@@ -9,7 +9,7 @@ import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
-import rogo.sketchrender.util.IndexPool;
+import rogo.sketchrender.util.IndexedSet;
 import rogo.sketchrender.util.LifeTimer;
 
 import java.util.Set;
@@ -91,7 +91,8 @@ public class EntityCullingMask {
         checkAndAdjustCapacity();
 
         long bufferPointer = entityDataSSBO.getMemoryAddress();
-        getEntityTable().indexMap.forEach((obj, index) -> {
+        for (int index = 0; index < getEntityTable().indexMap.size(); ++index) {
+            Object obj = getEntityTable().indexMap.get(index);
             AABB aabb = SketchRender.getObjectAABB(obj);
             Vec3 center = aabb.getCenter();
 
@@ -105,7 +106,7 @@ public class EntityCullingMask {
             MemoryUtil.memPutFloat(bufferPointer + offset + 24, index);
             MemoryUtil.memPutFloat(bufferPointer + offset + 28, 0);
             entityDataSSBO.position = offset + 32;
-        });
+        }
 
         entityDataSSBO.upload();
         entityDataSSBO.position = 0;
@@ -116,7 +117,7 @@ public class EntityCullingMask {
     }
 
     public static class EntityMap {
-        private final IndexPool<Object> indexMap = new IndexPool<>();
+        private final IndexedSet<Object> indexMap = new IndexedSet<>();
         private final LifeTimer<Object> objectTimer = new LifeTimer<>();
 
         public EntityMap() {
