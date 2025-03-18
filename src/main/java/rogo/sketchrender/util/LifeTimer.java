@@ -45,5 +45,11 @@ public class LifeTimer<T> {
     public void foreach(Consumer<T> consumer) {
         usageTick.keySet().forEach(consumer);
     }
+
+    public IndexedSet<T> toIndexedSet() {
+        IndexedSet<T> set = new IndexedSet<>();
+        usageTick.keySet().forEach(set::add);
+        return set;
+    }
 }
 

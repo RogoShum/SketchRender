@@ -117,7 +117,7 @@ public class EntityCullingMask {
     }
 
     public static class EntityMap {
-        private final IndexedSet<Object> indexMap = new IndexedSet<>();
+        private IndexedSet<Object> indexMap = new IndexedSet<>();
         private final LifeTimer<Object> objectTimer = new LifeTimer<>();
 
         public EntityMap() {
@@ -146,7 +146,8 @@ public class EntityCullingMask {
 
         public void tickTemp(int tickCount) {
             Set<Object> removed = objectTimer.tick(tickCount, 20);
-            removed.forEach(indexMap::remove);
+            //stupid but works
+            indexMap = objectTimer.toIndexedSet();
         }
 
         public void clear() {

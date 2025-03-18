@@ -113,10 +113,11 @@ public class SSBO implements BufferObject {
         }
 
         long newBufferPointer = MemoryUtil.nmemCalloc(requiredCount, stride);
+        long prevCapacity = capacity;
         this.capacity = requiredCount * stride;
 
         if (copy) {
-            MemoryUtil.memCopy(bufferPointer, newBufferPointer, capacity);
+            MemoryUtil.memCopy(bufferPointer, newBufferPointer, Math.min(capacity, prevCapacity));
         }
 
         MemoryUtil.nmemFree(bufferPointer);
