@@ -9,6 +9,11 @@ import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.SSBO;
 
+/**
+ * [Ugly-but-Working Buffer Design]
+ * -------------------------------------------------
+ * ! Seeking elegant alternatives !
+ */
 public class MeshUniform {
     private static int renderDistance = 0;
     private static int spacePartitionSize = 0;
