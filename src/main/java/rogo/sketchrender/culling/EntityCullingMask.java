@@ -18,9 +18,9 @@ import static net.minecraftforge.common.extensions.IForgeBlockEntity.INFINITE_EX
 
 public class EntityCullingMask {
     private final EntityMap entityMap = new EntityMap();
-
     private SSBO entityDataSSBO;
     private PersistentReadSSBO cullingResultSSBO;
+    private PersistentReadSSBO prevCullingResultSSBO;
 
     public EntityCullingMask(int initialCapacity) {
         int adjustedCapacity = Math.max(64, ((initialCapacity / 64) + 1) * 64);
@@ -28,13 +28,14 @@ public class EntityCullingMask {
     }
 
     private void initializeSSBOs(int initialCapacity) {
-        entityDataSSBO = new SSBO(initialCapacity, 8 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
-        cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Integer.BYTES);
+        this.entityDataSSBO = new SSBO(initialCapacity, 8 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
+        this.cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Integer.BYTES);
+        this.prevCullingResultSSBO = cullingResultSSBO;
     }
 
     public void bindSSBO() {
-        entityDataSSBO.bindShaderSlot(0);
-        cullingResultSSBO.bindShaderSlot(1);
+        this.entityDataSSBO.bindShaderSlot(0);
+        this.cullingResultSSBO.bindShaderSlot(1);
     }
 
     public boolean isObjectVisible(Object o) {
@@ -51,7 +52,7 @@ public class EntityCullingMask {
         }
 
         if (idx > -1 && idx < cullingResultSSBO.getDataNum()) {
-            return cullingResultSSBO.getInt(idx) < 1;
+            return cullingResultSSBO.getInt(idx) < 1 || prevCullingResultSSBO.getInt(idx) < 1;
         } else {
             getEntityTable().add(o, CullingStateManager.clientTickCount);
         }
@@ -110,6 +111,11 @@ public class EntityCullingMask {
 
         entityDataSSBO.upload();
         entityDataSSBO.position = 0;
+    }
+
+    public void swapBuffer(int tickCount) {
+        this.prevCullingResultSSBO = this.cullingResultSSBO;
+        getEntityTable().tickTemp(tickCount);
     }
 
     public EntityMap getEntityTable() {

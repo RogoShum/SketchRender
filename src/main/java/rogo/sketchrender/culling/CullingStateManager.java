@@ -235,7 +235,7 @@ public class CullingStateManager {
 
             if (anyNextTick()) {
                 if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                    CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().tickTemp(clientTickCount);
+                    CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(clientTickCount);
                 }
 
                 if (fullChunkUpdateCooldown > 0) {
