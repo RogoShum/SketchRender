@@ -139,6 +139,10 @@ public class PersistentReadSSBO implements BufferObject {
         }
     }
 
+    public boolean isDisposed() {
+        return isDisposed;
+    }
+
     public void discardBufferId() {
         GL15.glDeleteBuffers(id);
     }

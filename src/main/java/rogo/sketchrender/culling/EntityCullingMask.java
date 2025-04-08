@@ -52,7 +52,14 @@ public class EntityCullingMask {
         }
 
         if (idx > -1 && idx < cullingResultSSBO.getDataNum()) {
-            return cullingResultSSBO.getInt(idx) < 1 || prevCullingResultSSBO.getInt(idx) < 1;
+            boolean flag1 = cullingResultSSBO.getInt(idx) < 1;
+            if (flag1) {
+                return true;
+            } else if (!prevCullingResultSSBO.isDisposed() && idx < prevCullingResultSSBO.getDataNum()) {
+                return prevCullingResultSSBO.getInt(idx) < 1;
+            }
+
+            return false;
         } else {
             getEntityTable().add(o, CullingStateManager.clientTickCount);
         }
@@ -114,7 +121,11 @@ public class EntityCullingMask {
     }
 
     public void swapBuffer(int tickCount) {
+        if (this.prevCullingResultSSBO != null) {
+            this.prevCullingResultSSBO.discard();
+        }
         this.prevCullingResultSSBO = this.cullingResultSSBO;
+        this.cullingResultSSBO = new PersistentReadSSBO(this.prevCullingResultSSBO.getDataNum(), Integer.BYTES);
         getEntityTable().tickTemp(tickCount);
     }
 
