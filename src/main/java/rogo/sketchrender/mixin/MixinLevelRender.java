@@ -62,4 +62,3 @@ public abstract class MixinLevelRender implements EntitiesForRender {
         return renderChunksInFrustum;
     }
 }
-

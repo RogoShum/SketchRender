@@ -40,7 +40,8 @@ import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
-import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -53,7 +54,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     protected Class<?> extraShaderInterface;
     protected boolean checkedShaderInterface = false;
     private int lastUpdateFrame;
-    private List<RenderRegion> cachedRegions;
+    private List<RenderRegion> orderedRegions;
+    private List<RenderRegion> reverseOrderedRegions;
     private final ExtraChunkRenderer defaultChunkRenderer;
 
     public ComputeShaderChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
@@ -68,17 +70,18 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         if (lastUpdateFrame != MeshUniform.currentFrame) {
             lastUpdateFrame = MeshUniform.currentFrame;
             update = true;
-            Iterator<ChunkRenderList> iterator = renderLists.iterator(renderPass.isReverseOrder());
-            cachedRegions = Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
+            Iterator<ChunkRenderList> iterator = renderLists.iterator(false);
+            orderedRegions = Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
                 SectionRenderDataStorage storage = r.getStorage(renderPass);
                 return storage != null && r.getResources() != null;
-            }).sorted(Comparator.comparingInt(MeshUniform.meshManager::indexOf)).toList();
+            }).toList();
+
+            reverseOrderedRegions = new ArrayList<>(orderedRegions);
+            Collections.reverse(reverseOrderedRegions);
         }
 
-        if (cachedRegions != null) {
-            if (update) {
-                preRender();
-            }
+        if (orderedRegions != null && update) {
+            preRender();
         }
 
         super.begin(renderPass);
@@ -108,7 +111,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 maxElementCount = maxElement;
             }
 
-            if (cachedRegions != null) {
+            if (orderedRegions != null) {
                 shaderInterface.setProjectionMatrix(matrices.projection());
                 shaderInterface.setModelViewMatrix(matrices.modelView());
                 onRender(defaultChunkRenderer, shaderInterface, commandList, renderPass, camera);
@@ -120,8 +123,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     public void preRender() {
         MeshUniform.batchElement.bindShaderSlot(7);
         long ptr = MeshUniform.batchRegionIndex.getMemoryAddress();
-        for (int i = 0; i < cachedRegions.size(); ++i) {
-            RenderRegion region = cachedRegions.get(i);
+        for (int i = 0; i < orderedRegions.size(); ++i) {
+            RenderRegion region = orderedRegions.get(i);
             long offset = i * 16L;
             MemoryUtil.memPutInt(ptr + offset, region.getChunkX());
             MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkY());
@@ -143,7 +146,10 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
         RenderSystem.activeTexture(GL_TEXTURE0);
         ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
-        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, cachedRegions.size(), 1);
+        //ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, orderedRegions.size(), 1);
+
+        //TODO 3 x work group, for real?
+        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(3, orderedRegions.size(), 1);
         ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
@@ -164,8 +170,9 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
         long passOffset = LAYER_MESH_STRIDE * passIndex;
 
-        for (int i = 0; i < cachedRegions.size(); ++i) {
-            RenderRegion region = cachedRegions.get(i);
+        for (int i = 0; i < orderedRegions.size(); ++i) {
+            int index = pass.isReverseOrder() ? (orderedRegions.size() - 1 - i) : i;
+            RenderRegion region = orderedRegions.get(index);
             SectionRenderDataStorage storage = region.getStorage(pass);
             if (storage == null) {
                 continue;
@@ -182,7 +189,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
             try {
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * i + passOffset, (i * 12L) + (passIndex * 4L), meshCount, 20);
+                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * index + passOffset, (index * 12L) + (passIndex * 4L), meshCount, 20);
             } catch (Throwable var7) {
                 if (drawCommandList != null) {
                     try {

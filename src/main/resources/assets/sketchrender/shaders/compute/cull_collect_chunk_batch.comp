@@ -36,6 +36,11 @@ struct ClipResult {
     vec2 screenMax;
 };
 
+struct SortEntry {
+    float value;
+    int originalIndex;
+};
+
 layout(std430, binding = 0) readonly buffer SectionMeshBuffer {
     SectionData section_data[];
 };
@@ -55,6 +60,9 @@ layout(std430, binding = 3) readonly buffer RegionPosBuffer {
 layout(std430, binding = 7) writeonly buffer ElementCountBuffer {
     int element_count;
 };
+
+//section sort
+shared SortEntry sort_entries[256];
 
 uniform int sketch_render_distance;
 uniform int sketch_check_culling;
@@ -95,7 +103,8 @@ uniform float[12] sketch_depth_size;
 const float near = 0.05;
 float far = 16.0;
 
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+//layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 vec4[6] getFrustumData() {
     return vec4[](
@@ -150,7 +159,7 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
     bool hasValidPoint = false;
 
     vec4 clipPositions[8];
-    for(int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         vec3 vertex = center + vec3(
         (i & 1) == 0 ? -extent : extent,
         (i & 2) == 0 ? -extent : extent,
@@ -159,11 +168,11 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
         clipPositions[i] = mvp * vec4(vertex, 1.0);
     }
 
-    for(int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         vec4 clipPos = clipPositions[i];
         vec2 ndcXY;
 
-        if(clipPos.w > 0.0) {
+        if (clipPos.w > 0.0) {
             ndcXY = clipPos.xy / clipPos.w;
         } else {
             ndcXY = clipPos.xy / -clipPos.w;
@@ -243,12 +252,12 @@ bool isVisible(vec3 center) {
     );
     vec4[6] frustum = getFrustumData();
 
-    for(int i = 0; i < 6; i++) {
+    for (int i = 0; i < 6; i++) {
         bool inside = false;
-        for(int j = 0; j < 8 && !inside; j++) {
+        for (int j = 0; j < 8 && !inside; j++) {
             inside = dot(frustum[i], vec4(corners[j] - sketch_frustum_pos, 1.0)) > 0.0;
         }
-        if(!inside) return false;
+        if (!inside) return false;
     }
     return true;
 }
@@ -346,8 +355,36 @@ int unpackZ(int idx) {
     return idx >> 2 & 7;
 }
 
+void compareAndSwap(inout SortEntry a, inout SortEntry b, bool ascending) {
+    bool swap = ascending ? (a.value > b.value) : (a.value < b.value);
+    if (swap) {
+        SortEntry temp = a;
+        a = b;
+        b = temp;
+    }
+}
+
+void bitonicSort() {
+    uint tid = gl_LocalInvocationID.x;
+
+    for (uint k = 2; k <= 256; k *= 2) {
+        for (uint j = k / 2; j > 0; j /= 2) {
+            uint ixj = tid ^ j;
+
+            if (ixj > tid) {
+                bool ascending = ((tid & k) == 0);
+                compareAndSwap(sort_entries[tid], sort_entries[ixj], ascending);
+            }
+
+            barrier();// wating for sync...
+        }
+    }
+}
+
 void main() {
-    int xIndex = int(gl_LocalInvocationID.x) + 64 * int(gl_WorkGroupID.x);
+    //int xIndex = int(gl_LocalInvocationID.x) + 64 * int(gl_WorkGroupID.x);
+    int dataIndex = int(gl_LocalInvocationID.x);
+    int xIndex = dataIndex + 256 * int(gl_WorkGroupID.x);
 
     int outputIndex = int(gl_WorkGroupID.y);
     int posIndexOffset = outputIndex;
@@ -361,18 +398,25 @@ void main() {
     unpackY(sectionIndex) + (regionPos.y),
     unpackZ(sectionIndex) + (regionPos.z));
 
-    ivec3 offset_chunk = ivec3(sectionPos.x - sketch_camera_offset.x, sectionPos.y - sketch_camera_offset.y, sectionPos.z - sketch_camera_offset.z);
     bool culled = _is_chunk_culled(sectionPos);
     if (sketch_check_culling > 0) {
         culled = !culled;
     }
 
-    if (!culled) {
-        int passIndex = xIndex % 3;
-        int meshOffset = (REGION_OFFSET * regionIndex) + (LAYER_OFFSET * passIndex) + sectionIndex;
-        int slices;
-        SectionData sectionData = section_data[meshOffset];
+    vec3 chunkPos = vec3(sectionPos) * 16;
+    chunkPos = vec3(chunkPos.x + 8.0, chunkPos.y + 8.0, chunkPos.z + 8.0);
+    float distance = length(vec3(chunkPos - sketch_camera_pos));
 
+    // record unculled
+    int passIndex = xIndex % 3;
+    int slices = 0;
+    sort_entries[dataIndex].originalIndex = dataIndex;
+    sort_entries[dataIndex].value = 1e30;
+
+    int meshOffset = (REGION_OFFSET * regionIndex) + (LAYER_OFFSET * passIndex) + sectionIndex;
+    SectionData sectionData = section_data[meshOffset];
+
+    if (!culled) {
         if (sketch_cull_facing <= 0 || (sketch_translucent_sort > 1 && passIndex == 2)) {
             slices = 127;
         } else {
@@ -382,41 +426,112 @@ void main() {
         slices &= sectionData.mask;
 
         if (slices != 0) {
-            int drawCount = 0;
-            SectionMesh[7] drawVertex;
-            int maxElementCount = 0;
-
-            for (int facing = 0; facing < FACE_COUNT; ++facing) {
-                int elementCount = sectionData.mesh[facing].element_count;
-                maxElementCount += elementCount;
-                drawVertex[drawCount].element_count = elementCount;
-                drawVertex[drawCount].vertex_offset = sectionData.mesh[facing].vertex_offset;
-                drawCount += slices >> facing & 1;
-            }
-
-            int currentCounter = 0;
-
-            if (passIndex == 0) {
-                currentCounter = atomicAdd(counter[outputIndex].solidCount, drawCount);
-            } else if (passIndex == 1) {
-                currentCounter = atomicAdd(counter[outputIndex].cutoutCount, drawCount);
-            } else {
-                currentCounter = atomicAdd(counter[outputIndex].translucentCount, drawCount);
-            }
-
-            atomicMax(element_count, maxElementCount);
-            memoryBarrierAtomicCounter();
-
-            int outputOffset = (REGION_OFFSET * FACE_COUNT * outputIndex) + (LAYER_OFFSET * FACE_COUNT * passIndex) + currentCounter;
-
-            for (int i = 0; i < drawCount; ++i) {
-                int offset = i + outputOffset;
-                draw_command[offset].element_count = drawVertex[i].element_count;
-                draw_command[offset].instance_count = 1;
-                draw_command[offset].first_index = 0;
-                draw_command[offset].vertex_offset = drawVertex[i].vertex_offset;
-                draw_command[offset].instance_offset = 0;
-            }
+            sort_entries[dataIndex].value = distance;
         }
     }
+
+    barrier();
+
+    if (gl_LocalInvocationID.x == 0) {
+        bitonicSort();
+    }
+
+    barrier();
+
+    int myRank = -1;
+    for (int i = 0; i < 256; ++i) {
+        if (sort_entries[i].originalIndex == dataIndex) {
+            myRank = i;
+        }
+    }
+
+    if (!culled && slices != 0) {
+        int sortedIndex = myRank;
+
+        int drawCount = 0;
+        SectionMesh[7] drawVertex;
+        int maxElementCount = 0;
+
+        for (int facing = 0; facing < FACE_COUNT; ++facing) {
+            int elementCount = sectionData.mesh[facing].element_count;
+            maxElementCount += elementCount;
+            drawVertex[drawCount].element_count = elementCount;
+            drawVertex[drawCount].vertex_offset = sectionData.mesh[facing].vertex_offset;
+            drawCount += slices >> facing & 1;
+        }
+
+        int currentCounter = 0;
+
+        if (passIndex == 0) {
+            currentCounter = atomicAdd(counter[outputIndex].solidCount, drawCount);
+        } else if (passIndex == 1) {
+            currentCounter = atomicAdd(counter[outputIndex].cutoutCount, drawCount);
+        } else {
+            currentCounter = atomicAdd(counter[outputIndex].translucentCount, drawCount);
+        }
+
+        int outputOffset = (REGION_OFFSET * FACE_COUNT * outputIndex) + (LAYER_OFFSET * FACE_COUNT * passIndex) + currentCounter;
+
+        for (int i = 0; i < drawCount; ++i) {
+            int offset = i + outputOffset;
+            draw_command[offset].element_count = drawVertex[i].element_count;
+            draw_command[offset].instance_count = 1;
+            draw_command[offset].first_index = 0;
+            draw_command[offset].vertex_offset = drawVertex[i].vertex_offset;
+            draw_command[offset].instance_offset = 0;
+        }
+    }
+
+    //    if (!culled) {
+    //        int passIndex = xIndex % 3;
+    //        int meshOffset = (REGION_OFFSET * regionIndex) + (LAYER_OFFSET * passIndex) + sectionIndex;
+    //        int slices;
+    //        SectionData sectionData = section_data[meshOffset];
+    //
+    //        if (sketch_cull_facing <= 0 || (sketch_translucent_sort > 1 && passIndex == 2)) {
+    //            slices = 127;
+    //        } else {
+    //            slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, sectionPos.x, sectionPos.y, sectionPos.z);
+    //        }
+    //
+    //        slices &= sectionData.mask;
+    //
+    //        if (slices != 0) {
+    //            int drawCount = 0;
+    //            SectionMesh[7] drawVertex;
+    //            int maxElementCount = 0;
+    //
+    //            for (int facing = 0; facing < FACE_COUNT; ++facing) {
+    //                int elementCount = sectionData.mesh[facing].element_count;
+    //                maxElementCount += elementCount;
+    //                drawVertex[drawCount].element_count = elementCount;
+    //                drawVertex[drawCount].vertex_offset = sectionData.mesh[facing].vertex_offset;
+    //                drawCount += slices >> facing & 1;
+    //            }
+    //
+    //            int currentCounter = 0;
+    //
+    //            if (passIndex == 0) {
+    //                currentCounter = atomicAdd(counter[outputIndex].solidCount, drawCount);
+    //            } else if (passIndex == 1) {
+    //                currentCounter = atomicAdd(counter[outputIndex].cutoutCount, drawCount);
+    //            } else {
+    //                currentCounter = atomicAdd(counter[outputIndex].translucentCount, drawCount);
+    //            }
+    //
+    //            atomicMax(element_count, maxElementCount);
+    //            memoryBarrierAtomicCounter();
+    //
+    //            int outputOffset = (REGION_OFFSET * FACE_COUNT * outputIndex) + (LAYER_OFFSET * FACE_COUNT * passIndex) + currentCounter;
+    //
+    //            for (int i = 0; i < drawCount; ++i) {
+    //                int offset = i + outputOffset;
+    //                draw_command[offset].element_count = drawVertex[i].element_count;
+    //                draw_command[offset].instance_count = 1;
+    //                draw_command[offset].first_index = 0;
+    //                draw_command[offset].vertex_offset = drawVertex[i].vertex_offset;
+    //                draw_command[offset].instance_offset = 0;
+    //            }
+    //        }
+    //    }
 }
