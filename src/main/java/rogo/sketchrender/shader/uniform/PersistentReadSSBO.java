@@ -21,10 +21,10 @@ public class PersistentReadSSBO implements BufferObject {
     private ByteBuffer mappedBuffer;
 
     public PersistentReadSSBO(long dataCount, long stride) {
-        this(dataCount, stride, MemoryUtil.nmemCalloc(dataCount, stride));
+        this(dataCount, stride, MemoryUtil.nmemCalloc(dataCount, stride), GL15.glGenBuffers());
     }
 
-    public PersistentReadSSBO(long dataCount, long stride, long memoryAddress) {
+    public PersistentReadSSBO(long dataCount, long stride, long memoryAddress, int handle) {
         long totalCapacity = dataCount * stride;
         if (totalCapacity > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Buffer capacity too large");
@@ -34,7 +34,7 @@ public class PersistentReadSSBO implements BufferObject {
         this.dataCount = dataCount;
         this.bufferPointer = memoryAddress;
 
-        id = GL15.glGenBuffers();
+        id = handle;
         if (id < 0) {
             throw new RuntimeException("Failed to create a new buffer");
         }

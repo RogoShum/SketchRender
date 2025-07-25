@@ -94,6 +94,10 @@ public class CountBuffer implements BufferObject {
         GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);
     }
 
+    public void bindShaderSlot(int bindingPoint) {
+        GL43.glBindBufferBase(GL43.GL_ATOMIC_COUNTER_BUFFER, bindingPoint, bufferId);
+    }
+
     public void updateCount(int count) {
         if (persistent) {
             throw new RuntimeException("not support yet");

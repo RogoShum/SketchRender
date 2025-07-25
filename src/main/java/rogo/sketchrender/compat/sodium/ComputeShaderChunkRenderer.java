@@ -100,12 +100,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         }
 
         if (shaderInterface != null) {
-            int maxElement;
-            if (Config.getCullEntity()) {
-                maxElement = MeshUniform.batchMaxElementPersistent.getInt(0);
-            } else {
-                maxElement = MeshUniform.sectionMaxElement[0];
-            }
+            int maxElement = MeshUniform.maxElementPersistent.getInt(0);
             if (maxElementCount < maxElement) {
                 sharedIndexBuffer.ensureCapacity(commandList, maxElement);
                 maxElementCount = maxElement;
@@ -121,11 +116,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     }
 
     public void preRender() {
-        if (Config.getCullEntity()) {
-            MeshUniform.batchMaxElementPersistent.bindShaderSlot(7);
-        } else {
-            MeshUniform.batchMaxElement.bindShaderSlot(7);
-        }
+        MeshUniform.elementCounter.updateCount(0);
+        MeshUniform.batchMaxElement.bindShaderSlot(7);
         long ptr = MeshUniform.batchRegionIndex.getMemoryAddress();
         for (int i = 0; i < orderedRegions.size(); ++i) {
             RenderRegion region = orderedRegions.get(i);
@@ -161,6 +153,12 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(3, orderedRegions.size(), 1);
             ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
+
+        MeshUniform.batchMaxElement.bindShaderSlot(0);
+        MeshUniform.maxElementPersistent.bindShaderSlot(1);
+        ShaderManager.COPY_COUNTER_CS.bind();
+        ShaderManager.COPY_COUNTER_CS.execute(1, 1, 1);
+        ShaderManager.COPY_COUNTER_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);

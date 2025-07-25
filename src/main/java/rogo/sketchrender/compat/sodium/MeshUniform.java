@@ -29,10 +29,9 @@ public class MeshUniform {
     public static SSBO batchCounter;
     public static SSBO batchRegionIndex;
     public static SSBO batchMaxElement;
-    public static PersistentReadSSBO batchMaxElementPersistent;
+    public static PersistentReadSSBO maxElementPersistent;
     public static CountBuffer cullingCounter;
     public static CountBuffer elementCounter;
-    public static CountBuffer elementCounterPersistent;
 
     public static final RegionMeshManager meshManager = new RegionMeshManager();
 
@@ -44,8 +43,7 @@ public class MeshUniform {
         batchMaxElement = new SSBO(elementCounter);
         batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
 
-        elementCounterPersistent = new CountBuffer(VertexFormatElement.Type.INT);
-        batchMaxElementPersistent = new PersistentReadSSBO(1, Integer.BYTES);
+        maxElementPersistent = new PersistentReadSSBO(1, Integer.BYTES);
     }
 
     public static void addIndexedRegion(RenderRegion region) {
