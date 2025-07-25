@@ -439,6 +439,7 @@ void main() {
                 drawVertex[drawCount].vertex_offset = sectionData.mesh[facing].vertex_offset;
                 drawCount += slices >> facing & 1;
             }
+            atomicMax(element_count, maxElementCount);
             sort_entries[dataIndex].drawCount = drawCount;
 
             int currentCounter = 0;

@@ -40,8 +40,6 @@ import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -55,7 +53,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     protected boolean checkedShaderInterface = false;
     private int lastUpdateFrame;
     private List<RenderRegion> orderedRegions;
-    private List<RenderRegion> reverseOrderedRegions;
     private final ExtraChunkRenderer defaultChunkRenderer;
 
     public ComputeShaderChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
@@ -75,9 +72,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
                 SectionRenderDataStorage storage = r.getStorage(renderPass);
                 return storage != null && r.getResources() != null;
             }).toList();
-
-            reverseOrderedRegions = new ArrayList<>(orderedRegions);
-            Collections.reverse(reverseOrderedRegions);
         }
 
         if (orderedRegions != null && update) {
