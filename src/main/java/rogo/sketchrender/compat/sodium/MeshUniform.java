@@ -1,12 +1,13 @@
 package rogo.sketchrender.compat.sodium;
 
 import com.mojang.blaze3d.vertex.VertexFormatElement;
+import me.jellysquid.mods.sodium.client.model.quad.properties.ModelQuadFacing;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.SectionPos;
 import org.lwjgl.opengl.GL15;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
+import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 /**
@@ -22,14 +23,16 @@ public class MeshUniform {
     public static int theoreticalRegionQuantity = 0;
 
     public static int currentFrame = 0;
-    public static int[] sectionMaxElement = new int[]{393210};
+    public static int[] sectionMaxElement = new int[]{ModelQuadFacing.COUNT * 256 + 1};
 
     public static SSBO batchCommand;
     public static SSBO batchCounter;
     public static SSBO batchRegionIndex;
-    public static SSBO batchElement;
+    public static SSBO batchMaxElement;
+    public static PersistentReadSSBO batchMaxElementPersistent;
     public static CountBuffer cullingCounter;
     public static CountBuffer elementCounter;
+    public static CountBuffer elementCounterPersistent;
 
     public static final RegionMeshManager meshManager = new RegionMeshManager();
 
@@ -38,8 +41,11 @@ public class MeshUniform {
         cullingCounter = new CountBuffer(VertexFormatElement.Type.INT);
         batchCounter = new SSBO(cullingCounter);
         elementCounter = new CountBuffer(VertexFormatElement.Type.INT);
-        batchElement = new SSBO(elementCounter);
+        batchMaxElement = new SSBO(elementCounter);
         batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
+
+        elementCounterPersistent = new CountBuffer(VertexFormatElement.Type.INT);
+        batchMaxElementPersistent = new PersistentReadSSBO(1, Integer.BYTES);
     }
 
     public static void addIndexedRegion(RenderRegion region) {

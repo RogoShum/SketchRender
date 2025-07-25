@@ -33,6 +33,7 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.ExtraChunkRenderer;
 import rogo.sketchrender.api.SectionData;
 import rogo.sketchrender.api.TessellationDevice;
@@ -99,7 +100,12 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         }
 
         if (shaderInterface != null) {
-            int maxElement = MeshUniform.sectionMaxElement[0];
+            int maxElement;
+            if (Config.getCullEntity()) {
+                maxElement = MeshUniform.batchMaxElementPersistent.getInt(0);
+            } else {
+                maxElement = MeshUniform.sectionMaxElement[0];
+            }
             if (maxElementCount < maxElement) {
                 sharedIndexBuffer.ensureCapacity(commandList, maxElement);
                 maxElementCount = maxElement;
@@ -115,7 +121,11 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     }
 
     public void preRender() {
-        MeshUniform.batchElement.bindShaderSlot(7);
+        if (Config.getCullEntity()) {
+            MeshUniform.batchMaxElementPersistent.bindShaderSlot(7);
+        } else {
+            MeshUniform.batchMaxElement.bindShaderSlot(7);
+        }
         long ptr = MeshUniform.batchRegionIndex.getMemoryAddress();
         for (int i = 0; i < orderedRegions.size(); ++i) {
             RenderRegion region = orderedRegions.get(i);
@@ -139,12 +149,18 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         });
 
         RenderSystem.activeTexture(GL_TEXTURE0);
-        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
-        //ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, orderedRegions.size(), 1);
+        if (Config.shouldComputeShader()) {
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.bindUniforms();
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.execute(12, orderedRegions.size(), 1);
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        } else {
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
+            //ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, orderedRegions.size(), 1);
 
-        //TODO 3 x work group, for real?
-        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(3, orderedRegions.size(), 1);
-        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            //TODO 3 x work group, for real?
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(3, orderedRegions.size(), 1);
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
 
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);

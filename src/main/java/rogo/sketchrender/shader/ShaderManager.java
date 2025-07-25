@@ -20,6 +20,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
 
     public static ComputeShader COPY_DEPTH_CS;
     public static ComputeShader CULL_COLLECT_CHUNK_BATCH_CS;
+    public static ComputeShader CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP;
     public static ComputeShader CULL_ENTITY_BATCH_CS;
 
     public void onShaderLoad(ShaderCollector a) {
@@ -51,6 +52,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
             COPY_DEPTH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "copy_depth"));
             CULL_ENTITY_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "cull_entity_batch"));
             CULL_COLLECT_CHUNK_BATCH_CS = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "cull_collect_chunk_batch"));
+            CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP = new ComputeShader(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "cull_collect_chunk_batch_artpop"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
