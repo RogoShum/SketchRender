@@ -172,7 +172,7 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
-    //annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     compileOnly fg.deobf('maven.modrinth:oculus:1.20.1-1.7.0')
     implementation fg.deobf('maven.modrinth:oculus:1.20.1-1.7.0')

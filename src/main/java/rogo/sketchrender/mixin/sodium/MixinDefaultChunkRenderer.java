@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import rogo.sketchrender.api.ExtraChunkRenderer;
 
-@Mixin(DefaultChunkRenderer.class)
+@Mixin(value = DefaultChunkRenderer.class, remap = false)
 public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
 
     public MixinDefaultChunkRenderer(RenderDevice device, ChunkVertexType vertexType) {

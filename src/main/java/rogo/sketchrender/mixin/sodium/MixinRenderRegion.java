@@ -20,7 +20,7 @@ import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.shader.uniform.SSBO;
 
-@Mixin(RenderRegion.class)
+@Mixin(value = RenderRegion.class, remap = false)
 public abstract class MixinRenderRegion implements RegionData {
     @Shadow(remap = false)
     @Final

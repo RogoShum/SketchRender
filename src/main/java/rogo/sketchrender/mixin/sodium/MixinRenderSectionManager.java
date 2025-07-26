@@ -35,7 +35,7 @@ import rogo.sketchrender.shader.IndirectCommandBuffer;
 import java.util.ArrayDeque;
 import java.util.Map;
 
-@Mixin(RenderSectionManager.class)
+@Mixin(value = RenderSectionManager.class, remap = false)
 public abstract class MixinRenderSectionManager {
 
     @Shadow(remap = false)

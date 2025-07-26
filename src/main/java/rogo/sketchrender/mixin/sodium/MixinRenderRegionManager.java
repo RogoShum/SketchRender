@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.RegionData;
 import rogo.sketchrender.compat.sodium.MeshUniform;
 
-@Mixin(RenderRegionManager.class)
+@Mixin(value = RenderRegionManager.class, remap = false)
 public abstract class MixinRenderRegionManager implements RegionData {
 
     @Inject(method = "create", at = @At(value = "RETURN", remap = false, target = "Lit/unimi/dsi/fastutil/longs/Long2ReferenceOpenHashMap;put(JLjava/lang/Object;)Ljava/lang/Object;"))

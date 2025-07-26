@@ -1,11 +1,10 @@
 package rogo.sketchrender.mixin;
 
+import com.mojang.blaze3d.shaders.Shader;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraftforge.common.MinecraftForge;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -18,14 +17,10 @@ import rogo.sketchrender.shader.uniform.UnsafeUniformMap;
 public abstract class MixinShaderInstance implements ExtraUniform {
     private UnsafeUniformMap unsafeUniformMap;
 
-    @Final
-    @Shadow
-    private int programId;
-
     @Inject(at = @At("TAIL"), method = "<init>(Lnet/minecraft/server/packs/resources/ResourceProvider;Lnet/minecraft/resources/ResourceLocation;Lcom/mojang/blaze3d/vertex/VertexFormat;)V")
     public void construct(CallbackInfo ci) {
-        this.unsafeUniformMap = new UnsafeUniformMap(this.programId);
-        MinecraftForge.EVENT_BUS.post(new ProgramEvent.Init(this.programId, this));
+        this.unsafeUniformMap = new UnsafeUniformMap(((Shader) this).getId());
+        MinecraftForge.EVENT_BUS.post(new ProgramEvent.Init(((Shader) this).getId(), this));
     }
 
     @Override
@@ -35,7 +30,7 @@ public abstract class MixinShaderInstance implements ExtraUniform {
 
     @Inject(at = @At("TAIL"), method = "apply")
     public void onApply(CallbackInfo ci) {
-        MinecraftForge.EVENT_BUS.post(new ProgramEvent.Bind(this.programId, this));
+        MinecraftForge.EVENT_BUS.post(new ProgramEvent.Bind(((Shader) this).getId(), this));
     }
 
     @Mixin(RenderSystem.class)

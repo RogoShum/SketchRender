@@ -17,7 +17,7 @@ import rogo.sketchrender.api.SectionData;
 import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.shader.uniform.SSBO;
 
-@Mixin(SectionRenderDataStorage.class)
+@Mixin(value = SectionRenderDataStorage.class, remap = false)
 public class MixinSectionRenderDataStorage implements SectionData {
 
     @Shadow

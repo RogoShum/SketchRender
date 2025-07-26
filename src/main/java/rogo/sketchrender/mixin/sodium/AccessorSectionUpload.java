@@ -7,7 +7,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(targets = "me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegionManager$PendingSectionUpload")
+@Mixin(targets = "me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegionManager$PendingSectionUpload", remap = false)
 public interface AccessorSectionUpload {
 
     @Accessor("section")
