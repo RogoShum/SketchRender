@@ -35,8 +35,8 @@ struct ClipResult {
 
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 4.0 / DepthScreenSize[i].x;
-        float yStep = 4.0 / DepthScreenSize[i].y;
+        float xStep = 2.10 / DepthScreenSize[i].x;
+        float yStep = 2.10 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
@@ -45,8 +45,7 @@ int getSampler(float xLength, float yLength) {
     return DepthScreenSize.length() - 1;
 }
 
-float LinearizeDepth(float depth) {
-    float z = depth * 2.0 - 1.0;
+float LinearizeDepth(float z) {
     return (near * far) / (far + near - z * (far - near));
 }
 
@@ -78,7 +77,6 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
     result.screenMax = vec2(0.0);
 
     mat4 mvp = CullingProjMat * CullingViewMat;
-    bool hasValidPoint = false;
 
     vec4 clipPositions[8];
     for(int i = 0; i < 8; i++) {
@@ -92,25 +90,19 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
 
     for(int i = 0; i < 8; i++) {
         vec4 clipPos = clipPositions[i];
-        vec2 ndcXY;
+        float w = max(abs(clipPos.w), 0.1); // avoid / 0 or w < 0
+        vec2 ndcXY = clipPos.xy / w;
 
-        if(clipPos.w > 0.0) {
-            ndcXY = clipPos.xy / clipPos.w;
-        } else {
-            ndcXY = clipPos.xy / -clipPos.w;
-        }
-
-        vec2 screenPos = (ndcXY + 1.0) * 0.5;
+        ndcXY = clamp(ndcXY, -1.0, 1.0);
+        vec2 screenPos = (ndcXY * 0.5) + 0.5;
 
         result.screenMin = min(result.screenMin, screenPos);
         result.screenMax = max(result.screenMax, screenPos);
 
         if (clipPos.w > 0.0) {
             result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
-            hasValidPoint = true;
         } else {
-            result.minDepth = -2.0;
-            hasValidPoint = true;
+            result.minDepth = min(result.minDepth, abs(clipPos.w) / abs(clipPos.z));
         }
     }
 
@@ -220,15 +212,14 @@ void main() {
         return;
     }
 
-    ClipResult clip = getClippedMinDepth(chunkPos + (CullingCameraDir * -2), 9.0);
+    ClipResult clip = getClippedMinDepth(chunkPos, 9.0);
 
     if(any(greaterThan(clip.screenMin, clip.screenMax))) {
         fragColor = vec4(0.0, 0.0, 0.5, 1.0);
         return;
     }
 
-    float sectionDepth = (clip.minDepth + 1.0) * 0.5;
-    sectionDepth = LinearizeDepth(sectionDepth);
+    float sectionDepth = LinearizeDepth(clip.minDepth);
 
     vec2 mins = clamp(clip.screenMin, 0.0, 1.0);
     vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
