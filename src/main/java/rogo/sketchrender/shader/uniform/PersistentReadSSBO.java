@@ -124,7 +124,9 @@ public class PersistentReadSSBO implements BufferObject {
         if (isDisposed) return;
 
         if (mappedBuffer != null) {
+            GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
             GL45.glUnmapBuffer(GL43.GL_SHADER_STORAGE_BUFFER);
+            GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
             mappedBuffer = null;
         }
 
