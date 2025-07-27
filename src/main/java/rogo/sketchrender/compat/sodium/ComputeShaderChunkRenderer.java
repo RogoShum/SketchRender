@@ -2,7 +2,6 @@ package rogo.sketchrender.compat.sodium;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.jellysquid.mods.sodium.client.gl.attribute.GlVertexAttributeBinding;
-import me.jellysquid.mods.sodium.client.gl.attribute.GlVertexFormat;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.gl.device.DrawCommandList;
 import me.jellysquid.mods.sodium.client.gl.device.GLRenderDevice;
@@ -22,8 +21,6 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.chunk.shader.ChunkShaderInterface;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.DefaultTerrainRenderPasses;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
-import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkMeshAttribute;
-import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkMeshFormats;
 import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexType;
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
@@ -50,6 +47,7 @@ import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
     private final SharedQuadIndexBuffer sharedIndexBuffer;
     protected int maxElementCount = 0;
+    private boolean isIndexedPass;
     protected Class<?> extraShaderInterface;
     protected boolean checkedShaderInterface = false;
     private int lastUpdateFrame;
@@ -75,7 +73,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
             }).toList();
         }
 
-        if (orderedRegions != null && update) {
+        if (orderedRegions != null && !orderedRegions.isEmpty() && update) {
             preRender();
         }
 
@@ -100,8 +98,9 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         }
 
         if (shaderInterface != null) {
+            this.isIndexedPass = renderPass.isSorted();
             int maxElement = MeshUniform.maxElementPersistent.getInt(0);
-            if (maxElementCount < maxElement) {
+            if (maxElementCount < maxElement && !this.isIndexedPass) {
                 sharedIndexBuffer.ensureCapacity(commandList, maxElement);
                 maxElementCount = maxElement;
             }
@@ -190,7 +189,6 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
 
             IndirectCommandBuffer.INSTANCE.bind();
             MeshUniform.cullingCounter.bind();
-
             GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
             renderer.sodiumModelMatrixUniforms(shader, region, camera);
             DrawCommandList drawCommandList = commandList.beginTessellating(tessellation);
@@ -216,19 +214,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         }
     }
 
-    private GlVertexAttributeBinding[] getBindingsForType() {
-        if (this.vertexType == ChunkMeshFormats.COMPACT) {
-            return new GlVertexAttributeBinding[]{new GlVertexAttributeBinding(1, this.vertexFormat.getAttribute(ChunkMeshAttribute.POSITION_MATERIAL_MESH)), new GlVertexAttributeBinding(2, this.vertexFormat.getAttribute(ChunkMeshAttribute.COLOR_SHADE)), new GlVertexAttributeBinding(3, this.vertexFormat.getAttribute(ChunkMeshAttribute.BLOCK_TEXTURE)), new GlVertexAttributeBinding(4, this.vertexFormat.getAttribute(ChunkMeshAttribute.LIGHT_TEXTURE))};
-        } else if (this.vertexType == ChunkMeshFormats.VANILLA_LIKE) {
-            GlVertexFormat<ChunkMeshAttribute> vanillaFormat = this.vertexFormat;
-            return new GlVertexAttributeBinding[]{new GlVertexAttributeBinding(1, vanillaFormat.getAttribute(ChunkMeshAttribute.POSITION_MATERIAL_MESH)), new GlVertexAttributeBinding(2, vanillaFormat.getAttribute(ChunkMeshAttribute.COLOR_SHADE)), new GlVertexAttributeBinding(3, vanillaFormat.getAttribute(ChunkMeshAttribute.BLOCK_TEXTURE)), new GlVertexAttributeBinding(4, vanillaFormat.getAttribute(ChunkMeshAttribute.LIGHT_TEXTURE))};
-        } else {
-            return null;
-        }
-    }
-
     private GlTessellation createRegionTessellation(CommandList commandList, RenderRegion.DeviceResources resources) {
-        return commandList.createTessellation(GlPrimitiveType.TRIANGLES, new TessellationBinding[]{TessellationBinding.forVertexBuffer(resources.getVertexBuffer(), defaultChunkRenderer.getAttributeBindings()), TessellationBinding.forElementBuffer(this.sharedIndexBuffer.getBufferObject())});
+        return commandList.createTessellation(GlPrimitiveType.TRIANGLES, new TessellationBinding[]{TessellationBinding.forVertexBuffer(resources.getVertexBuffer(), defaultChunkRenderer.getAttributeBindings()), TessellationBinding.forElementBuffer(this.isIndexedPass ? resources.getIndexBuffer() : this.sharedIndexBuffer.getBufferObject())});
     }
 
     @Override
@@ -239,9 +226,14 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     @Override
     public GlTessellation sodiumTessellation(CommandList commandList, RenderRegion region) {
         RenderRegion.DeviceResources resources = region.getResources();
-        GlTessellation tessellation = resources.getTessellation();
+        GlTessellation tessellation = this.isIndexedPass ? resources.getIndexedTessellation() : resources.getTessellation();
         if (tessellation == null) {
-            resources.updateTessellation(commandList, tessellation = this.createRegionTessellation(commandList, resources));
+            tessellation = this.createRegionTessellation(commandList, resources);
+            if (this.isIndexedPass) {
+                resources.updateIndexedTessellation(commandList, tessellation);
+            } else {
+                resources.updateTessellation(commandList, tessellation);
+            }
         }
 
         return tessellation;
@@ -262,6 +254,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     @Override
     public void delete(CommandList commandList) {
         super.delete(commandList);
+        this.sharedIndexBuffer.delete(commandList);
         MeshUniform.clearRegions();
     }
 }

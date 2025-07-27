@@ -23,7 +23,6 @@ public class MeshUniform {
     public static int theoreticalRegionQuantity = 0;
 
     public static int currentFrame = 0;
-    public static int[] sectionMaxElement = new int[]{ModelQuadFacing.COUNT * 256 + 1};
 
     public static SSBO batchCommand;
     public static SSBO batchCounter;

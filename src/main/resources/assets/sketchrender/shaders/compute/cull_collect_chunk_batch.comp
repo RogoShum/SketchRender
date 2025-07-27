@@ -11,6 +11,7 @@ struct DrawCommand {
 struct SectionMesh {
     int vertex_offset;
     int element_count;
+    int index_offset;
 };
 
 struct SectionData {
@@ -410,10 +411,10 @@ void main() {
     SectionMesh[7] drawVertex;
 
     if (!culled) {
-        if (sketch_cull_facing <= 0 || (sketch_translucent_sort > 0 && passIndex == 2)) {
-            slices = 127;
-        } else {
+        if (sketch_cull_facing > 0 && !(sketch_translucent_sort > 0 && passIndex == 2)) {
             slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, sectionPos.x, sectionPos.y, sectionPos.z);
+        } else {
+            slices = 127;
         }
 
         slices &= sectionData.mask;
@@ -427,6 +428,7 @@ void main() {
                 maxElementCount += elementCount;
                 drawVertex[drawCount].element_count = elementCount;
                 drawVertex[drawCount].vertex_offset = sectionData.mesh[facing].vertex_offset;
+                drawVertex[drawCount].index_offset = sectionData.mesh[facing].index_offset;
                 drawCount += slices >> facing & 1;
             }
             atomicMax(element_count, maxElementCount);

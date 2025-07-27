@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.RegionData;
 import rogo.sketchrender.api.SectionData;
+import rogo.sketchrender.compat.sodium.RegionMeshManager;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.shader.uniform.SSBO;
@@ -30,7 +31,7 @@ public abstract class MixinRenderRegion implements RegionData {
 
     @Inject(method = "<init>", at = @At(value = "RETURN"), remap = false)
     private void onInit(CallbackInfo ci) {
-        meshData = new SSBO(768, 64, GL15.GL_DYNAMIC_DRAW);
+        meshData = new SSBO(768, RegionMeshManager.SECTION_DATA_SIZE, GL15.GL_DYNAMIC_DRAW);
     }
 
     @Inject(method = "getSection", at = @At("HEAD"), cancellable = true, remap = false)

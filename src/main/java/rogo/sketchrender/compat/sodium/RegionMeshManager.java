@@ -9,7 +9,7 @@ import rogo.sketchrender.util.IndexPool;
 public class RegionMeshManager {
     private static final int SECTION_COUNT = 256;
     private static final int PASS_COUNT = 3;
-    private static final int SECTION_DATA_SIZE = 64; // bytes
+    public static final long SECTION_DATA_SIZE = 92; // bytes
 
     private final IndexPool<RenderRegion> regionIndex = new IndexPool<>();
     private SSBO meshDataBuffer;
@@ -26,7 +26,7 @@ public class RegionMeshManager {
         return regionIndex.indexOf(region);
     }
 
-    public int addRegion(RenderRegion region) {
+    public void addRegion(RenderRegion region) {
         regionIndex.add(region);
         int index = regionIndex.indexOf(region);
 
@@ -34,7 +34,6 @@ public class RegionMeshManager {
             expandCapacity((int) ((currentCapacity + 1) * 1.2));
         }
 
-        return index;
     }
 
     public void initCapacity(int capacity) {
@@ -87,7 +86,7 @@ public class RegionMeshManager {
         long offset = ((long) regionIndex * SECTION_COUNT * PASS_COUNT +
                 (long) passIndex * SECTION_COUNT +
                 sectionIndex);
-        meshDataBuffer.upload(offset, 64);
+        meshDataBuffer.upload(offset, (int) SECTION_DATA_SIZE);
     }
 
     public void bindMeshData(int slot) {
