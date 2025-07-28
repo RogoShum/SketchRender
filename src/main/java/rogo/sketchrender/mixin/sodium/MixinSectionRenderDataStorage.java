@@ -18,6 +18,8 @@ import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.compat.sodium.RegionMeshManager;
 import rogo.sketchrender.shader.uniform.SSBO;
 
+import java.util.Arrays;
+
 @Mixin(value = SectionRenderDataStorage.class, remap = false)
 public class MixinSectionRenderDataStorage implements SectionData {
     @Shadow
@@ -33,16 +35,12 @@ public class MixinSectionRenderDataStorage implements SectionData {
     private long passOffset;
     private int indexOffset;
 
+    private final int[] sectionFacingCount = new int[256];
     private int totalFacingCount = 0;
 
     @Inject(method = "setMeshes", at = @At("HEAD"))
     public void onSetMeshesHead(int localSectionIndex, GlBufferSegment allocation, GlBufferSegment indexAllocation, VertexRange[] ranges, CallbackInfo ci) {
-        if (this.allocations[localSectionIndex] != null) {
-            long pMeshData = this.getDataPointer(localSectionIndex);
-            int oldSliceMask = SectionRenderDataUnsafe.getSliceMask(pMeshData);
-            int oldFacingCount = Integer.bitCount(oldSliceMask);
-            totalFacingCount -= oldFacingCount;
-        }
+
     }
 
     @Inject(method = "setMeshes", at = @At(value = "RETURN"), remap = false)
@@ -53,13 +51,26 @@ public class MixinSectionRenderDataStorage implements SectionData {
         long pMeshData = this.getDataPointer(localSectionIndex);
         int sliceMask = SectionRenderDataUnsafe.getSliceMask(pMeshData);
         int facingCount = Integer.bitCount(sliceMask);
-        totalFacingCount += facingCount;
+        sectionFacingCount[localSectionIndex] = facingCount;
+        totalFacingCount = Arrays.stream(sectionFacingCount).sum();
     }
 
     @Inject(method = "updateMeshes", at = @At(value = "RETURN"), remap = false)
     private void endSetMeshes(int sectionIndex, CallbackInfo ci) {
         copySectionMesh(sectionIndex);
         meshData.upload(sectionIndex + indexOffset);
+
+        long pMeshData = this.getDataPointer(sectionIndex);
+        int sliceMask = SectionRenderDataUnsafe.getSliceMask(pMeshData);
+        int facingCount = Integer.bitCount(sliceMask);
+        sectionFacingCount[sectionIndex] = facingCount;
+        totalFacingCount = Arrays.stream(sectionFacingCount).sum();
+    }
+
+    @Inject(method = "replaceIndexBuffer", at = @At(value = "RETURN"), remap = false)
+    private void endReplaceIndexBuffer(int localSectionIndex, GlBufferSegment indexAllocation, CallbackInfo ci) {
+        copySectionMesh(localSectionIndex);
+        meshData.upload(localSectionIndex + indexOffset);
     }
 
     @Override
@@ -85,7 +96,8 @@ public class MixinSectionRenderDataStorage implements SectionData {
         long pMeshData = this.getDataPointer(localSectionIndex);
         int sliceMask = SectionRenderDataUnsafe.getSliceMask(pMeshData);
         int facingCount = Integer.bitCount(sliceMask);
-        totalFacingCount -= facingCount;
+        sectionFacingCount[localSectionIndex] = facingCount;
+        totalFacingCount = Arrays.stream(sectionFacingCount).sum();
     }
 
     @Unique

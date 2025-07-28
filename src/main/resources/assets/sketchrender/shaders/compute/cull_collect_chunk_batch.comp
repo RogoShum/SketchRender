@@ -105,7 +105,6 @@ uniform float[12] sketch_depth_size;
 const float near = 0.05;
 float far = 16.0;
 
-//layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 vec4[6] getFrustumData() {
@@ -133,8 +132,8 @@ vec2[6] getDepthScreenSize() {
 int getSampler(float xLength, float yLength) {
     vec2[6] DepthScreenSize = getDepthScreenSize();
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 2.1 / DepthScreenSize[i].x;
-        float yStep = 2.1 / DepthScreenSize[i].y;
+        float xStep = 3.1 / DepthScreenSize[i].x;
+        float yStep = 3.1 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
@@ -281,7 +280,7 @@ bool _is_chunk_culled(ivec3 sectionPos) {
 
     far = sketch_render_distance * 64.0;
 
-    ClipResult clip = getClippedMinDepth(chunkPos + (sketch_culling_camera_dir * -2), 9.0);
+    ClipResult clip = getClippedMinDepth(chunkPos + (sketch_culling_camera_dir * -2), 10.0);
     float sectionDepth = LinearizeDepth(clip.minDepth);
 
     vec2 mins = clamp(clip.screenMin, 0.0, 1.0);
@@ -374,7 +373,6 @@ void bitonicSort(bool reverse) {
     }
 }
 
-
 void main() {
     int dataIndex = int(gl_LocalInvocationID.x);
 
@@ -411,7 +409,8 @@ void main() {
     SectionMesh[7] drawVertex;
 
     if (!culled) {
-        if (sketch_cull_facing > 0 && !(sketch_translucent_sort > 0 && passIndex == 2)) {
+        int sorted = (sketch_translucent_sort > 0 && passIndex == 2) ? 1 : 0;
+        if (sketch_cull_facing > 0 && sorted == 0) {
             slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, sectionPos.x, sectionPos.y, sectionPos.z);
         } else {
             slices = 127;
@@ -428,7 +427,7 @@ void main() {
                 maxElementCount += elementCount;
                 drawVertex[drawCount].element_count = elementCount;
                 drawVertex[drawCount].vertex_offset = sectionData.mesh[facing].vertex_offset;
-                drawVertex[drawCount].index_offset = sectionData.mesh[facing].index_offset;
+                drawVertex[drawCount].index_offset = sectionData.mesh[facing].index_offset * sorted;
                 drawCount += slices >> facing & 1;
             }
             atomicMax(element_count, maxElementCount);
@@ -466,7 +465,7 @@ void main() {
             int offset = i + outputOffset;
             draw_command[offset].element_count = drawVertex[i].element_count;
             draw_command[offset].instance_count = 1;
-            draw_command[offset].first_index = 0;
+            draw_command[offset].first_index = drawVertex[i].index_offset;
             draw_command[offset].vertex_offset = drawVertex[i].vertex_offset;
             draw_command[offset].instance_offset = 0;
         }

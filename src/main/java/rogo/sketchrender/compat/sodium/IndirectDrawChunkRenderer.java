@@ -44,7 +44,7 @@ import java.util.List;
 import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
 import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
-public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
+public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
     private final SharedQuadIndexBuffer sharedIndexBuffer;
     protected int maxElementCount = 0;
     private boolean isIndexedPass;
@@ -54,7 +54,7 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     private List<RenderRegion> orderedRegions;
     private final ExtraChunkRenderer defaultChunkRenderer;
 
-    public ComputeShaderChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
+    public IndirectDrawChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
         super(device, vertexType);
         this.sharedIndexBuffer = new SharedQuadIndexBuffer(device.createCommandList(), SharedQuadIndexBuffer.IndexType.INTEGER);
         defaultChunkRenderer = renderer;
@@ -168,6 +168,8 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
     public static final long LAYER_MESH_STRIDE = 256L * FACING_COUNT * 20L;
 
     public void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, TerrainRenderPass pass, CameraTransform camera) {
+        renderer.setIndexedPass(this.isIndexedPass);
+
         int passIndex = 0;
         if (pass == DefaultTerrainRenderPasses.TRANSLUCENT) {
             passIndex = 2;
@@ -245,6 +247,11 @@ public class ComputeShaderChunkRenderer extends ShaderChunkRenderer implements E
         float y = getCameraTranslation(region.getOriginY(), camera.intY, camera.fracY);
         float z = getCameraTranslation(region.getOriginZ(), camera.intZ, camera.fracZ);
         shader.setRegionOffset(x, y, z);
+    }
+
+    @Override
+    public void setIndexedPass(boolean indexedPass) {
+        this.isIndexedPass = indexedPass;
     }
 
     private static float getCameraTranslation(int chunkBlockPos, int cameraBlockPos, float cameraPos) {

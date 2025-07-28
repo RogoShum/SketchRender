@@ -13,4 +13,6 @@ public interface ExtraChunkRenderer {
     GlTessellation sodiumTessellation(CommandList commandList, RenderRegion region);
 
     void sodiumModelMatrixUniforms(ChunkShaderInterface shader, RenderRegion region, CameraTransform camera);
+
+    void setIndexedPass(boolean indexedPass);
 }

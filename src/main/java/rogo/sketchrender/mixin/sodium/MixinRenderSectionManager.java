@@ -25,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.ExtraChunkRenderer;
-import rogo.sketchrender.compat.sodium.ComputeShaderChunkRenderer;
+import rogo.sketchrender.compat.sodium.IndirectDrawChunkRenderer;
 import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.culling.ChunkRenderMixinHook;
@@ -60,7 +60,7 @@ public abstract class MixinRenderSectionManager {
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(ClientLevel world, int renderDistance, CommandList commandList, CallbackInfo ci) {
         SodiumSectionAsyncUtil.fromSectionManager(this.sectionByPosition, world);
-        sketchlib$computeChunkRenderer = new ComputeShaderChunkRenderer(RenderDevice.INSTANCE, this.chunkRenderer.getVertexType(), (ExtraChunkRenderer) this.chunkRenderer);
+        sketchlib$computeChunkRenderer = new IndirectDrawChunkRenderer(RenderDevice.INSTANCE, this.chunkRenderer.getVertexType(), (ExtraChunkRenderer) this.chunkRenderer);
     }
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false, cancellable = true)

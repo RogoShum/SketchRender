@@ -33,6 +33,8 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
     @Final
     private GlVertexAttributeBinding[] vertexAttributeBindings;
 
+    @Shadow private boolean isIndexedPass;
+
     public GlTessellation sodiumTessellation(CommandList commandList, RenderRegion region) {
         return prepareTessellation(commandList, region);
     }
@@ -44,5 +46,10 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
     @Override
     public GlVertexAttributeBinding[] getAttributeBindings() {
         return this.vertexAttributeBindings;
+    }
+
+    @Override
+    public void setIndexedPass(boolean indexedPass) {
+        this.isIndexedPass = indexedPass;
     }
 }

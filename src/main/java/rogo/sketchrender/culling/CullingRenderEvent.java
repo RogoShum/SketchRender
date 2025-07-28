@@ -244,7 +244,7 @@ public class CullingRenderEvent {
         UnsafeUniformMap uniformMap = event.getExtraUniform().getUniforms();
         if (uniformMap.containsOperate(collect_chunk)) {
             boolean useBlockFaceCulling = SodiumClientMod.options().performance.useBlockFaceCulling;
-            boolean useTranslucentFaceSorting = SodiumClientMod.options().performance.useTranslucentFaceSorting;
+            boolean useTranslucentFaceSorting = SodiumClientMod.canApplyTranslucencySorting();
 
             uniformMap.setUniform("sketch_cull_facing", useBlockFaceCulling ? 1 : 0);
             uniformMap.setUniform("sketch_translucent_sort", useTranslucentFaceSorting ? 1 : 0);
