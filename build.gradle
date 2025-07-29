@@ -172,10 +172,8 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-
-    compileOnly fg.deobf('maven.modrinth:oculus:1.20.1-1.7.0')
-    implementation fg.deobf('maven.modrinth:oculus:1.20.1-1.7.0')
+    compileOnly fg.deobf('maven.modrinth:oculus:1.20.1-1.8.0')
+    implementation fg.deobf('maven.modrinth:oculus:1.20.1-1.8.0')
 
     compileOnly fg.deobf("maven.modrinth:embeddium:0.3.25+mc1.20.1")
     implementation fg.deobf("maven.modrinth:embeddium:0.3.25+mc1.20.1")
@@ -184,6 +182,15 @@ dependencies {
     compileOnly fg.deobf("maven.modrinth:l6YH9Als:4FXHDE9F")
     implementation fg.deobf("maven.modrinth:l6YH9Als:4FXHDE9F")
 }
+
+afterEvaluate {
+    if (gradle.startParameter.taskNames.any { it.toLowerCase().contains("build") }) {
+        dependencies {
+            annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+        }
+    }
+}
+
 
 // This block of code expands all declared replace properties in the specified resource targets.
 // A missing property will result in an error. Properties are expanded using ${} Groovy notation.
