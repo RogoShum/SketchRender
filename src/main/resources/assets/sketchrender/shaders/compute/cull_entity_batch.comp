@@ -21,7 +21,7 @@ uniform float[24] sketch_culling_frustum;
 uniform float[12] sketch_depth_size;
 
 layout(std430, binding = 0) readonly buffer EntityDataBuffer {
-    float entityData[]; // float x 8: center.x, center.y, center.z, size.x, size.y, size.z, index
+    float entityData[]; // float * 6: center.x, center.y, center.z, size.x, size.y, size.z
 };
 
 layout(std430, binding = 1) writeonly buffer CullingResultBuffer {
@@ -178,7 +178,7 @@ void main() {
         return;
     }
 
-    int dataOffset = globalIndex * 8;
+    int dataOffset = globalIndex * 6;
 
     vec3 center = vec3(entityData[dataOffset], entityData[dataOffset + 1], entityData[dataOffset + 2]);
     float sizeX = entityData[dataOffset + 3];
@@ -186,7 +186,6 @@ void main() {
     float sizeZ = entityData[dataOffset + 5];
     float halfWidth = sizeX * 0.5;
     float halfHeight = sizeY * 0.5;
-    //int resultIndex = int(entityData[dataOffset + 6]);
 
     bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
 

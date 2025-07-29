@@ -1,6 +1,7 @@
 package rogo.sketchrender.shader.uniform;
 
 import com.mojang.blaze3d.platform.GlStateManager;
+import io.netty.channel.unix.Buffer;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL45;
@@ -49,6 +50,9 @@ public class PersistentReadSSBO implements BufferObject {
                 capacity,
                 GL45.GL_MAP_PERSISTENT_BIT | GL45.GL_MAP_READ_BIT
         );
+
+        MemoryUtil.nmemFree(bufferPointer);
+        this.bufferPointer = Buffer.memoryAddress(mappedBuffer);
 
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
@@ -113,6 +117,9 @@ public class PersistentReadSSBO implements BufferObject {
                 GL45.GL_MAP_PERSISTENT_BIT | GL45.GL_MAP_READ_BIT
         );
 
+        MemoryUtil.nmemFree(bufferPointer);
+        this.bufferPointer = Buffer.memoryAddress(mappedBuffer);
+
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
@@ -130,7 +137,6 @@ public class PersistentReadSSBO implements BufferObject {
             mappedBuffer = null;
         }
 
-        MemoryUtil.nmemFree(bufferPointer);
         GL15.glDeleteBuffers(id);
         isDisposed = true;
     }

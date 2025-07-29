@@ -175,8 +175,8 @@ dependencies {
     compileOnly fg.deobf('maven.modrinth:oculus:1.20.1-1.8.0')
     implementation fg.deobf('maven.modrinth:oculus:1.20.1-1.8.0')
 
-    compileOnly fg.deobf("maven.modrinth:embeddium:0.3.25+mc1.20.1")
-    implementation fg.deobf("maven.modrinth:embeddium:0.3.25+mc1.20.1")
+    compileOnly fg.deobf("maven.modrinth:embeddium:0.3.31+mc1.20.1")
+    implementation fg.deobf("maven.modrinth:embeddium:0.3.31+mc1.20.1")
 
     //spark
     compileOnly fg.deobf("maven.modrinth:l6YH9Als:4FXHDE9F")

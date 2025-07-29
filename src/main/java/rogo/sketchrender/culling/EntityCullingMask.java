@@ -28,7 +28,7 @@ public class EntityCullingMask {
     }
 
     private void initializeSSBOs(int initialCapacity) {
-        this.entityDataSSBO = new SSBO(initialCapacity, 8 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
+        this.entityDataSSBO = new SSBO(initialCapacity, 6 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
         this.cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Integer.BYTES);
         this.prevCullingResultSSBO = cullingResultSSBO;
     }
@@ -104,16 +104,14 @@ public class EntityCullingMask {
             AABB aabb = SketchRender.getObjectAABB(obj);
             Vec3 center = aabb.getCenter();
 
-            int offset = index * 8 * Float.BYTES;
+            int offset = index * 6 * Float.BYTES;
             MemoryUtil.memPutFloat(bufferPointer + offset, (float) center.x);
             MemoryUtil.memPutFloat(bufferPointer + offset + 4, (float) center.y);
             MemoryUtil.memPutFloat(bufferPointer + offset + 8, (float) center.z);
             MemoryUtil.memPutFloat(bufferPointer + offset + 12, (float) aabb.getXsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 16, (float) aabb.getYsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 20, (float) aabb.getZsize());
-            MemoryUtil.memPutFloat(bufferPointer + offset + 24, index);
-            MemoryUtil.memPutFloat(bufferPointer + offset + 28, 0);
-            entityDataSSBO.position = offset + 32;
+            entityDataSSBO.position = offset + 24;
         }
 
         entityDataSSBO.upload();
@@ -121,11 +119,10 @@ public class EntityCullingMask {
     }
 
     public void swapBuffer(int tickCount) {
-        if (this.prevCullingResultSSBO != null) {
-            this.prevCullingResultSSBO.discard();
-        }
+        PersistentReadSSBO buffer = this.prevCullingResultSSBO;
         this.prevCullingResultSSBO = this.cullingResultSSBO;
-        this.cullingResultSSBO = new PersistentReadSSBO(this.prevCullingResultSSBO.getDataNum(), Integer.BYTES);
+        this.cullingResultSSBO = buffer;
+        MemoryUtil.memSet(buffer.getMemoryAddress(), 0, buffer.getSize());
         getEntityTable().tickTemp(tickCount);
     }
 

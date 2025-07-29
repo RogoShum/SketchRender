@@ -33,6 +33,7 @@ import rogo.sketchrender.mixin.AccessorMinecraft;
 import rogo.sketchrender.shader.ComputeShader;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.shader.ShaderModifier;
+import rogo.sketchrender.util.CommandCallTimer;
 import rogo.sketchrender.util.DepthContext;
 import rogo.sketchrender.util.OcclusionCullerThread;
 import rogo.sketchrender.util.ShaderLoader;
@@ -235,7 +236,9 @@ public class CullingStateManager {
 
             if (anyNextTick()) {
                 if (CullingStateManager.ENTITY_CULLING_MASK != null) {
+                    SketchRender.COMMAND_TIMER.start("swapBuffer");
                     CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(clientTickCount);
+                    SketchRender.COMMAND_TIMER.end("swapBuffer");
                 }
 
                 if (fullChunkUpdateCooldown > 0) {

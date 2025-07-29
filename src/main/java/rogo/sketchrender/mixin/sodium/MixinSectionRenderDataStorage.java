@@ -2,6 +2,7 @@ package rogo.sketchrender.mixin.sodium;
 
 import me.jellysquid.mods.sodium.client.gl.arena.GlBufferSegment;
 import me.jellysquid.mods.sodium.client.gl.util.VertexRange;
+import me.jellysquid.mods.sodium.client.render.chunk.compile.ChunkBuildOutput;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataUnsafe;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;

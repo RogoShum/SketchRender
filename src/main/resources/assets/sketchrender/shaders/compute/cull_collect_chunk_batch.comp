@@ -181,7 +181,7 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
         if (clipPos.w > 0.0) {
             result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
         } else {
-            result.minDepth = min(result.minDepth, abs(clipPos.w) / abs(clipPos.z));
+            result.minDepth = -2;
         }
     }
 
@@ -280,7 +280,7 @@ bool _is_chunk_culled(ivec3 sectionPos) {
 
     far = sketch_render_distance * 64.0;
 
-    ClipResult clip = getClippedMinDepth(chunkPos + (sketch_culling_camera_dir * -2), 10.0);
+    ClipResult clip = getClippedMinDepth(chunkPos + sketch_culling_camera_dir, 10.0);
     float sectionDepth = LinearizeDepth(clip.minDepth);
 
     vec2 mins = clamp(clip.screenMin, 0.0, 1.0);
