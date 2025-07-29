@@ -32,6 +32,7 @@ public class IndexedSet<E> {
         Integer index = elementToIndex.get(element);
         if (index == null) return false;
         list.remove(element);
+        elementToIndex.remove(element);
         for (int i = index; i < list.size(); ++i) {
             elementToIndex.put(list.get(i), i);
         }
