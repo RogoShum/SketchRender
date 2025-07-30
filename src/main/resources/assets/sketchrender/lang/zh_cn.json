@@ -35,7 +35,8 @@
   "sketchrender.detail.nvidium": "warn:无法与Nvidium的Async bfs功能共用",
   "sketchrender.detail.auto_shader_async": "在部分设备上同时使用光影与异步构建区块会发生崩溃现象，此设置可以在开启光影时自动关闭异步构建区块",
   "sketchrender.detail.sodium": "warn:此功能需要Sodium(Embeddium)",
-  "sketchrender.detail.gl33": "warn:需要显卡支持OpenGL 3.3",
+  "sketchrender.detail.gl44": "warn:需要显卡支持OpenGL 4.4",
+  "sketchrender.detail.gl46": "warn:需要显卡支持OpenGL 4.6",
 
   "sketchrender.skip_culling_entities": "不被剔除的实体",
   "sketchrender.skip_culling_block_entities": "不被剔除的方块实体"

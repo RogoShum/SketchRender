@@ -31,7 +31,8 @@
   "sketchrender.detail.nvidium": "warn:Несовместимо с функцией Async BFS мода Nvidium",
   "sketchrender.detail.auto_shader_async": "На некоторых устройствах одновременное использование шейдеров и асинхронной загрузки чанков может вызывать сбои. Эта настройка может автоматически отключать асинхронную загрузку чанков при включении шейдеров.",
   "sketchrender.detail.sodium": "warn:Для этой функции требуется Sodium (или Embeddium)",
-  "sketchrender.detail.gl33": "warn:Требуется поддержка OpenGL 3.3",
+  "sketchrender.detail.gl44": "warn:Требуется поддержка OpenGL 4.4",
+  "sketchrender.detail.gl46": "warn:Требуется поддержка OpenGL 4.6",
   "sketchrender.skip_culling_entities": "Сущности, не подвергаемые отбраковке",
   "sketchrender.skip_culling_block_entities": "Блок-сущности, не подвергаемые отбраковке"
 }
