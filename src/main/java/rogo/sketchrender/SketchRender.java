@@ -36,6 +36,7 @@ import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
@@ -222,7 +223,7 @@ public class SketchRender {
             debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getSize());
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
-            //debugText.putAll(commandTimer.getResults());
+            debugText.putAll(commandTimer.getResults());
 
             RenderCallTimer renderTimer = SketchRender.RENDER_TIMER;
             debugText.putAll(renderTimer.getResults());

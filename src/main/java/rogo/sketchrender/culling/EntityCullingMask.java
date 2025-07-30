@@ -30,7 +30,7 @@ public class EntityCullingMask {
     private void initializeSSBOs(int initialCapacity) {
         this.entityDataSSBO = new SSBO(initialCapacity, 6 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
         this.cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Integer.BYTES);
-        this.prevCullingResultSSBO = cullingResultSSBO;
+        this.prevCullingResultSSBO = new PersistentReadSSBO(initialCapacity, Integer.BYTES);
     }
 
     public void bindSSBO() {
@@ -74,6 +74,9 @@ public class EntityCullingMask {
         if (cullingResultSSBO != null) {
             cullingResultSSBO.discard();
         }
+        if (prevCullingResultSSBO != null) {
+            prevCullingResultSSBO.discard();
+        }
     }
 
     private void checkAndAdjustCapacity() {
@@ -84,10 +87,12 @@ public class EntityCullingMask {
             int newCapacity = calculateNewCapacity(currentEntityCount);
             entityDataSSBO.ensureCapacity(newCapacity, false);
             cullingResultSSBO.ensureCapacity(newCapacity);
+            prevCullingResultSSBO.ensureCapacity(newCapacity);
         } else if (currentEntityCount < currentCapacity * 0.25 && currentCapacity > 64) {
             int newCapacity = Math.max(64, currentEntityCount);
             entityDataSSBO.ensureCapacity(newCapacity, false, true);
             cullingResultSSBO.ensureCapacity(newCapacity, true);
+            prevCullingResultSSBO.ensureCapacity(newCapacity, true);
         }
     }
 
@@ -159,8 +164,7 @@ public class EntityCullingMask {
         }
 
         public void tickTemp(int tickCount) {
-            Set<Object> removed = objectTimer.tick(tickCount, 20);
-            //stupid but works
+            objectTimer.tick(tickCount, 20);
             indexMap = objectTimer.toIndexedSet();
         }
 

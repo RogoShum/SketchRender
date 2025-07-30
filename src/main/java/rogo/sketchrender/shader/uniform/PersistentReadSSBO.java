@@ -92,12 +92,13 @@ public class PersistentReadSSBO implements BufferObject {
             return;
         }
 
+        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL45.glUnmapBuffer(GL43.GL_SHADER_STORAGE_BUFFER);
+        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
         GL15.glDeleteBuffers(id);
 
         long newCapacity = requiredCount * stride;
         long newBufferPointer = MemoryUtil.nmemCalloc(requiredCount, stride);
-        MemoryUtil.nmemFree(bufferPointer);
-        this.bufferPointer = newBufferPointer;
         this.dataCount = requiredCount;
         this.capacity = newCapacity;
 
@@ -117,9 +118,8 @@ public class PersistentReadSSBO implements BufferObject {
                 GL45.GL_MAP_PERSISTENT_BIT | GL45.GL_MAP_READ_BIT
         );
 
-        MemoryUtil.nmemFree(bufferPointer);
+        MemoryUtil.nmemFree(newBufferPointer);
         this.bufferPointer = Buffer.memoryAddress(mappedBuffer);
-
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
