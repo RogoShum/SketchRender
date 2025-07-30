@@ -12,7 +12,7 @@ public class SectionDataUtil {
     public static int setMeshes(long pMeshDataArray, int localSectionIndex, SSBO meshData, int indexOffset, int[] sectionFacingCount, int passIndex, RenderRegion region, long passOffset) {
         copySectionMesh(pMeshDataArray, localSectionIndex, meshData, passIndex, region, passOffset, indexOffset);
 
-        long pMeshData = getDataPointer(localSectionIndex, localSectionIndex);
+        long pMeshData = getDataPointer(pMeshDataArray, localSectionIndex);
         int sliceMask = SectionRenderDataUnsafe.getSliceMask(pMeshData);
         int facingCount = Integer.bitCount(sliceMask);
         sectionFacingCount[localSectionIndex] = facingCount;

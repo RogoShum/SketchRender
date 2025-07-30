@@ -40,6 +40,7 @@ public class MixinSectionRenderDataStorage implements SectionData {
 
     @Inject(method = "updateMeshes", at = @At(value = "RETURN"), remap = false)
     private void endSetMeshes(int sectionIndex, CallbackInfo ci) {
+        SectionDataUtil.copySectionMesh(this.pMeshDataArray, sectionIndex, meshData, passIndex, region, passOffset, indexOffset);
         totalFacingCount = SectionDataUtil.setMeshes(this.pMeshDataArray, sectionIndex, meshData, indexOffset, sectionFacingCount, passIndex, region, passOffset);
     }
 
