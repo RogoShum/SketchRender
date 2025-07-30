@@ -38,7 +38,7 @@ public class SSBO implements BufferObject {
     }
 
     public SSBO(BufferObject buffer) {
-        this.capacity = buffer.getSize();
+        this.capacity = buffer.getCapacity();
         this.bufferPointer = buffer.getMemoryAddress();
         this.id = buffer.getId();
         this.stride = buffer.getStride();
@@ -52,12 +52,12 @@ public class SSBO implements BufferObject {
     }
 
     @Override
-    public long getDataNum() {
+    public long getDataCount() {
         return dataCount;
     }
 
     @Override
-    public long getSize() {
+    public long getCapacity() {
         return capacity;
     }
 

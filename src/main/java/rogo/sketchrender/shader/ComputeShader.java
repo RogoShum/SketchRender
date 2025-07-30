@@ -34,7 +34,7 @@ public class ComputeShader implements ShaderCollector, ExtraUniform {
         GL20.glCompileShader(computeShader);
 
         if (GL20.glGetShaderi(computeShader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            System.err.println("Error compiling compute shader [" + shaderLocation + "] : " + GL20.glGetShaderInfoLog(computeShader));
+            throw new IOException("Error compiling compute shader [" + shaderLocation + "] :\n" + GL20.glGetShaderInfoLog(computeShader));
         }
 
         program = GL20.glCreateProgram();
@@ -42,7 +42,7 @@ public class ComputeShader implements ShaderCollector, ExtraUniform {
         GL20.glLinkProgram(program);
 
         if (GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            throw new IOException("Error linking compute shader program [" + shaderLocation + "] : " + GL20.glGetProgramInfoLog(program));
+            throw new IOException("Error linking compute shader program [" + shaderLocation + "] :\n" + GL20.glGetProgramInfoLog(program));
         }
 
         GL43.glDeleteShader(computeShader);

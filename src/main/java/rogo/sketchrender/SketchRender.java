@@ -36,7 +36,6 @@ import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
@@ -46,6 +45,7 @@ import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.CommandCallTimer;
+import rogo.sketchrender.util.GLFeatureChecker;
 import rogo.sketchrender.util.OcclusionCullerThread;
 import rogo.sketchrender.util.RenderCallTimer;
 import rogo.sketchrender.vertexbuffer.ScreenSpaceRenderer;
@@ -76,6 +76,7 @@ public class SketchRender {
             ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_CONFIG);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
+            RenderSystem.recordRenderCall(GLFeatureChecker::initialize);
             init();
         });
     }
@@ -220,10 +221,10 @@ public class SketchRender {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
-            debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getSize());
+            debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getCapacity());
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
-            debugText.putAll(commandTimer.getResults());
+            //debugText.putAll(commandTimer.getResults());
 
             RenderCallTimer renderTimer = SketchRender.RENDER_TIMER;
             debugText.putAll(renderTimer.getResults());

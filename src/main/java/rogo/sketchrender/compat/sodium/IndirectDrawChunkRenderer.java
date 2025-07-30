@@ -25,23 +25,18 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
-import org.apache.commons.compress.utils.Lists;
+import org.lwjgl.opengl.ARBIndirectParameters;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.ExtraChunkRenderer;
-import rogo.sketchrender.api.SectionData;
-import rogo.sketchrender.api.TessellationDevice;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
+import rogo.sketchrender.util.GLFeatureChecker;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
 import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
@@ -52,8 +47,9 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
     private boolean isIndexedPass;
     protected Class<?> extraShaderInterface;
     protected boolean checkedShaderInterface = false;
-    private final Map<TerrainRenderPass, Integer> passUpdateFrame = new HashMap<>();
-    private final Map<TerrainRenderPass, List<RenderRegion>> orderedRegions = new HashMap<>();
+    private int lastUpdateFrame = 0;
+    private List<RenderRegion> orderedRegions;
+    private final Map<TerrainRenderPass, List<RenderRegion>> passRegions = new HashMap<>();
     private final ExtraChunkRenderer defaultChunkRenderer;
 
     public IndirectDrawChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
@@ -64,17 +60,34 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
     @Override
     public void render(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera) {
-        if (!passUpdateFrame.containsKey(renderPass) || passUpdateFrame.get(renderPass) != MeshUniform.currentFrame) {
-            passUpdateFrame.put(renderPass, MeshUniform.currentFrame);
-            Iterator<ChunkRenderList> iterator = renderLists.iterator(false);
-            orderedRegions.put(renderPass, Lists.newArrayList(iterator).stream().map(ChunkRenderList::getRegion).filter((r) -> {
-                SectionRenderDataStorage storage = r.getStorage(renderPass);
-                return storage != null && r.getResources() != null;
-            }).toList());
+        List<RenderRegion> allRegions = new ArrayList<>();
+
+        for (TerrainRenderPass pass : DefaultTerrainRenderPasses.ALL) {
+            passRegions.put(pass, new ArrayList<>());
         }
 
-        if (orderedRegions.containsKey(renderPass) && !orderedRegions.get(renderPass).isEmpty()) {
-            preRender(renderPass);
+        Iterator<ChunkRenderList> iterator = renderLists.iterator(false);
+        while (iterator.hasNext()) {
+            RenderRegion region = iterator.next().getRegion();
+            boolean exists = false;
+
+            for (TerrainRenderPass pass : DefaultTerrainRenderPasses.ALL) {
+                SectionRenderDataStorage storage = region.getStorage(pass);
+                if (storage != null && region.getResources() != null) {
+                    passRegions.get(pass).add(region);
+                    exists = true;
+                }
+            }
+
+            if (exists) {
+                allRegions.add(region);
+            }
+        }
+
+        orderedRegions = allRegions;
+
+        if (renderPass == DefaultTerrainRenderPasses.SOLID && orderedRegions != null && !orderedRegions.isEmpty()) {
+            preRender();
         }
 
         super.begin(renderPass);
@@ -105,7 +118,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
                 maxElementCount = maxElement;
             }
 
-            if (orderedRegions.containsKey(renderPass)) {
+            if (passRegions.containsKey(renderPass)) {
                 shaderInterface.setProjectionMatrix(matrices.projection());
                 shaderInterface.setModelViewMatrix(matrices.modelView());
                 onRender(defaultChunkRenderer, shaderInterface, commandList, renderPass, camera);
@@ -114,12 +127,12 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         super.end(renderPass);
     }
 
-    public void preRender(TerrainRenderPass renderPass) {
+    public void preRender() {
         MeshUniform.elementCounter.updateCount(0);
         MeshUniform.batchMaxElement.bindShaderSlot(7);
         long ptr = MeshUniform.batchRegionIndex.getMemoryAddress();
 
-        List<RenderRegion> regions = orderedRegions.get(renderPass);
+        List<RenderRegion> regions = orderedRegions;
         for (int i = 0; i < regions.size(); ++i) {
             RenderRegion region = regions.get(i);
             long offset = i * 16L;
@@ -128,7 +141,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
             MemoryUtil.memPutInt(ptr + offset + 12, MeshUniform.meshManager.indexOf(region));
         }
-        MeshUniform.batchRegionIndex.position = (int) MeshUniform.batchRegionIndex.getSize();
+        MeshUniform.batchRegionIndex.position = (int) MeshUniform.batchRegionIndex.getCapacity();
         MeshUniform.batchRegionIndex.upload();
         MeshUniform.meshManager.bindMeshData(0);
         MeshUniform.batchCommand.bindShaderSlot(1);
@@ -181,7 +194,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
         long passOffset = LAYER_MESH_STRIDE * passIndex;
 
-        List<RenderRegion> regions = orderedRegions.get(pass);
+        List<RenderRegion> regions = passRegions.get(pass);
         for (int i = 0; i < regions.size(); ++i) {
             int index = pass.isReverseOrder() ? (regions.size() - 1 - i) : i;
             RenderRegion region = regions.get(index);
@@ -200,7 +213,11 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
             try {
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * index + passOffset, (index * 12L) + (passIndex * 4L), meshCount, 20);
+                if (GLFeatureChecker.supportsIndirectDrawCount46()) {
+                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * index + passOffset, (index * 12L) + (passIndex * 4L), meshCount, 20);
+                } else if (GLFeatureChecker.supportsIndirectDrawCountARB()) {
+                    ARBIndirectParameters.nglMultiDrawElementsIndirectCountARB(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * index + passOffset, (index * 12L) + (passIndex * 4L), meshCount, 20);
+                }
             } catch (Throwable var7) {
                 if (drawCommandList != null) {
                     try {

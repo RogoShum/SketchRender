@@ -11,7 +11,7 @@ public class CountBuffer implements BufferObject {
     private final boolean persistent;
     private long bufferPointer;
     private final int bufferId;
-    private long size;
+    private long capacity;
     private long counterCount;
     private final VertexFormatElement.Type counterType;
 
@@ -23,7 +23,7 @@ public class CountBuffer implements BufferObject {
         bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, type.getSize());
         counterCount = 1;
         MemoryUtil.memSet(bufferPointer, 0, type.getSize());
-        this.size = type.getSize();
+        this.capacity = type.getSize();
 
         bufferId = GL33.glGenBuffers();
 
@@ -40,7 +40,7 @@ public class CountBuffer implements BufferObject {
             GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
         } else {
             GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);
-            GL15C.nglBufferData(GL46.GL_PARAMETER_BUFFER, size, bufferPointer, GL15.GL_DYNAMIC_DRAW);
+            GL15C.nglBufferData(GL46.GL_PARAMETER_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
             GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
         }
     }
@@ -58,13 +58,13 @@ public class CountBuffer implements BufferObject {
             throw new RuntimeException("not support yet");
         }
 
-        this.size = getStride() * count;
+        this.capacity = getStride() * count;
         counterCount = count;
         MemoryUtil.nmemFree(bufferPointer);
-        bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, this.size);
-        MemoryUtil.memSet(bufferPointer, 0, this.size);
+        bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, this.capacity);
+        MemoryUtil.memSet(bufferPointer, 0, this.capacity);
         GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);
-        GL15C.nglBufferData(GL46.GL_PARAMETER_BUFFER, size, bufferPointer, GL15.GL_DYNAMIC_DRAW);
+        GL15C.nglBufferData(GL46.GL_PARAMETER_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
         GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
     }
 
@@ -73,12 +73,12 @@ public class CountBuffer implements BufferObject {
     }
 
     @Override
-    public long getDataNum() {
+    public long getDataCount() {
         return counterCount;
     }
 
-    public long getSize() {
-        return size;
+    public long getCapacity() {
+        return capacity;
     }
 
     @Override
@@ -103,12 +103,12 @@ public class CountBuffer implements BufferObject {
             throw new RuntimeException("not support yet");
         }
 
-        MemoryUtil.memSet(bufferPointer, count, this.size);
+        MemoryUtil.memSet(bufferPointer, count, this.capacity);
         bind();
-        GL15C.nglBufferSubData(GL46.GL_PARAMETER_BUFFER, 0, size, bufferPointer);
+        GL15C.nglBufferSubData(GL46.GL_PARAMETER_BUFFER, 0, capacity, bufferPointer);
     }
 
-    public void cleanup() {
+    public void discard() {
         GL33.glDeleteBuffers(bufferId);
         MemoryUtil.nmemFree(bufferPointer);
 

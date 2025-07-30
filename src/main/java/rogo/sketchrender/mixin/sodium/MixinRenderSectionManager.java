@@ -24,7 +24,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.ExtraChunkRenderer;
+import rogo.sketchrender.compat.sodium.ExtraChunkRenderer;
 import rogo.sketchrender.compat.sodium.IndirectDrawChunkRenderer;
 import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;

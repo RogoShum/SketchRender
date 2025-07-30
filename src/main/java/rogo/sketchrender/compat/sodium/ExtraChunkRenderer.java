@@ -1,4 +1,4 @@
-package rogo.sketchrender.api;
+package rogo.sketchrender.compat.sodium;
 
 import me.jellysquid.mods.sodium.client.gl.attribute.GlVertexAttributeBinding;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;

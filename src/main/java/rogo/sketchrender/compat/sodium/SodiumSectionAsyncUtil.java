@@ -11,7 +11,6 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.Level;
-import rogo.sketchrender.api.CollectorAccessor;
 import rogo.sketchrender.culling.CullingStateManager;
 
 import java.util.*;

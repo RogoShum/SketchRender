@@ -62,12 +62,12 @@ public class PersistentReadSSBO implements BufferObject {
     }
 
     @Override
-    public long getDataNum() {
+    public long getDataCount() {
         return dataCount;
     }
 
     @Override
-    public long getSize() {
+    public long getCapacity() {
         return capacity;
     }
 

@@ -12,8 +12,6 @@ import rogo.sketchrender.shader.uniform.SSBO;
 import rogo.sketchrender.util.IndexedSet;
 import rogo.sketchrender.util.LifeTimer;
 
-import java.util.Set;
-
 import static net.minecraftforge.common.extensions.IForgeBlockEntity.INFINITE_EXTENT_AABB;
 
 public class EntityCullingMask {
@@ -51,11 +49,11 @@ public class EntityCullingMask {
             getEntityTable().add(o, CullingStateManager.clientTickCount);
         }
 
-        if (idx > -1 && idx < cullingResultSSBO.getDataNum()) {
+        if (idx > -1 && idx < cullingResultSSBO.getDataCount()) {
             boolean flag1 = cullingResultSSBO.getInt(idx) < 1;
             if (flag1) {
                 return true;
-            } else if (!prevCullingResultSSBO.isDisposed() && idx < prevCullingResultSSBO.getDataNum()) {
+            } else if (!prevCullingResultSSBO.isDisposed() && idx < prevCullingResultSSBO.getDataCount()) {
                 return prevCullingResultSSBO.getInt(idx) < 1;
             }
 
@@ -81,7 +79,7 @@ public class EntityCullingMask {
 
     private void checkAndAdjustCapacity() {
         int currentEntityCount = getEntityTable().size();
-        int currentCapacity = (int) entityDataSSBO.getDataNum();
+        int currentCapacity = (int) entityDataSSBO.getDataCount();
 
         if (currentEntityCount > currentCapacity * 0.75) {
             int newCapacity = calculateNewCapacity(currentEntityCount);
@@ -127,7 +125,7 @@ public class EntityCullingMask {
         PersistentReadSSBO buffer = this.prevCullingResultSSBO;
         this.prevCullingResultSSBO = this.cullingResultSSBO;
         this.cullingResultSSBO = buffer;
-        MemoryUtil.memSet(buffer.getMemoryAddress(), 0, buffer.getSize());
+        MemoryUtil.memSet(buffer.getMemoryAddress(), 0, buffer.getCapacity());
         getEntityTable().tickTemp(tickCount);
     }
 

@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import net.minecraftforge.common.ForgeConfigSpec;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.culling.CullingStateManager;
+import rogo.sketchrender.util.GLFeatureChecker;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +26,7 @@ public class Config {
     }
 
     public static boolean getCullEntity() {
-        if (unload() || !CullingStateManager.gl44())
+        if (unload() || !GLFeatureChecker.supportsPersistentMapping())
             return false;
         return CULL_ENTITY.get();
     }
@@ -36,7 +37,7 @@ public class Config {
     }
 
     public static boolean getCullBlockEntity() {
-        if (unload() || !CullingStateManager.gl44())
+        if (unload() || !GLFeatureChecker.supportsPersistentMapping())
             return false;
         return CULL_BLOCK_ENTITY.get();
     }
@@ -47,7 +48,7 @@ public class Config {
     }
 
     public static boolean getCullChunk() {
-        if (unload())
+        if (unload() || !GLFeatureChecker.supportsIndirectDrawCount())
             return false;
 
         return CULL_CHUNK.get();

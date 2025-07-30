@@ -1,7 +1,6 @@
 package rogo.sketchrender.compat.sodium;
 
 import com.mojang.blaze3d.vertex.VertexFormatElement;
-import me.jellysquid.mods.sodium.client.model.quad.properties.ModelQuadFacing;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL15;
@@ -50,17 +49,17 @@ public class MeshUniform {
         int regionSize = meshManager.size();
         int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
 
-        if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getSize()) {
+        if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getCapacity()) {
             IndirectCommandBuffer.INSTANCE.resize(meshManager.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
             batchCommand.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
-            batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getSize());
+            batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getCapacity());
             batchCommand.resetUpload(GL15.GL_STATIC_DRAW);
         }
 
-        if (passSize * cullingCounter.getStride() > cullingCounter.getSize()) {
+        if (passSize * cullingCounter.getStride() > cullingCounter.getCapacity()) {
             cullingCounter.resize(passSize);
             batchCounter.setBufferPointer(cullingCounter.getMemoryAddress());
-            batchCounter.setCapacity(cullingCounter.getSize());
+            batchCounter.setCapacity(cullingCounter.getCapacity());
             batchCounter.resetUpload(GL15.GL_STATIC_DRAW);
         }
 

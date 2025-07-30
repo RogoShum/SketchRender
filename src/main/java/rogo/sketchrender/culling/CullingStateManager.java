@@ -20,9 +20,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector2i;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL43;
-import org.lwjgl.system.Checks;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.DefaultShaderLoader;
@@ -33,7 +31,6 @@ import rogo.sketchrender.mixin.AccessorMinecraft;
 import rogo.sketchrender.shader.ComputeShader;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.shader.ShaderModifier;
-import rogo.sketchrender.util.CommandCallTimer;
 import rogo.sketchrender.util.DepthContext;
 import rogo.sketchrender.util.OcclusionCullerThread;
 import rogo.sketchrender.util.ShaderLoader;
@@ -406,23 +403,6 @@ public class CullingStateManager {
 
                 long time = System.nanoTime();
                 preEntityCullingInitTime += System.nanoTime() - time;
-
-                if (Minecraft.getInstance().level != null) {
-                    //CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().clearIndexMap();
-
-                    /*
-                    Iterable<Entity> entities = Minecraft.getInstance().level.entitiesForRendering();
-                    entities.forEach(entity -> {
-                        CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().addObject(entity);
-                    });
-                    for (Object levelrenderer$renderchunkinfo : ((EntitiesForRender) Minecraft.getInstance().levelRenderer).renderChunksInFrustum()) {
-                        List<BlockEntity> list = ((RenderChunkInfo) levelrenderer$renderchunkinfo).getRenderChunk().getCompiledChunk().getRenderableBlockEntities();
-                        list.forEach(entity -> CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().addObject(entity));
-                    }
-                     */
-
-                    //CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().addAllTemp();
-                }
             }
         } else {
 
@@ -488,16 +468,6 @@ public class CullingStateManager {
 
     public static boolean anyCulling() {
         return Config.getCullChunk() || Config.doEntityCulling();
-    }
-
-    private static int gl44 = -1;
-
-    public static boolean gl44() {
-        if (RenderSystem.isOnRenderThread()) {
-            if (gl44 < 0)
-                gl44 = (GL.getCapabilities().OpenGL44 || Checks.checkFunctions(GL.getCapabilities().glBufferStorage)) ? 1 : 0;
-        }
-        return gl44 == 1;
     }
 
     public static boolean needPauseRebuild() {

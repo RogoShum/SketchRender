@@ -14,15 +14,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import rogo.sketchrender.api.RegionData;
-import rogo.sketchrender.api.SectionData;
+import rogo.sketchrender.compat.sodium.SectionData;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.compat.sodium.RegionMeshManager;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
-import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.shader.uniform.SSBO;
 
 @Mixin(value = RenderRegion.class, remap = false)
-public abstract class MixinRenderRegion implements RegionData {
+public abstract class MixinRenderRegion {
     @Shadow(remap = false)
     @Final
     private RenderSection[] sections;
@@ -53,18 +52,13 @@ public abstract class MixinRenderRegion implements RegionData {
                 layer = 1;
             }
 
-            sectionData.setMeshData(meshData, (RenderRegion) (Object)this, layer);
+            sectionData.setMeshData(meshData, (RenderRegion) (Object) this, layer);
         }
     }
 
     @Inject(method = "delete", at = @At("HEAD"), remap = false)
     private void onDelete(CommandList commandList, CallbackInfo ci) {
         meshData.discard();
-        MeshUniform.removeRegion((RenderRegion) (Object)this);
-    }
-
-    @Override
-    public void bindMeshData(int slot) {
-        meshData.bindShaderSlot(slot);
+        MeshUniform.removeRegion((RenderRegion) (Object) this);
     }
 }

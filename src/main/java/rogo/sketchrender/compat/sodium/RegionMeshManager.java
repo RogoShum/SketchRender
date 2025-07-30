@@ -49,7 +49,7 @@ public class RegionMeshManager {
     private void expandCapacity(int requiredCapacity) {
         long newPointer = MemoryUtil.nmemCalloc(requiredCapacity, meshDataBuffer.getStride());
 
-        MemoryUtil.memCopy(meshDataPointer, newPointer, meshDataBuffer.getSize());
+        MemoryUtil.memCopy(meshDataPointer, newPointer, meshDataBuffer.getCapacity());
         MemoryUtil.nmemFree(meshDataPointer);
 
         meshDataPointer = newPointer;
@@ -64,7 +64,7 @@ public class RegionMeshManager {
         int regionIdx = regionIndex.indexOf(region);
         long sectionOffset = getSectionOffset(regionIdx, passIndex, sectionIndex);
 
-        if (sectionOffset + SECTION_DATA_SIZE > meshDataBuffer.getSize()) {
+        if (sectionOffset + SECTION_DATA_SIZE > meshDataBuffer.getCapacity()) {
             throw new RuntimeException("Out of capacity " + sectionOffset);
         }
 

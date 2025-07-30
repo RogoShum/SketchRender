@@ -15,10 +15,11 @@ import net.minecraft.util.FastColor;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
+import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.shader.ShaderManager;
+import rogo.sketchrender.util.GLFeatureChecker;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -167,21 +168,27 @@ public class ConfigScreen extends Screen {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.async");
                 });
         addConfigButton(Config::getCullChunk, Config::setCullChunk, () -> Component.translatable(SketchRender.MOD_ID + ".cull_chunk"))
-                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.cull_chunk"));
+                .setDetailMessage(() -> {
+                    if (GLFeatureChecker.supportsIndirectDrawCount()) {
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.cull_chunk");
+                    } else {
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.gl46");
+                    }
+                });
         addConfigButton(Config::getCullBlockEntity, Config::setCullBlockEntity, () -> Component.translatable(SketchRender.MOD_ID + ".cull_block_entity"))
                 .setDetailMessage(() -> {
-                    if (CullingStateManager.gl44()) {
+                    if (GLFeatureChecker.supportsPersistentMapping()) {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.cull_block_entity");
                     } else {
-                        return Component.translatable(SketchRender.MOD_ID + ".detail.gl33");
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.gl44");
                     }
                 });
         addConfigButton(Config::getCullEntity, Config::setCullEntity, () -> Component.translatable(SketchRender.MOD_ID + ".cull_entity"))
                 .setDetailMessage(() -> {
-                    if (CullingStateManager.gl44()) {
+                    if (GLFeatureChecker.supportsPersistentMapping()) {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.cull_entity");
                     } else {
-                        return Component.translatable(SketchRender.MOD_ID + ".detail.gl33");
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.gl44");
                     }
                 });
 

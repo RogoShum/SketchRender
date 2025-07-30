@@ -51,12 +51,12 @@ public class IndirectCommandBuffer implements BufferObject {
     }
 
     @Override
-    public long getDataNum() {
+    public long getDataCount() {
         return commandCount;
     }
 
     @Override
-    public long getSize() {
+    public long getCapacity() {
         return iCapacity;
     }
 
@@ -78,7 +78,7 @@ public class IndirectCommandBuffer implements BufferObject {
         maxElementCount = 0;
     }
 
-    public void delete() {
+    public void discard() {
         MemoryUtil.nmemFree(this.commandBuffer);
         GL15.nglDeleteBuffers(GL43.GL_DRAW_INDIRECT_BUFFER, id);
     }
