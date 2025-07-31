@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.culling.CullingStateManager;
 
 @Mixin(LevelRenderer.class)
@@ -28,5 +29,10 @@ public abstract class MixinLevelRender {
     @Inject(method = "prepareCullFrustum", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/culling/Frustum;<init>(Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;)V"))
     public void onPrepareCullFrustum(PoseStack p_172962_, Vec3 p_172963_, Matrix4f p_172964_, CallbackInfo ci) {
         CullingStateManager.PROJECTION_MATRIX = new Matrix4f(p_172964_);
+    }
+
+    @Inject(method = "allChanged", at = @At(value = "RETURN"))
+    public void onApplyFrustumReturn(CallbackInfo ci) {
+        MeshUniform.clearRegions();
     }
 }

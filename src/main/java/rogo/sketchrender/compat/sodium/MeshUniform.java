@@ -73,13 +73,13 @@ public class MeshUniform {
         batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
     }
 
+    //TODO need fix
     public static void updateDistance(int renderDistance) {
         if (MeshUniform.renderDistance != renderDistance) {
             MeshUniform.renderDistance = renderDistance;
             spacePartitionSize = 2 * renderDistance + 1;
 
             if (Minecraft.getInstance().level != null) {
-                clearRegions();
                 theoreticalRegionQuantity = (int) (spacePartitionSize * spacePartitionSize * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
                 meshManager.initCapacity(theoreticalRegionQuantity);
             }
