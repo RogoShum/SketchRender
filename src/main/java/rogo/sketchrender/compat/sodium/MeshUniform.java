@@ -79,7 +79,7 @@ public class MeshUniform {
             spacePartitionSize = 2 * renderDistance + 1;
 
             if (Minecraft.getInstance().level != null) {
-                meshManager.refresh();
+                clearRegions();
                 theoreticalRegionQuantity = (int) (spacePartitionSize * spacePartitionSize * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
                 meshManager.initCapacity(theoreticalRegionQuantity);
             }

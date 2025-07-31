@@ -24,6 +24,10 @@ public class RegionMeshManager {
     }
 
     public int indexOf(RenderRegion region) {
+        if (!regionIndex.contains(region)) {
+            regionIndex.add(region);
+        }
+
         return regionIndex.indexOf(region);
     }
 
