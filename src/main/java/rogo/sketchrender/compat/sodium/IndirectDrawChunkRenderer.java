@@ -41,6 +41,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
+import static org.lwjgl.opengl.GL42.GL_ATOMIC_COUNTER_BARRIER_BIT;
+import static org.lwjgl.opengl.GL42.GL_COMMAND_BARRIER_BIT;
 import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
@@ -159,14 +161,20 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         if (Config.shouldComputeShader()) {
             ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.bindUniforms();
             ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.execute(12, orderedRegions.size(), 1);
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.
+                    memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
+                            GL_ATOMIC_COUNTER_BARRIER_BIT |
+                            GL_COMMAND_BARRIER_BIT);
         } else {
             ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
             //ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, orderedRegions.size(), 1);
 
             //TODO 3 x work group, for real?
             ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(3, orderedRegions.size(), 1);
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS
+                    .memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
+                            GL_ATOMIC_COUNTER_BARRIER_BIT |
+                            GL_COMMAND_BARRIER_BIT);
         }
 
         MeshUniform.batchMaxElement.bindShaderSlot(0);

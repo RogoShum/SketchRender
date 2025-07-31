@@ -242,6 +242,7 @@ tasks.register("runRenderDoc", Exec.class) {
             "--working-dir",
             ".",
             "$javaHome/bin/java.exe",
+            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005",
             "-Xmx64m",
             "-Xms64m",
             "-Dorg.gradle.appname=gradlew",
