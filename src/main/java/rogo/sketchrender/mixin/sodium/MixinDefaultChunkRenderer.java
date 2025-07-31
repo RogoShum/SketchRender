@@ -6,6 +6,7 @@ import me.jellysquid.mods.sodium.client.gl.device.RenderDevice;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
 import me.jellysquid.mods.sodium.client.render.chunk.DefaultChunkRenderer;
 import me.jellysquid.mods.sodium.client.render.chunk.ShaderChunkRenderer;
+import me.jellysquid.mods.sodium.client.render.chunk.SharedQuadIndexBuffer;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.chunk.shader.ChunkShaderInterface;
 import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexType;
@@ -33,7 +34,12 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
     @Final
     private GlVertexAttributeBinding[] vertexAttributeBindings;
 
-    @Shadow private boolean isIndexedPass;
+    @Shadow
+    private boolean isIndexedPass;
+
+    @Shadow
+    @Final
+    private SharedQuadIndexBuffer sharedIndexBuffer;
 
     public GlTessellation sodiumTessellation(CommandList commandList, RenderRegion region) {
         return prepareTessellation(commandList, region);
@@ -51,5 +57,10 @@ public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer impl
     @Override
     public void setIndexedPass(boolean indexedPass) {
         this.isIndexedPass = indexedPass;
+    }
+
+    @Override
+    public SharedQuadIndexBuffer getSharedIndexBuffer() {
+        return this.sharedIndexBuffer;
     }
 }

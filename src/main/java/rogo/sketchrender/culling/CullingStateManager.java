@@ -233,9 +233,7 @@ public class CullingStateManager {
 
             if (anyNextTick()) {
                 if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                    SketchRender.COMMAND_TIMER.start("swapBuffer");
                     CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(clientTickCount);
-                    SketchRender.COMMAND_TIMER.end("swapBuffer");
                 }
 
                 if (fullChunkUpdateCooldown > 0) {
@@ -405,7 +403,6 @@ public class CullingStateManager {
                 preEntityCullingInitTime += System.nanoTime() - time;
             }
         } else {
-
             if (ENTITY_CULLING_MASK != null) {
                 ENTITY_CULLING_MASK.cleanup();
                 ENTITY_CULLING_MASK = null;

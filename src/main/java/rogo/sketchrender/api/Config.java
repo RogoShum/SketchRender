@@ -1,6 +1,7 @@
 package rogo.sketchrender.api;
 
 import com.google.common.collect.ImmutableList;
+import net.minecraft.client.Minecraft;
 import net.minecraftforge.common.ForgeConfigSpec;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.culling.CullingStateManager;
@@ -62,8 +63,13 @@ public class Config {
     }
 
     public static void setCullChunk(boolean value) {
+        if (!SketchRender.hasSodium()) {
+            value = false;
+        }
+
         CULL_CHUNK.set(value);
         CULL_CHUNK.save();
+        Minecraft.getInstance().levelRenderer.allChanged();
     }
 
     public static boolean shouldComputeShader() {

@@ -9,13 +9,8 @@ import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
 
-/**
- * [Ugly-but-Working Buffer Design]
- * -------------------------------------------------
- * ! Seeking elegant alternatives !
- */
 public class MeshUniform {
-    private static int renderDistance = 0;
+    private static int renderDistance = -1;
     private static int spacePartitionSize = 0;
     public static int queueUpdateCount = 0;
     public static int lastQueueUpdateCount = 0;
@@ -74,16 +69,20 @@ public class MeshUniform {
         meshManager.refresh();
         IndirectCommandBuffer.INSTANCE.resize(IndirectCommandBuffer.REGION_COMMAND_SIZE);
         cullingCounter.resize(1);
-        batchRegionIndex = new SSBO(1, 12, GL15.GL_DYNAMIC_DRAW);
+        batchRegionIndex.discard();
+        batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
     }
 
     public static void updateDistance(int renderDistance) {
-        MeshUniform.renderDistance = renderDistance;
-        spacePartitionSize = 2 * renderDistance + 1;
+        if (MeshUniform.renderDistance != renderDistance) {
+            MeshUniform.renderDistance = renderDistance;
+            spacePartitionSize = 2 * renderDistance + 1;
 
-        if (Minecraft.getInstance().level != null) {
-            theoreticalRegionQuantity = (int) (spacePartitionSize * spacePartitionSize * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
-            meshManager.initCapacity(theoreticalRegionQuantity);
+            if (Minecraft.getInstance().level != null) {
+                meshManager.refresh();
+                theoreticalRegionQuantity = (int) (spacePartitionSize * spacePartitionSize * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
+                meshManager.initCapacity(theoreticalRegionQuantity);
+            }
         }
     }
 

@@ -22,13 +22,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.compat.sodium.ExtraChunkRenderer;
 import rogo.sketchrender.compat.sodium.IndirectDrawChunkRenderer;
 import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
-import rogo.sketchrender.culling.ChunkRenderMixinHook;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 
@@ -55,38 +53,33 @@ public abstract class MixinRenderSectionManager {
     @Final
     private ChunkRenderer chunkRenderer;
     @Unique
-    private ChunkRenderer sketchlib$computeChunkRenderer;
+    private ChunkRenderer sketchlib$indirectDrawChunkRenderer;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(ClientLevel world, int renderDistance, CommandList commandList, CallbackInfo ci) {
         SodiumSectionAsyncUtil.fromSectionManager(this.sectionByPosition, world);
-        sketchlib$computeChunkRenderer = new IndirectDrawChunkRenderer(RenderDevice.INSTANCE, this.chunkRenderer.getVertexType(), (ExtraChunkRenderer) this.chunkRenderer);
+        sketchlib$indirectDrawChunkRenderer = new IndirectDrawChunkRenderer(RenderDevice.INSTANCE, this.chunkRenderer.getVertexType(), (ExtraChunkRenderer) this.chunkRenderer);
     }
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
-        ChunkRenderMixinHook.onRenderStart(matrices, pass, x, y, z, ci);
         if (Config.getCullChunk() && !CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
             RenderDevice device = RenderDevice.INSTANCE;
             CommandList commandList = device.createCommandList();
-            sketchlib$computeChunkRenderer.render(matrices, commandList, this.renderLists, pass, new CameraTransform(x, y, z));
+            sketchlib$indirectDrawChunkRenderer.render(matrices, commandList, this.renderLists, pass, new CameraTransform(x, y, z));
             commandList.flush();
             ci.cancel();
-            SketchRender.COMMAND_TIMER.end("renderLayer");
-            //SketchRender.RENDER_TIMER.end("renderLayer_R");
         }
     }
 
     @Inject(method = "renderLayer", at = @At(value = "RETURN"), remap = false)
     private void onRenderEnd(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
         IndirectCommandBuffer.INSTANCE.unBind();
-        SketchRender.COMMAND_TIMER.end("renderLayer");
-        //SketchRender.RENDER_TIMER.end("renderLayer_R");
     }
 
     @ModifyArg(method = "destroy", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/ChunkRenderer;delete(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;)V"), remap = false)
     private CommandList onDestroy(CommandList commandList) {
-        sketchlib$computeChunkRenderer.delete(commandList);
+        sketchlib$indirectDrawChunkRenderer.delete(commandList);
         return commandList;
     }
 

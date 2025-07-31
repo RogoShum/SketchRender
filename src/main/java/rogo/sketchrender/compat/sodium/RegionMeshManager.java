@@ -10,6 +10,7 @@ public class RegionMeshManager {
     private static final int SECTION_COUNT = 256;
     private static final int PASS_COUNT = 3;
     public static final long SECTION_DATA_SIZE = 92; // bytes
+    public static final long PASS_DATA_SIZE = SECTION_DATA_SIZE * SECTION_COUNT;
 
     private final IndexPool<RenderRegion> regionIndex = new IndexPool<>();
     private SSBO meshDataBuffer;
@@ -33,7 +34,6 @@ public class RegionMeshManager {
         if (index >= currentCapacity) {
             expandCapacity((int) ((currentCapacity + 1) * 1.2));
         }
-
     }
 
     public void initCapacity(int capacity) {
@@ -60,7 +60,7 @@ public class RegionMeshManager {
         meshDataBuffer.resetUpload(GL15.GL_DYNAMIC_DRAW);
     }
 
-    public void copySectionData(RenderRegion region, int passIndex, int sectionIndex, long sourceAddress) {
+    public long getSectionMemPointer(RenderRegion region, int passIndex, int sectionIndex) {
         int regionIdx = regionIndex.indexOf(region);
         long sectionOffset = getSectionOffset(regionIdx, passIndex, sectionIndex);
 
@@ -68,25 +68,26 @@ public class RegionMeshManager {
             throw new RuntimeException("Out of capacity " + sectionOffset);
         }
 
-        try {
-            MemoryUtil.memCopy(sourceAddress, meshDataPointer + sectionOffset, SECTION_DATA_SIZE);
-            uploadSectionData(regionIdx, passIndex, sectionIndex);
-        } catch (Exception e) {
-            throw new RuntimeException("Memory copy error at offset " + sectionOffset, e);
-        }
+        return meshDataPointer + sectionOffset;
     }
 
-    private long getSectionOffset(int regionIndex, int passIndex, int sectionIndex) {
+    public long getSectionOffset(int regionIndex, int passIndex, int sectionIndex) {
         return ((long) regionIndex * SECTION_COUNT * SECTION_DATA_SIZE * PASS_COUNT) +
                 ((long) passIndex * SECTION_COUNT * SECTION_DATA_SIZE) +
                 ((long) sectionIndex * SECTION_DATA_SIZE);
     }
 
-    private void uploadSectionData(int regionIndex, int passIndex, int sectionIndex) {
+    public void uploadSectionData(int regionIndex, int passIndex, int sectionIndex) {
         long offset = ((long) regionIndex * SECTION_COUNT * PASS_COUNT +
                 (long) passIndex * SECTION_COUNT +
                 sectionIndex);
         meshDataBuffer.upload(offset, (int) SECTION_DATA_SIZE);
+    }
+
+    public void uploadRegionPassData(int regionIndex, int passIndex) {
+        long offset = ((long) regionIndex * PASS_COUNT +
+                (long) passIndex);
+        meshDataBuffer.upload(offset, (int) PASS_DATA_SIZE);
     }
 
     public void bindMeshData(int slot) {
@@ -107,5 +108,9 @@ public class RegionMeshManager {
     public void dispose() {
         meshDataBuffer.discard();
         regionIndex.clear();
+    }
+
+    public long getBufferCapacity() {
+        return meshDataBuffer.getCapacity();
     }
 }

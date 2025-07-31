@@ -1,12 +1,12 @@
 package rogo.sketchrender.mixin.sodium;
 
+import com.mojang.blaze3d.platform.GlDebug;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.DefaultTerrainRenderPasses;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
-import org.lwjgl.opengl.GL15;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -14,11 +14,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import rogo.sketchrender.compat.sodium.SectionData;
+import rogo.sketchrender.api.Config;
 import rogo.sketchrender.compat.sodium.MeshUniform;
-import rogo.sketchrender.compat.sodium.RegionMeshManager;
+import rogo.sketchrender.compat.sodium.RegionMeshDataStorage;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
-import rogo.sketchrender.shader.uniform.SSBO;
+
+import java.util.Map;
 
 @Mixin(value = RenderRegion.class, remap = false)
 public abstract class MixinRenderRegion {
@@ -26,12 +27,9 @@ public abstract class MixinRenderRegion {
     @Final
     private RenderSection[] sections;
 
-    private SSBO meshData;
-
-    @Inject(method = "<init>", at = @At(value = "RETURN"), remap = false)
-    private void onInit(CallbackInfo ci) {
-        meshData = new SSBO(768, RegionMeshManager.SECTION_DATA_SIZE, GL15.GL_DYNAMIC_DRAW);
-    }
+    @Shadow
+    @Final
+    private Map<TerrainRenderPass, SectionRenderDataStorage> sectionRenderData;
 
     @Inject(method = "getSection", at = @At("HEAD"), cancellable = true, remap = false)
     private void onGetSection(int id, CallbackInfoReturnable<RenderSection> cir) {
@@ -39,9 +37,9 @@ public abstract class MixinRenderRegion {
             cir.setReturnValue(new RenderSection((RenderRegion) (Object) this, 0, 0, 0));
     }
 
-    @Inject(method = "createStorage", at = @At(value = "RETURN", remap = false))
+    @Inject(method = "createStorage", at = @At(value = "RETURN"), cancellable = true)
     private void onGetSection(TerrainRenderPass pass, CallbackInfoReturnable<SectionRenderDataStorage> cir) {
-        if (cir.getReturnValue() instanceof SectionData sectionData) {
+        if (Config.getCullChunk() && !(cir.getReturnValue() instanceof RegionMeshDataStorage)) {
             int layer = 0;
 
             if (pass == DefaultTerrainRenderPasses.TRANSLUCENT) {
@@ -52,13 +50,18 @@ public abstract class MixinRenderRegion {
                 layer = 1;
             }
 
-            sectionData.setMeshData(meshData, (RenderRegion) (Object) this, layer);
+            if (cir.getReturnValue() != null) {
+                cir.getReturnValue().delete();
+            }
+
+            SectionRenderDataStorage storage = new RegionMeshDataStorage((RenderRegion) (Object) this, layer);
+            this.sectionRenderData.put(pass, storage);
+            cir.setReturnValue(storage);
         }
     }
 
-    @Inject(method = "delete", at = @At("HEAD"), remap = false)
+    @Inject(method = "delete", at = @At("RETURN"), remap = false)
     private void onDelete(CommandList commandList, CallbackInfo ci) {
-        meshData.discard();
         MeshUniform.removeRegion((RenderRegion) (Object) this);
     }
 }

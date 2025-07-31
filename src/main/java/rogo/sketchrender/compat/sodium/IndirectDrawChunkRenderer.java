@@ -10,7 +10,6 @@ import me.jellysquid.mods.sodium.client.gl.shader.GlProgram;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlIndexType;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlPrimitiveType;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
-import me.jellysquid.mods.sodium.client.gl.tessellation.TessellationBinding;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import me.jellysquid.mods.sodium.client.render.chunk.ShaderChunkRenderer;
 import me.jellysquid.mods.sodium.client.render.chunk.SharedQuadIndexBuffer;
@@ -30,7 +29,6 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
@@ -46,7 +44,6 @@ import static org.lwjgl.opengl.GL42.GL_COMMAND_BARRIER_BIT;
 import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
-    private final SharedQuadIndexBuffer sharedIndexBuffer;
     protected int maxElementCount = 0;
     private boolean isIndexedPass;
     protected Class<?> extraShaderInterface;
@@ -57,7 +54,6 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
     public IndirectDrawChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
         super(device, vertexType);
-        this.sharedIndexBuffer = new SharedQuadIndexBuffer(device.createCommandList(), SharedQuadIndexBuffer.IndexType.INTEGER);
         defaultChunkRenderer = renderer;
     }
 
@@ -130,7 +126,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             this.isIndexedPass = renderPass.isSorted();
             int maxElement = MeshUniform.maxElementPersistent.getInt(0);
             if (maxElementCount < maxElement && !this.isIndexedPass) {
-                sharedIndexBuffer.ensureCapacity(commandList, maxElement);
+                this.defaultChunkRenderer.getSharedIndexBuffer().ensureCapacity(commandList, maxElement);
                 maxElementCount = maxElement;
             }
 
@@ -158,24 +154,12 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         });
 
         RenderSystem.activeTexture(GL_TEXTURE0);
-        if (Config.shouldComputeShader()) {
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.bindUniforms();
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.execute(12, orderedRegions.size(), 1);
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS_ARTPOP.
-                    memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
-                            GL_ATOMIC_COUNTER_BARRIER_BIT |
-                            GL_COMMAND_BARRIER_BIT);
-        } else {
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
-            //ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(12, orderedRegions.size(), 1);
-
-            //TODO 3 x work group, for real?
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(3, orderedRegions.size(), 1);
-            ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS
-                    .memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
-                            GL_ATOMIC_COUNTER_BARRIER_BIT |
-                            GL_COMMAND_BARRIER_BIT);
-        }
+        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
+        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(3, orderedRegions.size(), 1);
+        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS
+                .memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
+                        GL_ATOMIC_COUNTER_BARRIER_BIT |
+                        GL_COMMAND_BARRIER_BIT);
 
         MeshUniform.batchMaxElement.bindShaderSlot(0);
         MeshUniform.maxElementPersistent.bindShaderSlot(1);
@@ -208,11 +192,11 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             int index = pass.isReverseOrder() ? (regions.size() - 1 - i) : i;
             RenderRegion region = regions.get(index);
             SectionRenderDataStorage storage = region.getStorage(pass);
-            if (storage == null) {
+            if (!(storage instanceof RegionMeshDataStorage regionMeshDataStorage)) {
                 continue;
             }
 
-            int meshCount = ((SectionData) storage).facingCount();
+            int meshCount = regionMeshDataStorage.getTotalFacingCount();
 
             IndirectCommandBuffer.INSTANCE.bind();
             MeshUniform.cullingCounter.bind();
@@ -245,10 +229,6 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         }
     }
 
-    private GlTessellation createRegionTessellation(CommandList commandList, RenderRegion.DeviceResources resources) {
-        return commandList.createTessellation(GlPrimitiveType.TRIANGLES, new TessellationBinding[]{TessellationBinding.forVertexBuffer(resources.getVertexBuffer(), defaultChunkRenderer.getAttributeBindings()), TessellationBinding.forElementBuffer(this.isIndexedPass ? resources.getIndexBuffer() : this.sharedIndexBuffer.getBufferObject())});
-    }
-
     @Override
     public GlVertexAttributeBinding[] getAttributeBindings() {
         return this.defaultChunkRenderer.getAttributeBindings();
@@ -256,18 +236,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
     @Override
     public GlTessellation sodiumTessellation(CommandList commandList, RenderRegion region) {
-        RenderRegion.DeviceResources resources = region.getResources();
-        GlTessellation tessellation = this.isIndexedPass ? resources.getIndexedTessellation() : resources.getTessellation();
-        if (tessellation == null) {
-            tessellation = this.createRegionTessellation(commandList, resources);
-            if (this.isIndexedPass) {
-                resources.updateIndexedTessellation(commandList, tessellation);
-            } else {
-                resources.updateTessellation(commandList, tessellation);
-            }
-        }
-
-        return tessellation;
+        return this.defaultChunkRenderer.sodiumTessellation(commandList, region);
     }
 
     @Override
@@ -283,6 +252,11 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         this.isIndexedPass = indexedPass;
     }
 
+    @Override
+    public SharedQuadIndexBuffer getSharedIndexBuffer() {
+        return this.defaultChunkRenderer.getSharedIndexBuffer();
+    }
+
     private static float getCameraTranslation(int chunkBlockPos, int cameraBlockPos, float cameraPos) {
         return (float) (chunkBlockPos - cameraBlockPos) - cameraPos;
     }
@@ -290,7 +264,6 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
     @Override
     public void delete(CommandList commandList) {
         super.delete(commandList);
-        this.sharedIndexBuffer.delete(commandList);
         MeshUniform.clearRegions();
     }
 }

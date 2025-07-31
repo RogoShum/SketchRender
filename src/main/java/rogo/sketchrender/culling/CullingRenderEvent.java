@@ -64,10 +64,8 @@ public class CullingRenderEvent {
         CullingStateManager.callDepthTexture();
 
         if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MASK != null) {
-            SketchRender.COMMAND_TIMER.start("entity_data_update");
             CullingStateManager.ENTITY_CULLING_MASK.updateEntityData();
             CullingStateManager.computeEntityCulling();
-            SketchRender.COMMAND_TIMER.end("entity_data_update");
         }
         CullingStateManager.bindMainFrameTarget();
     }
@@ -322,25 +320,7 @@ public class CullingRenderEvent {
 
     @SubscribeEvent
     public void onLevelStage(RenderLevelStageEvent event) {
-        SketchRender.COMMAND_TIMER.end("after_sky");
-        SketchRender.COMMAND_TIMER.end("after_entities");
-        SketchRender.COMMAND_TIMER.end("after_block_entities");
 
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_SKY) {
-            SketchRender.COMMAND_TIMER.start("after_sky");
-        }
-
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
-            SketchRender.COMMAND_TIMER.start("after_entities");
-        }
-
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES) {
-            SketchRender.COMMAND_TIMER.start("after_block_entities");
-        }
-
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL) {
-
-        }
     }
 
     @SubscribeEvent
