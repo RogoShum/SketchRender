@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL15;
+import rogo.sketchrender.api.Config;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
@@ -41,24 +42,27 @@ public class MeshUniform {
 
     public static void addIndexedRegion(RenderRegion region) {
         meshManager.addRegion(region);
-        int regionSize = meshManager.size();
-        int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
 
-        if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getCapacity()) {
-            IndirectCommandBuffer.INSTANCE.resize(meshManager.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
-            batchCommand.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
-            batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getCapacity());
-            batchCommand.resetUpload(GL15.GL_STATIC_DRAW);
+        if (Config.getCullChunk()) {
+            int regionSize = meshManager.size();
+            int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
+
+            if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getCapacity()) {
+                IndirectCommandBuffer.INSTANCE.resize(meshManager.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
+                batchCommand.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
+                batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getCapacity());
+                batchCommand.resetUpload(GL15.GL_STATIC_DRAW);
+            }
+
+            if (passSize * cullingCounter.getStride() > cullingCounter.getCapacity()) {
+                cullingCounter.resize(passSize);
+                batchCounter.setBufferPointer(cullingCounter.getMemoryAddress());
+                batchCounter.setCapacity(cullingCounter.getCapacity());
+                batchCounter.resetUpload(GL15.GL_STATIC_DRAW);
+            }
+
+            batchRegionIndex.ensureCapacity(regionSize, true);
         }
-
-        if (passSize * cullingCounter.getStride() > cullingCounter.getCapacity()) {
-            cullingCounter.resize(passSize);
-            batchCounter.setBufferPointer(cullingCounter.getMemoryAddress());
-            batchCounter.setCapacity(cullingCounter.getCapacity());
-            batchCounter.resetUpload(GL15.GL_STATIC_DRAW);
-        }
-
-        batchRegionIndex.ensureCapacity(regionSize, true);
     }
 
     public static void removeRegion(RenderRegion region) {
@@ -79,7 +83,7 @@ public class MeshUniform {
             MeshUniform.renderDistance = renderDistance;
             spacePartitionSize = 2 * renderDistance + 1;
 
-            if (Minecraft.getInstance().level != null) {
+            if (Minecraft.getInstance().level != null && Config.getCullChunk()) {
                 theoreticalRegionQuantity = (int) (spacePartitionSize * spacePartitionSize * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
                 meshManager.initCapacity(theoreticalRegionQuantity);
             }

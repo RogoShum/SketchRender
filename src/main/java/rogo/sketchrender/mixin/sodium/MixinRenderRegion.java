@@ -1,6 +1,5 @@
 package rogo.sketchrender.mixin.sodium;
 
-import com.mojang.blaze3d.platform.GlDebug;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
@@ -15,14 +14,16 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.compat.sodium.ExtraRenderRegion;
 import rogo.sketchrender.compat.sodium.MeshUniform;
 import rogo.sketchrender.compat.sodium.RegionMeshDataStorage;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 
+import java.util.Iterator;
 import java.util.Map;
 
 @Mixin(value = RenderRegion.class, remap = false)
-public abstract class MixinRenderRegion {
+public abstract class MixinRenderRegion implements ExtraRenderRegion {
     @Shadow(remap = false)
     @Final
     private RenderSection[] sections;
@@ -63,5 +64,13 @@ public abstract class MixinRenderRegion {
     @Inject(method = "delete", at = @At("RETURN"), remap = false)
     private void onDelete(CommandList commandList, CallbackInfo ci) {
         MeshUniform.removeRegion((RenderRegion) (Object) this);
+    }
+
+    @Override
+    public void refreshSectionData() {
+        for (SectionRenderDataStorage storage : this.sectionRenderData.values()) {
+            storage.delete();
+        }
+        this.sectionRenderData.clear();
     }
 }

@@ -40,6 +40,10 @@ public class RegionMeshManager {
         }
     }
 
+    public boolean containRegion(RenderRegion region) {
+        return regionIndex.contains(region);
+    }
+
     public void initCapacity(int capacity) {
         if (capacity > currentCapacity) {
             expandCapacity(capacity);
@@ -110,6 +114,7 @@ public class RegionMeshManager {
     }
 
     public void dispose() {
+        regionIndex.forEach((region, index) -> ((ExtraRenderRegion) region).refreshSectionData());
         meshDataBuffer.discard();
         regionIndex.clear();
     }
