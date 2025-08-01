@@ -231,6 +231,8 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.register("runRenderDoc", Exec.class) {
+    group = "forgegradle runs"
+
     var javaExecTask = tasks.withType(JavaExec.class).named("runClient").get()
     var javaHome = javaExecTask.javaLauncher.get().metadata.installationPath.asFile.absolutePath
     println javaHome
@@ -242,7 +244,6 @@ tasks.register("runRenderDoc", Exec.class) {
             "--working-dir",
             ".",
             "$javaHome/bin/java.exe",
-            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005",
             "-Xmx64m",
             "-Xms64m",
             "-Dorg.gradle.appname=gradlew",
@@ -251,4 +252,12 @@ tasks.register("runRenderDoc", Exec.class) {
             "gradle/wrapper/gradle-wrapper.jar",
             "org.gradle.wrapper.GradleWrapperMain",
             "runClient"
+}
+
+gradle.taskGraph.whenReady {
+    tasks.named("runClient", JavaExec).configure {
+        jvmArgs += [
+                "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"
+        ]
+    }
 }

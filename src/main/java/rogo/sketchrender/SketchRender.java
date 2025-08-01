@@ -221,10 +221,12 @@ public class SketchRender {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
-            debugText.put("IndirectCommandBuffer", IndirectCommandBuffer.INSTANCE.getCapacity());
+            long capacityInBytes = IndirectCommandBuffer.INSTANCE.getCapacity();
+            double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
+            debugText.put("IndirectCommandBuffer", String.format("%.2f MB", capacityInMB));
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
-            //debugText.putAll(commandTimer.getResults());
+            debugText.putAll(commandTimer.getResults());
 
             RenderCallTimer renderTimer = SketchRender.RENDER_TIMER;
             debugText.putAll(renderTimer.getResults());
@@ -237,7 +239,6 @@ public class SketchRender {
             }
 
             String[] strings = debug.toString().split("\n");
-
 
             for (int i = 0; i < strings.length; ++i) {
                 event.getGuiGraphics().drawString(Minecraft.getInstance().font, strings[i], 0, Minecraft.getInstance().font.lineHeight * i
