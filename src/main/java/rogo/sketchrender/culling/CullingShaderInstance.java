@@ -42,6 +42,10 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
     @Nullable
     public Uniform TEST_POS;
     @Nullable
+    public Uniform TEST_ENTITY_POS;
+    @Nullable
+    public Uniform TEST_ENTITY_AABB;
+    @Nullable
     public Uniform CULLING_VIEW_MAT;
     @Nullable
     public Uniform CULLING_PROJ_MAT;
@@ -52,6 +56,8 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
         this.CULLING_CAMERA_DIR = this.getUniform("CullingCameraDir");
         this.BOX_SCALE = this.getUniform("BoxScale");
         this.TEST_POS = this.getUniform("TestPos");
+        this.TEST_ENTITY_POS = this.getUniform("TestEntityPos");
+        this.TEST_ENTITY_AABB = this.getUniform("TestEntityAABB");
         this.DEPTH_INDEX = this.getUniform("DepthIndex");
         this.RENDER_DISTANCE = this.getUniform("RenderDistance");
         this.DEPTH_SIZE = this.getUniform("DepthSize");
@@ -139,6 +145,16 @@ public class CullingShaderInstance extends ShaderInstance implements CullingShad
     @Override
     public Uniform getTestPos() {
         return TEST_POS;
+    }
+
+    @Override
+    public Uniform getTestEntityPos() {
+        return TEST_ENTITY_POS;
+    }
+
+    @Override
+    public Uniform getTestEntityAABB() {
+        return TEST_ENTITY_AABB;
     }
 
     @Override

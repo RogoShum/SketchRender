@@ -12,7 +12,9 @@ uniform mat4 CullingViewMat;
 uniform mat4 CullingProjMat;
 uniform vec3 CullingCameraPos;
 uniform vec3 CullingCameraDir;
-uniform vec3 TestPos;
+uniform vec4 TestPos;
+uniform vec4 TestEntityPos;
+uniform vec3 TestEntityAABB;
 uniform vec3 FrustumPos;
 uniform float RenderDistance;
 
@@ -35,8 +37,8 @@ struct ClipResult {
 
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 2.10 / DepthScreenSize[i].x;
-        float yStep = 2.10 / DepthScreenSize[i].y;
+        float xStep = 3.10 / DepthScreenSize[i].x;
+        float yStep = 3.10 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
@@ -90,20 +92,26 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
 
     for(int i = 0; i < 8; i++) {
         vec4 clipPos = clipPositions[i];
-        float w = max(abs(clipPos.w), 0.1); // avoid / 0 or w < 0
-        vec2 ndcXY = clipPos.xy / w;
-
-        ndcXY = clamp(ndcXY, -1.0, 1.0);
-        vec2 screenPos = (ndcXY * 0.5) + 0.5;
-
-        result.screenMin = min(result.screenMin, screenPos);
-        result.screenMax = max(result.screenMax, screenPos);
+        vec2 ndcXY;
 
         if (clipPos.w > 0.0) {
-            result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
+            float maxW = max(abs(clipPos.x), abs(clipPos.y));
+            clipPos.w = max(clipPos.w, maxW);
+            clipPos /= clipPos.w;
+            ndcXY = clipPos.xy;
+            result.minDepth = min(result.minDepth, clipPos.z);
         } else {
-            result.minDepth = min(result.minDepth, abs(clipPos.w) / abs(clipPos.z));
+            clipPos /= -clipPos.w;
+            ndcXY = vec2(
+            clipPos.x >= 0.0 ? 1.0 : -1.0,
+            clipPos.y >= 0.0 ? 1.0 : -1.0
+            );
+            result.minDepth = min(result.minDepth, clipPos.z);
         }
+
+        vec2 screenPos = ndcXY * 0.5 + 0.5;
+        result.screenMin = min(result.screenMin, screenPos);
+        result.screenMax = max(result.screenMax, screenPos);
     }
 
     return result;
@@ -144,9 +152,7 @@ bool calculateCube(float minX, float minY, float minZ, float maxX, float maxY, f
     return cubeInFrustum(f, f1, f2, f3, f4, f5);
 }
 
-bool isVisible(vec3 center) {
-    vec3 min = center - vec3(8.0);
-    vec3 max = center + vec3(8.0);
+bool isVisible(vec3 center, vec3 min, vec3 max) {
     vec3 corners[8] = vec3[](
     vec3(min.x, min.y, min.z),
     vec3(max.x, min.y, min.z),
@@ -189,63 +195,258 @@ bool isBehindCamera(vec3 center, vec3 cameraPos, vec3 cameraForward) {
 }
 
 void main() {
-    far = RenderDistance * CHUNK_RANGE_SIZE;
-    vec2 screenUV = (gl_FragCoord.xy - vec2(0.5)) / ScreenSize.xy;
+    fragColor = vec4(0.0, 0.0, 0.0, 0.0);
 
-    vec3 chunkBasePos = TestPos;
-    vec3 chunkPos = chunkBasePos * CHUNK_SIZE + vec3(8.0);
+    bool hit = false;
+    if (TestPos.w > 0) {
+        far = RenderDistance * CHUNK_RANGE_SIZE;
+        vec2 screenUV = (gl_FragCoord.xy - vec2(0.5)) / ScreenSize.xy;
 
-    /*
-        if(isBehindCamera(chunkPos + (CullingCameraDir * 16), CullingCameraPos, CullingCameraDir)) {
-        fragColor = vec4(0.0, 0.0, 1.0, 1.0);
-        return;
+        vec3 chunkBasePos = TestPos.xyz;
+        vec3 chunkPos = chunkBasePos * CHUNK_SIZE + vec3(8.0);
+
+        vec3 boxMin = chunkPos - vec3(8.0);
+        vec3 boxMax = chunkPos + vec3(8.0);
+        if(!isVisible(chunkPos, boxMin, boxMax)) {
+            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+            return;
+        }
+
+        // --------- Wireframe drawing logic start ---------
+        vec3 center = chunkPos;
+        vec3 corners[8] = vec3[](
+        vec3(boxMin.x, boxMin.y, boxMin.z),
+        vec3(boxMax.x, boxMin.y, boxMin.z),
+        vec3(boxMin.x, boxMax.y, boxMin.z),
+        vec3(boxMax.x, boxMax.y, boxMin.z),
+        vec3(boxMin.x, boxMin.y, boxMax.z),
+        vec3(boxMax.x, boxMin.y, boxMax.z),
+        vec3(boxMin.x, boxMax.y, boxMax.z),
+        vec3(boxMax.x, boxMax.y, boxMax.z)
+        );
+
+        // Project to screen space
+        vec2 projected[8];
+        mat4 mvp = CullingProjMat * CullingViewMat;
+
+        for (int i = 0; i < 8; i++) {
+            vec4 clip = mvp * vec4(corners[i], 1.0);
+            vec2 ndc;
+
+            if (clip.w > 0) {
+                float maxW = max(abs(clip.x), abs(clip.y));
+                clip.w = max(clip.w, maxW);
+                clip /= clip.w;
+
+                ndc = clip.xy;
+            } else {
+                clip /= -clip.w;
+                ndc = vec2(
+                clip.x >= 0.0 ? 1.0 : -1.0,
+                clip.y >= 0.0 ? 1.0 : -1.0
+                );
+            }
+
+            projected[i] = (ndc * 0.5 + 0.5) * ScreenSize;
+        }
+
+
+        // 12 edges (pairs of indices into corners)
+        int edges[24] = int[](
+        0,1, 1,3, 3,2, 2,0, // bottom
+        4,5, 5,7, 7,6, 6,4, // top
+        0,4, 1,5, 2,6, 3,7  // sides
+        );
+
+        vec2 fragCoord = gl_FragCoord.xy;
+        float thickness = 2.0; // Outline width in pixels
+        bool nearEdge = false;
+        for (int i = 0; i < 12; i++) {
+            vec2 a = projected[edges[i * 2 + 0]];
+            vec2 b = projected[edges[i * 2 + 1]];
+            vec2 ab = b - a;
+            vec2 ap = fragCoord - a;
+            float t = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+            vec2 closest = a + t * ab;
+            float dist = length(fragCoord - closest);
+            if (dist < thickness) {
+                nearEdge = true;
+                break;
+            }
+        }
+
+        if (nearEdge) {
+            fragColor = vec4(1.0); // white outline
+            return;
+        }
+        // --------- Wireframe drawing logic end ---------
+
+        ClipResult clip = getClippedMinDepth(chunkPos, 9.0);
+
+        if(any(greaterThan(clip.screenMin, clip.screenMax))) {
+            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+            return;
+        }
+
+        float sectionDepth = LinearizeDepth(clip.minDepth);
+
+        vec2 mins = clamp(clip.screenMin, 0.0, 1.0);
+        vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
+
+        int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
+        vec2 depthSize = DepthScreenSize[idx];
+
+        ivec2 coordMin = max(ivec2(floor(mins * depthSize)), ivec2(0));
+        ivec2 coordMax = min(ivec2(ceil(maxs * depthSize)), ivec2(depthSize) - 1);
+
+        ivec2 aabbMinScreen = max(ivec2(floor(mins * ScreenSize)), ivec2(0));
+        ivec2 aabbMaxScreen = min(ivec2(ceil(maxs * ScreenSize)), ivec2(ScreenSize) - 1);
+
+        ivec2 screenCoords = ivec2(screenUV * depthSize);
+
+        fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+
+        if(all(greaterThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMinScreen))) &&
+        all(lessThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMaxScreen)))) {
+            fragColor = vec4(1.0, 1.0, 0.0, 1.0);
+
+            if(all(greaterThanEqual(screenCoords, coordMin)) &&
+            all(lessThanEqual(screenCoords, coordMax))) {
+                float pixelDepth = getUVDepth(idx, screenCoords);
+                fragColor.rg = vec2(sectionDepth >= pixelDepth ? 1.0 : 0.0,
+                sectionDepth < pixelDepth ? 1.0 : 0.0);
+                if (sectionDepth < pixelDepth) {
+                    hit = true;
+                }
+            }
+        }
     }
 
-    if(length(chunkPos - CullingCameraPos) <= 50) {
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0);
-        return;
-    }
-    */
+    if (TestEntityPos.w > 0) {
+        far = RenderDistance * CHUNK_RANGE_SIZE;
+        vec2 screenUV = (gl_FragCoord.xy - vec2(0.5)) / ScreenSize.xy;
 
-    if(!isVisible(chunkPos)) {
-        fragColor = vec4(0.0, 0.0, 1.0, 1.0);
-        return;
-    }
+        vec3 entityPos = TestEntityPos.xyz;
+        vec3 boxMin = entityPos - vec3(TestEntityAABB.x / 2, 0, TestEntityAABB.z / 2);
+        vec3 boxMax = entityPos + vec3(TestEntityAABB.x / 2, TestEntityAABB.y, TestEntityAABB.z / 2);
 
-    ClipResult clip = getClippedMinDepth(chunkPos, 9.0);
+        if(!isVisible(entityPos, boxMin, boxMax)) {
+            if (!hit) {
+                fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+            }
 
-    if(any(greaterThan(clip.screenMin, clip.screenMax))) {
-        fragColor = vec4(0.0, 0.0, 0.5, 1.0);
-        return;
-    }
+            return;
+        }
 
-    float sectionDepth = LinearizeDepth(clip.minDepth);
+        // --------- Wireframe drawing logic start ---------
+        vec3 center = entityPos;
 
-    vec2 mins = clamp(clip.screenMin, 0.0, 1.0);
-    vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
+        vec3 corners[8] = vec3[](
+        vec3(boxMin.x, boxMin.y, boxMin.z),
+        vec3(boxMax.x, boxMin.y, boxMin.z),
+        vec3(boxMin.x, boxMax.y, boxMin.z),
+        vec3(boxMax.x, boxMax.y, boxMin.z),
+        vec3(boxMin.x, boxMin.y, boxMax.z),
+        vec3(boxMax.x, boxMin.y, boxMax.z),
+        vec3(boxMin.x, boxMax.y, boxMax.z),
+        vec3(boxMax.x, boxMax.y, boxMax.z)
+        );
 
-    int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
-    vec2 depthSize = DepthScreenSize[idx];
+        // Project to screen space
+        vec2 projected[8];
+        mat4 mvp = CullingProjMat * CullingViewMat;
 
-    ivec2 coordMin = max(ivec2(floor(mins * depthSize)), ivec2(0));
-    ivec2 coordMax = min(ivec2(ceil(maxs * depthSize)), ivec2(depthSize) - 1);
+        for (int i = 0; i < 8; i++) {
+            vec4 clip = mvp * vec4(corners[i], 1.0);
+            vec2 ndc;
 
-    ivec2 aabbMinScreen = max(ivec2(floor(mins * ScreenSize)), ivec2(0));
-    ivec2 aabbMaxScreen = min(ivec2(ceil(maxs * ScreenSize)), ivec2(ScreenSize) - 1);
+            if (clip.w > 0) {
+                float maxW = max(abs(clip.x), abs(clip.y));
+                clip.w = max(clip.w, maxW);
+                clip /= clip.w;
 
-    ivec2 screenCoords = ivec2(screenUV * depthSize);
+                ndc = clip.xy;
+            } else {
+                clip /= -clip.w;
+                ndc = vec2(
+                clip.x >= 0.0 ? 1.0 : -1.0,
+                clip.y >= 0.0 ? 1.0 : -1.0
+                );
+            }
 
-    fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            projected[i] = (ndc * 0.5 + 0.5) * ScreenSize;
+        }
 
-    if(all(greaterThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMinScreen))) &&
-    all(lessThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMaxScreen)))) {
-        fragColor = vec4(1.0, 1.0, 0.0, 1.0);
 
-        if(all(greaterThanEqual(screenCoords, coordMin)) &&
-        all(lessThanEqual(screenCoords, coordMax))) {
-            float pixelDepth = getUVDepth(idx, screenCoords);
-            fragColor.rg = vec2(sectionDepth >= pixelDepth ? 1.0 : 0.0,
-            sectionDepth < pixelDepth ? 1.0 : 0.0);
+        // 12 edges (pairs of indices into corners)
+        int edges[24] = int[](
+        0,1, 1,3, 3,2, 2,0, // bottom
+        4,5, 5,7, 7,6, 6,4, // top
+        0,4, 1,5, 2,6, 3,7  // sides
+        );
+
+        vec2 fragCoord = gl_FragCoord.xy;
+        float thickness = 2.0; // Outline width in pixels
+        bool nearEdge = false;
+        for (int i = 0; i < 12; i++) {
+            vec2 a = projected[edges[i * 2 + 0]];
+            vec2 b = projected[edges[i * 2 + 1]];
+            vec2 ab = b - a;
+            vec2 ap = fragCoord - a;
+            float t = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+            vec2 closest = a + t * ab;
+            float dist = length(fragCoord - closest);
+            if (dist < thickness) {
+                nearEdge = true;
+                break;
+            }
+        }
+
+        if (nearEdge) {
+            fragColor = vec4(1.0); // white outline
+            return;
+        }
+        // --------- Wireframe drawing logic end ---------
+
+        ClipResult clip = getClippedMinDepth(entityPos + vec3(0, TestEntityAABB.y / 2, 0), max(TestEntityAABB.x / 2, TestEntityAABB.y / 2));
+
+        if(any(greaterThan(clip.screenMin, clip.screenMax))) {
+            if (!hit) {
+                fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+            }
+            return;
+        }
+
+        float sectionDepth = LinearizeDepth(clip.minDepth);
+
+        vec2 mins = clamp(clip.screenMin, 0.0, 1.0);
+        vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
+
+        int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
+        vec2 depthSize = DepthScreenSize[idx];
+
+        ivec2 coordMin = max(ivec2(floor(mins * depthSize)), ivec2(0));
+        ivec2 coordMax = min(ivec2(ceil(maxs * depthSize)), ivec2(depthSize) - 1);
+
+        ivec2 aabbMinScreen = max(ivec2(floor(mins * ScreenSize)), ivec2(0));
+        ivec2 aabbMaxScreen = min(ivec2(ceil(maxs * ScreenSize)), ivec2(ScreenSize) - 1);
+
+        ivec2 screenCoords = ivec2(screenUV * depthSize);
+
+        if (!hit) {
+            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        }
+
+        if(all(greaterThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMinScreen))) &&
+        all(lessThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMaxScreen)))) {
+            fragColor = vec4(1.0, 1.0, 0.0, 1.0);
+
+            if(all(greaterThanEqual(screenCoords, coordMin)) &&
+            all(lessThanEqual(screenCoords, coordMax))) {
+                float pixelDepth = getUVDepth(idx, screenCoords);
+                fragColor.rg = vec2(sectionDepth >= pixelDepth ? 1.0 : 0.0,
+                sectionDepth < pixelDepth ? 1.0 : 0.0);
+            }
         }
     }
 }

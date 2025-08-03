@@ -110,8 +110,36 @@ public class CullingRenderEvent {
             shaderInstance.getBoxScale().set(4.0f);
         }
         if (shaderInstance.getTestPos() != null) {
-            float[] array = new float[]{SketchRender.testPos.getX(), SketchRender.testPos.getY(), SketchRender.testPos.getZ()};
+            float[] array;
+            if (SketchRender.testPos != null) {
+                array = new float[]{SketchRender.testPos.getX(), SketchRender.testPos.getY(), SketchRender.testPos.getZ(), 1};
+            } else {
+                array = new float[]{0, 0, 0, 0};
+            }
+
             shaderInstance.getTestPos().set(array);
+        }
+        if (shaderInstance.getTestEntityPos() != null) {
+            float[] array;
+            if (SketchRender.testEntity != null) {
+                array = new float[]{(float) SketchRender.testEntity.position().x, (float) SketchRender.testEntity.position().y, (float) SketchRender.testEntity.position().z, 1};
+            } else {
+                array = new float[]{0, 0, 0, 0};
+            }
+
+            shaderInstance.getTestEntityPos().set(array);
+        }
+        if (shaderInstance.getTestEntityAABB() != null) {
+            float[] array;
+            if (SketchRender.testEntity != null) {
+                array = new float[]{(float) SketchRender.testEntity.getBoundingBoxForCulling().getXsize()
+                        , (float) SketchRender.testEntity.getBoundingBoxForCulling().getYsize()
+                        , (float) SketchRender.testEntity.getBoundingBoxForCulling().getZsize()};
+            } else {
+                array = new float[]{0, 0, 0};
+            }
+
+            shaderInstance.getTestEntityAABB().set(array);
         }
         if (shaderInstance.getFrustumPos() != null && CullingStateManager.FRUSTUM != null) {
             Vec3 pos = new Vec3(
@@ -450,13 +478,13 @@ public class CullingRenderEvent {
             RenderSystem.depthMask(false);
 
             if (true) {
-                height = (int) (minecraft.getWindow().getGuiScaledHeight() * 0.25f);
-                width = (int) (minecraft.getWindow().getGuiScaledWidth() * 0.25f);
+                height = (int) (minecraft.getWindow().getGuiScaledHeight());
+                width = (int) (minecraft.getWindow().getGuiScaledWidth());
                 bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
-                bufferbuilder.vertex(minecraft.getWindow().getGuiScaledWidth() - width, height * 2, 0.0D).uv(0.0F, 0.0F).color(255, 255, 255, 255).endVertex();
-                bufferbuilder.vertex((double) minecraft.getWindow().getGuiScaledWidth(), height * 2, 0.0D).uv(1, 0.0F).color(255, 255, 255, 255).endVertex();
-                bufferbuilder.vertex((double) minecraft.getWindow().getGuiScaledWidth(), height, 0.0D).uv(1, 1).color(255, 255, 255, 255).endVertex();
-                bufferbuilder.vertex(minecraft.getWindow().getGuiScaledWidth() - width, height, 0.0D).uv(0.0F, 1).color(255, 255, 255, 255).endVertex();
+                bufferbuilder.vertex(0.0, height, 0.0D).uv(0.0F, 0.0F).color(255, 255, 255, 90).endVertex();
+                bufferbuilder.vertex(width, height, 0.0D).uv(1, 0.0F).color(255, 255, 255, 90).endVertex();
+                bufferbuilder.vertex(width, 0, 0.0D).uv(1, 1).color(255, 255, 255, 90).endVertex();
+                bufferbuilder.vertex(0, 0, 0.0D).uv(0.0F, 1).color(255, 255, 255, 90).endVertex();
                 RenderSystem.setShaderTexture(0, SketchRender.CULL_TEST_TARGET.getColorTextureId());
                 tessellator.end();
             }

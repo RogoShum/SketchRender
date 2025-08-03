@@ -18,4 +18,6 @@ public interface CullingShader {
     Uniform getCullingViewMat();
     Uniform getCullingProjMat();
     Uniform getTestPos();
+    Uniform getTestEntityPos();
+    Uniform getTestEntityAABB();
 }

@@ -10,13 +10,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.*;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
@@ -128,19 +126,28 @@ public class SketchRender {
                     DEBUG = 0;
             }
             if (TEST_CULL_KEY.isDown()) {
-                Vec3 vec3 = Minecraft.getInstance().player.getViewVector(0.0F).scale(999);
-                Level level = Minecraft.getInstance().player.level();
-                Vec3 vec31 = Minecraft.getInstance().player.getEyePosition();
-                HitResult hitResult = level.clip(new ClipContext(vec31, vec31.add(vec3), ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, Minecraft.getInstance().player));
-                if (hitResult instanceof BlockHitResult) {
+                HitResult hitResult = ProjectileUtil.getHitResultOnViewVector(Minecraft.getInstance().player, Entity::isAlive, 999);
+                if (hitResult instanceof EntityHitResult entityHitResult) {
+                    if (entityHitResult.getEntity() != testEntity) {
+                        testEntity = entityHitResult.getEntity();
+                    } else {
+                        testEntity = null;
+                    }
+                } else if (hitResult instanceof BlockHitResult) {
                     BlockPos pos = ((BlockHitResult) hitResult).getBlockPos();
-                    testPos = new BlockPos(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4);
+                    BlockPos testPos_ = new BlockPos(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4);
+                    if (testPos_.equals(testPos)) {
+                        testPos = null;
+                    } else {
+                        testPos = testPos_;
+                    }
                 }
             }
         }
     }
 
     public static BlockPos testPos = new BlockPos(0, 8, 0);
+    public static Entity testEntity = null;
 
     public static void onKeyPress() {
     }

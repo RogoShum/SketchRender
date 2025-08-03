@@ -51,7 +51,7 @@ layout(std430, binding = 1) writeonly buffer DrawCommandBuffer {
     DrawCommand draw_command[];
 };
 
-layout(std430, binding = 2) buffer CounterBuffer {
+layout(std430, binding = 2) writeonly buffer CounterBuffer {
     MeshCounter counter[];
 };
 
@@ -59,7 +59,7 @@ layout(std430, binding = 3) readonly buffer RegionPosBuffer {
     RegionPos region_pos[];
 };
 
-layout(std430, binding = 7) buffer ElementCountBuffer {
+layout(std430, binding = 7) writeonly buffer ElementCountBuffer {
     int element_count;
 };
 
@@ -169,20 +169,26 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
 
     for(int i = 0; i < 8; i++) {
         vec4 clipPos = clipPositions[i];
-        float w = max(abs(clipPos.w), 0.1); // avoid / 0 or w < 0
-        vec2 ndcXY = clipPos.xy / w;
-
-        ndcXY = clamp(ndcXY, -1.0, 1.0);
-        vec2 screenPos = (ndcXY * 0.5) + 0.5;
-
-        result.screenMin = min(result.screenMin, screenPos);
-        result.screenMax = max(result.screenMax, screenPos);
+        vec2 ndcXY;
 
         if (clipPos.w > 0.0) {
-            result.minDepth = min(result.minDepth, clipPos.z / clipPos.w);
+            float maxW = max(abs(clipPos.x), abs(clipPos.y));
+            clipPos.w = max(clipPos.w, maxW);
+            clipPos /= clipPos.w;
+            ndcXY = clipPos.xy;
+            result.minDepth = min(result.minDepth, clipPos.z);
         } else {
-            result.minDepth = -2;
+            clipPos /= -clipPos.w;
+            ndcXY = vec2(
+            clipPos.x >= 0.0 ? 1.0 : -1.0,
+            clipPos.y >= 0.0 ? 1.0 : -1.0
+            );
+            result.minDepth = min(result.minDepth, clipPos.z);
         }
+
+        vec2 screenPos = ndcXY * 0.5 + 0.5;
+        result.screenMin = min(result.screenMin, screenPos);
+        result.screenMax = max(result.screenMax, screenPos);
     }
 
     return result;

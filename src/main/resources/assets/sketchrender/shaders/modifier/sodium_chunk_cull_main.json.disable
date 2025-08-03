@@ -1,7 +1,0 @@
-{
-  "shader": "sodium:terrain",
-  "type": "vertex",
-  "position_regex": "AFTER_VERT_INIT",
-  "content": "if (sketch_culling_terrain > 0) {\n                    vec3 sketch_section_pos = u_RegionOffset + _get_draw_translation(_draw_id) + sketch_camera_pos;\n                    ivec3 sketch_camera_section = _vec_to_section_pos(sketch_camera_pos);\n                    ivec3 sketch_chunk_offset_map = _vec_to_section_pos(vec3(sketch_section_pos.x + 8.0, sketch_section_pos.y, sketch_section_pos.z + 8.0));\n                    sketch_chunk_offset_map.x = sketch_chunk_offset_map.x - sketch_camera_section.x;\n                    sketch_chunk_offset_map.z = sketch_chunk_offset_map.z - sketch_camera_section.z;\n                    sketch_chunk_offset_map.y = _map_culling_chunkY(sketch_section_pos.y + 8.0);\n\n                    bool sketch_culled = _is_chunk_culled(sketch_chunk_offset_map);\n                    if (sketch_check_culling > 0) {\n                        sketch_culled = !sketch_culled;\n                    }\n\n                    if (sketch_culled) {\n                        gl_Position = vec4(0.0, 0.0, 10000.0, 1.0);\n                        return;\n                    }\n                }",
-  "replace": false
-}
