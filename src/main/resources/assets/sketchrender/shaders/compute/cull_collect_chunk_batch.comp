@@ -78,6 +78,8 @@ uniform sampler2D Sampler2;
 uniform sampler2D Sampler3;
 uniform sampler2D Sampler4;
 uniform sampler2D Sampler5;
+uniform sampler2D Sampler6;
+uniform sampler2D Sampler7;
 
 uniform mat4 sketch_culling_view_mat;
 uniform mat4 sketch_culling_proj_mat;
@@ -274,8 +276,12 @@ float getUVDepth(int idx, ivec2 uv) {
     return texelFetch(Sampler3, uv, 0).r;
     else if (idx == 4)
     return texelFetch(Sampler4, uv, 0).r;
-
+    else if (idx == 5)
     return texelFetch(Sampler5, uv, 0).r;
+    else if (idx == 6)
+    return texelFetch(Sampler6, uv, 0).r;
+
+    return texelFetch(Sampler7, uv, 0).r;
 }
 
 bool _is_chunk_culled(ivec3 sectionPos) {

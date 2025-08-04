@@ -6,6 +6,8 @@ uniform sampler2D Sampler2;
 uniform sampler2D Sampler3;
 uniform sampler2D Sampler4;
 uniform sampler2D Sampler5;
+uniform sampler2D Sampler6;
+uniform sampler2D Sampler7;
 
 uniform vec2 ScreenSize;
 uniform mat4 CullingViewMat;
@@ -37,8 +39,8 @@ struct ClipResult {
 
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 3.10 / DepthScreenSize[i].x;
-        float yStep = 3.10 / DepthScreenSize[i].y;
+        float xStep = 2.10 / DepthScreenSize[i].x;
+        float yStep = 2.10 / DepthScreenSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
@@ -185,8 +187,12 @@ float getUVDepth(int idx, ivec2 uv) {
     return texelFetch(Sampler3, uv, 0).r;
     else if (idx == 4)
     return texelFetch(Sampler4, uv, 0).r;
-
+    else if (idx == 5)
     return texelFetch(Sampler5, uv, 0).r;
+    else if (idx == 6)
+    return texelFetch(Sampler6, uv, 0).r;
+
+    return texelFetch(Sampler7, uv, 0).r;
 }
 
 bool isBehindCamera(vec3 center, vec3 cameraPos, vec3 cameraForward) {

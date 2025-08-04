@@ -177,8 +177,12 @@ float getUVDepth(int idx, ivec2 uv) {
     return texelFetch(Sampler3, uv, 0).r;
     else if (idx == 4)
     return texelFetch(Sampler4, uv, 0).r;
-
+    else if (idx == 5)
     return texelFetch(Sampler5, uv, 0).r;
+    else if (idx == 6)
+    return texelFetch(Sampler6, uv, 0).r;
+
+    return texelFetch(Sampler7, uv, 0).r;
 }
 
 void main() {
