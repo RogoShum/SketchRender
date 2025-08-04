@@ -71,7 +71,8 @@ void main() {
         mipGroupStart >>= level;
 
         ivec2 outPos = mipGroupStart + localID;
-        ivec2 outSize = sketch_screen_size >> (level + 1);
+        ivec2 outSize = max(sketch_screen_size >> (level + 1), ivec2(1, 1));
+
         if (localID.x < nextWidth && localID.y < nextHeight &&
         outPos.x < outSize.x && outPos.y < outSize.y) {
             switch (level) {
