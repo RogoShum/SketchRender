@@ -51,7 +51,7 @@ public class CullingStateManager {
         PROJECTION_MATRIX.identity();
     }
 
-    public static final int DEPTH_SIZE = 6;
+    public static final int DEPTH_SIZE = 8;
     public static int DEPTH_INDEX;
     public static int MAIN_DEPTH_TEXTURE = 0;
     public static RenderTarget[] DEPTH_BUFFER_TARGET = new RenderTarget[DEPTH_SIZE];
@@ -356,7 +356,6 @@ public class CullingStateManager {
             RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
             RenderSystem.bindTexture(depthContext.lastTexture());
         });
-        RenderSystem.activeTexture(GL43.GL_TEXTURE0);
 
         RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
         shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
@@ -366,12 +365,34 @@ public class CullingStateManager {
         shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
         shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
         shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
-
+        shader.getUniforms().setUniform("sketch_liner_depth", 1);
         if (Config.shouldComputeShader()) {
-            int tileSizeX = 32;
-            int tileSizeY = 32;
+            int tileSizeX = 16;
+            int tileSizeY = 16;
             int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
             int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+            runOnDepthFrame((depthContext) -> {
+                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
+                if (depthContext.index() == 0) {
+                    RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+                    RenderSystem.bindTexture(depthContext.lastTexture());
+                }
+            }, 0, 4);
+
+            shader.execute(groupsX, groupsY, 1);
+            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+            groupsX = ((screen.width >> 4) / 2 + tileSizeX - 1) / tileSizeX;
+            groupsY = ((screen.height >> 4) / 2 + tileSizeY - 1) / tileSizeY;
+            runOnDepthFrame((depthContext) -> {
+                GL43.glBindImageTexture(depthContext.index() - 4, depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
+                if (depthContext.index() == 4) {
+                    RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+                    RenderSystem.bindTexture(depthContext.lastTexture());
+                }
+            }, 4, 8);
+            shader.getUniforms().setUniform("sketch_liner_depth", 0);
+            shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width >> 4, screen.height >> 4));
             shader.execute(groupsX, groupsY, 1);
             shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         } else {
@@ -383,6 +404,7 @@ public class CullingStateManager {
             shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         }
 
+        RenderSystem.activeTexture(GL43.GL_TEXTURE0);
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
     }
 
@@ -437,6 +459,13 @@ public class CullingStateManager {
 
     public static void runOnDepthFrame(Consumer<DepthContext> consumer, int startAtIndex) {
         for (DEPTH_INDEX = startAtIndex; DEPTH_INDEX < DEPTH_BUFFER_TARGET.length; ++DEPTH_INDEX) {
+            int lastTexture = DEPTH_INDEX == 0 ? MAIN_DEPTH_TEXTURE : DEPTH_BUFFER_TARGET[DEPTH_INDEX - 1].getColorTextureId();
+            consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, lastTexture));
+        }
+    }
+
+    public static void runOnDepthFrame(Consumer<DepthContext> consumer, int startAtIndex, int endAtIndex) {
+        for (DEPTH_INDEX = startAtIndex; DEPTH_INDEX < endAtIndex; ++DEPTH_INDEX) {
             int lastTexture = DEPTH_INDEX == 0 ? MAIN_DEPTH_TEXTURE : DEPTH_BUFFER_TARGET[DEPTH_INDEX - 1].getColorTextureId();
             consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, lastTexture));
         }

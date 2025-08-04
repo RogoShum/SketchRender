@@ -4,23 +4,16 @@ layout(binding = 0, r16f) uniform writeonly image2D output_texture_0;
 layout(binding = 1, r16f) uniform writeonly image2D output_texture_1;
 layout(binding = 2, r16f) uniform writeonly image2D output_texture_2;
 layout(binding = 3, r16f) uniform writeonly image2D output_texture_3;
-layout(binding = 4, r16f) uniform writeonly image2D output_texture_4;
-layout(binding = 5, r16f) uniform writeonly image2D output_texture_5;
 
 uniform sampler2D sketch_sampler_texture_0;
-uniform sampler2D sketch_sampler_texture_1;
-uniform sampler2D sketch_sampler_texture_2;
-uniform sampler2D sketch_sampler_texture_3;
-uniform sampler2D sketch_sampler_texture_4;
-uniform sampler2D sketch_sampler_texture_5;
 
 uniform ivec2 sketch_screen_size;
-uniform ivec2 sketch_depth_size;
+uniform int sketch_liner_depth;
 uniform int sketch_render_distance;
 
-#define MIP_LEVELS 6
-#define TILE_SIZE_X 32
-#define TILE_SIZE_Y 32
+#define MIP_LEVELS 4
+#define TILE_SIZE_X 16
+#define TILE_SIZE_Y 16
 #define TILE_EDGE_X TILE_SIZE_X * 2
 #define TILE_EDGE_Y TILE_SIZE_Y * 2
 
@@ -46,7 +39,7 @@ void main() {
             ivec2 cachePos = localID * 2 + ivec2(dx, dy);
             ivec2 texPos = groupStart * 2 + cachePos;
             if (texPos.x < sketch_screen_size.x && texPos.y < sketch_screen_size.y) {
-                float depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, texPos, 0).r);
+                float depth = sketch_liner_depth > 0 ? LinearizeDepth(texelFetch(sketch_sampler_texture_0, texPos, 0).r) : texelFetch(sketch_sampler_texture_0, texPos, 0).r;
                 depthCache[cachePos.y][cachePos.x] = depth;
             } else {
                 depthCache[cachePos.y][cachePos.x] = 0.0;
@@ -86,8 +79,6 @@ void main() {
                 case 1: imageStore(output_texture_1, outPos, vec4(depthCache[localID.y][localID.x])); break;
                 case 2: imageStore(output_texture_2, outPos, vec4(depthCache[localID.y][localID.x])); break;
                 case 3: imageStore(output_texture_3, outPos, vec4(depthCache[localID.y][localID.x])); break;
-                case 4: imageStore(output_texture_4, outPos, vec4(depthCache[localID.y][localID.x])); break;
-                case 5: imageStore(output_texture_5, outPos, vec4(depthCache[localID.y][localID.x])); break;
             }
         }
         barrier();
