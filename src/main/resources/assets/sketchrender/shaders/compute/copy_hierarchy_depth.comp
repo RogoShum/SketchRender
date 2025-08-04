@@ -17,17 +17,16 @@ uniform sampler2D sketch_sampler_texture_5;
 uniform ivec2 sketch_screen_size;
 uniform ivec2 sketch_depth_size;
 uniform int sketch_render_distance;
-uniform int sketch_depth_level;
 
 #define MIP_LEVELS 6
-#define TILE_SIZE_X 16
-#define TILE_SIZE_Y 16
+#define TILE_SIZE_X 32
+#define TILE_SIZE_Y 32
 #define TILE_EDGE_X TILE_SIZE_X * 2
 #define TILE_EDGE_Y TILE_SIZE_Y * 2
 
 layout(local_size_x = TILE_SIZE_X, local_size_y = TILE_SIZE_Y) in;
 
-shared float depthCache[TILE_EDGE_X][TILE_EDGE_Y];
+shared float depthCache[TILE_EDGE_Y][TILE_EDGE_X];
 
 float near = 0.05;
 float far  = 16.0;
@@ -37,64 +36,63 @@ float LinearizeDepth(float depth) {
     return (near * far) / (far + near - z * (far - near));
 }
 
-void processLevel(ivec2 depthCoords) {
-    ivec2 currentSize = sketch_screen_size >> (sketch_depth_level + 1);
-    bool validPixel = depthCoords.x < currentSize.x &&
-    depthCoords.y < currentSize.y;
-
-    if (validPixel) {
-        ivec2 srcPos = depthCoords * 2;
-        for (int y = 0; y < 2; y++) {
-            for (int x = 0; x < 2; x++) {
-                ivec2 loadPos = srcPos + ivec2(x, y);
-                if (loadPos.x < (currentSize.x * 2) &&
-                loadPos.y < (currentSize.y * 2)) {
-                    float depth = 0.0;
-                    switch (sketch_depth_level) {
-                        case 0: depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, loadPos, 0).r); break;
-                        case 1: depth = texelFetch(sketch_sampler_texture_1, loadPos, 0).r; break;
-                        case 2: depth = texelFetch(sketch_sampler_texture_2, loadPos, 0).r; break;
-                        case 3: depth = texelFetch(sketch_sampler_texture_3, loadPos, 0).r; break;
-                        case 4: depth = texelFetch(sketch_sampler_texture_4, loadPos, 0).r; break;
-                        case 5: depth = texelFetch(sketch_sampler_texture_5, loadPos, 0).r; break;
-                    }
-                    depthCache[gl_LocalInvocationID.y * 2 + y]
-                    [gl_LocalInvocationID.x * 2 + x] = depth;
-                }
-            }
-        }
-
-        float maxDepth = depthCache[gl_LocalInvocationID.y * 2]
-        [gl_LocalInvocationID.x * 2];
-
-        maxDepth = max(maxDepth,
-        depthCache[gl_LocalInvocationID.y * 2]
-        [gl_LocalInvocationID.x * 2 + 1]);
-
-        maxDepth = max(maxDepth,
-        depthCache[gl_LocalInvocationID.y * 2 + 1]
-        [gl_LocalInvocationID.x * 2]);
-
-        maxDepth = max(maxDepth,
-        depthCache[gl_LocalInvocationID.y * 2 + 1]
-        [gl_LocalInvocationID.x * 2 + 1]);
-
-        switch (sketch_depth_level) {
-            case 0: imageStore(output_texture_0, depthCoords, vec4(maxDepth)); break;
-            case 1: imageStore(output_texture_1, depthCoords, vec4(maxDepth)); break;
-            case 2: imageStore(output_texture_2, depthCoords, vec4(maxDepth)); break;
-            case 3: imageStore(output_texture_3, depthCoords, vec4(maxDepth)); break;
-            case 4: imageStore(output_texture_4, depthCoords, vec4(maxDepth)); break;
-            case 5: imageStore(output_texture_5, depthCoords, vec4(maxDepth)); break;
-        }
-    }
-
-    barrier();
-}
-
 void main() {
     ivec2 groupStart = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);
-    ivec2 depthCoords = groupStart + ivec2(gl_LocalInvocationID.xy);
+    ivec2 localID = ivec2(gl_LocalInvocationID.xy);
     far = sketch_render_distance * 64.0;
-    processLevel(depthCoords);
+
+    for (int dy = 0; dy < 2; ++dy) {
+        for (int dx = 0; dx < 2; ++dx) {
+            ivec2 cachePos = localID * 2 + ivec2(dx, dy);
+            ivec2 texPos = groupStart * 2 + cachePos;
+            if (texPos.x < sketch_screen_size.x && texPos.y < sketch_screen_size.y) {
+                float depth = LinearizeDepth(texelFetch(sketch_sampler_texture_0, texPos, 0).r);
+                depthCache[cachePos.y][cachePos.x] = depth;
+            } else {
+                depthCache[cachePos.y][cachePos.x] = 0.0;
+            }
+        }
+    }
+    barrier();
+
+    int mipWidth = TILE_EDGE_X;
+    int mipHeight = TILE_EDGE_Y;
+    for (int level = 0; level < MIP_LEVELS; ++level) {
+        int nextWidth = (mipWidth + 1) / 2;
+        int nextHeight = (mipHeight + 1) / 2;
+
+        if (localID.x < nextWidth && localID.y < nextHeight) {
+            int x0 = localID.x * 2;
+            int y0 = localID.y * 2;
+            float d0 = depthCache[y0][x0];
+            float d1 = (x0 + 1 < mipWidth)  ? depthCache[y0][x0 + 1] : d0;
+            float d2 = (y0 + 1 < mipHeight) ? depthCache[y0 + 1][x0] : d0;
+            float d3 = (x0 + 1 < mipWidth && y0 + 1 < mipHeight) ? depthCache[y0 + 1][x0 + 1] : d0;
+            float maxDepth = max(max(d0, d1), max(d2, d3));
+
+            depthCache[localID.y][localID.x] = maxDepth;
+        }
+        barrier();
+
+        ivec2 mipGroupStart = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);
+        mipGroupStart >>= level;
+
+        ivec2 outPos = mipGroupStart + localID;
+        ivec2 outSize = sketch_screen_size >> (level + 1);
+        if (localID.x < nextWidth && localID.y < nextHeight &&
+        outPos.x < outSize.x && outPos.y < outSize.y) {
+            switch (level) {
+                case 0: imageStore(output_texture_0, outPos, vec4(depthCache[localID.y][localID.x])); break;
+                case 1: imageStore(output_texture_1, outPos, vec4(depthCache[localID.y][localID.x])); break;
+                case 2: imageStore(output_texture_2, outPos, vec4(depthCache[localID.y][localID.x])); break;
+                case 3: imageStore(output_texture_3, outPos, vec4(depthCache[localID.y][localID.x])); break;
+                case 4: imageStore(output_texture_4, outPos, vec4(depthCache[localID.y][localID.x])); break;
+                case 5: imageStore(output_texture_5, outPos, vec4(depthCache[localID.y][localID.x])); break;
+            }
+        }
+        barrier();
+
+        mipWidth = nextWidth;
+        mipHeight = nextHeight;
+    }
 }

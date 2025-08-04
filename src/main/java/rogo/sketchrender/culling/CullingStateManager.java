@@ -368,16 +368,12 @@ public class CullingStateManager {
         shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
 
         if (Config.shouldComputeShader()) {
-            int tileSizeX = 16;
-            int tileSizeY = 16;
-            runOnDepthFrame((depthContext) -> {
-                int scale = 2 << depthContext.index();
-                int groupsX = (screen.width / scale + tileSizeX - 1) / tileSizeX;
-                int groupsY = (screen.height / scale + tileSizeY - 1) / tileSizeY;
-                shader.getUniforms().setUniform("sketch_depth_level", depthContext.index());
-                shader.execute(groupsX, groupsY, 1);
-                shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-            });
+            int tileSizeX = 32;
+            int tileSizeY = 32;
+            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
+            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+            shader.execute(groupsX, groupsY, 1);
+            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         } else {
             int tileSizeX = 16;
             int tileSizeY = 16;
