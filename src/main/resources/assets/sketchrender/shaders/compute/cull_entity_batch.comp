@@ -242,12 +242,12 @@ void main() {
     barrier();
 
     if (localIndex < 16) {
-        uint packed = 0u;
+        uint packedResult = 0u;
         for (uint i = 0; i < 4; ++i) {
-            packed |= (sharedVisible[localIndex * 4 + i] & 0xFFu) << (i * 8);
+            packedResult |= (sharedVisible[localIndex * 4 + i] & 0xFFu) << (i * 8);
         }
-        
+
         uint groupBase = (gl_WorkGroupID.x * 64) / 4;
-        cullingResult[groupBase + localIndex] = packed;
+        cullingResult[groupBase + localIndex] = packedResult;
     }
 }
