@@ -80,7 +80,7 @@ float calculateDistance(vec3 P, vec3 Q) {
     return pow(Q.x - P.x, 2) + pow(Q.y - P.y, 2) + pow(Q.z - P.z, 2);
 }
 
-ClipResult getClippedMinDepth(vec3 center, float extent) {
+ClipResult getClippedMinDepth(vec3 center, float extentWidth, float extentHeight) {
     ClipResult result;
     result.minDepth = 1.0;
     result.screenMin = vec2(1.0);
@@ -91,9 +91,9 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
     vec4 clipPositions[8];
     for(int i = 0; i < 8; i++) {
         vec3 vertex = center + vec3(
-        (i & 1) == 0 ? -extent : extent,
-        (i & 2) == 0 ? -extent : extent,
-        (i & 4) == 0 ? -extent : extent
+        (i & 1) == 0 ? -extentWidth : extentWidth,
+        (i & 2) == 0 ? -extentHeight : extentHeight,
+        (i & 4) == 0 ? -extentWidth : extentWidth
         );
         clipPositions[i] = mvp * vec4(vertex, 1.0);
     }
@@ -190,8 +190,8 @@ void main() {
     float sizeX = entityData[dataOffset + 3];
     float sizeY = entityData[dataOffset + 4];
     float sizeZ = entityData[dataOffset + 5];
-    float halfWidth = sizeX * 0.5;
-    float halfHeight = sizeY * 0.5;
+    float halfWidth = sizeX * 0.5 + 0.15;
+    float halfHeight = sizeY * 0.5 + 0.15;
 
     bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
 
@@ -202,7 +202,7 @@ void main() {
 
     far = sketch_render_distance * 64.0;
 
-    ClipResult clip = getClippedMinDepth(center, max(halfWidth, halfHeight));
+    ClipResult clip = getClippedMinDepth(center, halfWidth, halfHeight);
     float sectionDepth = LinearizeDepth(clip.minDepth);
 
     int idx = getSampler(clip.screenMax.x - clip.screenMin.x, clip.screenMax.y - clip.screenMin.y);

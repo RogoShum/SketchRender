@@ -72,7 +72,7 @@ void updateMinDepth(vec4 intersection, inout ClipResult result, inout bool hasVa
     hasValidPoint = true;
 }
 
-ClipResult getClippedMinDepth(vec3 center, float extent) {
+ClipResult getClippedMinDepth(vec3 center, float extentWidth, float extentHeight) {
     ClipResult result;
     result.minDepth = 1.0;
     result.screenMin = vec2(1.0);
@@ -83,9 +83,9 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
     vec4 clipPositions[8];
     for(int i = 0; i < 8; i++) {
         vec3 vertex = center + vec3(
-        (i & 1) == 0 ? -extent : extent,
-        (i & 2) == 0 ? -extent : extent,
-        (i & 4) == 0 ? -extent : extent
+        (i & 1) == 0 ? -extentWidth : extentWidth,
+        (i & 2) == 0 ? -extentHeight : extentHeight,
+        (i & 4) == 0 ? -extentWidth : extentWidth
         );
         clipPositions[i] = mvp * vec4(vertex, 1.0);
     }
@@ -205,8 +205,8 @@ void main() {
         vec3 chunkBasePos = TestPos.xyz;
         vec3 chunkPos = chunkBasePos * CHUNK_SIZE + vec3(8.0);
 
-        vec3 boxMin = chunkPos - vec3(8.0);
-        vec3 boxMax = chunkPos + vec3(8.0);
+        vec3 boxMin = chunkPos - vec3(9.0);
+        vec3 boxMax = chunkPos + vec3(9.0);
         if(!isVisible(chunkPos, boxMin, boxMax)) {
             fragColor = vec4(0.0, 0.0, 0.0, 0.0);
             return;
@@ -281,7 +281,7 @@ void main() {
         }
         // --------- Wireframe drawing logic end ---------
 
-        ClipResult clip = getClippedMinDepth(chunkPos, 9.0);
+        ClipResult clip = getClippedMinDepth(chunkPos + CullingCameraDir, 10.0, 10.0);
 
         if(any(greaterThan(clip.screenMin, clip.screenMax))) {
             fragColor = vec4(0.0, 0.0, 0.0, 0.0);
@@ -408,7 +408,7 @@ void main() {
         }
         // --------- Wireframe drawing logic end ---------
 
-        ClipResult clip = getClippedMinDepth(entityPos + vec3(0, TestEntityAABB.y / 2, 0), max(TestEntityAABB.x / 2, TestEntityAABB.y / 2));
+        ClipResult clip = getClippedMinDepth(entityPos + vec3(0, TestEntityAABB.y / 2, 0), TestEntityAABB.x / 2 + 0.15, TestEntityAABB.y / 2 + 0.15);
 
         if(any(greaterThan(clip.screenMin, clip.screenMax))) {
             if (!hit) {

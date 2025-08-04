@@ -7,7 +7,6 @@ import me.jellysquid.mods.sodium.client.render.chunk.*;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.SortedRenderLists;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.VisibleChunkCollector;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
-import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexType;
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.client.Camera;
@@ -30,6 +29,7 @@ import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 
+import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.Map;
 
@@ -44,14 +44,13 @@ public abstract class MixinRenderSectionManager {
     private @NotNull SortedRenderLists renderLists;
 
     @Shadow
-    @Final
-    private ChunkVertexType vertexType;
-
-    @Shadow
     private @NotNull Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildLists;
     @Shadow
     @Final
     private ChunkRenderer chunkRenderer;
+
+    @Shadow protected abstract void checkTranslucencyChange();
+
     @Unique
     private ChunkRenderer sketchlib$indirectDrawChunkRenderer;
 
@@ -102,11 +101,27 @@ public abstract class MixinRenderSectionManager {
             VisibleChunkCollector collector = CullingStateManager.renderingIris() ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
 
             if (collector != null) {
-                this.renderLists = collector.createRenderLists();
-                this.rebuildLists = collector.getRebuildLists();
+                if (CullingStateManager.renderingIris()) {
+                    setShadowRenderLists(this, collector.createRenderLists());
+                    this.rebuildLists = collector.getRebuildLists();
+                } else {
+                    this.renderLists = collector.createRenderLists();
+                    this.rebuildLists = collector.getRebuildLists();
+                    this.checkTranslucencyChange();
+                }
             }
 
             ci.cancel();
+        }
+    }
+
+    private static void setShadowRenderLists(Object target, Object value) {
+        try {
+            Field field = target.getClass().getDeclaredField("shadowRenderLists");
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            e.printStackTrace();
         }
     }
 }
