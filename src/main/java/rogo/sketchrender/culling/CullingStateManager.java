@@ -40,6 +40,7 @@ import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL42C.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class CullingStateManager {
     public static EntityCullingMask ENTITY_CULLING_MASK = null;
@@ -346,8 +347,7 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = ShaderManager.COPY_DEPTH_CS;
-
+        ComputeShader shader = Config.shouldComputeShader() ? ShaderManager.COPY_HIERARCHY_DEPTH_CS : ShaderManager.COPY_DEPTH_CS;
         shader.bind();
         shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
 
@@ -367,12 +367,25 @@ public class CullingStateManager {
         shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
         shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
 
-        int tileSizeX = 16;
-        int tileSizeY = 16;
-        int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
-        int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
-        shader.execute(groupsX, groupsY, 1);
-        //shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        if (Config.shouldComputeShader()) {
+            int tileSizeX = 16;
+            int tileSizeY = 16;
+            runOnDepthFrame((depthContext) -> {
+                int scale = 2 << depthContext.index();
+                int groupsX = (screen.width / scale + tileSizeX - 1) / tileSizeX;
+                int groupsY = (screen.height / scale + tileSizeY - 1) / tileSizeY;
+                shader.getUniforms().setUniform("sketch_depth_level", depthContext.index());
+                shader.execute(groupsX, groupsY, 1);
+                shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            });
+        } else {
+            int tileSizeX = 16;
+            int tileSizeY = 16;
+            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
+            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+            shader.execute(groupsX, groupsY, 1);
+            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        }
 
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
     }
