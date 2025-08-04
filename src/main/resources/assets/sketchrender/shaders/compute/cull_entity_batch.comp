@@ -27,10 +27,10 @@ layout(std430, binding = 0) readonly buffer EntityDataBuffer {
 };
 
 layout(std430, binding = 1) writeonly buffer CullingResultBuffer {
-    int cullingResult[];
+    uint cullingResult[];
 };
 
-
+shared uint sharedVisible[64];
 const float near = 0.05;
 float far = 16.0;
 
@@ -185,14 +185,21 @@ float getUVDepth(int idx, ivec2 uv) {
     return texelFetch(Sampler7, uv, 0).r;
 }
 
+void setCullingResult(int entityIndex) {
+    int intIndex = entityIndex / 32;
+    int bitOffset = entityIndex % 32;
+    atomicOr(cullingResult[intIndex], 1u << bitOffset);
+}
+
 void main() {
-    int globalIndex = int(gl_GlobalInvocationID.x);
+    uint localIndex = gl_LocalInvocationID.x; // 0~63
+    uint globalIndex = gl_GlobalInvocationID.x;
 
     if(globalIndex >= sketch_entity_count) {
         return;
     }
 
-    int dataOffset = globalIndex * 6;
+    int dataOffset = int(globalIndex) * 6;
 
     vec3 center = vec3(entityData[dataOffset], entityData[dataOffset + 1], entityData[dataOffset + 2]);
     float sizeX = entityData[dataOffset + 3];
@@ -202,36 +209,45 @@ void main() {
     float halfHeight = sizeY * 0.5 + 0.15;
 
     bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
+    uint visibleByte = 0u;
 
-    if (!visible) {
-        cullingResult[globalIndex] = 1;
-        return;
-    }
+    if (visible) {
+        far = sketch_render_distance * 64.0;
+        ClipResult clip = getClippedMinDepth(center, halfWidth, halfHeight);
+        float sectionDepth = LinearizeDepth(clip.minDepth);
 
-    far = sketch_render_distance * 64.0;
+        int idx = getSampler(clip.screenMax.x - clip.screenMin.x, clip.screenMax.y - clip.screenMin.y);
+        vec2[8] DepthScreenSize = getDepthScreenSize();
+        int depthX = int(DepthScreenSize[idx].x);
+        int depthY = int(DepthScreenSize[idx].y);
 
-    ClipResult clip = getClippedMinDepth(center, halfWidth, halfHeight);
-    float sectionDepth = LinearizeDepth(clip.minDepth);
+        int coordMinX = max(int(floor(clip.screenMin.x * depthX)), 0);
+        int coordMaxX = min(int(ceil(clip.screenMax.x * depthX)), depthX - 1);
+        int coordMinY = max(int(floor(clip.screenMin.y * depthY)), 0);
+        int coordMaxY = min(int(ceil(clip.screenMax.y * depthY)), depthY - 1);
 
-    int idx = getSampler(clip.screenMax.x - clip.screenMin.x, clip.screenMax.y - clip.screenMin.y);
-    vec2[8] DepthScreenSize = getDepthScreenSize();
-    int depthX = int(DepthScreenSize[idx].x);
-    int depthY = int(DepthScreenSize[idx].y);
-
-    int coordMinX = max(int(floor(clip.screenMin.x * depthX)), 0);
-    int coordMaxX = min(int(ceil(clip.screenMax.x * depthX)), depthX - 1);
-    int coordMinY = max(int(floor(clip.screenMin.y * depthY)), 0);
-    int coordMaxY = min(int(ceil(clip.screenMax.y * depthY)), depthY - 1);
-
-    for (int x = coordMinX; x <= coordMaxX; x++) {
-        for (int y = coordMinY; y <= coordMaxY; y++) {
-            float pixelDepth = getUVDepth(idx, ivec2(x, y));
-            if (sectionDepth < pixelDepth) {
-                cullingResult[globalIndex] = 0;
-                return;
+        for (int x = coordMinX; x <= coordMaxX; x++) {
+            for (int y = coordMinY; y <= coordMaxY; y++) {
+                float pixelDepth = getUVDepth(idx, ivec2(x, y));
+                if (sectionDepth < pixelDepth) {
+                    visibleByte = 1u;
+                    break;
+                }
             }
+            if (visibleByte == 1u) break;
         }
     }
 
-    cullingResult[globalIndex] = 1;
+    sharedVisible[localIndex] = visibleByte;
+    barrier();
+
+    if (localIndex < 16) {
+        uint packed = 0u;
+        for (uint i = 0; i < 4; ++i) {
+            packed |= (sharedVisible[localIndex * 4 + i] & 0xFFu) << (i * 8);
+        }
+        
+        uint groupBase = (gl_WorkGroupID.x * 64) / 4;
+        cullingResult[groupBase + localIndex] = packed;
+    }
 }

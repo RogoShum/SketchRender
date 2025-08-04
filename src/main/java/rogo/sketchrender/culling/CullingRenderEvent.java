@@ -283,7 +283,7 @@ public class CullingRenderEvent {
 
         if (uniformMap.containsOperate(culling_terrain)) {
             if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                uniformMap.setUniform("sketch_entity_count", CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().size());
+                uniformMap.setUniform("sketch_entity_count", CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size());
             }
 
             if (!Config.getCullChunk() || CullingStateManager.SHADER_LOADER.renderingShaderPass()) {

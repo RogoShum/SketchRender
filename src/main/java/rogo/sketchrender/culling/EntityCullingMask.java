@@ -9,8 +9,10 @@ import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
-import rogo.sketchrender.util.IndexedSet;
+import rogo.sketchrender.util.IndexPool;
 import rogo.sketchrender.util.LifeTimer;
+
+import java.util.Set;
 
 import static net.minecraftforge.common.extensions.IForgeBlockEntity.INFINITE_EXTENT_AABB;
 
@@ -43,23 +45,23 @@ public class EntityCullingMask {
             return true;
         }
 
-        int idx = getEntityTable().getIndex(o);
+        int idx = getEntityMap().getIndex(o);
 
-        if (getEntityTable().objectTimer.contains(o)) {
-            getEntityTable().add(o, CullingStateManager.clientTickCount);
+        if (getEntityMap().objectTimer.contains(o)) {
+            getEntityMap().add(o, CullingStateManager.clientTickCount);
         }
 
         if (idx > -1 && idx < cullingResultSSBO.getDataCount()) {
-            boolean flag1 = cullingResultSSBO.getInt(idx) < 1;
+            boolean flag1 = cullingResultSSBO.getMappedBuffer().get(idx) > 0;
             if (flag1) {
                 return true;
             } else if (!prevCullingResultSSBO.isDisposed() && idx < prevCullingResultSSBO.getDataCount()) {
-                return prevCullingResultSSBO.getInt(idx) < 1;
+                return prevCullingResultSSBO.getMappedBuffer().get(idx) > 0;
             }
 
             return false;
         } else {
-            getEntityTable().add(o, CullingStateManager.clientTickCount);
+            getEntityMap().add(o, CullingStateManager.clientTickCount);
         }
 
         return true;
@@ -75,10 +77,11 @@ public class EntityCullingMask {
         if (prevCullingResultSSBO != null) {
             prevCullingResultSSBO.discard();
         }
+        getEntityMap().clear();
     }
 
     private void checkAndAdjustCapacity() {
-        int currentEntityCount = getEntityTable().size();
+        int currentEntityCount = getEntityMap().size();
         int currentCapacity = (int) entityDataSSBO.getDataCount();
 
         if (currentEntityCount > currentCapacity * 0.75) {
@@ -95,15 +98,16 @@ public class EntityCullingMask {
     }
 
     private int calculateNewCapacity(int requiredCapacity) {
-        return ((requiredCapacity / 64) + 1) * 64;
+        int capacity = ((requiredCapacity / 64) + 1) * 64;
+        capacity = ((capacity + 3) / 4) * 4;
+        return capacity;
     }
 
     public void updateEntityData() {
         checkAndAdjustCapacity();
 
         long bufferPointer = entityDataSSBO.getMemoryAddress();
-        for (int index = 0; index < getEntityTable().indexMap.size(); ++index) {
-            Object obj = getEntityTable().indexMap.get(index);
+        getEntityMap().indexPool.forEach((obj, index) -> {
             AABB aabb = SketchRender.getObjectAABB(obj);
             Vec3 center = aabb.getCenter();
 
@@ -114,8 +118,8 @@ public class EntityCullingMask {
             MemoryUtil.memPutFloat(bufferPointer + offset + 12, (float) aabb.getXsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 16, (float) aabb.getYsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 20, (float) aabb.getZsize());
-            entityDataSSBO.position = offset + 24;
-        }
+            entityDataSSBO.position = Math.max(entityDataSSBO.position, offset + 24);
+        });
 
         entityDataSSBO.upload();
         entityDataSSBO.position = 0;
@@ -126,15 +130,15 @@ public class EntityCullingMask {
         this.prevCullingResultSSBO = this.cullingResultSSBO;
         this.cullingResultSSBO = buffer;
         MemoryUtil.memSet(buffer.getMemoryAddress(), 0, buffer.getCapacity());
-        getEntityTable().tickTemp(tickCount);
+        getEntityMap().tickTemp(tickCount);
     }
 
-    public EntityMap getEntityTable() {
+    public EntityMap getEntityMap() {
         return entityMap;
     }
 
     public static class EntityMap {
-        private IndexedSet<Object> indexMap = new IndexedSet<>();
+        private final IndexPool<Object> indexPool = new IndexPool<>();
         private final LifeTimer<Object> objectTimer = new LifeTimer<>();
 
         public EntityMap() {
@@ -142,11 +146,11 @@ public class EntityCullingMask {
 
         public void addObject(Object obj) {
             if (obj instanceof Entity && ((Entity) obj).isAlive())
-                indexMap.add(obj);
+                indexPool.add(obj);
             else if (obj instanceof BlockEntity && !((BlockEntity) obj).isRemoved())
-                indexMap.add(obj);
+                indexPool.add(obj);
             else
-                indexMap.add(obj);
+                indexPool.add(obj);
         }
 
         public void add(Object obj, int tickCount) {
@@ -155,24 +159,24 @@ public class EntityCullingMask {
         }
 
         public Integer getIndex(Object obj) {
-            if (!indexMap.contains(obj))
+            if (!indexPool.contains(obj))
                 return -1;
 
-            return indexMap.indexOf(obj);
+            return indexPool.indexOf(obj);
         }
 
         public void tickTemp(int tickCount) {
-            objectTimer.tick(tickCount, 20);
-            indexMap = objectTimer.toIndexedSet();
+            Set<Object> removed = objectTimer.tick(tickCount, 20);
+            indexPool.remove(removed);
         }
 
         public void clear() {
-            indexMap.clear();
+            indexPool.clear();
             objectTimer.clear();
         }
 
         public int size() {
-            return indexMap.size();
+            return indexPool.size();
         }
     }
 }

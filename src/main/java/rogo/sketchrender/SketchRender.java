@@ -146,7 +146,7 @@ public class SketchRender {
         }
     }
 
-    public static BlockPos testPos = new BlockPos(0, 8, 0);
+    public static BlockPos testPos = null;
     public static Entity testEntity = null;
 
     public static void onKeyPress() {

@@ -51,7 +51,7 @@ public class IndexPool<T> {
         }
 
         indexToObject.remove(index);
-        freeIndices.add(index); // 将释放的索引加入复用池
+        freeIndices.add(index);
         return true;
     }
 
@@ -67,7 +67,7 @@ public class IndexPool<T> {
         return index;
     }
 
-    public T getObject(int index) {
+    public T get(int index) {
         return indexToObject.get(index);
     }
 

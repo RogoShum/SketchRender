@@ -16,7 +16,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector2i;
@@ -139,7 +138,7 @@ public class CullingStateManager {
         }
     }
 
-    public static boolean shouldSkipBlockEntity(BlockEntity blockEntity, AABB aabb, BlockPos pos) {
+    public static boolean shouldSkipBlockEntity(BlockEntity blockEntity, BlockPos pos) {
         blockCount++;
         //for valkyrien skies
         if (CAMERA.getPosition().distanceToSqr(pos.getX(), pos.getY(), pos.getZ()) >
@@ -152,12 +151,12 @@ public class CullingStateManager {
         if (Config.getBlockEntitiesSkip().contains(type))
             return false;
 
-        if (!ENTITY_CULLING_MASK.isObjectVisible(blockEntity)) {
-            blockCulling++;
-            return true;
+        if (ENTITY_CULLING_MASK.isObjectVisible(blockEntity)) {
+            return false;
         }
 
-        return false;
+        blockCulling++;
+        return true;
     }
 
     public static boolean shouldSkipEntity(Entity entity) {
@@ -168,12 +167,12 @@ public class CullingStateManager {
             return false;
         if (ENTITY_CULLING_MASK == null || !Config.getCullEntity()) return false;
 
-        if (!ENTITY_CULLING_MASK.isObjectVisible(entity)) {
-            entityCulling++;
-            return true;
+        if (ENTITY_CULLING_MASK.isObjectVisible(entity)) {
+            return false;
         }
 
-        return false;
+        entityCulling++;
+        return true;
     }
 
     public static void onProfilerPopPush(String s) {
@@ -347,62 +346,42 @@ public class CullingStateManager {
     }
 
     public static void computeHizTexture() {
-        ComputeShader shader = Config.shouldComputeShader() ? ShaderManager.COPY_HIERARCHY_DEPTH_CS : ShaderManager.COPY_DEPTH_CS;
+        ComputeShader shader = ShaderManager.COPY_HIERARCHY_DEPTH_CS;
         shader.bind();
         shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
-
-        runOnDepthFrame((depthContext) -> {
-            GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
-            RenderSystem.activeTexture(GL43.GL_TEXTURE0 + depthContext.index());
-            RenderSystem.bindTexture(depthContext.lastTexture());
-        });
-
         RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
         shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
-        shader.getUniforms().setUniform("sketch_sampler_texture_1", 1);
-        shader.getUniforms().setUniform("sketch_sampler_texture_2", 2);
-        shader.getUniforms().setUniform("sketch_sampler_texture_3", 3);
-        shader.getUniforms().setUniform("sketch_sampler_texture_4", 4);
-        shader.getUniforms().setUniform("sketch_sampler_texture_5", 5);
         shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
         shader.getUniforms().setUniform("sketch_liner_depth", 1);
-        if (Config.shouldComputeShader()) {
-            int tileSizeX = 16;
-            int tileSizeY = 16;
-            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
-            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
-            runOnDepthFrame((depthContext) -> {
-                GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
-                if (depthContext.index() == 0) {
-                    RenderSystem.activeTexture(GL43.GL_TEXTURE0);
-                    RenderSystem.bindTexture(depthContext.lastTexture());
-                }
-            }, 0, 4);
 
-            shader.execute(groupsX, groupsY, 1);
-            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        int tileSizeX = 16;
+        int tileSizeY = 16;
+        int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
+        int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
+        runOnDepthFrame((depthContext) -> {
+            GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
+            if (depthContext.index() == 0) {
+                RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+                RenderSystem.bindTexture(depthContext.lastTexture());
+            }
+        }, 0, 4);
 
-            groupsX = ((screen.width >> 4) / 2 + tileSizeX - 1) / tileSizeX;
-            groupsY = ((screen.height >> 4) / 2 + tileSizeY - 1) / tileSizeY;
-            runOnDepthFrame((depthContext) -> {
-                GL43.glBindImageTexture(depthContext.index() - 4, depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
-                if (depthContext.index() == 4) {
-                    RenderSystem.activeTexture(GL43.GL_TEXTURE0);
-                    RenderSystem.bindTexture(depthContext.lastTexture());
-                }
-            }, 4, 8);
-            shader.getUniforms().setUniform("sketch_liner_depth", 0);
-            shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width >> 4, screen.height >> 4));
-            shader.execute(groupsX, groupsY, 1);
-            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-        } else {
-            int tileSizeX = 16;
-            int tileSizeY = 16;
-            int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
-            int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
-            shader.execute(groupsX, groupsY, 1);
-            shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-        }
+        shader.execute(groupsX, groupsY, 1);
+        shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+        groupsX = ((screen.width >> 4) / 2 + tileSizeX - 1) / tileSizeX;
+        groupsY = ((screen.height >> 4) / 2 + tileSizeY - 1) / tileSizeY;
+        runOnDepthFrame((depthContext) -> {
+            GL43.glBindImageTexture(depthContext.index() - 4, depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
+            if (depthContext.index() == 4) {
+                RenderSystem.activeTexture(GL43.GL_TEXTURE0);
+                RenderSystem.bindTexture(depthContext.lastTexture());
+            }
+        }, 4, 8);
+        shader.getUniforms().setUniform("sketch_liner_depth", 0);
+        shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width >> 4, screen.height >> 4));
+        shader.execute(groupsX, groupsY, 1);
+        shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         RenderSystem.activeTexture(GL43.GL_TEXTURE0);
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
@@ -417,7 +396,7 @@ public class CullingStateManager {
         });
         RenderSystem.activeTexture(GL_TEXTURE0);
         CullingStateManager.ENTITY_CULLING_MASK.bindSSBO();
-        shader.execute((CullingStateManager.ENTITY_CULLING_MASK.getEntityTable().size() / 64 + 1), 1, 1);
+        shader.execute((CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size() / 64 + 1), 1, 1);
     }
 
     public static void updateMapData() {
