@@ -85,7 +85,7 @@ uniform vec3 sketch_culling_camera_pos;
 uniform vec3 sketch_culling_camera_dir;
 uniform vec3 sketch_frustum_pos;
 uniform float[24] sketch_culling_frustum;
-uniform float[12] sketch_depth_size;
+uniform float[16] sketch_depth_size;
 
 #define REGION_SIZE 256
 #define LAYER_COUNT 3
@@ -118,19 +118,21 @@ vec4[6] getFrustumData() {
     );
 }
 
-vec2[6] getDepthScreenSize() {
+vec2[8] getDepthScreenSize() {
     return vec2[](
     vec2(sketch_depth_size[0], sketch_depth_size[1]),
     vec2(sketch_depth_size[2], sketch_depth_size[3]),
     vec2(sketch_depth_size[4], sketch_depth_size[5]),
     vec2(sketch_depth_size[6], sketch_depth_size[7]),
     vec2(sketch_depth_size[8], sketch_depth_size[9]),
-    vec2(sketch_depth_size[10], sketch_depth_size[11])
+    vec2(sketch_depth_size[10], sketch_depth_size[11]),
+    vec2(sketch_depth_size[12], sketch_depth_size[13]),
+    vec2(sketch_depth_size[14], sketch_depth_size[15])
     );
 }
 
 int getSampler(float xLength, float yLength) {
-    vec2[6] DepthScreenSize = getDepthScreenSize();
+    vec2[8] DepthScreenSize = getDepthScreenSize();
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
         float xStep = 3.1 / DepthScreenSize[i].x;
         float yStep = 3.1 / DepthScreenSize[i].y;
@@ -294,7 +296,7 @@ bool _is_chunk_culled(ivec3 sectionPos) {
 
     int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
 
-    vec2[6] DepthScreenSize = getDepthScreenSize();
+    vec2[8] DepthScreenSize = getDepthScreenSize();
     int depthX = int(DepthScreenSize[idx].x);
     int depthY = int(DepthScreenSize[idx].y);
 

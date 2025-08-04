@@ -8,6 +8,8 @@ uniform sampler2D Sampler2;
 uniform sampler2D Sampler3;
 uniform sampler2D Sampler4;
 uniform sampler2D Sampler5;
+uniform sampler2D Sampler6;
+uniform sampler2D Sampler7;
 
 uniform mat4 sketch_culling_view_mat;
 uniform mat4 sketch_culling_proj_mat;
@@ -18,7 +20,7 @@ uniform int sketch_render_distance;
 uniform int sketch_level_section_range;
 uniform int sketch_entity_count;
 uniform float[24] sketch_culling_frustum;
-uniform float[12] sketch_depth_size;
+uniform float[16] sketch_depth_size;
 
 layout(std430, binding = 0) readonly buffer EntityDataBuffer {
     float entityData[]; // float * 6: center.x, center.y, center.z, size.x, size.y, size.z
@@ -49,19 +51,21 @@ vec4[6] getFrustumData() {
     );
 }
 
-vec2[6] getDepthScreenSize() {
+vec2[8] getDepthScreenSize() {
     return vec2[](
     vec2(sketch_depth_size[0], sketch_depth_size[1]),
     vec2(sketch_depth_size[2], sketch_depth_size[3]),
     vec2(sketch_depth_size[4], sketch_depth_size[5]),
     vec2(sketch_depth_size[6], sketch_depth_size[7]),
     vec2(sketch_depth_size[8], sketch_depth_size[9]),
-    vec2(sketch_depth_size[10], sketch_depth_size[11])
+    vec2(sketch_depth_size[10], sketch_depth_size[11]),
+    vec2(sketch_depth_size[12], sketch_depth_size[13]),
+    vec2(sketch_depth_size[14], sketch_depth_size[15])
     );
 }
 
 int getSampler(float xLength, float yLength) {
-    vec2[6] DepthScreenSize = getDepthScreenSize();
+    vec2[8] DepthScreenSize = getDepthScreenSize();
     for (int i = 0; i < DepthScreenSize.length(); ++i) {
         float xStep = 2.1 / DepthScreenSize[i].x;
         float yStep = 2.1 / DepthScreenSize[i].y;
@@ -206,7 +210,7 @@ void main() {
     float sectionDepth = LinearizeDepth(clip.minDepth);
 
     int idx = getSampler(clip.screenMax.x - clip.screenMin.x, clip.screenMax.y - clip.screenMin.y);
-    vec2[6] DepthScreenSize = getDepthScreenSize();
+    vec2[8] DepthScreenSize = getDepthScreenSize();
     int depthX = int(DepthScreenSize[idx].x);
     int depthY = int(DepthScreenSize[idx].y);
 

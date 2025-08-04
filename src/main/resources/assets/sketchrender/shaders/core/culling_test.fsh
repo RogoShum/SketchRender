@@ -20,7 +20,7 @@ uniform float RenderDistance;
 
 flat in int spacePartitionSize;
 flat in vec4[6] frustum;
-flat in vec2[6] DepthScreenSize;
+flat in vec2[8] DepthScreenSize;
 
 out vec4 fragColor;
 

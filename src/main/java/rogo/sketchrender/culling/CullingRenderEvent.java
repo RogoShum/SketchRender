@@ -177,8 +177,8 @@ public class CullingRenderEvent {
         }
 
         if (shaderInstance.getDepthSize() != null) {
-            float[] array = new float[6 * 2];
-            for (int i = 0; i < 6; ++i) {
+            float[] array = new float[CullingStateManager.DEPTH_SIZE * 2];
+            for (int i = 0; i < CullingStateManager.DEPTH_SIZE; ++i) {
                 int arrayIdx = i * 2;
                 array[arrayIdx] = (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].width;
                 array[arrayIdx + 1] = (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].height;
@@ -262,7 +262,9 @@ public class CullingRenderEvent {
                             "Sampler2",
                             "Sampler3",
                             "Sampler4",
-                            "Sampler5"
+                            "Sampler5",
+                            "Sampler6",
+                            "Sampler7"
                     });
         });
         GlStateManager._glUseProgram(0);
@@ -344,6 +346,8 @@ public class CullingRenderEvent {
             uniformMap.setUniform("Sampler3", 3);
             uniformMap.setUniform("Sampler4", 4);
             uniformMap.setUniform("Sampler5", 5);
+            uniformMap.setUniform("Sampler6", 6);
+            uniformMap.setUniform("Sampler7", 7);
         }
     }
 
