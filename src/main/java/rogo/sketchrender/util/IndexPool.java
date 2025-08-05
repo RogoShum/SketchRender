@@ -88,7 +88,7 @@ public class IndexPool<T> {
     }
 
     public int getMaxIndex() {
-        return nextIndex - 1;
+        return nextIndex;
     }
 
     public void clear() {

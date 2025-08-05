@@ -22,8 +22,8 @@ import org.joml.Vector2i;
 import org.lwjgl.opengl.GL43;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.DefaultShaderLoader;
-import rogo.sketchrender.compat.sodium.MeshUniform;
+import rogo.sketchrender.api.VanillaShaderPackLoader;
+import rogo.sketchrender.compat.sodium.MeshResource;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.mixin.AccessorLevelRender;
 import rogo.sketchrender.mixin.AccessorMinecraft;
@@ -32,13 +32,14 @@ import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.shader.ShaderModifier;
 import rogo.sketchrender.util.DepthContext;
 import rogo.sketchrender.util.OcclusionCullerThread;
-import rogo.sketchrender.util.ShaderLoader;
+import rogo.sketchrender.util.ShaderPackLoader;
 
 import java.util.HashMap;
 import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL32.*;
 import static org.lwjgl.opengl.GL42C.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class CullingStateManager {
@@ -58,7 +59,7 @@ public class CullingStateManager {
     public static boolean updatingDepth;
     public static boolean applyFrustum;
     public static int DEBUG = 0;
-    public static ShaderLoader SHADER_LOADER = null;
+    public static ShaderPackLoader SHADER_LOADER = null;
 
     private static boolean[] nextTick = new boolean[20];
     public static int fps = 0;
@@ -106,12 +107,12 @@ public class CullingStateManager {
     public static void init() {
         if (SketchRender.hasIris()) {
             try {
-                SHADER_LOADER = Class.forName("rogo.sketchrender.util.IrisLoaderImpl").asSubclass(ShaderLoader.class).newInstance();
+                SHADER_LOADER = Class.forName("rogo.sketchrender.util.IrisLoaderImpl").asSubclass(ShaderPackLoader.class).newInstance();
             } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
         } else {
-            SHADER_LOADER = new DefaultShaderLoader();
+            SHADER_LOADER = new VanillaShaderPackLoader();
         }
 
         ShaderModifier.loadAll(Minecraft.getInstance().getResourceManager());
@@ -146,7 +147,7 @@ public class CullingStateManager {
             return false;
         }
 
-        if (ENTITY_CULLING_MASK == null || !Config.getCullBlockEntity()) return false;
+        if (ENTITY_CULLING_MASK == null || renderingShadowPass() || !Config.getCullBlockEntity()) return false;
         String type = BlockEntityType.getKey(blockEntity.getType()).toString();
         if (Config.getBlockEntitiesSkip().contains(type))
             return false;
@@ -165,7 +166,7 @@ public class CullingStateManager {
         if (entity.distanceToSqr(CAMERA.getPosition()) < 4) return false;
         if (Config.getEntitiesSkip().contains(entity.getType().getDescriptionId()))
             return false;
-        if (ENTITY_CULLING_MASK == null || !Config.getCullEntity()) return false;
+        if (ENTITY_CULLING_MASK == null || renderingShadowPass() || !Config.getCullEntity()) return false;
 
         if (ENTITY_CULLING_MASK.isObjectVisible(entity)) {
             return false;
@@ -232,10 +233,6 @@ public class CullingStateManager {
             blockCount = 0;
 
             if (anyNextTick()) {
-                if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                    CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(clientTickCount);
-                }
-
                 if (fullChunkUpdateCooldown > 0) {
                     fullChunkUpdateCooldown--;
                 }
@@ -246,6 +243,10 @@ public class CullingStateManager {
             }
 
             if (isNextLoop()) {
+                if (CullingStateManager.ENTITY_CULLING_MASK != null) {
+                    CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(clientTickCount);
+                }
+
                 applyFrustumTime = preApplyFrustumTime;
                 preApplyFrustumTime = 0;
 
@@ -261,8 +262,8 @@ public class CullingStateManager {
                 entityCullingInitTime = preEntityCullingInitTime;
                 preEntityCullingInitTime = 0;
 
-                MeshUniform.lastQueueUpdateCount = MeshUniform.queueUpdateCount;
-                MeshUniform.queueUpdateCount = 0;
+                MeshResource.lastQueueUpdateCount = MeshResource.queueUpdateCount;
+                MeshResource.queueUpdateCount = 0;
 
                 if (preChunkCullingTime != 0) {
                     chunkCullingTime = preChunkCullingTime;
@@ -402,7 +403,7 @@ public class CullingStateManager {
     public static void updateMapData() {
         fps = ((AccessorMinecraft) Minecraft.getInstance()).getFps();
         if (anyCulling()) {
-            MeshUniform.updateDistance(Minecraft.getInstance().options.getEffectiveRenderDistance());
+            MeshResource.updateDistance(Minecraft.getInstance().options.getEffectiveRenderDistance());
 
             if (Config.doEntityCulling()) {
                 if (ENTITY_CULLING_MASK == null) {
@@ -425,7 +426,7 @@ public class CullingStateManager {
     }
 
     public static void bindMainFrameTarget() {
-        if (SHADER_LOADER.renderingShaderPass()) {
+        if (SHADER_LOADER.renderingShadowPass()) {
             SHADER_LOADER.bindDefaultFrameBuffer();
         } else {
             Minecraft.getInstance().getMainRenderTarget().bindWrite(true);
@@ -456,12 +457,8 @@ public class CullingStateManager {
         });
     }
 
-    public static boolean renderingIris() {
-        return renderingShader();
-    }
-
-    public static boolean renderingShader() {
-        return SHADER_LOADER.renderingShaderPass();
+    public static boolean renderingShadowPass() {
+        return SHADER_LOADER.renderingShadowPass();
     }
 
     public static boolean enabledShader() {

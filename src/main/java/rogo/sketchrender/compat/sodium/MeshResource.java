@@ -10,7 +10,7 @@ import rogo.sketchrender.shader.uniform.CountBuffer;
 import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
 
-public class MeshUniform {
+public class MeshResource {
     private static int renderDistance = -1;
     private static int spacePartitionSize = 0;
     public static int queueUpdateCount = 0;
@@ -79,8 +79,8 @@ public class MeshUniform {
 
     //TODO need fix
     public static void updateDistance(int renderDistance) {
-        if (MeshUniform.renderDistance != renderDistance) {
-            MeshUniform.renderDistance = renderDistance;
+        if (MeshResource.renderDistance != renderDistance) {
+            MeshResource.renderDistance = renderDistance;
             spacePartitionSize = 2 * renderDistance + 1;
 
             if (Minecraft.getInstance().level != null && Config.getCullChunk()) {

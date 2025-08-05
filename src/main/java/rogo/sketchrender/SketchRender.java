@@ -11,10 +11,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.phys.*;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
@@ -29,6 +30,7 @@ import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
@@ -39,7 +41,10 @@ import rogo.sketchrender.api.AABBObject;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingRenderEvent;
 import rogo.sketchrender.culling.CullingStateManager;
+import rogo.sketchrender.event.bridge.EventBusBridge;
+import rogo.sketchrender.event.bridge.ForgeEventBusImplementation;
 import rogo.sketchrender.gui.ConfigScreen;
+import rogo.sketchrender.render.uniform.UniformHookRegistry;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.CommandCallTimer;
@@ -68,6 +73,7 @@ public class SketchRender {
 
     @SuppressWarnings("removal")
     public SketchRender() {
+        EventBusBridge.setImplementation(new ForgeEventBusImplementation());
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
@@ -75,6 +81,7 @@ public class SketchRender {
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
             RenderSystem.recordRenderCall(GLFeatureChecker::initialize);
+            FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerUniform);
             init();
         });
     }
@@ -215,7 +222,7 @@ public class SketchRender {
     }
 
     public static void pauseAsync() {
-        fullChunkUpdateCooldown = 70;
+        fullChunkUpdateCooldown = 0;
     }
 
     public static ScreenSpaceRenderer getScreenRenderer() {
@@ -269,6 +276,10 @@ public class SketchRender {
             COMMAND_TIMER.calculateAverageTimes(CullingStateManager.fps);
             RENDER_TIMER.calculateAverageTimes(CullingStateManager.fps);
         }
+    }
+
+    public void registerUniform(FMLClientSetupEvent event) {
+        UniformHookRegistry.getInstance().init();
     }
 
     public static CommandCallTimer COMMAND_TIMER = new CommandCallTimer();

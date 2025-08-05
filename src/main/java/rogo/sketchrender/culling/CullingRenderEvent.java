@@ -22,7 +22,7 @@ import org.joml.Vector4f;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.api.CullingShader;
-import rogo.sketchrender.compat.sodium.MeshUniform;
+import rogo.sketchrender.compat.sodium.MeshResource;
 import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorFrustum;
 import rogo.sketchrender.shader.ShaderManager;
@@ -286,7 +286,7 @@ public class CullingRenderEvent {
                 uniformMap.setUniform("sketch_entity_count", CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size());
             }
 
-            if (!Config.getCullChunk() || CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
+            if (!Config.getCullChunk() || CullingStateManager.SHADER_LOADER.renderingShadowPass()) {
                 uniformMap.setUniform("sketch_culling_terrain", 0);
             } else {
                 uniformMap.setUniform("sketch_culling_terrain", 1);
@@ -301,8 +301,8 @@ public class CullingRenderEvent {
             uniformMap.setUniform("sketch_camera_offset", cameraPos);
             cameraPos = new BlockPos((int) pos.x, (int) pos.y, (int) pos.z);
             uniformMap.setUniform("sketch_camera_pos", cameraPos);
-            uniformMap.setUniform("sketch_render_distance", MeshUniform.getRenderDistance());
-            uniformMap.setUniform("sketch_space_partition_size", MeshUniform.getSpacePartitionSize());
+            uniformMap.setUniform("sketch_render_distance", MeshResource.getRenderDistance());
+            uniformMap.setUniform("sketch_space_partition_size", MeshResource.getSpacePartitionSize());
         }
 
         if (uniformMap.containsOperate(culling_chunk)) {
@@ -423,7 +423,7 @@ public class CullingRenderEvent {
                 }
 
                 if (Config.getCullChunk()) {
-                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + MeshUniform.lastQueueUpdateCount;
+                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + MeshResource.lastQueueUpdateCount;
                     addString(monitorTexts, chunkCullingCount);
                 }
             }

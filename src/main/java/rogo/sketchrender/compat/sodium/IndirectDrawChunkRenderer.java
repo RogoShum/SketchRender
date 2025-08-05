@@ -59,8 +59,8 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
     @Override
     public void render(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera) {
-        if (lastUpdateFrame != MeshUniform.currentFrame) {
-            lastUpdateFrame = MeshUniform.currentFrame;
+        if (lastUpdateFrame != MeshResource.currentFrame) {
+            lastUpdateFrame = MeshResource.currentFrame;
 
             List<RenderRegion> allRegions = new ArrayList<>();
 
@@ -83,7 +83,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
             orderedRegions = allRegions;
 
-            long ptr = MeshUniform.batchRegionIndex.getMemoryAddress();
+            long ptr = MeshResource.batchRegionIndex.getMemoryAddress();
 
             List<RenderRegion> regions = orderedRegions;
             for (int i = 0; i < regions.size(); ++i) {
@@ -92,10 +92,10 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
                 MemoryUtil.memPutInt(ptr + offset, region.getChunkX());
                 MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkY());
                 MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
-                MemoryUtil.memPutInt(ptr + offset + 12, MeshUniform.meshManager.indexOf(region));
+                MemoryUtil.memPutInt(ptr + offset + 12, MeshResource.meshManager.indexOf(region));
             }
-            MeshUniform.batchRegionIndex.position = (int) MeshUniform.batchRegionIndex.getCapacity();
-            MeshUniform.batchRegionIndex.upload();
+            MeshResource.batchRegionIndex.position = (int) MeshResource.batchRegionIndex.getCapacity();
+            MeshResource.batchRegionIndex.upload();
         }
 
         if (renderPass == DefaultTerrainRenderPasses.SOLID && orderedRegions != null && !orderedRegions.isEmpty()) {
@@ -124,7 +124,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
         if (shaderInterface != null) {
             this.isIndexedPass = renderPass.isSorted();
-            int maxElement = MeshUniform.maxElementPersistent.getInt(0);
+            int maxElement = MeshResource.maxElementPersistent.getInt(0);
             if (maxElementCount < maxElement && !this.isIndexedPass) {
                 this.defaultChunkRenderer.getSharedIndexBuffer().ensureCapacity(commandList, maxElement);
                 maxElementCount = maxElement;
@@ -140,13 +140,13 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
     }
 
     public void preRender() {
-        MeshUniform.elementCounter.updateCount(0);
-        MeshUniform.batchMaxElement.bindShaderSlot(7);
-        MeshUniform.meshManager.bindMeshData(0);
-        MeshUniform.batchCommand.bindShaderSlot(1);
-        MeshUniform.batchCounter.bindShaderSlot(2);
-        MeshUniform.batchRegionIndex.bindShaderSlot(3);
-        MeshUniform.cullingCounter.updateCount(0);
+        MeshResource.elementCounter.updateCount(0);
+        MeshResource.batchMaxElement.bindShaderSlot(7);
+        MeshResource.meshManager.bindMeshData(0);
+        MeshResource.batchCommand.bindShaderSlot(1);
+        MeshResource.batchCounter.bindShaderSlot(2);
+        MeshResource.batchRegionIndex.bindShaderSlot(3);
+        MeshResource.cullingCounter.updateCount(0);
 
         CullingStateManager.runOnDepthFrame((depthContext) -> {
             RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
@@ -161,8 +161,8 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
                         GL_ATOMIC_COUNTER_BARRIER_BIT |
                         GL_COMMAND_BARRIER_BIT);
 
-        MeshUniform.batchMaxElement.bindShaderSlot(0);
-        MeshUniform.maxElementPersistent.bindShaderSlot(1);
+        MeshResource.batchMaxElement.bindShaderSlot(0);
+        MeshResource.maxElementPersistent.bindShaderSlot(1);
         ShaderManager.COPY_COUNTER_CS.bind();
         ShaderManager.COPY_COUNTER_CS.execute(1, 1, 1);
         ShaderManager.COPY_COUNTER_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -199,7 +199,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             int meshCount = regionMeshDataStorage.getTotalFacingCount();
 
             IndirectCommandBuffer.INSTANCE.bind();
-            MeshUniform.cullingCounter.bind();
+            MeshResource.cullingCounter.bind();
             GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
             renderer.sodiumModelMatrixUniforms(shader, region, camera);
             DrawCommandList drawCommandList = commandList.beginTessellating(tessellation);
@@ -264,6 +264,6 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
     @Override
     public void delete(CommandList commandList) {
         super.delete(commandList);
-        MeshUniform.clearRegions();
+        MeshResource.clearRegions();
     }
 }

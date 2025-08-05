@@ -5,6 +5,8 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "sketchrender.refmap.json",
   "mixins": [
+    "sodium.MixinMappedStagingBuffer",
+    "sodium.MixinMappedStagingBuffer$MixinMappedBuffer"
   ],
   "client": [
     "AccessorFrustum",
@@ -24,18 +26,18 @@
     "MixinShaderInstance$MixinRenderSystem",
     "MixinWindow",
     "sodium.AccessorRenderSectionManager",
+    "sodium.AccessorSectionUpload",
     "sodium.MixinChunkBuilderMeshingTask",
     "sodium.MixinDefaultChunkRenderer",
     "sodium.MixinGlProgram",
     "sodium.MixinGLRenderDevice",
     "sodium.MixinRenderRegion",
+    "sodium.MixinRenderRegionManager",
     "sodium.MixinRenderSectionManager",
     "sodium.MixinSectionRenderDataStorage",
     "sodium.MixinShaderWorkarounds",
     "sodium.MixinSodiumWorldRenderer",
-    "sodium.MixinVisibleChunkCollector",
-    "sodium.AccessorSectionUpload",
-    "sodium.MixinRenderRegionManager"
+    "sodium.MixinVisibleChunkCollector"
   ],
   "injectors": {
     "defaultRequire": 1

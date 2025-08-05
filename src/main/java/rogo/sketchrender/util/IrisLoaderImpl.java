@@ -11,7 +11,7 @@ import net.minecraft.client.Minecraft;
 import java.lang.reflect.Field;
 
 
-public class IrisLoaderImpl implements ShaderLoader {
+public class IrisLoaderImpl implements ShaderPackLoader {
     @Override
     public int getFrameBufferID() {
         if (Iris.getPipelineManager().getPipeline().isPresent()) {
@@ -36,7 +36,7 @@ public class IrisLoaderImpl implements ShaderLoader {
     }
 
     @Override
-    public boolean renderingShaderPass() {
+    public boolean renderingShadowPass() {
         return IrisApi.getInstance().isRenderingShadowPass();
     }
 

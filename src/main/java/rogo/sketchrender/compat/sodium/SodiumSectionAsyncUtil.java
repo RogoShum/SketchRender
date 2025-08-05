@@ -59,7 +59,7 @@ public class SodiumSectionAsyncUtil {
             SodiumSectionAsyncUtil.collector = collector;
             SodiumSectionAsyncUtil.visibleSections = swapVisibleSections;
 
-            MeshUniform.queueUpdateCount++;
+            MeshResource.queueUpdateCount++;
             Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildList = SodiumSectionAsyncUtil.collector.getRebuildLists();
             for (ArrayDeque<RenderSection> arrayDeque : rebuildList.values()) {
                 if (!arrayDeque.isEmpty()) {
@@ -76,7 +76,7 @@ public class SodiumSectionAsyncUtil {
     }
 
     public static void update(Viewport viewport, float searchDistance, boolean useOcclusionCulling) {
-        if (CullingStateManager.renderingShader()) {
+        if (CullingStateManager.renderingShadowPass()) {
             SodiumSectionAsyncUtil.shadowViewport = viewport;
             SodiumSectionAsyncUtil.shadowSearchDistance = searchDistance;
             SodiumSectionAsyncUtil.shadowUseOcclusionCulling = useOcclusionCulling;
@@ -143,7 +143,7 @@ public class SodiumSectionAsyncUtil {
 
                 renderList.add(section);
                 SectionPos sectionPos = section.getPosition();
-                
+
                 swapVisibleSections.add(Objects.hash(sectionPos.getX(), sectionPos.getY(), sectionPos.getZ()));
             }
 
@@ -160,12 +160,12 @@ public class SodiumSectionAsyncUtil {
             } else {
                 return EMPTY_LIST;
             }
-            if (CullingStateManager.needPauseRebuild()) {
-                return syncRebuildLists;
-            }
+//            if (CullingStateManager.needPauseRebuild()) {
+//                return syncRebuildLists;
+//            }
             super.getRebuildLists().forEach(((chunkUpdateType, renderSections) -> {
                 for (RenderSection section : renderSections) {
-                    if (!section.isDisposed() && section.getBuildCancellationToken() == null) {
+                    if (!section.isDisposed() && !((ResourceChecker) section.getRegion()).disposed() && section.getBuildCancellationToken() == null) {
                         try {
                             syncRebuildLists.get(chunkUpdateType).add(section);
                         } catch (Exception ignored) {
@@ -173,6 +173,7 @@ public class SodiumSectionAsyncUtil {
                     }
                 }
             }));
+
             return syncRebuildLists;
         }
     }

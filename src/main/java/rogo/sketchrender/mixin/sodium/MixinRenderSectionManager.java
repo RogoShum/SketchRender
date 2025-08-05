@@ -24,7 +24,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.compat.sodium.ExtraChunkRenderer;
 import rogo.sketchrender.compat.sodium.IndirectDrawChunkRenderer;
-import rogo.sketchrender.compat.sodium.MeshUniform;
+import rogo.sketchrender.compat.sodium.MeshResource;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.culling.CullingStateManager;
 import rogo.sketchrender.shader.IndirectCommandBuffer;
@@ -62,7 +62,7 @@ public abstract class MixinRenderSectionManager {
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
-        if (Config.getCullChunk() && !CullingStateManager.SHADER_LOADER.renderingShaderPass()) {
+        if (Config.getCullChunk() && !CullingStateManager.SHADER_LOADER.renderingShadowPass()) {
             RenderDevice device = RenderDevice.INSTANCE;
             CommandList commandList = device.createCommandList();
             sketchlib$indirectDrawChunkRenderer.render(matrices, commandList, this.renderLists, pass, new CameraTransform(x, y, z));
@@ -85,7 +85,7 @@ public abstract class MixinRenderSectionManager {
     @Inject(method = "update", at = @At(value = "HEAD"), remap = false)
     private void onUpdate(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
         CullingStateManager.updating();
-        MeshUniform.currentFrame = frame;
+        MeshResource.currentFrame = frame;
     }
 
     @Inject(method = "isSectionVisible", at = @At(value = "HEAD"), remap = false, cancellable = true)
@@ -98,10 +98,10 @@ public abstract class MixinRenderSectionManager {
     @Inject(method = "createTerrainRenderList", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onCreateTerrainRenderList(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
         if (Config.getAsyncChunkRebuild()) {
-            VisibleChunkCollector collector = CullingStateManager.renderingIris() ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
+            VisibleChunkCollector collector = CullingStateManager.renderingShadowPass() ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
 
             if (collector != null) {
-                if (CullingStateManager.renderingIris()) {
+                if (CullingStateManager.renderingShadowPass()) {
                     setShadowRenderLists(this, collector.createRenderLists());
                     this.rebuildLists = collector.getRebuildLists();
                 } else {

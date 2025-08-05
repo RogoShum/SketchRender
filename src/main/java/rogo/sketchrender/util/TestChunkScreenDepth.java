@@ -2,7 +2,7 @@ package rogo.sketchrender.util;
 
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector4f;
-import rogo.sketchrender.compat.sodium.MeshUniform;
+import rogo.sketchrender.compat.sodium.MeshResource;
 import rogo.sketchrender.culling.CullingStateManager;
 
 public class TestChunkScreenDepth {
@@ -65,7 +65,7 @@ public class TestChunkScreenDepth {
     }
 
     public static float getChunkDepth(Vec3 chunkBasePos, Vec3 cameraPos) {
-        far = MeshUniform.getRenderDistance() * 64f;
+        far = MeshResource.getRenderDistance() * 64f;
         Vec3 chunkPos = chunkBasePos.scale(16);
         chunkPos = new Vec3(chunkPos.x + 8.0, chunkPos.y + 8.0, chunkPos.z + 8.0);
 

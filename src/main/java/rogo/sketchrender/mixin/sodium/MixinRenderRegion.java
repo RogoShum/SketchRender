@@ -1,5 +1,6 @@
 package rogo.sketchrender.mixin.sodium;
 
+import me.jellysquid.mods.sodium.client.gl.arena.staging.StagingBuffer;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
@@ -14,12 +15,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.compat.sodium.ExtraRenderRegion;
-import rogo.sketchrender.compat.sodium.MeshUniform;
-import rogo.sketchrender.compat.sodium.RegionMeshDataStorage;
-import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
+import rogo.sketchrender.compat.sodium.*;
 
-import java.util.Iterator;
 import java.util.Map;
 
 @Mixin(value = RenderRegion.class, remap = false)
@@ -31,6 +28,10 @@ public abstract class MixinRenderRegion implements ExtraRenderRegion {
     @Shadow
     @Final
     private Map<TerrainRenderPass, SectionRenderDataStorage> sectionRenderData;
+
+    @Shadow
+    @Final
+    private StagingBuffer stagingBuffer;
 
     @Inject(method = "getSection", at = @At("HEAD"), cancellable = true, remap = false)
     private void onGetSection(int id, CallbackInfoReturnable<RenderSection> cir) {
@@ -63,7 +64,7 @@ public abstract class MixinRenderRegion implements ExtraRenderRegion {
 
     @Inject(method = "delete", at = @At("RETURN"), remap = false)
     private void onDelete(CommandList commandList, CallbackInfo ci) {
-        MeshUniform.removeRegion((RenderRegion) (Object) this);
+        MeshResource.removeRegion((RenderRegion) (Object) this);
     }
 
     @Override
@@ -72,5 +73,14 @@ public abstract class MixinRenderRegion implements ExtraRenderRegion {
             storage.delete();
         }
         this.sectionRenderData.clear();
+    }
+
+    @Override
+    public boolean disposed() {
+        if (this.stagingBuffer instanceof ResourceChecker checker) {
+            return checker.disposed();
+        }
+
+        return false;
     }
 }

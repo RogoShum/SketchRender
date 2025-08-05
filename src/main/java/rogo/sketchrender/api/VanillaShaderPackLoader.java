@@ -1,16 +1,16 @@
 package rogo.sketchrender.api;
 
 import net.minecraft.client.Minecraft;
-import rogo.sketchrender.util.ShaderLoader;
+import rogo.sketchrender.util.ShaderPackLoader;
 
-public class DefaultShaderLoader implements ShaderLoader {
+public class VanillaShaderPackLoader implements ShaderPackLoader {
     @Override
     public int getFrameBufferID() {
         return Minecraft.getInstance().getMainRenderTarget().frameBufferId;
     }
 
     @Override
-    public boolean renderingShaderPass() {
+    public boolean renderingShadowPass() {
         return false;
     }
 

@@ -23,14 +23,14 @@ public class EntityCullingMask {
     private PersistentReadSSBO prevCullingResultSSBO;
 
     public EntityCullingMask(int initialCapacity) {
-        int adjustedCapacity = Math.max(64, ((initialCapacity / 64) + 1) * 64);
+        int adjustedCapacity = calculateNewCapacity(initialCapacity);
         initializeSSBOs(adjustedCapacity);
     }
 
     private void initializeSSBOs(int initialCapacity) {
         this.entityDataSSBO = new SSBO(initialCapacity, 6 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
-        this.cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Integer.BYTES);
-        this.prevCullingResultSSBO = new PersistentReadSSBO(initialCapacity, Integer.BYTES);
+        this.cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Byte.BYTES);
+        this.prevCullingResultSSBO = new PersistentReadSSBO(initialCapacity, Byte.BYTES);
     }
 
     public void bindSSBO() {
@@ -52,11 +52,15 @@ public class EntityCullingMask {
         }
 
         if (idx > -1 && idx < cullingResultSSBO.getDataCount()) {
-            boolean flag1 = cullingResultSSBO.getMappedBuffer().get(idx) > 0;
-            if (flag1) {
+           byte result = cullingResultSSBO.getMappedBuffer().get(idx);
+            if (result > 0) {
                 return true;
-            } else if (!prevCullingResultSSBO.isDisposed() && idx < prevCullingResultSSBO.getDataCount()) {
-                return prevCullingResultSSBO.getMappedBuffer().get(idx) > 0;
+            } else if (idx < prevCullingResultSSBO.getDataCount()) {
+                result = prevCullingResultSSBO.getMappedBuffer().get(idx);
+
+                if (result > 0) {
+                    return true;
+                }
             }
 
             return false;
@@ -167,7 +171,9 @@ public class EntityCullingMask {
 
         public void tickTemp(int tickCount) {
             Set<Object> removed = objectTimer.tick(tickCount, 20);
-            indexPool.remove(removed);
+            for (Object o : removed) {
+                indexPool.remove(o);
+            }
         }
 
         public void clear() {
@@ -176,7 +182,7 @@ public class EntityCullingMask {
         }
 
         public int size() {
-            return indexPool.size();
+            return indexPool.getMaxIndex();
         }
     }
 }

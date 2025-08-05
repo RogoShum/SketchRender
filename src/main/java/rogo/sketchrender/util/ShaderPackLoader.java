@@ -1,9 +1,9 @@
 package rogo.sketchrender.util;
 
-public interface ShaderLoader {
+public interface ShaderPackLoader {
     int getFrameBufferID();
 
-    boolean renderingShaderPass();
+    boolean renderingShadowPass();
 
     boolean enabledShader();
 
