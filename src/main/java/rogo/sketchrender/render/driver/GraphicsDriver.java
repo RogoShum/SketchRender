@@ -1,7 +1,7 @@
 package rogo.sketchrender.render.driver;
 
 public class GraphicsDriver {
-    private static GraphicsAPI currentAPI = GraphicsAPI.OPENGL; // 默认
+    private static GraphicsAPI currentAPI = GraphicsAPI.OPENGL;
 
     public static GraphicsAPI getCurrentAPI() {
         return currentAPI;

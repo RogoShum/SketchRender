@@ -20,7 +20,6 @@ public class RenderTarget {
         this.clearColor = clearColor;
     }
 
-    // 颜色附件相关
     public void addColorAttachment(Texture texture) {
         if (texture != null) {
             colorAttachments.add(texture);
@@ -43,7 +42,6 @@ public class RenderTarget {
         return colorAttachments;
     }
 
-    // 深度附件
     public Texture getDepthAttachment() {
         return depthAttachment;
     }
@@ -52,7 +50,6 @@ public class RenderTarget {
         this.depthAttachment = texture;
     }
 
-    // 模板附件（可选）
     public Texture getStencilAttachment() {
         return stencilAttachment;
     }
@@ -61,7 +58,6 @@ public class RenderTarget {
         this.stencilAttachment = texture;
     }
 
-    // 其他getter/setter
     public int getHandle() {
         return handle;
     }

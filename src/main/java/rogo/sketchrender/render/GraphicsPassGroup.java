@@ -13,7 +13,9 @@ public class GraphicsPassGroup<C extends RenderContext> {
     }
 
     public void render(C context) {
-        for (GraphicsPass<C> group : groups.values()) {
+        for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
+            RenderSetting setting = entry.getKey();
+            GraphicsPass<C> group = entry.getValue();
             group.render(context);
         }
     }

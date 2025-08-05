@@ -25,7 +25,7 @@ public class UniformHookGroup {
         return uniforms.get(uniformName).uniform();
     }
 
-    public void updateUniformHooks(GraphicsInstance g) {
+    public void updateUniformHooks(GraphicsInstance<?> g) {
         for (final UniformHook<?> uniformHook : uniforms.values()) {
             uniformHook.checkUpdate(g);
         }
