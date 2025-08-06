@@ -1,5 +1,6 @@
-package rogo.sketchrender.render.state;
+package rogo.sketchrender.render.state.gl;
 
+import org.lwjgl.opengl.GL20;
 import rogo.sketchrender.api.RenderStateComponent;
 import rogo.sketchrender.api.ShaderProvider;
 
@@ -27,7 +28,10 @@ public class ShaderState implements RenderStateComponent {
 
     @Override
     public void apply(RenderStateComponent prev) {
-
+        int prevId = prev instanceof ShaderState ? ((ShaderState) prev).program.getHandle() : -1;
+        if (program.getHandle() != prevId) {
+            GL20.glUseProgram(program.getHandle());
+        }
     }
 
     @Override

@@ -1,5 +1,6 @@
-package rogo.sketchrender.render.state;
+package rogo.sketchrender.render.state.gl;
 
+import org.lwjgl.opengl.GL11;
 import rogo.sketchrender.api.RenderStateComponent;
 
 public class DepthState implements RenderStateComponent {
@@ -25,7 +26,14 @@ public class DepthState implements RenderStateComponent {
 
     @Override
     public void apply(RenderStateComponent prev) {
-
+        DepthState p = prev instanceof DepthState ? (DepthState) prev : null;
+        if (p == null || enabled != p.enabled) {
+            if (enabled) GL11.glEnable(GL11.GL_DEPTH_TEST);
+            else GL11.glDisable(GL11.GL_DEPTH_TEST);
+        }
+        if (enabled && (p == null || func != p.func)) {
+            GL11.glDepthFunc(func);
+        }
     }
 
     @Override
