@@ -30,7 +30,7 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.culling.CullingStateManager;
-import rogo.sketchrender.shader.IndirectCommandBuffer;
+import rogo.sketchrender.shader.IndirectCommandDataBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.GLFeatureChecker;
 
@@ -198,7 +198,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
             int meshCount = regionMeshDataStorage.getTotalFacingCount();
 
-            IndirectCommandBuffer.INSTANCE.bind();
+            IndirectCommandDataBuffer.INSTANCE.bind();
             MeshResource.cullingCounter.bind();
             GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
             renderer.sodiumModelMatrixUniforms(shader, region, camera);

@@ -5,5 +5,7 @@ public interface RenderStateComponent {
 
     boolean equals(Object other);
 
+    void apply(RenderStateComponent prev);
+
     int hashCode();
 }

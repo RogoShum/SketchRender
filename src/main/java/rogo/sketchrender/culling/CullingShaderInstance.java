@@ -7,9 +7,8 @@ import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import rogo.sketchrender.SketchRender;
-import rogo.sketchrender.api.CullingShader;
+import rogo.sketchrender.minecraft.CullingShader;
 import rogo.sketchrender.api.ShaderCollector;
-import rogo.sketchrender.shader.ShaderManager;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

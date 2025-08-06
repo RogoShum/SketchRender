@@ -24,6 +24,11 @@ public class DepthState implements RenderStateComponent {
     }
 
     @Override
+    public void apply(RenderStateComponent prev) {
+
+    }
+
+    @Override
     public int hashCode() {
         return Boolean.hashCode(enabled) ^ func;
     }

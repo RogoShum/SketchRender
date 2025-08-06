@@ -25,6 +25,11 @@ public class BlendState implements RenderStateComponent {
     }
 
     @Override
+    public void apply(RenderStateComponent prev) {
+
+    }
+
+    @Override
     public int hashCode() {
         return Boolean.hashCode(enabled) ^ srcFactor ^ dstFactor;
     }

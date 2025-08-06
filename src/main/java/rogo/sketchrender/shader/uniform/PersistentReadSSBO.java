@@ -6,11 +6,11 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.api.BufferObject;
+import rogo.sketchrender.api.DataBufferObject;
 
 import java.nio.ByteBuffer;
 
-public class PersistentReadSSBO implements BufferObject {
+public class PersistentReadSSBO implements DataBufferObject {
     private int id;
     private boolean isDisposed = false;
     private long bufferPointer;
@@ -57,7 +57,7 @@ public class PersistentReadSSBO implements BufferObject {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    public int getId() {
+    public int getHandle() {
         return id;
     }
 
@@ -127,7 +127,7 @@ public class PersistentReadSSBO implements BufferObject {
         ensureCapacity(requiredCount, false);
     }
 
-    public void discard() {
+    public void dispose() {
         if (isDisposed) return;
 
         if (mappedBuffer != null) {

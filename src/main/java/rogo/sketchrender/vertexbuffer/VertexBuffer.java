@@ -1,7 +1,14 @@
 package rogo.sketchrender.vertexbuffer;
 
-public class VertexBuffer implements ResourceObject {
+import rogo.sketchrender.api.ResourceBufferObject;
+
+public class VertexBuffer implements ResourceBufferObject {
     private int id;
+
+    @Override
+    public int getHandle() {
+        return id;
+    }
 
     @Override
     public void bind() {

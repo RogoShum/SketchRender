@@ -4,9 +4,9 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.api.BufferObject;
+import rogo.sketchrender.api.DataBufferObject;
 
-public class SSBO implements BufferObject {
+public class SSBO implements DataBufferObject {
     private final int id;
     private boolean isDisposed = false;
     private long bufferPointer;
@@ -37,17 +37,17 @@ public class SSBO implements BufferObject {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    public SSBO(BufferObject buffer) {
+    public SSBO(DataBufferObject buffer) {
         this.capacity = buffer.getCapacity();
         this.bufferPointer = buffer.getMemoryAddress();
-        this.id = buffer.getId();
+        this.id = buffer.getHandle();
         this.stride = buffer.getStride();
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    public int getId() {
+    public int getHandle() {
         return id;
     }
 
@@ -141,7 +141,7 @@ public class SSBO implements BufferObject {
         this.capacity = capacity;
     }
 
-    public void discard() {
+    public void dispose() {
         if (isDisposed) return;
         MemoryUtil.nmemFree(bufferPointer);
         GL15.glDeleteBuffers(id);

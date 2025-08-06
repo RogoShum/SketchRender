@@ -22,7 +22,7 @@ import org.joml.Vector2i;
 import org.lwjgl.opengl.GL43;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.VanillaShaderPackLoader;
+import rogo.sketchrender.minecraft.VanillaShaderPackLoader;
 import rogo.sketchrender.compat.sodium.MeshResource;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.mixin.AccessorLevelRender;
@@ -39,7 +39,6 @@ import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
-import static org.lwjgl.opengl.GL32.*;
 import static org.lwjgl.opengl.GL42C.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class CullingStateManager {

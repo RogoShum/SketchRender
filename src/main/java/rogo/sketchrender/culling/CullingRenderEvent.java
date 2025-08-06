@@ -21,7 +21,7 @@ import org.joml.Vector3f;
 import org.joml.Vector4f;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.api.CullingShader;
+import rogo.sketchrender.minecraft.CullingShader;
 import rogo.sketchrender.compat.sodium.MeshResource;
 import rogo.sketchrender.event.ProgramEvent;
 import rogo.sketchrender.mixin.AccessorFrustum;

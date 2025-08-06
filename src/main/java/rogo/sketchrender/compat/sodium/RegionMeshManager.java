@@ -115,7 +115,7 @@ public class RegionMeshManager {
 
     public void dispose() {
         regionIndex.forEach((region, index) -> ((ExtraRenderRegion) region).refreshSectionData());
-        meshDataBuffer.discard();
+        meshDataBuffer.dispose();
         regionIndex.clear();
     }
 

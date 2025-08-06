@@ -1,4 +1,4 @@
-package rogo.sketchrender.api;
+package rogo.sketchrender.minecraft;
 
 import com.mojang.blaze3d.shaders.Uniform;
 

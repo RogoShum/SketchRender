@@ -8,7 +8,7 @@ import java.util.Map;
 public class TextureBinding {
     private final Map<Identifier, Identifier> uniformToTexture = new HashMap<>();
 
-    public void bind(Identifier uniformIdentifier, Identifier textureIdentifier) {
+    public void add(Identifier uniformIdentifier, Identifier textureIdentifier) {
         uniformToTexture.put(uniformIdentifier, textureIdentifier);
     }
 

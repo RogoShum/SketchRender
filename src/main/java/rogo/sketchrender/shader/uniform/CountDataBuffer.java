@@ -3,11 +3,11 @@ package rogo.sketchrender.shader.uniform;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import org.lwjgl.opengl.*;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.api.BufferObject;
+import rogo.sketchrender.api.DataBufferObject;
 
 import java.nio.ByteBuffer;
 
-public class CountBuffer implements BufferObject {
+public class CountDataBuffer implements DataBufferObject {
     private final boolean persistent;
     private long bufferPointer;
     private final int bufferId;
@@ -17,7 +17,7 @@ public class CountBuffer implements BufferObject {
 
     private ByteBuffer mappedBuffer;
 
-    private CountBuffer(VertexFormatElement.Type type, boolean persistent) {
+    private CountDataBuffer(VertexFormatElement.Type type, boolean persistent) {
         this.persistent = persistent;
         counterType = type;
         bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, type.getSize());
@@ -45,12 +45,12 @@ public class CountBuffer implements BufferObject {
         }
     }
 
-    public CountBuffer(VertexFormatElement.Type type) {
+    public CountDataBuffer(VertexFormatElement.Type type) {
         this(type, false);
     }
 
-    public static CountBuffer makePersistent(VertexFormatElement.Type type) {
-        return new CountBuffer(type, true);
+    public static CountDataBuffer makePersistent(VertexFormatElement.Type type) {
+        return new CountDataBuffer(type, true);
     }
 
     public void resize(int count) {
@@ -68,7 +68,7 @@ public class CountBuffer implements BufferObject {
         GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
     }
 
-    public int getId() {
+    public int getHandle() {
         return bufferId;
     }
 
@@ -108,7 +108,7 @@ public class CountBuffer implements BufferObject {
         GL15C.nglBufferSubData(GL46.GL_PARAMETER_BUFFER, 0, capacity, bufferPointer);
     }
 
-    public void discard() {
+    public void dispose() {
         GL33.glDeleteBuffers(bufferId);
         MemoryUtil.nmemFree(bufferPointer);
 

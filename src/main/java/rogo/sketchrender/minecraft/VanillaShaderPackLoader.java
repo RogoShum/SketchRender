@@ -1,4 +1,4 @@
-package rogo.sketchrender.api;
+package rogo.sketchrender.minecraft;
 
 import net.minecraft.client.Minecraft;
 import rogo.sketchrender.util.ShaderPackLoader;

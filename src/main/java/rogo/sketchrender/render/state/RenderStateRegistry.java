@@ -8,6 +8,10 @@ import java.util.Map;
 public class RenderStateRegistry {
     private static final Map<Class<? extends RenderStateComponent>, RenderStateComponent> defaultComponents = new HashMap<>();
 
+    public static void init() {
+
+    }
+
     public static <T extends RenderStateComponent> void registerDefault(T defaultComponent) {
         defaultComponents.put(defaultComponent.getType(), defaultComponent);
     }

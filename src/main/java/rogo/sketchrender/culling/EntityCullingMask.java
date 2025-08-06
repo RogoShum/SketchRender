@@ -73,13 +73,13 @@ public class EntityCullingMask {
 
     public void cleanup() {
         if (entityDataSSBO != null) {
-            entityDataSSBO.discard();
+            entityDataSSBO.dispose();
         }
         if (cullingResultSSBO != null) {
-            cullingResultSSBO.discard();
+            cullingResultSSBO.dispose();
         }
         if (prevCullingResultSSBO != null) {
-            prevCullingResultSSBO.discard();
+            prevCullingResultSSBO.dispose();
         }
         getEntityMap().clear();
     }

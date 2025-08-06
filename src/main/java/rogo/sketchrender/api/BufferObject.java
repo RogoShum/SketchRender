@@ -1,15 +1,7 @@
 package rogo.sketchrender.api;
 
 public interface BufferObject {
-    int getId();
+    int getHandle();
 
-    long getDataCount();
-
-    long getCapacity();
-
-    long getStride();
-
-    long getMemoryAddress();
-
-    void discard();
+    void dispose();
 }

@@ -37,7 +37,7 @@ import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
-import rogo.sketchrender.api.AABBObject;
+import rogo.sketchrender.minecraft.instance.AABBObject;
 import rogo.sketchrender.api.Config;
 import rogo.sketchrender.culling.CullingRenderEvent;
 import rogo.sketchrender.culling.CullingStateManager;
@@ -45,7 +45,7 @@ import rogo.sketchrender.event.bridge.EventBusBridge;
 import rogo.sketchrender.event.bridge.ForgeEventBusImplementation;
 import rogo.sketchrender.gui.ConfigScreen;
 import rogo.sketchrender.render.uniform.UniformHookRegistry;
-import rogo.sketchrender.shader.IndirectCommandBuffer;
+import rogo.sketchrender.shader.IndirectCommandDataBuffer;
 import rogo.sketchrender.shader.ShaderManager;
 import rogo.sketchrender.util.CommandCallTimer;
 import rogo.sketchrender.util.GLFeatureChecker;
@@ -235,7 +235,7 @@ public class SketchRender {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
-            long capacityInBytes = IndirectCommandBuffer.INSTANCE.getCapacity();
+            long capacityInBytes = IndirectCommandDataBuffer.INSTANCE.getCapacity();
             double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
             debugText.put("IndirectCommandBuffer", String.format("%.2f MB", capacityInMB));
 

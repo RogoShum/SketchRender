@@ -22,11 +22,16 @@ public class ShaderState implements RenderStateComponent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShaderState that = (ShaderState) o;
-        return Objects.equals(program.getIdentifier(), that.program.getIdentifier());
+        return Objects.equals(program.getHandle(), that.program.getHandle());
+    }
+
+    @Override
+    public void apply(RenderStateComponent prev) {
+
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(program.getIdentifier());
+        return Objects.hashCode(program.getHandle());
     }
 }

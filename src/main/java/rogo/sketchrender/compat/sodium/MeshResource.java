@@ -5,8 +5,8 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL15;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.shader.IndirectCommandBuffer;
-import rogo.sketchrender.shader.uniform.CountBuffer;
+import rogo.sketchrender.shader.IndirectCommandDataBuffer;
+import rogo.sketchrender.shader.uniform.CountDataBuffer;
 import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
 import rogo.sketchrender.shader.uniform.SSBO;
 
@@ -24,16 +24,16 @@ public class MeshResource {
     public static SSBO batchRegionIndex;
     public static SSBO batchMaxElement;
     public static PersistentReadSSBO maxElementPersistent;
-    public static CountBuffer cullingCounter;
-    public static CountBuffer elementCounter;
+    public static CountDataBuffer cullingCounter;
+    public static CountDataBuffer elementCounter;
 
     public static final RegionMeshManager meshManager = new RegionMeshManager();
 
     static {
-        batchCommand = new SSBO(IndirectCommandBuffer.INSTANCE);
-        cullingCounter = new CountBuffer(VertexFormatElement.Type.INT);
+        batchCommand = new SSBO(IndirectCommandDataBuffer.INSTANCE);
+        cullingCounter = new CountDataBuffer(VertexFormatElement.Type.INT);
         batchCounter = new SSBO(cullingCounter);
-        elementCounter = new CountBuffer(VertexFormatElement.Type.INT);
+        elementCounter = new CountDataBuffer(VertexFormatElement.Type.INT);
         batchMaxElement = new SSBO(elementCounter);
         batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
 
@@ -45,12 +45,12 @@ public class MeshResource {
 
         if (Config.getCullChunk()) {
             int regionSize = meshManager.size();
-            int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
+            int passSize = IndirectCommandDataBuffer.PASS_SIZE * regionSize;
 
-            if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getCapacity()) {
-                IndirectCommandBuffer.INSTANCE.resize(meshManager.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
-                batchCommand.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
-                batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getCapacity());
+            if (regionSize * IndirectCommandDataBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandDataBuffer.INSTANCE.getCapacity()) {
+                IndirectCommandDataBuffer.INSTANCE.resize(meshManager.size() * IndirectCommandDataBuffer.REGION_PASS_COMMAND_SIZE);
+                batchCommand.setBufferPointer(IndirectCommandDataBuffer.INSTANCE.getMemoryAddress());
+                batchCommand.setCapacity(IndirectCommandDataBuffer.INSTANCE.getCapacity());
                 batchCommand.resetUpload(GL15.GL_STATIC_DRAW);
             }
 
@@ -71,9 +71,9 @@ public class MeshResource {
 
     public static void clearRegions() {
         meshManager.refresh();
-        IndirectCommandBuffer.INSTANCE.resize(IndirectCommandBuffer.REGION_COMMAND_SIZE);
+        IndirectCommandDataBuffer.INSTANCE.resize(IndirectCommandDataBuffer.REGION_COMMAND_SIZE);
         cullingCounter.resize(1);
-        batchRegionIndex.discard();
+        batchRegionIndex.dispose();
         batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
     }
 
