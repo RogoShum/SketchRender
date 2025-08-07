@@ -22,7 +22,7 @@ import org.joml.Vector2i;
 import org.lwjgl.opengl.GL43;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.Config;
-import rogo.sketchrender.minecraft.VanillaShaderPackLoader;
+import rogo.sketchrender.render.minecraft.VanillaShaderPackLoader;
 import rogo.sketchrender.compat.sodium.MeshResource;
 import rogo.sketchrender.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketchrender.mixin.AccessorLevelRender;
@@ -140,13 +140,13 @@ public class CullingStateManager {
 
     public static boolean shouldSkipBlockEntity(BlockEntity blockEntity, BlockPos pos) {
         blockCount++;
+        if (ENTITY_CULLING_MASK == null || renderingShadowPass() || !Config.getCullBlockEntity()) return false;
         //for valkyrien skies
         if (CAMERA.getPosition().distanceToSqr(pos.getX(), pos.getY(), pos.getZ()) >
                 Minecraft.getInstance().options.getEffectiveRenderDistance() * 16 * Minecraft.getInstance().options.getEffectiveRenderDistance() * 16 * 2) {
             return false;
         }
 
-        if (ENTITY_CULLING_MASK == null || renderingShadowPass() || !Config.getCullBlockEntity()) return false;
         String type = BlockEntityType.getKey(blockEntity.getType()).toString();
         if (Config.getBlockEntitiesSkip().contains(type))
             return false;
@@ -161,11 +161,11 @@ public class CullingStateManager {
 
     public static boolean shouldSkipEntity(Entity entity) {
         entityCount++;
+        if (ENTITY_CULLING_MASK == null || renderingShadowPass() || !Config.getCullEntity()) return false;
         if (entity instanceof Player || entity.isCurrentlyGlowing()) return false;
         if (entity.distanceToSqr(CAMERA.getPosition()) < 4) return false;
         if (Config.getEntitiesSkip().contains(entity.getType().getDescriptionId()))
             return false;
-        if (ENTITY_CULLING_MASK == null || renderingShadowPass() || !Config.getCullEntity()) return false;
 
         if (ENTITY_CULLING_MASK.isObjectVisible(entity)) {
             return false;

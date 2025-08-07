@@ -9,9 +9,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketchrender.api.ShaderProvider;
-import rogo.sketchrender.minecraft.uniform.McUniformWrapperFactory;
-import rogo.sketchrender.render.shader.UniformHookGroup;
-import rogo.sketchrender.render.uniform.UniformHookRegistry;
+import rogo.sketchrender.render.minecraft.uniform.McUniformWrapperFactory;
+import rogo.sketchrender.render.sketch.shader.UniformHookGroup;
+import rogo.sketchrender.render.sketch.uniform.UniformHookRegistry;
 
 import java.util.Map;
 

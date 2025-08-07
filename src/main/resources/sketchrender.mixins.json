@@ -25,6 +25,8 @@
     "MixinShaderInstance",
     "MixinShaderInstance$MixinRenderSystem",
     "MixinWindow",
+    "render.MixinLevelRenderer",
+    "render.ShaderInstanceMixin",
     "sodium.AccessorRenderSectionManager",
     "sodium.AccessorSectionUpload",
     "sodium.MixinChunkBuilderMeshingTask",

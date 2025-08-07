@@ -1,7 +1,6 @@
 package rogo.sketchrender.event;
 
-
-import rogo.sketchrender.render.uniform.ValueGetter;
+import rogo.sketchrender.render.sketch.uniform.ValueGetter;
 import rogo.sketchrender.util.Identifier;
 
 import java.util.function.BiConsumer;

@@ -28,6 +28,10 @@ public final class Identifier implements Comparable<Identifier> {
         return CACHE.computeIfAbsent(name, Identifier::new);
     }
 
+    public static Identifier of(String head, String body) {
+        return CACHE.computeIfAbsent(head + ":" + body, Identifier::new);
+    }
+
     /**
      * Converts any object to string via toString() and wraps it as an Identifier.
      */
