@@ -5,10 +5,10 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL15;
 import rogo.sketchrender.api.Config;
+import rogo.sketchrender.render.sketch.resource.ShaderStorageBuffer;
 import rogo.sketchrender.shader.IndirectCommandDataBuffer;
-import rogo.sketchrender.shader.uniform.CountDataBuffer;
-import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
-import rogo.sketchrender.shader.uniform.SSBO;
+import rogo.sketchrender.render.sketch.resource.CounterBuffer;
+import rogo.sketchrender.render.sketch.resource.PersistentReadSSBO;
 
 public class MeshResource {
     private static int renderDistance = -1;
@@ -19,23 +19,23 @@ public class MeshResource {
 
     public static int currentFrame = 0;
 
-    public static SSBO batchCommand;
-    public static SSBO batchCounter;
-    public static SSBO batchRegionIndex;
-    public static SSBO batchMaxElement;
+    public static ShaderStorageBuffer batchCommand;
+    public static ShaderStorageBuffer batchCounter;
+    public static ShaderStorageBuffer batchRegionIndex;
+    public static ShaderStorageBuffer batchMaxElement;
     public static PersistentReadSSBO maxElementPersistent;
-    public static CountDataBuffer cullingCounter;
-    public static CountDataBuffer elementCounter;
+    public static CounterBuffer cullingCounter;
+    public static CounterBuffer elementCounter;
 
     public static final RegionMeshManager meshManager = new RegionMeshManager();
 
     static {
-        batchCommand = new SSBO(IndirectCommandDataBuffer.INSTANCE);
-        cullingCounter = new CountDataBuffer(VertexFormatElement.Type.INT);
-        batchCounter = new SSBO(cullingCounter);
-        elementCounter = new CountDataBuffer(VertexFormatElement.Type.INT);
-        batchMaxElement = new SSBO(elementCounter);
-        batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
+        batchCommand = new ShaderStorageBuffer(IndirectCommandDataBuffer.INSTANCE);
+        cullingCounter = new CounterBuffer(VertexFormatElement.Type.INT);
+        batchCounter = new ShaderStorageBuffer(cullingCounter);
+        elementCounter = new CounterBuffer(VertexFormatElement.Type.INT);
+        batchMaxElement = new ShaderStorageBuffer(elementCounter);
+        batchRegionIndex = new ShaderStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);
 
         maxElementPersistent = new PersistentReadSSBO(1, Integer.BYTES);
     }
@@ -74,7 +74,7 @@ public class MeshResource {
         IndirectCommandDataBuffer.INSTANCE.resize(IndirectCommandDataBuffer.REGION_COMMAND_SIZE);
         cullingCounter.resize(1);
         batchRegionIndex.dispose();
-        batchRegionIndex = new SSBO(1, 16, GL15.GL_DYNAMIC_DRAW);
+        batchRegionIndex = new ShaderStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);
     }
 
     //TODO need fix

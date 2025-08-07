@@ -1,10 +1,10 @@
 package rogo.sketchrender.render.minecraft.uniform;
 
 import com.mojang.blaze3d.shaders.Uniform;
-import rogo.sketchrender.api.ShaderUniform;
+import rogo.sketchrender.api.ShaderResource;
 import rogo.sketchrender.util.Identifier;
 
-public class McUniformWrapper<T> implements ShaderUniform<T> {
+public class McUniformWrapper<T> implements ShaderResource<T> {
     private final Identifier id;
     private final Uniform mcUniform;
     private final McUniformWrapperFactory.UniformApplier<T> setter;

@@ -7,30 +7,30 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.vertexbuffer.BufferBuilder;
-import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
+import rogo.sketchrender.vertexbuffer.attribute.Vertex;
 
 import javax.annotation.Nullable;
-import java.nio.*;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
 public abstract class VertexAttribute implements AutoCloseable {
-    protected final List<GLVertex> vertices = new ArrayList<>();
+    protected final List<Vertex> vertices = new ArrayList<>();
     protected final int vertexID;
     protected final int vertexSize;
     private int vertexCount;
     @Nullable
     protected ByteBuffer buffer;
 
-    public VertexAttribute(GLVertex... vertices) {
+    public VertexAttribute(Vertex... vertices) {
         this.vertices.addAll(Arrays.stream(vertices).toList());
         vertexID = GlStateManager._glGenBuffers();
         int vertexSize = 0;
         if (this.vertices.size() > 1) {
-            for (GLVertex vertex : vertices) {
-                vertexSize += vertex.size() * vertex.elementType().getSize();
+            for (Vertex vertex : vertices) {
+                vertexSize += vertex.count() * vertex.size();
             }
         }
         this.vertexSize = vertexSize;
@@ -67,12 +67,12 @@ public abstract class VertexAttribute implements AutoCloseable {
     public void bindVertexAttribArray() {
         bind();
         int offset = 0;
-        for (GLVertex vertex : vertices) {
-            GL20.glVertexAttribPointer(vertex.index(), vertex.size(), vertex.elementType().getGlType(), false, vertexSize, offset);
+        for (Vertex vertex : vertices) {
+            GL20.glVertexAttribPointer(vertex.index(), vertex.count(), vertex.glType(), false, vertexSize, offset);
             GL20.glEnableVertexAttribArray(vertex.index());
             if (needUpdate())
                 GL33.glVertexAttribDivisor(vertex.index(), 1);
-            offset += vertex.size() * vertex.elementType().getSize();
+            offset += vertex.count() * vertex.size();
         }
     }
 

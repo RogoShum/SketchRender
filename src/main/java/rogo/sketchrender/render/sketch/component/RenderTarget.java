@@ -1,5 +1,7 @@
 package rogo.sketchrender.render.sketch.component;
 
+import rogo.sketchrender.render.sketch.resource.Texture;
+
 import java.util.ArrayList;
 import java.util.List;
 

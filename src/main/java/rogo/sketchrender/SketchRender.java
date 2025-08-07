@@ -51,7 +51,7 @@ import rogo.sketchrender.util.CommandCallTimer;
 import rogo.sketchrender.util.GLFeatureChecker;
 import rogo.sketchrender.util.OcclusionCullerThread;
 import rogo.sketchrender.util.RenderCallTimer;
-import rogo.sketchrender.vertexbuffer.ScreenSpaceRenderer;
+import rogo.sketchrender.vertexbuffer.ScreenSpaceResource;
 
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
@@ -65,10 +65,10 @@ public class SketchRender {
     public static final String MOD_ID = "sketchrender";
     public static final Logger LOGGER = LogUtils.getLogger();
     private static final ShaderManager shaderManager = new ShaderManager();
-    private static ScreenSpaceRenderer screenSpaceRenderer;
+    private static ScreenSpaceResource screenSpaceRenderer;
 
     static {
-        RenderSystem.recordRenderCall(() -> screenSpaceRenderer = new ScreenSpaceRenderer());
+        RenderSystem.recordRenderCall(() -> screenSpaceRenderer = new ScreenSpaceResource());
     }
 
     @SuppressWarnings("removal")
@@ -225,7 +225,7 @@ public class SketchRender {
         fullChunkUpdateCooldown = 0;
     }
 
-    public static ScreenSpaceRenderer getScreenRenderer() {
+    public static ScreenSpaceResource getScreenRenderer() {
         return screenSpaceRenderer;
     }
 

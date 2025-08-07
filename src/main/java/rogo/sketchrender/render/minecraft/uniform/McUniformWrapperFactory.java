@@ -2,7 +2,7 @@ package rogo.sketchrender.render.minecraft.uniform;
 
 import com.mojang.blaze3d.shaders.Uniform;
 import org.joml.*;
-import rogo.sketchrender.api.ShaderUniform;
+import rogo.sketchrender.api.ShaderResource;
 import rogo.sketchrender.util.Identifier;
 
 import java.util.HashMap;
@@ -44,13 +44,13 @@ public class McUniformWrapperFactory {
         appliers.put(clazz, applier);
     }
 
-    public static Map<String, ShaderUniform<?>> convertUniformMap(Map<String, Uniform> uniformMap) {
-        Map<String, ShaderUniform<?>> result = new HashMap<>();
+    public static Map<String, ShaderResource<?>> convertUniformMap(Map<String, Uniform> uniformMap) {
+        Map<String, ShaderResource<?>> result = new HashMap<>();
         for (Map.Entry<String, Uniform> entry : uniformMap.entrySet()) {
             Uniform uniform = entry.getValue();
             Identifier id = Identifier.of(entry.getKey());
 
-            ShaderUniform<?> wrapper = guessUniformWrapper(id, uniform);
+            ShaderResource<?> wrapper = guessUniformWrapper(id, uniform);
             if (wrapper != null) {
                 result.put(entry.getKey(), wrapper);
             }
@@ -58,7 +58,7 @@ public class McUniformWrapperFactory {
         return result;
     }
 
-    private static ShaderUniform<?> guessUniformWrapper(Identifier id, Uniform uniform) {
+    private static ShaderResource<?> guessUniformWrapper(Identifier id, Uniform uniform) {
         int type = uniform.getType();
         return switch (type) {
             case Uniform.UT_INT1 -> create(id, uniform, Integer.class);

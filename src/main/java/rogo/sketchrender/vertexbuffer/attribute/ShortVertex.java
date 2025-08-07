@@ -1,8 +1,8 @@
 package rogo.sketchrender.vertexbuffer.attribute;
 
-import com.mojang.blaze3d.vertex.VertexFormatElement;
+import org.lwjgl.opengl.GL11;
 
-public class ShortVertex extends GLVertex {
+public class ShortVertex extends Vertex {
 
     public ShortVertex(int index, String name, int size) {
         super(index, name, size);
@@ -25,7 +25,12 @@ public class ShortVertex extends GLVertex {
     }
 
     @Override
-    public VertexFormatElement.Type elementType() {
-        return VertexFormatElement.Type.SHORT;
+    public int size() {
+        return Short.BYTES;
+    }
+
+    @Override
+    public int glType() {
+        return GL11.GL_SHORT;
     }
 }

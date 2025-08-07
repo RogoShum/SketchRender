@@ -1,4 +1,4 @@
-package rogo.sketchrender.shader.uniform;
+package rogo.sketchrender.render.sketch.resource;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.opengl.GL15;
@@ -6,7 +6,7 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.api.DataBufferObject;
 
-public class SSBO implements DataBufferObject {
+public class ShaderStorageBuffer implements DataBufferObject {
     private final int id;
     private boolean isDisposed = false;
     private long bufferPointer;
@@ -15,11 +15,11 @@ public class SSBO implements DataBufferObject {
     private final long stride;
     public int position;
 
-    public SSBO(long dataCount, long stride, int usage) {
+    public ShaderStorageBuffer(long dataCount, long stride, int usage) {
         this(dataCount, stride, MemoryUtil.nmemCalloc(dataCount, stride), usage);
     }
 
-    public SSBO(long dataCount, long stride, long memoryAddress, int usage) {
+    public ShaderStorageBuffer(long dataCount, long stride, long memoryAddress, int usage) {
         long totalCapacity = dataCount * stride;
         if (totalCapacity > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Buffer capacity too large");
@@ -37,7 +37,7 @@ public class SSBO implements DataBufferObject {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    public SSBO(DataBufferObject buffer) {
+    public ShaderStorageBuffer(DataBufferObject buffer) {
         this.capacity = buffer.getCapacity();
         this.bufferPointer = buffer.getMemoryAddress();
         this.id = buffer.getHandle();

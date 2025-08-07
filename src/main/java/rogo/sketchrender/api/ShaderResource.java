@@ -2,7 +2,7 @@ package rogo.sketchrender.api;
 
 import rogo.sketchrender.util.Identifier;
 
-public interface ShaderUniform<T> {
+public interface ShaderResource<T> {
     Identifier id();
 
     void set(T value);

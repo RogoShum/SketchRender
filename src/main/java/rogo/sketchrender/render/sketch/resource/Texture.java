@@ -1,4 +1,4 @@
-package rogo.sketchrender.render.sketch.component;
+package rogo.sketchrender.render.sketch.resource;
 
 public class Texture {
     private final int handle;

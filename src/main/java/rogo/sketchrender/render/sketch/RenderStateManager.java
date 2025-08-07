@@ -2,14 +2,14 @@ package rogo.sketchrender.render.sketch;
 
 import rogo.sketchrender.api.RenderStateComponent;
 import rogo.sketchrender.render.sketch.component.RenderTarget;
-import rogo.sketchrender.render.sketch.component.TextureBinding;
+import rogo.sketchrender.render.sketch.component.ResourceBinding;
 import rogo.sketchrender.render.sketch.state.FullRenderState;
 
 import java.util.Objects;
 
 public class RenderStateManager {
     private FullRenderState currentState;
-    private TextureBinding currentTextureBinding;
+    private ResourceBinding currentResourceBinding;
     private RenderTarget currentRenderTarget;
 
     public void accept(RenderSetting setting, RenderContext context) {
@@ -29,9 +29,9 @@ public class RenderStateManager {
         }
         currentState = newState;
 
-        if (!Objects.equals(setting.textureBinding(), currentTextureBinding)) {
+        if (!Objects.equals(setting.resourceBinding(), currentResourceBinding)) {
             //setting.textureBinding().apply(currentTextureBinding);
-            currentTextureBinding = setting.textureBinding();
+            currentResourceBinding = setting.resourceBinding();
         }
 
         if (!Objects.equals(setting.renderTarget(), currentRenderTarget)) {

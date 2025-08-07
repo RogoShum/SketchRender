@@ -1,7 +1,10 @@
 package rogo.sketchrender.mixin.render;
 
 import com.mojang.blaze3d.shaders.Uniform;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceProvider;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -12,6 +15,7 @@ import rogo.sketchrender.api.ShaderProvider;
 import rogo.sketchrender.render.minecraft.uniform.McUniformWrapperFactory;
 import rogo.sketchrender.render.sketch.shader.UniformHookGroup;
 import rogo.sketchrender.render.sketch.uniform.UniformHookRegistry;
+import rogo.sketchrender.util.Identifier;
 
 import java.util.Map;
 
@@ -20,17 +24,15 @@ public class ShaderInstanceMixin implements ShaderProvider {
     @Shadow
     @Final
     private Map<String, Uniform> uniformMap;
-    @Shadow
-    @Final
-    private String name;
+    private Identifier identifier;
     @Shadow
     @Final
     private int programId;
     private UniformHookGroup uniformHookGroup = new UniformHookGroup();
 
     @Override
-    public String getIdentifier() {
-        return this.name;
+    public Identifier getIdentifier() {
+        return this.identifier;
     }
 
     @Override
@@ -41,6 +43,11 @@ public class ShaderInstanceMixin implements ShaderProvider {
     @Override
     public int getHandle() {
         return this.programId;
+    }
+
+    @Inject(method = "<init>(Lnet/minecraft/server/packs/resources/ResourceProvider;Lnet/minecraft/resources/ResourceLocation;Lcom/mojang/blaze3d/vertex/VertexFormat;)V", at = @At(value = "RETURN"))
+    public void onInit(ResourceProvider p_173336_, ResourceLocation shaderLocation, VertexFormat p_173338_, CallbackInfo ci) {
+        identifier = Identifier.valueOf(shaderLocation);
     }
 
     @Inject(method = "updateLocations", at = @At(value = "RETURN"))

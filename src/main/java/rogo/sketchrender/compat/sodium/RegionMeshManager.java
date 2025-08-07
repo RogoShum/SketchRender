@@ -3,7 +3,7 @@ package rogo.sketchrender.compat.sodium;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.shader.uniform.SSBO;
+import rogo.sketchrender.render.sketch.resource.ShaderStorageBuffer;
 import rogo.sketchrender.util.IndexPool;
 
 public class RegionMeshManager {
@@ -13,13 +13,13 @@ public class RegionMeshManager {
     public static final long PASS_DATA_SIZE = SECTION_DATA_SIZE * SECTION_COUNT;
 
     private final IndexPool<RenderRegion> regionIndex = new IndexPool<>();
-    private SSBO meshDataBuffer;
+    private ShaderStorageBuffer meshDataBuffer;
     private long meshDataPointer;
     private int currentCapacity;
 
     public RegionMeshManager() {
         currentCapacity = 1;
-        meshDataBuffer = new SSBO(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
+        meshDataBuffer = new ShaderStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
         meshDataPointer = meshDataBuffer.getMemoryAddress();
     }
 
@@ -109,7 +109,7 @@ public class RegionMeshManager {
     public void refresh() {
         dispose();
         currentCapacity = 1;
-        meshDataBuffer = new SSBO(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
+        meshDataBuffer = new ShaderStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
         meshDataPointer = meshDataBuffer.getMemoryAddress();
     }
 

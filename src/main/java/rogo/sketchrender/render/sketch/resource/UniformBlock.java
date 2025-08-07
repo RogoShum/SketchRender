@@ -1,25 +1,27 @@
-package rogo.sketchrender.shader.uniform;
+package rogo.sketchrender.render.sketch.resource;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.core.Vec3i;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
+import rogo.sketchrender.api.DataBufferObject;
+import rogo.sketchrender.shader.uniform.DataType;
 
 import java.nio.FloatBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class UBO {
-    private int uboId;
-    private int stride;
+public class UniformBlock implements DataBufferObject {
+    private final int handle;
+    private final long stride;
     private final String blockName;
     private final Map<Integer, Vec3i> shaderBinding = new HashMap<>();
 
-    public UBO(String blockName, List<Variable> variables) {
+    public UniformBlock(String blockName, List<Variable> variables) {
         this.stride = calculateStride(variables);
-        this.uboId = createUBO();
+        this.handle = createUBO();
         this.blockName = blockName;
     }
 
@@ -44,7 +46,7 @@ public class UBO {
         if (blockIndex == GL31.GL_INVALID_INDEX) {
             throw new IllegalStateException("Uniform block not found: " + blockName);
         }
-        GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, bindingPoint, uboId);
+        GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, bindingPoint, handle);
         GL31.glUniformBlockBinding(shaderId, blockIndex, bindingPoint);
         GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, bindingPoint, 0);
         shaderBinding.put(shaderId, new Vec3i(blockIndex, bindingPoint, 0));
@@ -53,20 +55,46 @@ public class UBO {
     public void drawBind(int shaderId) {
         try {
             Vec3i binding = shaderBinding.get(shaderId);
-            GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, binding.getY(), uboId);
+            GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, binding.getY(), handle);
         } catch (Exception e) {
             throw new IllegalStateException("Can't binding Uniform block: " + blockName);
         }
     }
 
     public void updateData(FloatBuffer buffer) {
-        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, uboId);
+        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, handle);
         GL15.glBufferData(GL31.GL_UNIFORM_BUFFER, buffer, GL15.GL_DYNAMIC_DRAW);
         GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
     }
 
-    public int getStride() {
+    @Override
+    public long getDataCount() {
+        return 0;
+    }
+
+    @Override
+    public long getCapacity() {
+        return 0;
+    }
+
+    @Override
+    public long getStride() {
         return stride;
+    }
+
+    @Override
+    public long getMemoryAddress() {
+        return 0;
+    }
+
+    @Override
+    public int getHandle() {
+        return handle;
+    }
+
+    @Override
+    public void dispose() {
+
     }
 
     public static class Variable {

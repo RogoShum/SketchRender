@@ -1,4 +1,4 @@
-package rogo.sketchrender.shader.uniform;
+package rogo.sketchrender.render.sketch.resource;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import io.netty.channel.unix.Buffer;

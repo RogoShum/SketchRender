@@ -1,9 +1,10 @@
 package rogo.sketchrender.api;
 
 import rogo.sketchrender.render.sketch.shader.UniformHookGroup;
+import rogo.sketchrender.util.Identifier;
 
 public interface ShaderProvider {
-    String getIdentifier();
+    Identifier getIdentifier();
 
     UniformHookGroup getUniformHookGroup();
 

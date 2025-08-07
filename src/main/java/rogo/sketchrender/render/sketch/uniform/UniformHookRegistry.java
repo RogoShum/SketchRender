@@ -1,7 +1,7 @@
 package rogo.sketchrender.render.sketch.uniform;
 
 import rogo.sketchrender.api.ShaderProvider;
-import rogo.sketchrender.api.ShaderUniform;
+import rogo.sketchrender.api.ShaderResource;
 import rogo.sketchrender.event.UniformHookRegisterEvent;
 import rogo.sketchrender.event.bridge.EventBusBridge;
 import rogo.sketchrender.util.Identifier;
@@ -25,10 +25,10 @@ public class UniformHookRegistry {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> void initializeHooks(ShaderProvider holder, Map<String, ShaderUniform<?>> uniformMap) {
-        for (Map.Entry<String, ShaderUniform<?>> entry : uniformMap.entrySet()) {
+    public <T> void initializeHooks(ShaderProvider holder, Map<String, ShaderResource<?>> uniformMap) {
+        for (Map.Entry<String, ShaderResource<?>> entry : uniformMap.entrySet()) {
             String uniformName = entry.getKey();
-            ShaderUniform<T> uniform = (ShaderUniform<T>) entry.getValue();
+            ShaderResource<T> uniform = (ShaderResource<T>) entry.getValue();
 
             Identifier identifier = Identifier.of(uniformName);
             if (pendingHooks.containsKey(identifier)) {

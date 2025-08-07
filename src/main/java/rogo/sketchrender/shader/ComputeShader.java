@@ -9,23 +9,25 @@ import org.lwjgl.opengl.GL43;
 import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.api.ExtraUniform;
 import rogo.sketchrender.api.ShaderCollector;
+import rogo.sketchrender.api.ShaderProvider;
 import rogo.sketchrender.event.ProgramEvent;
+import rogo.sketchrender.render.sketch.shader.UniformHookGroup;
 import rogo.sketchrender.shader.uniform.UnsafeUniformMap;
+import rogo.sketchrender.util.Identifier;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.lwjgl.opengl.GL43.*;
-
-public class ComputeShader implements ShaderCollector, ExtraUniform {
+public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvider {
+    private final UniformHookGroup uniformHookGroup = new UniformHookGroup();
     private final UnsafeUniformMap unsafeUniformMap;
+    private final Identifier identifier;
     private final int program;
 
     public ComputeShader(ResourceProvider resourceProvider, ResourceLocation shaderLocation) throws IOException {
         ResourceLocation resourcelocation = new ResourceLocation(shaderLocation.getNamespace(), "shaders/compute/" + shaderLocation.getPath() + ".comp");
-
+        this.identifier = Identifier.valueOf(shaderLocation);
         BufferedReader reader = resourceProvider.openAsReader(resourcelocation);
         String content = reader.lines().collect(Collectors.joining("\n"));
 
@@ -68,12 +70,6 @@ public class ComputeShader implements ShaderCollector, ExtraUniform {
         GL43.glMemoryBarrier(bit);
     }
 
-    public void bindSSBO(int ssboId, int binding) {
-        GL20.glUseProgram(program);
-        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, binding, ssboId);
-        GL20.glUseProgram(0);
-    }
-
     public void discard() {
         GL20.glDeleteProgram(program);
     }
@@ -95,5 +91,20 @@ public class ComputeShader implements ShaderCollector, ExtraUniform {
     @Override
     public UnsafeUniformMap getUniforms() {
         return unsafeUniformMap;
+    }
+
+    @Override
+    public Identifier getIdentifier() {
+        return identifier;
+    }
+
+    @Override
+    public UniformHookGroup getUniformHookGroup() {
+        return uniformHookGroup;
+    }
+
+    @Override
+    public int getHandle() {
+        return this.program;
     }
 }

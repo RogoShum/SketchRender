@@ -1,4 +1,4 @@
-package rogo.sketchrender.shader.uniform;
+package rogo.sketchrender.render.sketch.resource;
 
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import org.lwjgl.opengl.*;
@@ -7,7 +7,7 @@ import rogo.sketchrender.api.DataBufferObject;
 
 import java.nio.ByteBuffer;
 
-public class CountDataBuffer implements DataBufferObject {
+public class CounterBuffer implements DataBufferObject {
     private final boolean persistent;
     private long bufferPointer;
     private final int bufferId;
@@ -17,7 +17,7 @@ public class CountDataBuffer implements DataBufferObject {
 
     private ByteBuffer mappedBuffer;
 
-    private CountDataBuffer(VertexFormatElement.Type type, boolean persistent) {
+    private CounterBuffer(VertexFormatElement.Type type, boolean persistent) {
         this.persistent = persistent;
         counterType = type;
         bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, type.getSize());
@@ -45,12 +45,12 @@ public class CountDataBuffer implements DataBufferObject {
         }
     }
 
-    public CountDataBuffer(VertexFormatElement.Type type) {
+    public CounterBuffer(VertexFormatElement.Type type) {
         this(type, false);
     }
 
-    public static CountDataBuffer makePersistent(VertexFormatElement.Type type) {
-        return new CountDataBuffer(type, true);
+    public static CounterBuffer makePersistent(VertexFormatElement.Type type) {
+        return new CounterBuffer(type, true);
     }
 
     public void resize(int count) {

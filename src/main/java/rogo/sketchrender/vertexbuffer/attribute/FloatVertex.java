@@ -1,8 +1,8 @@
 package rogo.sketchrender.vertexbuffer.attribute;
 
-import com.mojang.blaze3d.vertex.VertexFormatElement;
+import org.lwjgl.opengl.GL11;
 
-public class FloatVertex extends GLVertex {
+public class FloatVertex extends Vertex {
 
     public FloatVertex(int index, String name, int size) {
         super(index, name, size);
@@ -25,7 +25,12 @@ public class FloatVertex extends GLVertex {
     }
 
     @Override
-    public VertexFormatElement.Type elementType() {
-        return VertexFormatElement.Type.FLOAT;
+    public int size() {
+        return Float.BYTES;
+    }
+
+    @Override
+    public int glType() {
+        return GL11.GL_FLOAT;
     }
 }

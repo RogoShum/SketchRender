@@ -1,16 +1,14 @@
 package rogo.sketchrender.vertexbuffer.component;
 
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketchrender.SketchRender;
 import rogo.sketchrender.vertexbuffer.BufferBuilder;
-import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
+import rogo.sketchrender.vertexbuffer.attribute.Vertex;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.function.Consumer;
 
 public class DynamicAttribute extends VertexAttribute {
-    public DynamicAttribute(GLVertex... vertices) {
+    public DynamicAttribute(Vertex... vertices) {
         super(vertices);
     }
 

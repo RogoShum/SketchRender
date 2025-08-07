@@ -3,18 +3,19 @@ package rogo.sketchrender.vertexbuffer.component;
 import org.lwjgl.opengl.GL15;
 import rogo.sketchrender.vertexbuffer.BufferBuilder;
 import rogo.sketchrender.vertexbuffer.ByteBufferBuilder;
-import rogo.sketchrender.vertexbuffer.attribute.GLVertex;
+import rogo.sketchrender.vertexbuffer.attribute.Vertex;
 
 import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 public class StaticAttribute extends VertexAttribute {
-    public StaticAttribute(GLVertex... vertices) {
+    public StaticAttribute(Vertex... vertices) {
         super(vertices);
     }
 
     @Override
-    public void createBuffer() {}
+    public void createBuffer() {
+    }
 
     @Override
     public void addAttrib(Consumer<ByteBuffer> bufferConsumer) {
@@ -27,8 +28,8 @@ public class StaticAttribute extends VertexAttribute {
         int size = builder.size();
         GL15.glBufferData(34962, builder.buildFlipBuffer(), 35044);
         int count = 0;
-        for (GLVertex vertex : vertices) {
-            count += vertex.size() * vertex.elementType().getSize();
+        for (Vertex vertex : vertices) {
+            count += vertex.count() * vertex.size();
         }
         setVertexCount(size / count);
     }

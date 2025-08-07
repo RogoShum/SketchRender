@@ -1,8 +1,8 @@
 package rogo.sketchrender.vertexbuffer.attribute;
 
-import com.mojang.blaze3d.vertex.VertexFormatElement;
+import org.lwjgl.opengl.GL11;
 
-public class IntegerVertex extends GLVertex {
+public class IntegerVertex extends Vertex {
 
     public IntegerVertex(int index, String name, int size) {
         super(index, name, size);
@@ -25,7 +25,12 @@ public class IntegerVertex extends GLVertex {
     }
 
     @Override
-    public VertexFormatElement.Type elementType() {
-        return VertexFormatElement.Type.INT;
+    public int size() {
+        return Integer.BYTES;
+    }
+
+    @Override
+    public int glType() {
+        return GL11.GL_INT;
     }
 }

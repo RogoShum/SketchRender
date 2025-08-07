@@ -7,8 +7,8 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketchrender.SketchRender;
-import rogo.sketchrender.shader.uniform.PersistentReadSSBO;
-import rogo.sketchrender.shader.uniform.SSBO;
+import rogo.sketchrender.render.sketch.resource.PersistentReadSSBO;
+import rogo.sketchrender.render.sketch.resource.ShaderStorageBuffer;
 import rogo.sketchrender.util.IndexPool;
 import rogo.sketchrender.util.LifeTimer;
 
@@ -18,7 +18,7 @@ import static net.minecraftforge.common.extensions.IForgeBlockEntity.INFINITE_EX
 
 public class EntityCullingMask {
     private final EntityMap entityMap = new EntityMap();
-    private SSBO entityDataSSBO;
+    private ShaderStorageBuffer entityDataShaderStorageBuffer;
     private PersistentReadSSBO cullingResultSSBO;
     private PersistentReadSSBO prevCullingResultSSBO;
 
@@ -28,13 +28,13 @@ public class EntityCullingMask {
     }
 
     private void initializeSSBOs(int initialCapacity) {
-        this.entityDataSSBO = new SSBO(initialCapacity, 6 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
+        this.entityDataShaderStorageBuffer = new ShaderStorageBuffer(initialCapacity, 6 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
         this.cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Byte.BYTES);
         this.prevCullingResultSSBO = new PersistentReadSSBO(initialCapacity, Byte.BYTES);
     }
 
     public void bindSSBO() {
-        this.entityDataSSBO.bindShaderSlot(0);
+        this.entityDataShaderStorageBuffer.bindShaderSlot(0);
         this.cullingResultSSBO.bindShaderSlot(1);
     }
 
@@ -72,8 +72,8 @@ public class EntityCullingMask {
     }
 
     public void cleanup() {
-        if (entityDataSSBO != null) {
-            entityDataSSBO.dispose();
+        if (entityDataShaderStorageBuffer != null) {
+            entityDataShaderStorageBuffer.dispose();
         }
         if (cullingResultSSBO != null) {
             cullingResultSSBO.dispose();
@@ -86,16 +86,16 @@ public class EntityCullingMask {
 
     private void checkAndAdjustCapacity() {
         int currentEntityCount = getEntityMap().size();
-        int currentCapacity = (int) entityDataSSBO.getDataCount();
+        int currentCapacity = (int) entityDataShaderStorageBuffer.getDataCount();
 
         if (currentEntityCount > currentCapacity * 0.75) {
             int newCapacity = calculateNewCapacity(currentEntityCount);
-            entityDataSSBO.ensureCapacity(newCapacity, false);
+            entityDataShaderStorageBuffer.ensureCapacity(newCapacity, false);
             cullingResultSSBO.ensureCapacity(newCapacity);
             prevCullingResultSSBO.ensureCapacity(newCapacity);
         } else if (currentEntityCount < currentCapacity * 0.25 && currentCapacity > 64) {
             int newCapacity = Math.max(64, currentEntityCount);
-            entityDataSSBO.ensureCapacity(newCapacity, false, true);
+            entityDataShaderStorageBuffer.ensureCapacity(newCapacity, false, true);
             cullingResultSSBO.ensureCapacity(newCapacity, true);
             prevCullingResultSSBO.ensureCapacity(newCapacity, true);
         }
@@ -110,7 +110,7 @@ public class EntityCullingMask {
     public void updateEntityData() {
         checkAndAdjustCapacity();
 
-        long bufferPointer = entityDataSSBO.getMemoryAddress();
+        long bufferPointer = entityDataShaderStorageBuffer.getMemoryAddress();
         getEntityMap().indexPool.forEach((obj, index) -> {
             AABB aabb = SketchRender.getObjectAABB(obj);
             Vec3 center = aabb.getCenter();
@@ -122,11 +122,11 @@ public class EntityCullingMask {
             MemoryUtil.memPutFloat(bufferPointer + offset + 12, (float) aabb.getXsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 16, (float) aabb.getYsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 20, (float) aabb.getZsize());
-            entityDataSSBO.position = Math.max(entityDataSSBO.position, offset + 24);
+            entityDataShaderStorageBuffer.position = Math.max(entityDataShaderStorageBuffer.position, offset + 24);
         });
 
-        entityDataSSBO.upload();
-        entityDataSSBO.position = 0;
+        entityDataShaderStorageBuffer.upload();
+        entityDataShaderStorageBuffer.position = 0;
     }
 
     public void swapBuffer(int tickCount) {

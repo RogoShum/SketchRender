@@ -1,6 +1,6 @@
 package rogo.sketchrender.render.sketch.shader;
 
-import rogo.sketchrender.api.ShaderUniform;
+import rogo.sketchrender.api.ShaderResource;
 import rogo.sketchrender.render.sketch.uniform.UniformHook;
 
 import java.util.HashMap;
@@ -20,7 +20,7 @@ public class UniformHookGroup {
         return uniforms.get(uniformName);
     }
 
-    public ShaderUniform<?> getUniform(final String uniformName) {
+    public ShaderResource<?> getUniform(final String uniformName) {
         return uniforms.get(uniformName).uniform();
     }
 
