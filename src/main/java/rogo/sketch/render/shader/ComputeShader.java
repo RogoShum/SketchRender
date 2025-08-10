@@ -16,6 +16,7 @@ import rogo.sketch.util.Identifier;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvider {
@@ -103,7 +104,38 @@ public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvi
     }
 
     @Override
+    public Map<String, Integer> getSSBOBindings() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, Integer> getUBOBindings() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, Integer> getTextureBindings() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, Integer> getImageBindings() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, Integer> getAtomicCounterBindings() {
+        return Map.of();
+    }
+
+    @Override
     public int getHandle() {
         return this.program;
     }
+
+    @Override
+    public void dispose() {
+
+    }
+
 }

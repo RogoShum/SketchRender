@@ -1,9 +1,11 @@
 package rogo.sketch.render.shader;
 
 import org.lwjgl.opengl.GL20;
+import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.data.format.DataElement;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.shader.uniform.DataType;
+import rogo.sketch.util.Identifier;
 
 import java.io.IOException;
 import java.nio.IntBuffer;
@@ -29,6 +31,8 @@ public class GraphicsShaderProgram extends Shader {
 
     @Override
     protected void postLinkInitialization() {
+        // Call parent implementation to discover resource bindings
+        super.postLinkInitialization();
         // Collect vertex attributes and build vertex format
         collectVertexAttributes();
     }
@@ -143,6 +147,22 @@ public class GraphicsShaderProgram extends Shader {
      */
     public DataFormat getVertexFormat() {
         return vertexFormat;
+    }
+
+    // ShaderProvider interface implementation
+    @Override
+    public Identifier getIdentifier() {
+        return Identifier.of(identifier.toString());
+    }
+
+    @Override
+    public UniformHookGroup getUniformHookGroup() {
+        return uniformHookGroup;
+    }
+
+    @Override
+    public int getHandle() {
+        return program;
     }
 
     /**

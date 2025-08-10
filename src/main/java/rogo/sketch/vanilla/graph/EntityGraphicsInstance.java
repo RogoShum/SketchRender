@@ -1,6 +1,9 @@
 package rogo.sketch.vanilla.graph;
 
 import net.minecraft.world.entity.Entity;
+import rogo.sketch.render.data.filler.DataFiller;
+import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.vertex.VertexResource;
 import rogo.sketch.vanilla.McRenderContext;
 import rogo.sketch.render.GraphicsInstance;
 import rogo.sketch.util.Identifier;
@@ -19,7 +22,7 @@ public class EntityGraphicsInstance extends GraphicsInstance<McRenderContext> {
     }
 
     @Override
-    public void fillBuffers() {
+    public void fillVertex(VertexFiller filler) {
 
     }
 

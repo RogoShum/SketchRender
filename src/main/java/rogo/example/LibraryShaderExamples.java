@@ -1,4 +1,4 @@
-package rogo.sketch.render.shader.examples;
+package rogo.example;
 
 import org.joml.Matrix4f;
 import org.joml.Vector3f;

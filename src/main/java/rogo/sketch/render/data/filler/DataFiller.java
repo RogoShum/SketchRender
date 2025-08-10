@@ -1,4 +1,4 @@
-package rogo.sketch.render.vertexbuffer.filler;
+package rogo.sketch.render.data.filler;
 
 import org.joml.Matrix2f;
 import org.joml.Matrix3f;

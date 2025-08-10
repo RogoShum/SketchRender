@@ -1,6 +1,6 @@
 package rogo.sketch.api;
 
-public interface ResourceBufferObject extends ResourceObject {
+public interface BufferResourceObject extends ResourceObject {
     void bind();
 
     void unbind();

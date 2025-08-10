@@ -2,7 +2,7 @@ package rogo.sketch.render.resource.buffer;
 
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.Std430DataFormat;
-import rogo.sketch.render.vertexbuffer.filler.SSBOFiller;
+import rogo.sketch.render.data.filler.SSBOFiller;
 
 import java.util.HashMap;
 import java.util.Map;

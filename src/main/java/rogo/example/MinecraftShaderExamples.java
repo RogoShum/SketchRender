@@ -1,4 +1,4 @@
-package rogo.sketch.vanilla.examples;
+package rogo.example;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;

@@ -1,9 +1,10 @@
 package rogo.sketch.render;
 
 import rogo.sketch.api.RenderStateComponent;
-import rogo.sketch.render.component.RenderTarget;
-import rogo.sketch.render.component.ResourceBinding;
+import rogo.sketch.render.resource.RenderTarget;
+import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.state.FullRenderState;
+import rogo.sketch.util.Identifier;
 
 import java.util.Objects;
 
@@ -19,7 +20,7 @@ public class RenderStateManager {
                 comp.apply(context);
             }
         } else {
-            for (Class<? extends RenderStateComponent> type : newState.getComponentTypes()) {
+            for (Identifier type : newState.getComponentTypes()) {
                 RenderStateComponent newComp = newState.get(type);
                 RenderStateComponent oldComp = currentState.get(type);
                 if (!newComp.equals(oldComp)) {

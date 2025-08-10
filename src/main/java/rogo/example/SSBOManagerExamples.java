@@ -1,9 +1,9 @@
-package rogo.sketch.render.resource.buffer.examples;
+package rogo.example;
 
 import rogo.sketch.render.data.format.Std430DataFormat;
 import rogo.sketch.render.resource.buffer.SSBOMemoryManager;
 import rogo.sketch.render.resource.buffer.ModernShaderStorageBuffer;
-import rogo.sketch.render.vertexbuffer.filler.SSBOFiller;
+import rogo.sketch.render.data.filler.SSBOFiller;
 
 import org.lwjgl.opengl.GL15;
 

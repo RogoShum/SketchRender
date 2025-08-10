@@ -1,4 +1,4 @@
-package rogo.sketch.render.vertexbuffer;
+package rogo.sketch.render.vertex;
 
 public enum DrawMode {
     INSTANCED,

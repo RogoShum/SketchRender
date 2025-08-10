@@ -41,8 +41,38 @@ public class ShaderInstanceMixin implements ShaderProvider {
     }
 
     @Override
+    public Map<String, Integer> getSSBOBindings() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, Integer> getUBOBindings() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, Integer> getTextureBindings() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, Integer> getImageBindings() {
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, Integer> getAtomicCounterBindings() {
+        return Map.of();
+    }
+
+    @Override
     public int getHandle() {
         return this.programId;
+    }
+
+    @Override
+    public void dispose() {
+
     }
 
     @Inject(method = "<init>(Lnet/minecraft/server/packs/resources/ResourceProvider;Lnet/minecraft/resources/ResourceLocation;Lcom/mojang/blaze3d/vertex/VertexFormat;)V", at = @At(value = "RETURN"))

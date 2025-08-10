@@ -2,24 +2,25 @@ package rogo.sketch.render.state;
 
 
 import rogo.sketch.api.RenderStateComponent;
+import rogo.sketch.util.Identifier;
 
 import java.util.Map;
 import java.util.Set;
 
 public class FullRenderState {
-    private final Map<Class<? extends RenderStateComponent>, RenderStateComponent> components;
+    private final Map<Identifier, ? extends RenderStateComponent> components;
     private final int hash;
 
-    public FullRenderState(Map<Class<? extends RenderStateComponent>, RenderStateComponent> components) {
+    protected FullRenderState(Map<Identifier, RenderStateComponent> components) {
         this.components = Map.copyOf(components);
         this.hash = this.components.hashCode();
     }
 
-    public <T extends RenderStateComponent> T get(Class<T> type) {
-        return type.cast(components.get(type));
+    public RenderStateComponent get(Identifier type) {
+        return components.get(type);
     }
 
-    public Set<Class<? extends RenderStateComponent>> getComponentTypes() {
+    public Set<Identifier> getComponentTypes() {
         return components.keySet();
     }
 

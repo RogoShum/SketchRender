@@ -1,4 +1,4 @@
-package rogo.sketch.render.vertexbuffer.filler;
+package rogo.sketch.render.data.filler;
 
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.render.data.format.DataFormat;
