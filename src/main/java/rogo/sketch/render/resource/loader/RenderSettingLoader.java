@@ -37,7 +37,12 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
             // Load RenderTarget
             RenderTarget renderTarget = loadRenderTarget(json, gson);
 
-            return new PartialRenderSetting(renderState, resourceBinding, renderTarget);
+            if (!json.has("shouldSwitchRenderState")) {
+                return null;
+            }
+
+            boolean shouldSwitchRenderState = json.get("shouldSwitchRenderState").getAsBoolean();
+            return new PartialRenderSetting(renderState, resourceBinding, shouldSwitchRenderState);
 
         } catch (Exception e) {
             System.err.println("Failed to load render setting from JSON: " + e.getMessage());

@@ -24,6 +24,7 @@ public class UniformHookGroup {
         return uniforms.get(uniformName).uniform();
     }
 
+    //TODO 个体uniform绑定添加到resource binding
     public void updateUniforms(Object c) {
         for (final UniformHook<?> uniformHook : uniforms.values()) {
             uniformHook.checkUpdate(c);

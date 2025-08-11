@@ -1,152 +1,118 @@
 package rogo.sketch.render;
 
-import org.lwjgl.opengl.GL11;
+import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.render.data.filler.VertexFiller;
-import rogo.sketch.render.vertex.VertexResource;
-import rogo.sketch.render.vertex.VertexResourceProvider;
-import rogo.sketch.render.vertex.VertexResourceType;
+import rogo.sketch.render.vertex.DrawMode;
 import rogo.sketch.render.vertex.VertexRenderer;
+import rogo.sketch.render.vertex.VertexResource;
+import rogo.sketch.render.vertex.VertexResourcePair;
 import rogo.sketch.util.Identifier;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public class GraphicsPassGroup<C extends RenderContext> {
     private final Identifier stageIdentifier;
     private final Map<RenderSetting, GraphicsPass<C>> groups = new LinkedHashMap<>();
     private final Map<RenderParameter, VertexResource> sharedResources = new LinkedHashMap<>();
-    private final Queue<VertexResource> activatedSharedResources = new LinkedList<>();
-    private final List<VertexResourceProvider> instanceProviders = new ArrayList<>();
 
     public GraphicsPassGroup(Identifier stageIdentifier) {
         this.stageIdentifier = stageIdentifier;
     }
 
-    public void addGraphInstance(GraphicsInstance<C> instance, RenderSetting setting) {
+    public void addGraphInstance(GraphicsInstance instance, RenderSetting setting) {
         GraphicsPass<C> group = groups.computeIfAbsent(setting, s -> new GraphicsPass<>());
         group.addGraphInstance(instance);
-        
-        // Track instance resource providers separately
-        if (instance.isVertexResourceProvider()) {
-            VertexResourceProvider provider = instance.asVertexResourceProvider();
-            if (!instanceProviders.contains(provider)) {
-                instanceProviders.add(provider);
-            }
-        }
     }
 
-    public void tick() {
-
+    public void tick(C context) {
+        groups.values().forEach((group) -> {
+            group.tick(context);
+        });
     }
 
     public void render(RenderStateManager manager, C context) {
         context.preStage(stageIdentifier);
-        
-        // First, render shared/batched resources
+
         renderSharedResources(manager, context);
-        
-        // Then, render instance-owned resources
         renderInstanceResources(manager, context);
-        
+        renderCustomResources(manager, context);
+
         context.postStage(stageIdentifier);
     }
-    
+
     private void renderSharedResources(RenderStateManager manager, C context) {
         for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
             RenderSetting setting = entry.getKey();
-            GraphicsPass<C> group = entry.getValue();
-            
-            // Only process shared resources
-            if (setting.renderParameter().resourceType() != VertexResourceType.SHARED_DYNAMIC) {
+            GraphicsPass<C> pass = entry.getValue();
+
+            if (setting.renderParameter() == RenderParameter.EMPTY || !pass.containsShared()) {
                 continue;
             }
 
             manager.accept(setting, context);
-            
-            // Create shared VertexResource from RenderParameter
+
             VertexResource resource = sharedResources.computeIfAbsent(setting.renderParameter(), (parameter) -> {
-                return parameter.createVertexResource();
+                return new VertexResource(parameter.dataFormat(), null, DrawMode.NORMAL, parameter.primitiveType(), parameter.usage());
             });
-            
+
             context.shaderProvider().getUniformHookGroup().updateUniforms(context);
 
             VertexFiller filler = resource.beginFill();
-            
-            // Configure filler based on RenderParameter
+
             if (setting.renderParameter().enableIndexBuffer()) {
                 filler.enableIndexBuffer();
             }
             if (setting.renderParameter().enableSorting()) {
                 filler.enableSorting();
             }
-            
-            // Only fill from instances that use shared resources
-            if (group.fillVertexForShared(filler)) {
-                activatedSharedResources.add(resource);
+
+            if (pass.fillSharedVertex(filler)) {
                 resource.endFill();
-                
-                // Render the shared resource
                 VertexRenderer.render(resource);
+                pass.endDraw();
             }
         }
-        
-        activatedSharedResources.clear();
     }
-    
+
     private void renderInstanceResources(RenderStateManager manager, C context) {
-        // Group instance providers by their render settings
-        Map<RenderSetting, List<VertexResourceProvider>> providersBySettings = new HashMap<>();
-        
-        for (VertexResourceProvider provider : instanceProviders) {
-            // Find the render setting for this provider
-            RenderSetting providerSetting = findRenderSettingForProvider(provider);
-            if (providerSetting != null) {
-                providersBySettings.computeIfAbsent(providerSetting, k -> new ArrayList<>()).add(provider);
-            }
-        }
-        
-        // Render each group of instance providers
-        for (Map.Entry<RenderSetting, List<VertexResourceProvider>> entry : providersBySettings.entrySet()) {
+        for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
             RenderSetting setting = entry.getKey();
-            List<VertexResourceProvider> providers = entry.getValue();
-            
+            GraphicsPass<C> pass = entry.getValue();
+
+            if (setting.renderParameter() == RenderParameter.EMPTY || !pass.containsIndependent()) {
+                continue;
+            }
+
             manager.accept(setting, context);
+
             context.shaderProvider().getUniformHookGroup().updateUniforms(context);
-            
-            for (VertexResourceProvider provider : providers) {
-                VertexResource resource = provider.getOrCreateVertexResource();
-                
-                if (resource != null && provider.needsVertexUpdate()) {
-                    // Update vertex data if needed
-                    VertexFiller filler = resource.beginFill();
-                    
-                    // Configure filler based on provider's resource type
-                    if (setting.renderParameter().enableIndexBuffer()) {
-                        filler.enableIndexBuffer();
-                    }
-                    if (setting.renderParameter().enableSorting()) {
-                        filler.enableSorting();
-                    }
-                    
-                    provider.fillVertexData(filler);
-                    resource.endFill();
-                }
-                
-                // Render the instance resource
-                if (resource != null) {
-                    provider.customRender();
-                }
+            List<VertexResourcePair> pairs = pass.fillIndependentVertex();
+
+            for (VertexResourcePair pair : pairs) {
+                pair.drawCommand().execute(pair.resource());
             }
         }
     }
-    
-    private RenderSetting findRenderSettingForProvider(VertexResourceProvider provider) {
+
+    private void renderCustomResources(RenderStateManager manager, C context) {
         for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
+            RenderSetting setting = entry.getKey();
             GraphicsPass<C> pass = entry.getValue();
-            if (pass.containsProvider(provider)) {
-                return entry.getKey();
+
+            if (setting.renderParameter() == RenderParameter.EMPTY || !pass.containsCustom()) {
+                continue;
             }
+
+            if (setting.shouldSwitchRenderState()) {
+                manager.accept(setting, context);
+                context.shaderProvider().getUniformHookGroup().updateUniforms(context);
+            }
+
+            pass.endCustom();
         }
-        return null;
     }
 
     public GraphicsPass<C> getPass(RenderSetting setting) {

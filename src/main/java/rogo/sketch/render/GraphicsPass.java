@@ -1,84 +1,109 @@
 package rogo.sketch.render;
 
+import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.IndependentVertexProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
-import rogo.sketch.render.vertex.VertexResourceProvider;
-import rogo.sketch.render.vertex.VertexResourceType;
+import rogo.sketch.render.instance.SharedVertexGraphics;
+import rogo.sketch.render.vertex.VertexResourcePair;
 import rogo.sketch.util.Identifier;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class GraphicsPass<C extends RenderContext> {
-    private final Map<Identifier, GraphicsInstance<C>> instances = new HashMap<>();
+    private final Set<GraphicsInstance> activatedGraphics = new HashSet<>();
+    private final Map<Identifier, SharedVertexGraphics> sharedGraphics = new HashMap<>();
+    private final Map<Identifier, IndependentVertexProvider> independentGraphics = new HashMap<>();
+    private final Map<Identifier, GraphicsInstance> customGraphics = new HashMap<>();
 
     public GraphicsPass() {
     }
 
-    public GraphicsInstance<C> getInstance(Identifier id) {
-        return instances.get(id);
+    public void refresh() {
+        activatedGraphics.clear();
     }
 
-    public void addGraphInstance(GraphicsInstance<C> graph) {
-        instances.put(graph.getIdentifier(), graph);
+    public void addGraphInstance(GraphicsInstance graph) {
+        if (graph instanceof SharedVertexGraphics sharedVertexGraphics) {
+            sharedGraphics.put(graph.getIdentifier(), sharedVertexGraphics);
+        } else if (graph instanceof IndependentVertexProvider independentVertexProvider) {
+            independentGraphics.put(graph.getIdentifier(), independentVertexProvider);
+        } else {
+            customGraphics.put(graph.getIdentifier(), graph);
+        }
     }
 
-    /**
-     * Get all GraphInstances in this pass.
-     */
-    public Collection<GraphicsInstance<C>> getAllInstances() {
-        return instances.values();
+    public void tick(C context) {
+        for (Identifier id : sharedGraphics.keySet()) {
+            GraphicsInstance graph = sharedGraphics.get(id);
+            if (graph.shouldTick()) {
+                graph.tick(context);
+            }
+        }
+
+        for (Identifier id : independentGraphics.keySet()) {
+            GraphicsInstance graph = independentGraphics.get(id);
+            if (graph.shouldTick()) {
+                graph.tick(context);
+            }
+        }
+
+        for (Identifier id : customGraphics.keySet()) {
+            GraphicsInstance graph = customGraphics.get(id);
+            if (graph.shouldTick()) {
+                graph.tick(context);
+            }
+        }
     }
 
-    public boolean fillVertex(VertexFiller filler) {
+    public boolean fillSharedVertex(VertexFiller filler) {
         boolean result = false;
-        for (GraphicsInstance<C> instance : instances.values()) {
+        for (SharedVertexGraphics instance : sharedGraphics.values()) {
             if (instance.shouldRender()) {
-                instance.fillVertex(filler);
+                instance.fillVertexData(filler);
+                activatedGraphics.add(instance);
                 result = true;
             }
         }
 
         return result;
     }
-    
-    /**
-     * Fill vertex data only from instances that use shared resources
-     */
-    public boolean fillVertexForShared(VertexFiller filler) {
-        boolean result = false;
-        for (GraphicsInstance<C> instance : instances.values()) {
-            if (instance.shouldRender() && 
-                instance.getVertexResourceType() == VertexResourceType.SHARED_DYNAMIC) {
-                instance.fillVertex(filler);
-                result = true;
+
+    public List<VertexResourcePair> fillIndependentVertex() {
+        List<VertexResourcePair> result = new ArrayList<>();
+        for (IndependentVertexProvider instance : independentGraphics.values()) {
+            if (instance.shouldRender()) {
+                instance.fillVertexData();
+                result.addAll(instance.getVertexResources());
+                activatedGraphics.add(instance);
             }
         }
+
         return result;
     }
-    
-    /**
-     * Check if this pass contains a specific vertex resource provider
-     */
-    public boolean containsProvider(VertexResourceProvider provider) {
-        for (GraphicsInstance<C> instance : instances.values()) {
-            if (instance.isVertexResourceProvider() && 
-                instance.asVertexResourceProvider() == provider) {
-                return true;
-            }
+
+    public void endCustom() {
+        for (GraphicsInstance instance : customGraphics.values()) {
+            instance.endDraw();
         }
-        return false;
     }
 
-    /**
-     * Render all GraphInstances in this pass.
-     */
-    public void render(C context) {
-        for (GraphicsInstance<C> instance : instances.values()) {
-            if (instance.shouldRender()) {
-                context.shaderProvider().getUniformHookGroup().updateUniforms(instance);
-                instance.render(context);
-            }
+    public void endDraw() {
+        for (GraphicsInstance instance : activatedGraphics) {
+            instance.endDraw();
         }
+
+        activatedGraphics.clear();
+    }
+
+    public boolean containsShared() {
+        return !sharedGraphics.isEmpty();
+    }
+
+    public boolean containsIndependent() {
+        return !independentGraphics.isEmpty();
+    }
+
+    public boolean containsCustom() {
+        return !customGraphics.isEmpty();
     }
 }

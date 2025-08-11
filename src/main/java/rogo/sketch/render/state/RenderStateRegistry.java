@@ -27,6 +27,7 @@ public class RenderStateRegistry {
                 org.lwjgl.opengl.GL11.GL_KEEP, org.lwjgl.opengl.GL11.GL_KEEP, org.lwjgl.opengl.GL11.GL_KEEP));
         registerDefault(new ViewportState(0, 0, 1920, 1080));
         registerDefault(new ShaderState()); // No default shader
+        registerDefault(RenderTargetState.defaultFramebuffer()); // Default framebuffer
 
         initialized = true;
     }

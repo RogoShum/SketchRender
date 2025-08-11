@@ -16,10 +16,6 @@ import rogo.sketch.render.data.filler.VertexFiller;
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 
-/**
- * Vertex resource management class that handles vertex data storage and VAO setup.
- * This class is focused purely on resource management - rendering is handled externally.
- */
 public class VertexResource implements BufferResourceObject, AutoCloseable {
 
     // Static buffer for main vertex data
@@ -136,6 +132,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     /**
      * Finish filling and upload data to GPU
      */
+    //TODO ?要改成重复利用的buffer
     public void endFill() {
         if (currentFiller == null) {
             throw new IllegalStateException("No active filler. Call beginFill() first.");

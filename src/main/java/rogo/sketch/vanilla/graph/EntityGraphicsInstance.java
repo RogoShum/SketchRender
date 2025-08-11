@@ -1,14 +1,15 @@
 package rogo.sketch.vanilla.graph;
 
 import net.minecraft.world.entity.Entity;
-import rogo.sketch.render.data.filler.DataFiller;
+import rogo.sketch.render.DrawCommand;
+import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.data.filler.VertexFiller;
-import rogo.sketch.render.vertex.VertexResource;
+import rogo.sketch.render.instance.SharedVertexGraphics;
 import rogo.sketch.vanilla.McRenderContext;
-import rogo.sketch.render.GraphicsInstance;
+import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.util.Identifier;
 
-public class EntityGraphicsInstance extends GraphicsInstance<McRenderContext> {
+public class EntityGraphicsInstance extends SharedVertexGraphics {
     private final Entity entity;
 
     public EntityGraphicsInstance(Identifier identifier, Entity entity) {
@@ -16,28 +17,44 @@ public class EntityGraphicsInstance extends GraphicsInstance<McRenderContext> {
         this.entity = entity;
     }
 
-    @Override
-    public void tick() {
 
+    @Override
+    public boolean shouldTick() {
+        return false;
     }
 
     @Override
-    public void fillVertex(VertexFiller filler) {
+    public <C extends RenderContext> void tick(C context) {
 
     }
 
     @Override
     public boolean shouldDiscard() {
-        return entity.isRemoved();
+        return !entity.isAlive();
     }
 
     @Override
     public boolean shouldRender() {
-        return true;
+        return false;
     }
 
     @Override
-    public void render(McRenderContext context) {
+    public void endDraw() {
 
+    }
+
+    @Override
+    public boolean needsVertexUpdate() {
+        return false;
+    }
+
+    @Override
+    public void fillVertexData(VertexFiller filler) {
+
+    }
+
+    @Override
+    public DrawCommand getDrawCommand() {
+        return null;
     }
 }

@@ -84,7 +84,7 @@ public class VertexRenderer {
 
         try {
             if (resource.hasIndices()) {
-                GL15.glDrawElements(resource.getPrimitiveType(), count, GL15.GL_UNSIGNED_INT, first * 4); // 4 bytes per int
+                GL15.glDrawElements(resource.getPrimitiveType(), count, GL15.GL_UNSIGNED_INT, first * 4L); // 4 bytes per int
             } else {
                 GL15.glDrawArrays(resource.getPrimitiveType(), first, count);
             }

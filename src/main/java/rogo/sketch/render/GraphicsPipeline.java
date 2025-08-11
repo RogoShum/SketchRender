@@ -1,5 +1,6 @@
 package rogo.sketch.render;
 
+import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OrderedList;
 
@@ -53,7 +54,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Add a GraphInstance to a specific stage.
      */
-    public void addGraphInstance(Identifier id, GraphicsInstance<C> graph, RenderSetting renderSetting) {
+    public void addGraphInstance(Identifier id, GraphicsInstance graph, RenderSetting renderSetting) {
         GraphicsStage stage = idToStage.get(id);
         if (stage != null) {
             passMap.get(stage).addGraphInstance(graph, renderSetting);
