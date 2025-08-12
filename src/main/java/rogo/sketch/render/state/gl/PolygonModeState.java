@@ -12,7 +12,6 @@ public class PolygonModeState implements RenderStateComponent {
     
     private int face, mode;
 
-    // Default constructor for prototype
     public PolygonModeState() {
         this.face = GL11.GL_FRONT_AND_BACK;
         this.mode = GL11.GL_FILL;

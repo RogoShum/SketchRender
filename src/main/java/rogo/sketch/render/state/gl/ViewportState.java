@@ -12,7 +12,6 @@ public class ViewportState implements RenderStateComponent {
     
     private int x, y, width, height;
 
-    // Default constructor for prototype
     public ViewportState() {
         this.x = 0;
         this.y = 0;

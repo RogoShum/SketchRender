@@ -9,11 +9,10 @@ import rogo.sketch.util.Identifier;
 
 public class BlendState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("blend_state");
-    
+
     private boolean enabled;
     private int srcFactor, dstFactor;
 
-    // Default constructor for prototype
     public BlendState() {
         this.enabled = false;
         this.srcFactor = GL11.GL_SRC_ALPHA;
@@ -56,11 +55,11 @@ public class BlendState implements RenderStateComponent {
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
         this.enabled = json.has("enabled") ? json.get("enabled").getAsBoolean() : true;
-        
+
         if (json.has("srcFactor")) {
             this.srcFactor = parseBlendFactor(json.get("srcFactor").getAsString());
         }
-        
+
         if (json.has("dstFactor")) {
             this.dstFactor = parseBlendFactor(json.get("dstFactor").getAsString());
         }
@@ -70,7 +69,7 @@ public class BlendState implements RenderStateComponent {
     public RenderStateComponent createInstance() {
         return new BlendState();
     }
-    
+
     private static int parseBlendFactor(String factor) {
         return switch (factor.toUpperCase()) {
             case "ZERO" -> GL11.GL_ZERO;

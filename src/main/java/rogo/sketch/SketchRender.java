@@ -50,6 +50,7 @@ import rogo.sketch.util.GLFeatureChecker;
 import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.util.RenderCallTimer;
 import rogo.sketch.vanilla.instance.AABBObject;
+import rogo.sketch.vanilla.resource.RenderResourceManager;
 
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
@@ -63,6 +64,7 @@ public class SketchRender {
     public static final String MOD_ID = "sketchrender";
     public static final Logger LOGGER = LogUtils.getLogger();
     private static final ShaderManager shaderManager = new ShaderManager();
+    private static final RenderResourceManager resourceManager = new RenderResourceManager();
 
     @SuppressWarnings("removal")
     public SketchRender() {
@@ -99,6 +101,7 @@ public class SketchRender {
 
     public void registerReloadListener(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(SketchRender.shaderManager);
+        event.registerReloadListener(SketchRender.resourceManager);
     }
 
     public void registerKeyBinding(RegisterKeyMappingsEvent event) {

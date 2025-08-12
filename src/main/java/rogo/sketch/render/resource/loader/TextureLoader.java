@@ -7,6 +7,11 @@ import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 import rogo.sketch.render.resource.Texture;
+import rogo.sketch.util.Identifier;
+
+import java.io.BufferedReader;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Loader for basic Texture resources from JSON (non-MC)
@@ -14,12 +19,9 @@ import rogo.sketch.render.resource.Texture;
 public class TextureLoader implements ResourceLoader<Texture> {
 
     @Override
-    public Texture loadFromJson(String jsonData, Gson gson) {
+    public Texture loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
-
-            String identifier = json.get("identifier").getAsString();
-
             // This loader only handles basic textures, not MC textures
             if (json.has("mcResourceLocation")) {
                 System.err.println("TextureLoader does not handle MC textures. Use VanillaTextureLoader instead.");
@@ -74,11 +76,6 @@ public class TextureLoader implements ResourceLoader<Texture> {
             System.err.println("Failed to load texture from JSON: " + e.getMessage());
             return null;
         }
-    }
-
-    @Override
-    public Class<Texture> getResourceClass() {
-        return Texture.class;
     }
 
     private int parseFormat(String format) {

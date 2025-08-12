@@ -4,34 +4,36 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.lwjgl.opengl.GL30;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.RenderTarget;
 import rogo.sketch.util.Identifier;
-import org.lwjgl.opengl.GL30;
+
+import java.io.BufferedReader;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Loader for RenderTarget resources from JSON with smart texture loading
  */
 public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
-    
+
     @Override
-    public RenderTarget loadFromJson(String jsonData, Gson gson) {
+    public RenderTarget loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
-            
-            String identifier = json.get("identifier").getAsString();
-            
+
             // Parse resolution mode
             RenderTarget.ResolutionMode mode = RenderTarget.ResolutionMode.FIXED;
             if (json.has("resolutionMode")) {
                 String modeStr = json.get("resolutionMode").getAsString();
                 mode = parseResolutionMode(modeStr);
             }
-            
+
             // Parse base dimensions
             int baseWidth = json.has("width") ? json.get("width").getAsInt() : 1920;
             int baseHeight = json.has("height") ? json.get("height").getAsInt() : 1080;
-            
+
             // Parse scale factors
             float scaleX = 1.0f;
             float scaleY = 1.0f;
@@ -46,30 +48,30 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                 float scale = json.get("scale").getAsFloat();
                 scaleX = scaleY = scale;
             }
-            
+
             // Parse clear color (optional)
             int clearColor = 0x00000000; // Default: transparent black
             if (json.has("clearColor")) {
                 String colorStr = json.get("clearColor").getAsString();
                 clearColor = parseColor(colorStr);
             }
-            
+
             // Create framebuffer
             int handle = GL30.glGenFramebuffers();
             GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, handle);
-            
-            RenderTarget renderTarget = new RenderTarget(handle, identifier, mode, 
-                                                       baseWidth, baseHeight, scaleX, scaleY, clearColor);
-            
+
+            RenderTarget renderTarget = new RenderTarget(handle, identifier, mode,
+                    baseWidth, baseHeight, scaleX, scaleY, clearColor);
+
             GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
-            
+
             // Attach color textures using smart loading
             if (json.has("colorAttachments")) {
                 JsonArray colorAttachments = json.getAsJsonArray("colorAttachments");
-                
+
                 for (int i = 0; i < colorAttachments.size(); i++) {
                     JsonElement element = colorAttachments.get(i);
-                    
+
                     // Use TextureHelper for smart texture loading
                     Identifier textureId = TextureHelper.loadTextureFromElement(element, resourceManager);
                     if (textureId != null) {
@@ -79,7 +81,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                     }
                 }
             }
-            
+
             // Attach depth texture using smart loading
             if (json.has("depthAttachment")) {
                 JsonElement depthElement = json.get("depthAttachment");
@@ -90,7 +92,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                     System.err.println("Failed to load depth attachment texture");
                 }
             }
-            
+
             // Attach stencil texture using smart loading
             if (json.has("stencilAttachment")) {
                 JsonElement stencilElement = json.get("stencilAttachment");
@@ -101,43 +103,38 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                     System.err.println("Failed to load stencil attachment texture");
                 }
             }
-            
+
             // Parse clear settings
             boolean shouldClearColor = true;
             boolean clearDepth = true;
             boolean clearStencil = false;
-            
+
             if (json.has("clearSettings")) {
                 JsonObject clearSettings = json.getAsJsonObject("clearSettings");
                 shouldClearColor = !clearSettings.has("color") || clearSettings.get("color").getAsBoolean();
                 clearDepth = !clearSettings.has("depth") || clearSettings.get("depth").getAsBoolean();
                 clearStencil = clearSettings.has("stencil") && clearSettings.get("stencil").getAsBoolean();
             }
-            
+
             renderTarget.setClearSettings(shouldClearColor, clearDepth, clearStencil);
-            
+
             // Check framebuffer completeness
             int status = GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
             if (status != GL30.GL_FRAMEBUFFER_COMPLETE) {
                 System.err.println("Framebuffer not complete: " + status);
             }
-            
+
             GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
-            
+
             return renderTarget;
-            
+
         } catch (Exception e) {
             System.err.println("Failed to load render target from JSON: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
     }
-    
-    @Override
-    public Class<RenderTarget> getResourceClass() {
-        return RenderTarget.class;
-    }
-    
+
     private RenderTarget.ResolutionMode parseResolutionMode(String mode) {
         return switch (mode.toUpperCase()) {
             case "FIXED" -> RenderTarget.ResolutionMode.FIXED;
@@ -146,7 +143,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
             default -> RenderTarget.ResolutionMode.FIXED;
         };
     }
-    
+
     private int parseColor(String colorStr) {
         try {
             if (colorStr.startsWith("#")) {

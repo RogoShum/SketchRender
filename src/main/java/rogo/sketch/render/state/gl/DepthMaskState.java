@@ -12,7 +12,6 @@ public class DepthMaskState implements RenderStateComponent {
     
     private boolean writable;
 
-    // Default constructor for prototype
     public DepthMaskState() {
         this.writable = true;
     }

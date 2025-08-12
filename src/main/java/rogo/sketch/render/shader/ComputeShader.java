@@ -23,6 +23,7 @@ public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvi
     private final UniformHookGroup uniformHookGroup = new UniformHookGroup();
     private final UnsafeUniformMap unsafeUniformMap;
     private final Identifier identifier;
+    public Shader shader;
     private final int program;
 
     public ComputeShader(ResourceProvider resourceProvider, ResourceLocation shaderLocation) throws IOException {
@@ -30,6 +31,7 @@ public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvi
         this.identifier = Identifier.valueOf(shaderLocation);
         BufferedReader reader = resourceProvider.openAsReader(resourcelocation);
         String content = reader.lines().collect(Collectors.joining("\n"));
+        shader = new ComputeShaderProgram(identifier, content);
 
         int computeShader = GL20.glCreateShader(GL43.GL_COMPUTE_SHADER);
         GL20.glShaderSource(computeShader, content);
@@ -104,27 +106,7 @@ public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvi
     }
 
     @Override
-    public Map<String, Integer> getSSBOBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, Integer> getUBOBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, Integer> getTextureBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, Integer> getImageBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, Integer> getAtomicCounterBindings() {
+    public Map<Identifier, Map<Identifier, Integer>> getResourceBindings() {
         return Map.of();
     }
 

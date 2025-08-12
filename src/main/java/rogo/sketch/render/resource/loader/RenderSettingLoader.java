@@ -5,16 +5,16 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.PartialRenderSetting;
-import rogo.sketch.render.resource.GraphicsResourceManager;
-import rogo.sketch.render.resource.RenderTarget;
 import rogo.sketch.render.resource.ResourceBinding;
-import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.state.FullRenderState;
 import rogo.sketch.render.state.RenderStateRegistry;
 import rogo.sketch.util.Identifier;
 
+import java.io.BufferedReader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Loader for PartialRenderSetting resources from JSON
@@ -22,28 +22,19 @@ import java.util.Map;
 public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting> {
 
     @Override
-    public PartialRenderSetting loadFromJson(String jsonData, Gson gson) {
+    public PartialRenderSetting loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
-
-            String identifier = json.get("identifier").getAsString();
-
-            // Load FullRenderState
             FullRenderState renderState = loadFullRenderState(json, gson);
-
-            // Load ResourceBinding
             ResourceBinding resourceBinding = loadResourceBinding(json, gson);
 
-            // Load RenderTarget
-            RenderTarget renderTarget = loadRenderTarget(json, gson);
+            boolean shouldSwitchRenderState = true;
 
-            if (!json.has("shouldSwitchRenderState")) {
-                return null;
+            if (json.has("shouldSwitchRenderState")) {
+                shouldSwitchRenderState = json.get("shouldSwitchRenderState").getAsBoolean();
             }
 
-            boolean shouldSwitchRenderState = json.get("shouldSwitchRenderState").getAsBoolean();
             return new PartialRenderSetting(renderState, resourceBinding, shouldSwitchRenderState);
-
         } catch (Exception e) {
             System.err.println("Failed to load render setting from JSON: " + e.getMessage());
             e.printStackTrace();
@@ -125,44 +116,5 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
         }
 
         return resourceBinding;
-    }
-
-    /**
-     * Load RenderTarget from JSON
-     */
-    private RenderTarget loadRenderTarget(JsonObject json, Gson gson) {
-        if (!json.has("renderTarget")) {
-            return null;
-        }
-
-        JsonElement renderTargetElement = json.get("renderTarget");
-
-        if (renderTargetElement.isJsonPrimitive() && renderTargetElement.getAsJsonPrimitive().isString()) {
-            // Reference to existing render target
-            String renderTargetName = renderTargetElement.getAsString();
-            Identifier renderTargetId = Identifier.of(renderTargetName);
-
-            GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
-            return (RenderTarget) resourceManager.getResource(ResourceTypes.RENDER_TARGET, renderTargetId).orElse(null);
-
-        } else if (renderTargetElement.isJsonObject()) {
-            // Inline render target definition
-            JsonObject renderTargetObj = renderTargetElement.getAsJsonObject();
-
-            // Use TextureHelper for smart loading
-            Identifier renderTargetId = TextureHelper.loadTextureFromElement(renderTargetElement,
-                    GraphicsResourceManager.getInstance());
-
-            return (RenderTarget) GraphicsResourceManager.getInstance()
-                    .getResource(ResourceTypes.RENDER_TARGET, renderTargetId)
-                    .orElse(null);
-        }
-
-        return null;
-    }
-
-    @Override
-    public Class<PartialRenderSetting> getResourceClass() {
-        return PartialRenderSetting.class;
     }
 } 

@@ -14,7 +14,6 @@ public class CullState implements RenderStateComponent {
     private int face;
     private int frontFace;
 
-    // Default constructor for prototype
     public CullState() {
         this.enabled = true;
         this.face = GL11.GL_BACK;

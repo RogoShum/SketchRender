@@ -13,7 +13,6 @@ public class ScissorState implements RenderStateComponent {
     private boolean enabled;
     private int x, y, width, height;
 
-    // Default constructor for prototype
     public ScissorState() {
         this.enabled = false;
         this.x = 0;

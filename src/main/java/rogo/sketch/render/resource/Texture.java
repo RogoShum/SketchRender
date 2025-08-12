@@ -3,10 +3,11 @@ package rogo.sketch.render.resource;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import rogo.sketch.api.ResourceObject;
+import rogo.sketch.util.Identifier;
 
 public class Texture implements ResourceObject {
     private final int handle;
-    private final String identifier;
+    private final Identifier identifier;
     private final int format;
     private final int filterMode;
     private final int wrapMode;
@@ -16,7 +17,7 @@ public class Texture implements ResourceObject {
     private int currentWidth = 0;
     private int currentHeight = 0;
 
-    public Texture(int handle, String identifier, int format, int filterMode, int wrapMode) {
+    public Texture(int handle, Identifier identifier, int format, int filterMode, int wrapMode) {
         this.handle = handle;
         this.identifier = identifier;
         this.format = format;
@@ -90,7 +91,7 @@ public class Texture implements ResourceObject {
         unbind(0);
     }
 
-    public String getIdentifier() {
+    public Identifier getIdentifier() {
         return identifier;
     }
 

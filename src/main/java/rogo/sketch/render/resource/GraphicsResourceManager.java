@@ -2,21 +2,20 @@ package rogo.sketch.render.resource;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.render.resource.loader.*;
 import rogo.sketch.util.Identifier;
 
 import javax.annotation.Nullable;
+import java.io.BufferedReader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-/**
- * Central graphics resource management system.
- * Handles registration, lookup, and reloading of all graphics resources.
- */
 public class GraphicsResourceManager {
-    
     private static GraphicsResourceManager instance;
     
     // Resource storage: Type -> (Name -> Resource)
@@ -61,18 +60,19 @@ public class GraphicsResourceManager {
         // Invalidate existing references
         invalidateReferences(type, name);
     }
-    
+
+    public void registerJson(Identifier type, Identifier name, String jsonData) {
+        registerJson(type, name, jsonData, (i) -> Optional.empty());
+    }
+
     /**
      * Register a JSON-defined resource
      */
-    public void registerJson(Identifier type, Identifier name, String jsonData) {
+    public void registerJson(Identifier type, Identifier name, String jsonData, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         jsonResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
                     .put(name, jsonData);
-        
-        // Load the resource immediately
-        loadJsonResource(type, name, jsonData);
-        
-        // Invalidate existing references
+
+        loadJsonResource(type, name, jsonData, resourceProvider);
         invalidateReferences(type, name);
     }
     
@@ -130,12 +130,8 @@ public class GraphicsResourceManager {
         
         return Optional.empty();
     }
-    
-    /**
-     * Reload all JSON-defined resources (for resource pack switching)
-     */
-    public void reloadJsonResources() {
-        // Dispose existing JSON resources
+
+    public void clearJsonResources() {
         for (Map<Identifier, ResourceObject> typeResources : resources.values()) {
             for (ResourceObject resource : typeResources.values()) {
                 if (resource != null) {
@@ -148,16 +144,6 @@ public class GraphicsResourceManager {
             }
         }
         resources.clear();
-        
-        // Reload all JSON resources
-        for (Identifier type : jsonResources.keySet()) {
-            Map<Identifier, String> typeJsons = jsonResources.get(type);
-            for (Map.Entry<Identifier, String> entry : typeJsons.entrySet()) {
-                loadJsonResource(type, entry.getKey(), entry.getValue());
-            }
-        }
-        
-        // Invalidate all references to force refresh
         for (ResourceReference<?> ref : references.values()) {
             ref.invalidate();
         }
@@ -166,7 +152,7 @@ public class GraphicsResourceManager {
     /**
      * Load a JSON resource
      */
-    private void loadJsonResource(Identifier type, Identifier name, String jsonData) {
+    private void loadJsonResource(Identifier type, Identifier identifier, String jsonData, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         ResourceLoader<?> loader = loaderRegistry.getLoader(type);
         if (loader == null) {
             System.err.println("No loader found for resource type: " + type);
@@ -174,13 +160,13 @@ public class GraphicsResourceManager {
         }
         
         try {
-            ResourceObject resource = loader.loadFromJson(jsonData, gson);
+            ResourceObject resource = loader.loadFromJson(identifier, jsonData, gson, resourceProvider);
             if (resource != null) {
                 resources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
-                         .put(name, resource);
+                         .put(identifier, resource);
             }
         } catch (Exception e) {
-            System.err.println("Failed to load JSON resource " + name + " of type " + type + ": " + e.getMessage());
+            System.err.println("Failed to load JSON resource " + identifier + " of type " + type + ": " + e.getMessage());
         }
     }
     

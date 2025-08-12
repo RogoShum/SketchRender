@@ -41,27 +41,7 @@ public class ShaderInstanceMixin implements ShaderProvider {
     }
 
     @Override
-    public Map<String, Integer> getSSBOBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, Integer> getUBOBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, Integer> getTextureBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, Integer> getImageBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, Integer> getAtomicCounterBindings() {
+    public Map<Identifier, Map<Identifier, Integer>> getResourceBindings() {
         return Map.of();
     }
 

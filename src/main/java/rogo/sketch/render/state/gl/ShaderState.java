@@ -4,24 +4,26 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL20;
 import rogo.sketch.api.RenderStateComponent;
-import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.resource.GraphicsResourceManager;
+import rogo.sketch.render.resource.ResourceTypes;
+import rogo.sketch.render.shader.Shader;
 import rogo.sketch.util.Identifier;
 
 import java.util.Objects;
+import java.util.Optional;
 
 public class ShaderState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("shader");
-    
-    private ShaderProvider shaderProvider;
 
-    // Default constructor for prototype
+    private Identifier shaderIdentifier;
+
     public ShaderState() {
-        this.shaderProvider = null; // Will be set during deserialization
+        this.shaderIdentifier = null;
     }
 
-    public ShaderState(ShaderProvider program) {
-        this.shaderProvider = program;
+    public ShaderState(Identifier identifier) {
+        this.shaderIdentifier = identifier;
     }
 
     @Override
@@ -34,29 +36,28 @@ public class ShaderState implements RenderStateComponent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShaderState that = (ShaderState) o;
-        return Objects.equals(shaderProvider.getHandle(), that.shaderProvider.getHandle());
+        return Objects.equals(shaderIdentifier, that.shaderIdentifier);
     }
 
     @Override
     public void apply(RenderContext context) {
-        GL20.glUseProgram(shaderProvider.getHandle());
-        context.set(Identifier.of("shader"), shaderProvider);
+        Optional<Shader> shader = GraphicsResourceManager.getInstance().getResource(ResourceTypes.SHADER_PROGRAM, shaderIdentifier);
+        if (shader.isPresent()) {
+            GL20.glUseProgram(shader.get().getHandle());
+            context.set(ResourceTypes.SHADER_PROGRAM, shaderIdentifier);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(shaderProvider.getHandle());
+        return Objects.hashCode(shaderIdentifier);
     }
 
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
-        // ShaderState deserialization is complex because it needs resource manager
-        // For now, we'll support setting from identifier in the JSON
-        if (json.has("shaderIdentifier")) {
-            String shaderIdStr = json.get("shaderIdentifier").getAsString();
-            // This would need to be resolved through GraphicsResourceManager
-            // For now, we'll leave it null and expect it to be set externally
-            System.out.println("ShaderState needs shader with identifier: " + shaderIdStr);
+        if (json.has("identifier")) {
+            String shaderIdStr = json.get("identifier").getAsString();
+            shaderIdentifier = Identifier.of(shaderIdStr);
         }
     }
 

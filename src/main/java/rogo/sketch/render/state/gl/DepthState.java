@@ -14,7 +14,6 @@ public class DepthState implements RenderStateComponent {
     private int func;
     private boolean write;
 
-    // Default constructor for prototype
     public DepthState() {
         this.enabled = true;
         this.func = GL11.GL_LESS;

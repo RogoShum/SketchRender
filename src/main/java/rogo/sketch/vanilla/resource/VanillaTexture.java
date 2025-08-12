@@ -3,6 +3,7 @@ package rogo.sketch.vanilla.resource;
 import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 import rogo.sketch.render.resource.Texture;
+import rogo.sketch.util.Identifier;
 
 import javax.annotation.Nullable;
 
@@ -19,7 +20,7 @@ public class VanillaTexture extends Texture {
     /**
      * Create a Minecraft-compatible texture
      */
-    public VanillaTexture(String identifier, ResourceLocation mcResourceLocation) {
+    public VanillaTexture(Identifier identifier, ResourceLocation mcResourceLocation) {
         super(0, identifier, GL11.GL_RGBA, GL11.GL_LINEAR, GL11.GL_REPEAT);
         this.mcResourceLocation = mcResourceLocation;
     }

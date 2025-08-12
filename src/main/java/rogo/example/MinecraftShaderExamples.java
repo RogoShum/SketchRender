@@ -5,6 +5,7 @@ import net.minecraft.server.packs.resources.ResourceProvider;
 import rogo.sketch.render.shader.ComputeShaderProgram;
 import rogo.sketch.render.shader.GraphicsShaderProgram;
 import rogo.sketch.render.shader.ShaderType;
+import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.ShaderUtils;
 
 import java.util.Map;
@@ -103,7 +104,7 @@ public class MinecraftShaderExamples {
             ShaderType.FRAGMENT, loadCustomShader(resourceProvider, "custom/path/fragment_shader.glsl")
         );
 
-        GraphicsShaderProgram shader = new GraphicsShaderProgram("custom_shader", shaderSources);
+        GraphicsShaderProgram shader = new GraphicsShaderProgram(Identifier.of("custom_shader"), shaderSources);
         
         System.out.println("Created custom shader: " + shader.getIdentifier());
         

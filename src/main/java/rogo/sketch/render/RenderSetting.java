@@ -8,10 +8,10 @@ import rogo.sketch.render.state.FullRenderState;
  * Complete render setting including render parameters
  */
 public record RenderSetting(
-        FullRenderState renderState,       // Includes render target state now
-        ResourceBinding resourceBinding,   // Resource bindings (textures, buffers, etc.)
-        RenderParameter renderParameter,   // Vertex resource creation parameters
-        boolean shouldSwitchRenderState   // Whether to apply render state (false for compute shaders)
+        FullRenderState renderState,
+        ResourceBinding resourceBinding,
+        RenderParameter renderParameter,
+        boolean shouldSwitchRenderState
 ) implements ResourceObject {
 
     @Override
@@ -24,9 +24,6 @@ public record RenderSetting(
 
     }
 
-    /**
-     * Create RenderSetting from partial (JSON) data and runtime parameters
-     */
     public static RenderSetting fromPartial(PartialRenderSetting partial, RenderParameter renderParameter) {
         return new RenderSetting(
                 partial.renderState(),
@@ -36,27 +33,21 @@ public record RenderSetting(
         );
     }
 
-    /**
-     * Create a basic render setting with default draw command
-     */
     public static RenderSetting basic(FullRenderState renderState, ResourceBinding resourceBinding, RenderParameter renderParameter) {
         return new RenderSetting(
                 renderState,
                 resourceBinding,
                 renderParameter,
-                true // Switch render state by default
+                true
         );
     }
 
-    /**
-     * Create a compute shader setting (no render state switching)
-     */
     public static RenderSetting computeShader(ResourceBinding resourceBinding) {
         return new RenderSetting(
-                null, // No render state needed
+                null,
                 resourceBinding,
-                null, // No draw command needed
-                false // Don't switch render state
+                null,
+                false
         );
     }
 }

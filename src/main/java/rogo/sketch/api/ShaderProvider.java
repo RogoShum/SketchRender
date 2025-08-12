@@ -9,29 +9,6 @@ public interface ShaderProvider extends ResourceObject {
     Identifier getIdentifier();
 
     UniformHookGroup getUniformHookGroup();
-    
-    /**
-     * Get SSBO bindings discovered from this shader
-     */
-    Map<String, Integer> getSSBOBindings();
-    
-    /**
-     * Get UBO bindings discovered from this shader
-     */
-    Map<String, Integer> getUBOBindings();
-    
-    /**
-     * Get texture bindings discovered from this shader
-     */
-    Map<String, Integer> getTextureBindings();
-    
-    /**
-     * Get image bindings discovered from this shader
-     */
-    Map<String, Integer> getImageBindings();
-    
-    /**
-     * Get atomic counter bindings discovered from this shader
-     */
-    Map<String, Integer> getAtomicCounterBindings();
+
+    Map<Identifier, Map<Identifier, Integer>> getResourceBindings();
 }

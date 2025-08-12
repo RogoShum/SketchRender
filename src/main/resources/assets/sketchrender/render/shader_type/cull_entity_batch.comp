@@ -1,0 +1,253 @@
+#version 430
+
+layout(local_size_x = 64) in;
+
+uniform sampler2D Sampler0;
+uniform sampler2D Sampler1;
+uniform sampler2D Sampler2;
+uniform sampler2D Sampler3;
+uniform sampler2D Sampler4;
+uniform sampler2D Sampler5;
+uniform sampler2D Sampler6;
+uniform sampler2D Sampler7;
+
+uniform mat4 sketch_culling_view_mat;
+uniform mat4 sketch_culling_proj_mat;
+uniform vec3 sketch_culling_camera_pos;
+uniform vec3 sketch_culling_camera_dir;
+uniform vec3 sketch_frustum_pos;
+uniform int sketch_render_distance;
+uniform int sketch_level_section_range;
+uniform int sketch_entity_count;
+uniform float[24] sketch_culling_frustum;
+uniform float[16] sketch_depth_size;
+
+layout(std430, binding = 0) readonly buffer EntityDataBuffer {
+    float entityData[]; // float * 6: center.x, center.y, center.z, size.x, size.y, size.z
+};
+
+layout(std430, binding = 1) writeonly buffer CullingResultBuffer {
+    uint cullingResult[];
+};
+
+shared uint sharedVisible[64];
+const float near = 0.05;
+float far = 16.0;
+
+struct ClipResult {
+    float minDepth;
+    vec2 screenMin;
+    vec2 screenMax;
+};
+
+vec4[6] getFrustumData() {
+    return vec4[](
+    vec4(sketch_culling_frustum[0], sketch_culling_frustum[1], sketch_culling_frustum[2], sketch_culling_frustum[3]),
+    vec4(sketch_culling_frustum[4], sketch_culling_frustum[5], sketch_culling_frustum[6], sketch_culling_frustum[7]),
+    vec4(sketch_culling_frustum[8], sketch_culling_frustum[9], sketch_culling_frustum[10], sketch_culling_frustum[11]),
+    vec4(sketch_culling_frustum[12], sketch_culling_frustum[13], sketch_culling_frustum[14], sketch_culling_frustum[15]),
+    vec4(sketch_culling_frustum[16], sketch_culling_frustum[17], sketch_culling_frustum[18], sketch_culling_frustum[19]),
+    vec4(sketch_culling_frustum[20], sketch_culling_frustum[21], sketch_culling_frustum[22], sketch_culling_frustum[23])
+    );
+}
+
+vec2[8] getDepthScreenSize() {
+    return vec2[](
+    vec2(sketch_depth_size[0], sketch_depth_size[1]),
+    vec2(sketch_depth_size[2], sketch_depth_size[3]),
+    vec2(sketch_depth_size[4], sketch_depth_size[5]),
+    vec2(sketch_depth_size[6], sketch_depth_size[7]),
+    vec2(sketch_depth_size[8], sketch_depth_size[9]),
+    vec2(sketch_depth_size[10], sketch_depth_size[11]),
+    vec2(sketch_depth_size[12], sketch_depth_size[13]),
+    vec2(sketch_depth_size[14], sketch_depth_size[15])
+    );
+}
+
+int getSampler(float xLength, float yLength) {
+    vec2[8] DepthScreenSize = getDepthScreenSize();
+    for (int i = 0; i < DepthScreenSize.length(); ++i) {
+        float xStep = 2.1 / DepthScreenSize[i].x;
+        float yStep = 2.1 / DepthScreenSize[i].y;
+        if (xStep > xLength && yStep > yLength) {
+            return i;
+        }
+    }
+    return DepthScreenSize.length() - 1;
+}
+
+float LinearizeDepth(float z) {
+    return (near * far) / (far + near - z * (far - near));
+}
+
+float calculateDistance(vec3 P, vec3 Q) {
+    return pow(Q.x - P.x, 2) + pow(Q.y - P.y, 2) + pow(Q.z - P.z, 2);
+}
+
+ClipResult getClippedMinDepth(vec3 center, float extentWidth, float extentHeight) {
+    ClipResult result;
+    result.minDepth = 1.0;
+    result.screenMin = vec2(1.0);
+    result.screenMax = vec2(0.0);
+
+    mat4 mvp = sketch_culling_proj_mat * sketch_culling_view_mat;
+
+    vec4 clipPositions[8];
+    for(int i = 0; i < 8; i++) {
+        vec3 vertex = center + vec3(
+        (i & 1) == 0 ? -extentWidth : extentWidth,
+        (i & 2) == 0 ? -extentHeight : extentHeight,
+        (i & 4) == 0 ? -extentWidth : extentWidth
+        );
+        clipPositions[i] = mvp * vec4(vertex, 1.0);
+    }
+
+    for(int i = 0; i < 8; i++) {
+        vec4 clipPos = clipPositions[i];
+        vec2 ndcXY;
+
+        if (clipPos.w > 0.0) {
+            float maxW = max(abs(clipPos.x), abs(clipPos.y));
+            clipPos.w = max(clipPos.w, maxW);
+            clipPos /= clipPos.w;
+            ndcXY = clipPos.xy;
+            result.minDepth = min(result.minDepth, clipPos.z);
+        } else {
+            clipPos /= -clipPos.w;
+            ndcXY = vec2(
+            clipPos.x >= 0.0 ? 1.0 : -1.0,
+            clipPos.y >= 0.0 ? 1.0 : -1.0
+            );
+            result.minDepth = min(result.minDepth, clipPos.z);
+        }
+
+        vec2 screenPos = ndcXY * 0.5 + 0.5;
+        result.screenMin = min(result.screenMin, screenPos);
+        result.screenMax = max(result.screenMax, screenPos);
+    }
+
+    return result;
+}
+
+vec3 moveTowardsCamera(vec3 pos, float distance) {
+    vec3 direction = normalize(pos - sketch_culling_camera_pos);
+    vec3 newPos = pos - direction * distance;
+    return newPos;
+}
+
+vec3 blockToChunk(vec3 blockPos) {
+    vec3 chunkPos;
+    chunkPos.x = floor(blockPos.x / 16.0);
+    chunkPos.y = floor(blockPos.y / 16.0);
+    chunkPos.z = floor(blockPos.z / 16.0);
+    return chunkPos;
+}
+
+bool isVisible(vec3 center, vec3 min, vec3 max) {
+    vec3 corners[8] = vec3[](
+    vec3(min.x, min.y, min.z),
+    vec3(max.x, min.y, min.z),
+    vec3(min.x, max.y, min.z),
+    vec3(max.x, max.y, min.z),
+    vec3(min.x, min.y, max.z),
+    vec3(max.x, min.y, max.z),
+    vec3(min.x, max.y, max.z),
+    vec3(max.x, max.y, max.z)
+    );
+    vec4[6] frustum = getFrustumData();
+
+    for(int i = 0; i < 6; i++) {
+        bool inside = false;
+        for(int j = 0; j < 8 && !inside; j++) {
+            inside = dot(frustum[i], vec4(corners[j] - sketch_frustum_pos, 1.0)) > 0.0;
+        }
+        if(!inside) return false;
+    }
+    return true;
+}
+
+float getUVDepth(int idx, ivec2 uv) {
+    if (idx == 0)
+    return texelFetch(Sampler0, uv, 0).r;
+    else if (idx == 1)
+    return texelFetch(Sampler1, uv, 0).r;
+    else if (idx == 2)
+    return texelFetch(Sampler2, uv, 0).r;
+    else if (idx == 3)
+    return texelFetch(Sampler3, uv, 0).r;
+    else if (idx == 4)
+    return texelFetch(Sampler4, uv, 0).r;
+    else if (idx == 5)
+    return texelFetch(Sampler5, uv, 0).r;
+    else if (idx == 6)
+    return texelFetch(Sampler6, uv, 0).r;
+
+    return texelFetch(Sampler7, uv, 0).r;
+}
+
+void setCullingResult(int entityIndex) {
+    int intIndex = entityIndex / 32;
+    int bitOffset = entityIndex % 32;
+    atomicOr(cullingResult[intIndex], 1u << bitOffset);
+}
+
+void main() {
+    uint localIndex = gl_LocalInvocationID.x; // 0~63
+    uint globalIndex = gl_GlobalInvocationID.x;
+
+    if(globalIndex >= sketch_entity_count) {
+        return;
+    }
+
+    int dataOffset = int(globalIndex) * 6;
+
+    vec3 center = vec3(entityData[dataOffset], entityData[dataOffset + 1], entityData[dataOffset + 2]);
+    float sizeX = entityData[dataOffset + 3];
+    float sizeY = entityData[dataOffset + 4];
+    float sizeZ = entityData[dataOffset + 5];
+    float halfWidth = sizeX * 0.5 + 0.15;
+    float halfHeight = sizeY * 0.5 + 0.15;
+
+    bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
+    uint visibleByte = 0u;
+
+    if (visible) {
+        far = sketch_render_distance * 64.0;
+        ClipResult clip = getClippedMinDepth(center, halfWidth, halfHeight);
+        float sectionDepth = LinearizeDepth(clip.minDepth);
+
+        int idx = getSampler(clip.screenMax.x - clip.screenMin.x, clip.screenMax.y - clip.screenMin.y);
+        vec2[8] DepthScreenSize = getDepthScreenSize();
+        int depthX = int(DepthScreenSize[idx].x);
+        int depthY = int(DepthScreenSize[idx].y);
+
+        int coordMinX = max(int(floor(clip.screenMin.x * depthX)), 0);
+        int coordMaxX = min(int(ceil(clip.screenMax.x * depthX)), depthX - 1);
+        int coordMinY = max(int(floor(clip.screenMin.y * depthY)), 0);
+        int coordMaxY = min(int(ceil(clip.screenMax.y * depthY)), depthY - 1);
+
+        for (int x = coordMinX; x <= coordMaxX; x++) {
+            for (int y = coordMinY; y <= coordMaxY; y++) {
+                float pixelDepth = getUVDepth(idx, ivec2(x, y));
+                if (sectionDepth < pixelDepth) {
+                    visibleByte = 1u;
+                    break;
+                }
+            }
+            if (visibleByte == 1u) break;
+        }
+    }
+
+    sharedVisible[localIndex] = visibleByte;
+    barrier();
+
+    if (localIndex < 16) {
+        uint packedResult = 0u;
+        for (uint i = 0; i < 4; ++i) {
+            packedResult |= (sharedVisible[localIndex * 4 + i] & 0xFFu) << (i * 8);
+        }
+
+        uint groupBase = (gl_WorkGroupID.x * 64) / 4;
+        cullingResult[groupBase + localIndex] = packedResult;
+    }
+}

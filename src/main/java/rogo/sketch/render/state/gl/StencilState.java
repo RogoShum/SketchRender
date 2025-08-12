@@ -13,7 +13,6 @@ public class StencilState implements RenderStateComponent {
     private boolean enabled;
     private int func, ref, mask, fail, zfail, zpass;
 
-    // Default constructor for prototype
     public StencilState() {
         this.enabled = false;
         this.func = GL11.GL_ALWAYS;

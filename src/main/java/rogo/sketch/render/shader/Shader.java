@@ -1,24 +1,18 @@
 package rogo.sketch.render.shader;
 
 import org.lwjgl.BufferUtils;
-import org.lwjgl.opengl.GL;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL30;
-import org.lwjgl.opengl.GL31;
-import org.lwjgl.opengl.GL32;
-import org.lwjgl.opengl.GL40;
+import org.lwjgl.opengl.*;
 import rogo.sketch.SketchRender;
 import rogo.sketch.api.ShaderCollector;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.ShaderResource;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.DataType;
 import rogo.sketch.render.shader.uniform.ShaderUniform;
 import rogo.sketch.render.uniform.UniformHookRegistry;
 import rogo.sketch.util.Identifier;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +21,7 @@ import java.util.Map;
  * Base class for all shaders (graphics and compute)
  */
 public abstract class Shader implements ShaderCollector, ShaderProvider {
+    private final Map<Identifier, Map<Identifier, Integer>> resourceBindings = new HashMap<>();
     protected final UniformHookGroup uniformHookGroup = new UniformHookGroup();
     protected final Identifier identifier;
     protected final int program;
@@ -34,40 +29,29 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
 
     /**
      * Create a shader program from GLSL source code
-     * 
-     * @param identifier Unique identifier for this shader
+     *
+     * @param identifier    Unique identifier for this shader
      * @param shaderSources Map of shader types to their GLSL source code
      */
-    public Shader(String identifier, Map<ShaderType, String> shaderSources) throws IOException {
-        this.identifier = Identifier.of(identifier);
+    public Shader(Identifier identifier, Map<ShaderType, String> shaderSources) throws IOException {
+        this.identifier = identifier;
         this.program = GL20.glCreateProgram();
 
-        // Validate shader types
         validateShaderTypes(shaderSources);
-
-        // Compile and attach all shaders
         compileAndAttachShaders(shaderSources);
-
-        // Link the program
         linkProgram();
-
-        // Clean up individual shaders
         cleanupShaders();
 
-        // Collect uniforms and initialize UniformHookGroup
         collectAndInitializeUniforms();
-
-        // Perform any shader-specific initialization
         postLinkInitialization();
 
-        // Fire events
         onShadeCreate();
     }
 
     /**
      * Create a shader program with a single shader type
      */
-    public Shader(String identifier, ShaderType type, String source) throws IOException {
+    public Shader(Identifier identifier, ShaderType type, String source) throws IOException {
         this(identifier, Map.of(type, source));
     }
 
@@ -113,66 +97,50 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
         shaderIds.clear();
     }
 
-    /**
-     * Collect uniforms and initialize UniformHookGroup from registry
-     */
     private void collectAndInitializeUniforms() {
-        // Collect uniform information from the linked program
         Map<String, ShaderResource<?>> uniformMap = collectUniforms();
-
-        // Initialize hooks from the registry
         UniformHookRegistry.getInstance().initializeHooks(this, uniformMap);
     }
 
-    /**
-     * Discover resource bindings from the shader program
-     * This should be called after linking
-     */
     private void discoverResourceBindings() {
         discoverSSBOBindings();
         discoverUBOBindings();
         discoverTextureBindings();
         discoverImageBindings();
-        discoverAtomicCounterBindings();
     }
-
-    // Resource binding maps
-    private final Map<String, Integer> ssboBindings = new HashMap<>();
-    private final Map<String, Integer> uboBindings = new HashMap<>();
-    private final Map<String, Integer> textureBindings = new HashMap<>();
-    private final Map<String, Integer> imageBindings = new HashMap<>();
-    private final Map<String, Integer> atomicCounterBindings = new HashMap<>();
 
     /**
      * Discover Shader Storage Buffer Object bindings
      */
     private void discoverSSBOBindings() {
-        try {
-            // Check if SSBO is supported (OpenGL 4.3+)
-            if (!GL.getCapabilities().OpenGL43) {
-                return;
-            }
-            
-            int numSSBOs = GL20.glGetProgrami(program, 0x90EB); // GL_ACTIVE_SHADER_STORAGE_BLOCKS
-            
+        if (!GL.getCapabilities().OpenGL43) return;
+
+        int numSSBOs = GL43.glGetProgramInterfacei(program,
+                GL43.GL_SHADER_STORAGE_BLOCK,
+                GL43.GL_ACTIVE_RESOURCES);
+
+        if (numSSBOs > 0) {
+            resourceBindings.put(ResourceTypes.SHADER_STORAGE_BUFFER, new HashMap<>());
+            Map<Identifier, Integer> ssboBindings = resourceBindings.get(ResourceTypes.SHADER_STORAGE_BUFFER);
+
+            IntBuffer props = BufferUtils.createIntBuffer(1).put(0, GL43.GL_BUFFER_BINDING); // query property
+            IntBuffer params = BufferUtils.createIntBuffer(1);
+
             for (int i = 0; i < numSSBOs; i++) {
-                // Use buffer to get name
-                IntBuffer lengthBuffer = BufferUtils.createIntBuffer(1);
-                ByteBuffer nameBuffer = BufferUtils.createByteBuffer(256);
-                
-                GL20.glGetProgramInfoLog(program); // Clear any pending errors
-                
-                // Try to get SSBO name using alternative method
-                String blockName = "ssbo_block_" + i; // Fallback naming
-                
-                // Try to get the actual binding point
-                int binding = i; // Default to index
-                
-                ssboBindings.put(blockName, binding);
+                String blockName = GL43.glGetProgramResourceName(program, GL43.GL_SHADER_STORAGE_BLOCK, i, 256);
+
+                params.clear();
+                GL43.glGetProgramResourceiv(program,
+                        GL43.GL_SHADER_STORAGE_BLOCK,
+                        i,
+                        props,     // props contains GL_BUFFER_BINDING
+                        null,      // length not needed
+                        params);   // result written here
+
+                int binding = params.get(0);
+                ssboBindings.put(Identifier.of(blockName), binding);
                 System.out.println("Discovered SSBO: " + blockName + " -> binding " + binding);
             }
-        } catch (Exception e) {
-            System.err.println("Error discovering SSBO bindings: " + e.getMessage());
         }
     }
 
@@ -182,97 +150,88 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
     private void discoverUBOBindings() {
         try {
             int numUBOs = GL20.glGetProgrami(program, GL31.GL_ACTIVE_UNIFORM_BLOCKS);
-            
-            for (int i = 0; i < numUBOs; i++) {
-                String blockName = GL31.glGetActiveUniformBlockName(program, i);
-                
-                // Get binding point
-                IntBuffer bindingBuffer = BufferUtils.createIntBuffer(1);
-                GL31.glGetActiveUniformBlockiv(program, i, GL31.GL_UNIFORM_BLOCK_BINDING, bindingBuffer);
-                int binding = bindingBuffer.get(0);
-                
-                uboBindings.put(blockName, binding);
-                System.out.println("Discovered UBO: " + blockName + " -> binding " + binding);
+
+            if (numUBOs > 0) {
+                resourceBindings.put(ResourceTypes.UNIFORM_BLOCK, new HashMap<>());
+                Map<Identifier, Integer> uniformBlock = resourceBindings.get(ResourceTypes.UNIFORM_BLOCK);
+
+                for (int i = 0; i < numUBOs; i++) {
+                    String blockName = GL31.glGetActiveUniformBlockName(program, i);
+
+                    // Get binding point
+                    IntBuffer bindingBuffer = BufferUtils.createIntBuffer(1);
+                    GL31.glGetActiveUniformBlockiv(program, i, GL31.GL_UNIFORM_BLOCK_BINDING, bindingBuffer);
+                    int binding = bindingBuffer.get(0);
+
+                    uniformBlock.put(Identifier.of(blockName), binding);
+                    System.out.println("Discovered UBO: " + blockName + " -> binding " + binding);
+                }
             }
         } catch (Exception e) {
             System.err.println("Error discovering UBO bindings: " + e.getMessage());
         }
     }
 
-    /**
-     * Discover texture sampler bindings
-     */
     private void discoverTextureBindings() {
         int uniformCount = GL20.glGetProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
-        
-        for (int i = 0; i < uniformCount; i++) {
-            IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
-            IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
-            String uniformName = GL20.glGetActiveUniform(program, i, sizeBuffer, typeBuffer);
-            int type = typeBuffer.get(0);
-            
-            // Check if it's a sampler uniform
-            if (isSamplerType(type)) {
-                int location = GL20.glGetUniformLocation(program, uniformName);
-                if (location >= 0) {
-                    textureBindings.put(uniformName, location);
-                    System.out.println("Discovered Texture: " + uniformName + " -> location " + location);
+        if (uniformCount > 0) {
+            resourceBindings.put(ResourceTypes.TEXTURE, new HashMap<>());
+            Map<Identifier, Integer> textureBindings = resourceBindings.get(ResourceTypes.TEXTURE);
+
+            for (int i = 0; i < uniformCount; i++) {
+                IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
+                IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
+                String uniformName = GL20.glGetActiveUniform(program, i, sizeBuffer, typeBuffer);
+                int type = typeBuffer.get(0);
+
+                // Check if it's a sampler uniform
+                if (isSamplerType(type)) {
+                    int location = GL20.glGetUniformLocation(program, uniformName);
+                    if (location >= 0) {
+                        textureBindings.put(Identifier.of(uniformName), location);
+                        System.out.println("Discovered Texture: " + uniformName + " -> location " + location);
+                    }
                 }
             }
         }
     }
 
-    /**
-     * Discover image load/store bindings
-     */
     private void discoverImageBindings() {
-        if (!GL.getCapabilities().OpenGL42) {
-            return; // Images require OpenGL 4.2+
-        }
-        
-        int uniformCount = GL20.glGetProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
-        
-        for (int i = 0; i < uniformCount; i++) {
-            IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
-            IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
-            String uniformName = GL20.glGetActiveUniform(program, i, sizeBuffer, typeBuffer);
-            int type = typeBuffer.get(0);
-            
-            // Check if it's an image uniform
+        // image uniforms require OpenGL 4.2 or later (image types)
+        if (!GL.getCapabilities().OpenGL42) return;
+
+        // enumerate active uniforms via program interface
+        int numUniforms = GL43.glGetProgramInterfacei(program, GL43.GL_UNIFORM, GL43.GL_ACTIVE_RESOURCES);
+
+        // we'll ask each uniform for its TYPE so we can detect image types
+        IntBuffer typeProp = BufferUtils.createIntBuffer(1).put(0, GL43.GL_TYPE);
+        IntBuffer params = BufferUtils.createIntBuffer(1);
+
+        resourceBindings.put(ResourceTypes.IMAGE_BUFFER, new HashMap<>());
+        Map<Identifier, Integer> imageBindings = resourceBindings.get(ResourceTypes.IMAGE_BUFFER);
+
+        for (int i = 0; i < numUniforms; i++) {
+            String uniformName = GL43.glGetProgramResourceName(program, GL43.GL_UNIFORM, i, 256);
+
+            // get TYPE of this uniform
+            params.clear();
+            GL43.glGetProgramResourceiv(program, GL43.GL_UNIFORM, i, typeProp, null, params);
+            int type = params.get(0);
+
             if (isImageType(type)) {
+                // image's binding is stored as the integer value of the uniform -> query it
                 int location = GL20.glGetUniformLocation(program, uniformName);
+                int unit = -1;
                 if (location >= 0) {
-                    imageBindings.put(uniformName, location);
-                    System.out.println("Discovered Image: " + uniformName + " -> location " + location);
+                    // glGetUniformi / glGetUniformiv returns the current integer value of the uniform
+                    unit = GL20.glGetUniformi(program, location);
                 }
+                imageBindings.put(Identifier.of(uniformName), unit);
+                System.out.println("Discovered Image: " + uniformName + " -> unit " + unit);
             }
         }
     }
 
-    /**
-     * Discover atomic counter bindings
-     */
-    private void discoverAtomicCounterBindings() {
-        if (!GL.getCapabilities().OpenGL42) {
-            return; // Atomic counters require OpenGL 4.2+
-        }
-        
-        try {
-            int numCounters = GL20.glGetProgrami(program, 0x92C0); // GL_ACTIVE_ATOMIC_COUNTER_BUFFERS
-            
-            for (int i = 0; i < numCounters; i++) {
-                String counterName = "atomic_counter_" + i;
-                atomicCounterBindings.put(counterName, i);
-                System.out.println("Discovered Atomic Counter: " + counterName + " -> binding " + i);
-            }
-        } catch (Exception e) {
-            System.err.println("Error discovering atomic counter bindings: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Check if uniform type is a sampler
-     */
     private boolean isSamplerType(int type) {
         return switch (type) {
             case GL20.GL_SAMPLER_1D, GL20.GL_SAMPLER_2D, GL20.GL_SAMPLER_3D,
@@ -290,28 +249,39 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
         };
     }
 
-    /**
-     * Check if uniform type is an image
-     */
     private boolean isImageType(int type) {
-        // Use constants directly to avoid GL43 dependency
-        return switch (type) {
-            case 0x9063, 0x9064, 0x9065, // GL_IMAGE_1D, GL_IMAGE_2D, GL_IMAGE_3D
-                 0x9066, 0x9067, 0x9068, // GL_IMAGE_2D_RECT, GL_IMAGE_CUBE, GL_IMAGE_BUFFER
-                 0x9069, 0x906A, 0x906B, // GL_IMAGE_1D_ARRAY, GL_IMAGE_2D_ARRAY, GL_IMAGE_CUBE_MAP_ARRAY
-                 0x906C, 0x906D, // GL_IMAGE_2D_MULTISAMPLE, GL_IMAGE_2D_MULTISAMPLE_ARRAY
-                 0x9070, 0x9071, 0x9072, // GL_INT_IMAGE_1D, GL_INT_IMAGE_2D, GL_INT_IMAGE_3D
-                 0x9076, 0x9077, 0x9078 -> true; // GL_UNSIGNED_INT_IMAGE_1D, GL_UNSIGNED_INT_IMAGE_2D, GL_UNSIGNED_INT_IMAGE_3D
-            default -> false;
-        };
+        switch (type) {
+            case GL42.GL_IMAGE_1D:
+            case GL42.GL_IMAGE_2D:
+            case GL42.GL_IMAGE_3D:
+            case GL42.GL_IMAGE_2D_RECT:
+            case GL42.GL_IMAGE_CUBE:
+            case GL42.GL_IMAGE_BUFFER:
+            case GL42.GL_IMAGE_1D_ARRAY:
+            case GL42.GL_IMAGE_2D_ARRAY:
+            case GL42.GL_IMAGE_2D_MULTISAMPLE:
+            case GL42.GL_IMAGE_2D_MULTISAMPLE_ARRAY:
+            case GL42.GL_INT_IMAGE_1D:
+            case GL42.GL_INT_IMAGE_2D:
+            case GL42.GL_INT_IMAGE_3D:
+            case GL42.GL_INT_IMAGE_2D_RECT:
+            case GL42.GL_INT_IMAGE_CUBE:
+            case GL42.GL_INT_IMAGE_BUFFER:
+            case GL42.GL_INT_IMAGE_1D_ARRAY:
+            case GL42.GL_INT_IMAGE_2D_ARRAY:
+            case GL42.GL_UNSIGNED_INT_IMAGE_1D:
+            case GL42.GL_UNSIGNED_INT_IMAGE_2D:
+            case GL42.GL_UNSIGNED_INT_IMAGE_3D:
+            case GL42.GL_UNSIGNED_INT_IMAGE_2D_RECT:
+            case GL42.GL_UNSIGNED_INT_IMAGE_CUBE:
+            case GL42.GL_UNSIGNED_INT_IMAGE_BUFFER:
+            case GL42.GL_UNSIGNED_INT_IMAGE_1D_ARRAY:
+            case GL42.GL_UNSIGNED_INT_IMAGE_2D_ARRAY:
+                return true;
+            default:
+                return false;
+        }
     }
-
-    // Getters for resource bindings
-    public Map<String, Integer> getSSBOBindings() { return new HashMap<>(ssboBindings); }
-    public Map<String, Integer> getUBOBindings() { return new HashMap<>(uboBindings); }
-    public Map<String, Integer> getTextureBindings() { return new HashMap<>(textureBindings); }
-    public Map<String, Integer> getImageBindings() { return new HashMap<>(imageBindings); }
-    public Map<String, Integer> getAtomicCounterBindings() { return new HashMap<>(atomicCounterBindings); }
 
     /**
      * Collect active uniforms from the shader program using ShaderUniform
@@ -371,38 +341,18 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
         };
     }
 
-    /**
-     * Perform shader-specific initialization after linking
-     */
     protected void postLinkInitialization() {
-        // Discover resource bindings
         discoverResourceBindings();
     }
 
-    /**
-     * Validate that required shader types are present
-     */
     protected abstract void validateShaderTypes(Map<ShaderType, String> shaderSources);
 
-    /**
-     * Bind this shader program for use
-     */
     public void bind() {
         GL20.glUseProgram(program);
     }
 
-    /**
-     * Unbind shader (use fixed function pipeline)
-     */
     public static void unbind() {
         GL20.glUseProgram(0);
-    }
-
-    /**
-     * Get shader program ID
-     */
-    public int getId() {
-        return program;
     }
 
     @Override
@@ -418,6 +368,11 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
     @Override
     public UniformHookGroup getUniformHookGroup() {
         return uniformHookGroup;
+    }
+
+    @Override
+    public Map<Identifier, Map<Identifier, Integer>> getResourceBindings() {
+        return resourceBindings;
     }
 
     @Override

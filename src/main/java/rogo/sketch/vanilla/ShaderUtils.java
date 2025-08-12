@@ -5,6 +5,7 @@ import net.minecraft.server.packs.resources.ResourceProvider;
 import rogo.sketch.render.shader.ComputeShaderProgram;
 import rogo.sketch.render.shader.GraphicsShaderProgram;
 import rogo.sketch.render.shader.ShaderType;
+import rogo.sketch.util.Identifier;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -21,8 +22,8 @@ public class ShaderUtils {
     /**
      * Load a compute shader from Minecraft resources
      */
-    public static ComputeShaderProgram loadComputeShader(ResourceProvider resourceProvider, 
-                                                        ResourceLocation shaderLocation) throws IOException {
+    public static ComputeShaderProgram loadComputeShader(ResourceProvider resourceProvider,
+                                                         ResourceLocation shaderLocation) throws IOException {
         return loadComputeShader(resourceProvider, shaderLocation, shaderLocation.getPath());
     }
 
@@ -30,29 +31,29 @@ public class ShaderUtils {
      * Load a compute shader from Minecraft resources with custom source name
      */
     public static ComputeShaderProgram loadComputeShader(ResourceProvider resourceProvider,
-                                                        ResourceLocation shaderLocation,
-                                                        String computeShaderSource) throws IOException {
+                                                         ResourceLocation shaderLocation,
+                                                         String computeShaderSource) throws IOException {
         String shaderCode = loadShaderSource(resourceProvider, shaderLocation, "compute", computeShaderSource, ShaderType.COMPUTE);
-        return new ComputeShaderProgram(shaderLocation.toString(), shaderCode);
+        return new ComputeShaderProgram(Identifier.valueOf(shaderLocation), shaderCode);
     }
 
     /**
      * Load a graphics shader from Minecraft resources
      */
     public static GraphicsShaderProgram loadGraphicsShader(ResourceProvider resourceProvider,
-                                                          ResourceLocation shaderLocation,
-                                                          Map<ShaderType, String> shaderSources) throws IOException {
+                                                           ResourceLocation shaderLocation,
+                                                           Map<ShaderType, String> shaderSources) throws IOException {
         Map<ShaderType, String> loadedSources = new HashMap<>();
-        
+
         for (Map.Entry<ShaderType, String> entry : shaderSources.entrySet()) {
             ShaderType type = entry.getKey();
             String sourceName = entry.getValue();
-            
+
             String shaderCode = loadShaderSource(resourceProvider, shaderLocation, "graphics", sourceName, type);
             loadedSources.put(type, shaderCode);
         }
-        
-        return new GraphicsShaderProgram(shaderLocation.toString(), loadedSources);
+
+        return new GraphicsShaderProgram(Identifier.valueOf(shaderLocation), loadedSources);
     }
 
     /**
@@ -65,22 +66,22 @@ public class ShaderUtils {
     /**
      * Load shader source from Minecraft resources
      */
-    private static String loadShaderSource(ResourceProvider resourceProvider, 
-                                         ResourceLocation baseLocation,
-                                         String shaderDirectory,
-                                         String sourceName, 
-                                         ShaderType type) throws IOException {
+    private static String loadShaderSource(ResourceProvider resourceProvider,
+                                           ResourceLocation baseLocation,
+                                           String shaderDirectory,
+                                           String sourceName,
+                                           ShaderType type) throws IOException {
         // Check if source is already GLSL code
         if (sourceName.contains("\n") || sourceName.contains("void main")) {
             return sourceName;
         }
-        
+
         // Load from resource
         ResourceLocation shaderResource = new ResourceLocation(
                 baseLocation.getNamespace(),
                 "shaders/" + shaderDirectory + "/" + sourceName + "." + type.getExtension()
         );
-        
+
         BufferedReader reader = resourceProvider.openAsReader(shaderResource);
         return reader.lines().collect(Collectors.joining("\n"));
     }
@@ -132,9 +133,9 @@ public class ShaderUtils {
      * Load a simple graphics shader with vertex and fragment shaders
      */
     public static GraphicsShaderProgram loadSimpleGraphicsShader(ResourceProvider resourceProvider,
-                                                                ResourceLocation shaderLocation,
-                                                                String vertexShader,
-                                                                String fragmentShader) throws IOException {
+                                                                 ResourceLocation shaderLocation,
+                                                                 String vertexShader,
+                                                                 String fragmentShader) throws IOException {
         return graphicsBuilder(resourceProvider, shaderLocation)
                 .vertex(vertexShader)
                 .fragment(fragmentShader)
@@ -145,7 +146,7 @@ public class ShaderUtils {
      * Convenience method to load a shader where the vertex and fragment shader names match the location path
      */
     public static GraphicsShaderProgram loadDefaultGraphicsShader(ResourceProvider resourceProvider,
-                                                                 ResourceLocation shaderLocation) throws IOException {
+                                                                  ResourceLocation shaderLocation) throws IOException {
         String baseName = shaderLocation.getPath();
         return loadSimpleGraphicsShader(resourceProvider, shaderLocation, baseName + "_vertex", baseName + "_fragment");
     }

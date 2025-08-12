@@ -1,6 +1,7 @@
 package rogo.sketch.render.shader;
 
 import org.lwjgl.opengl.GL43;
+import rogo.sketch.util.Identifier;
 
 import java.io.IOException;
 import java.util.Map;
@@ -13,13 +14,13 @@ public class ComputeShaderProgram extends Shader {
     /**
      * Create a compute shader from GLSL source code
      */
-    public ComputeShaderProgram(String identifier, String computeShaderSource) throws IOException {
+    public ComputeShaderProgram(Identifier identifier, String computeShaderSource) throws IOException {
         super(identifier, ShaderType.COMPUTE, computeShaderSource);
     }
 
     @Override
     protected void postLinkInitialization() {
-        // No additional initialization needed for compute shaders
+        super.postLinkInitialization();
     }
 
     @Override
@@ -113,7 +114,7 @@ public class ComputeShaderProgram extends Shader {
     /**
      * Create a compute shader from source code
      */
-    public static ComputeShaderProgram fromSource(String identifier, String computeSource) throws IOException {
+    public static ComputeShaderProgram fromSource(Identifier identifier, String computeSource) throws IOException {
         return new ComputeShaderProgram(identifier, computeSource);
     }
 }

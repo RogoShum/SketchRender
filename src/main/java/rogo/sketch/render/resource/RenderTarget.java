@@ -12,7 +12,7 @@ import java.util.Map;
 
 public class RenderTarget implements ResourceObject {
     private final int handle;
-    private final String identifier;
+    private final Identifier identifier;
     private final List<Identifier> colorAttachmentIds = new ArrayList<>();
     private Identifier depthAttachmentId;
     private Identifier stencilAttachmentId;
@@ -33,7 +33,7 @@ public class RenderTarget implements ResourceObject {
     private boolean shouldClearStencil = false;
     private int clearBuffers = GL30.GL_COLOR_BUFFER_BIT | GL30.GL_DEPTH_BUFFER_BIT;
 
-    public RenderTarget(int handle, String identifier, ResolutionMode mode, int baseWidth, int baseHeight,
+    public RenderTarget(int handle, Identifier identifier, ResolutionMode mode, int baseWidth, int baseHeight,
                         float scaleX, float scaleY, int clearColor) {
         this.handle = handle;
         this.identifier = identifier;
@@ -51,7 +51,7 @@ public class RenderTarget implements ResourceObject {
     /**
      * Convenience constructor for fixed resolution
      */
-    public RenderTarget(int handle, String identifier, int width, int height, int clearColor) {
+    public RenderTarget(int handle, Identifier identifier, int width, int height, int clearColor) {
         this(handle, identifier, ResolutionMode.FIXED, width, height, 1.0f, 1.0f, clearColor);
     }
 
@@ -272,7 +272,7 @@ public class RenderTarget implements ResourceObject {
         return handle;
     }
 
-    public String getIdentifier() {
+    public Identifier getIdentifier() {
         return identifier;
     }
 

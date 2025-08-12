@@ -7,12 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Manages resource bindings for shaders and render settings
- * Structure: resource_type -> {resource_name: resource_identifier, ...}
- */
 public class ResourceBinding {
-    
     // Map: ResourceType -> (BindingName -> ResourceIdentifier)
     private final Map<Identifier, Map<Identifier, Identifier>> bindings = new HashMap<>();
     

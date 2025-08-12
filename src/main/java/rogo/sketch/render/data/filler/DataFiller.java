@@ -385,11 +385,11 @@ public abstract class DataFiller {
         return vec3f(normal);
     }
 
-    public DataFiller texCoord(float u, float v) {
+    public DataFiller uv(float u, float v) {
         return vec2f(u, v);
     }
 
-    public DataFiller texCoord(Vector2f uv) {
+    public DataFiller uv(Vector2f uv) {
         return vec2f(uv);
     }
 

@@ -1,0 +1,3 @@
+{
+    "compute": "sketchrender:cull_collect_chunk_batch.comp"
+}

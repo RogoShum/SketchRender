@@ -1,7 +1,7 @@
 package rogo.sketch.render.shader;
 
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL20;
-import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.data.format.DataElement;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.shader.uniform.DataType;
@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.lwjgl.BufferUtils;
 
 /**
  * Graphics shader program for rasterization pipeline
@@ -25,15 +24,13 @@ public class GraphicsShaderProgram extends Shader {
     /**
      * Create a graphics shader program from GLSL sources
      */
-    public GraphicsShaderProgram(String identifier, Map<ShaderType, String> shaderSources) throws IOException {
+    public GraphicsShaderProgram(Identifier identifier, Map<ShaderType, String> shaderSources) throws IOException {
         super(identifier, shaderSources);
     }
 
     @Override
     protected void postLinkInitialization() {
-        // Call parent implementation to discover resource bindings
         super.postLinkInitialization();
-        // Collect vertex attributes and build vertex format
         collectVertexAttributes();
     }
 
@@ -130,7 +127,7 @@ public class GraphicsShaderProgram extends Shader {
      */
     private boolean shouldNormalizeAttribute(String name, DataType type) {
         String lowerName = name.toLowerCase();
-        
+
         // Common normalized attributes
         if (lowerName.contains("color") && (type.isByteType() || type.isShortType())) {
             return true;
@@ -138,7 +135,7 @@ public class GraphicsShaderProgram extends Shader {
         if (lowerName.contains("normal") && (type.isByteType() || type.isShortType())) {
             return true;
         }
-        
+
         return false;
     }
 
@@ -192,8 +189,8 @@ public class GraphicsShaderProgram extends Shader {
 
         // Check element count
         if (vertexFormat.getElementCount() != bufferFormat.getElementCount()) {
-            issues.add(String.format("Element count mismatch: shader expects %d, buffer has %d", 
-                vertexFormat.getElementCount(), bufferFormat.getElementCount()));
+            issues.add(String.format("Element count mismatch: shader expects %d, buffer has %d",
+                    vertexFormat.getElementCount(), bufferFormat.getElementCount()));
             compatible = false;
         }
 
@@ -205,8 +202,8 @@ public class GraphicsShaderProgram extends Shader {
 
             if (!shaderElement.isCompatibleWith(bufferElement)) {
                 issues.add(String.format("Element %d incompatible: shader expects %s at location %d, buffer provides %s at location %d",
-                    i, shaderElement.getDataType(), shaderElement.getIndex(),
-                    bufferElement.getDataType(), bufferElement.getIndex()));
+                        i, shaderElement.getDataType(), shaderElement.getIndex(),
+                        bufferElement.getDataType(), bufferElement.getIndex()));
                 compatible = false;
             }
         }
@@ -219,9 +216,9 @@ public class GraphicsShaderProgram extends Shader {
      */
     public static class Builder {
         private final Map<ShaderType, String> shaderSources = new HashMap<>();
-        private final String identifier;
+        private final Identifier identifier;
 
-        public Builder(String identifier) {
+        public Builder(Identifier identifier) {
             this.identifier = identifier;
         }
 
@@ -258,18 +255,18 @@ public class GraphicsShaderProgram extends Shader {
     /**
      * Create a graphics shader program builder
      */
-    public static Builder builder(String identifier) {
+    public static Builder builder(Identifier identifier) {
         return new Builder(identifier);
     }
 
     /**
      * Create a simple graphics shader program with vertex and fragment shaders
      */
-    public static GraphicsShaderProgram create(String identifier, String vertexShader, String fragmentShader) throws IOException {
+    public static GraphicsShaderProgram create(Identifier identifier, String vertexShader, String fragmentShader) throws IOException {
         return builder(identifier)
-            .vertex(vertexShader)
-            .fragment(fragmentShader)
-            .build();
+                .vertex(vertexShader)
+                .fragment(fragmentShader)
+                .build();
     }
 
     /**
