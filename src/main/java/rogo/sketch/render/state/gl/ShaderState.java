@@ -6,6 +6,7 @@ import org.lwjgl.opengl.GL20;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.resource.GraphicsResourceManager;
+import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.Shader;
 import rogo.sketch.util.Identifier;
@@ -15,15 +16,17 @@ import java.util.Optional;
 
 public class ShaderState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("shader");
-
-    private Identifier shaderIdentifier;
+    private ResourceReference<Shader> shader;
+    private Identifier shaderId;
 
     public ShaderState() {
-        this.shaderIdentifier = null;
+        this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, Identifier.of(""));
+        this.shaderId = Identifier.of("");
     }
 
     public ShaderState(Identifier identifier) {
-        this.shaderIdentifier = identifier;
+        this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, identifier);
+        this.shaderId = identifier;
     }
 
     @Override
@@ -36,28 +39,29 @@ public class ShaderState implements RenderStateComponent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShaderState that = (ShaderState) o;
-        return Objects.equals(shaderIdentifier, that.shaderIdentifier);
+        return Objects.equals(shaderId, that.shaderId);
     }
 
     @Override
     public void apply(RenderContext context) {
-        Optional<Shader> shader = GraphicsResourceManager.getInstance().getResource(ResourceTypes.SHADER_PROGRAM, shaderIdentifier);
+        Optional<Shader> shader = this.shader.get();
         if (shader.isPresent()) {
             GL20.glUseProgram(shader.get().getHandle());
-            context.set(ResourceTypes.SHADER_PROGRAM, shaderIdentifier);
+            context.setShaderProvider(shader.get());
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(shaderIdentifier);
+        return Objects.hashCode(shaderId);
     }
 
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
         if (json.has("identifier")) {
             String shaderIdStr = json.get("identifier").getAsString();
-            shaderIdentifier = Identifier.of(shaderIdStr);
+            this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, Identifier.of(shaderIdStr));
+            this.shaderId = Identifier.of(shaderIdStr);
         }
     }
 

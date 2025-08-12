@@ -2,17 +2,19 @@ package rogo.sketch.render.resource;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL42;
+import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.util.Identifier;
 
-public class Texture implements ResourceObject {
+public class Texture implements ResourceObject, BindingResource {
     private final int handle;
     private final Identifier identifier;
     private final int format;
     private final int filterMode;
     private final int wrapMode;
     private boolean disposed = false;
-    
+
     // Current dimensions (managed by RenderTarget)
     private int currentWidth = 0;
     private int currentHeight = 0;
@@ -33,20 +35,20 @@ public class Texture implements ResourceObject {
         if (disposed) {
             throw new IllegalStateException("Texture has been disposed");
         }
-        
+
         if (width == currentWidth && height == currentHeight) {
             return; // No change needed
         }
-        
+
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, handle);
-        
+
         // Resize the texture
-        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, format, width, height, 0, 
-                         format, GL11.GL_UNSIGNED_BYTE, 0);
-        
+        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, format, width, height, 0,
+                format, GL11.GL_UNSIGNED_BYTE, 0);
+
         this.currentWidth = width;
         this.currentHeight = height;
-        
+
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
     }
 
@@ -61,19 +63,18 @@ public class Texture implements ResourceObject {
     /**
      * Bind this texture to the specified texture unit
      */
-    public void bind(int textureUnit) {
+    @Override
+    public void bind(Identifier resourceType, int textureUnit) {
         if (disposed) {
             throw new IllegalStateException("Texture has been disposed");
         }
-        GL13.glActiveTexture(GL13.GL_TEXTURE0 + textureUnit);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, handle);
-    }
 
-    /**
-     * Bind this texture to texture unit 0
-     */
-    public void bind() {
-        bind(0);
+        if (resourceType.equals(ResourceTypes.IMAGE_BUFFER)) {
+            GL42.glBindImageTexture(textureUnit, handle, 0, false, 0, GL42.GL_READ_WRITE, format);
+        } else {
+            GL42.glActiveTexture(GL13.GL_TEXTURE0 + textureUnit);
+            GL42.glBindTexture(GL11.GL_TEXTURE_2D, handle);
+        }
     }
 
     /**

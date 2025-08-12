@@ -1,17 +1,14 @@
 #version 150
 
-#moj_import <light.glsl>
-#moj_import <fog.glsl>
-
 in vec3 Position;
 
 uniform float[24] CullingFrustum;
-uniform float[12] DepthSize;
+uniform float[16] DepthSize;
 uniform float RenderDistance;
 
 flat out int spacePartitionSize;
 flat out vec4[6] frustum;
-flat out vec2[6] DepthScreenSize;
+flat out vec2[8] DepthScreenSize;
 
 void main() {
     spacePartitionSize = 2 * int(RenderDistance) + 1;
@@ -30,7 +27,9 @@ void main() {
     vec2(DepthSize[4], DepthSize[5]),
     vec2(DepthSize[6], DepthSize[7]),
     vec2(DepthSize[8], DepthSize[9]),
-    vec2(DepthSize[10], DepthSize[11])
+    vec2(DepthSize[10], DepthSize[11]),
+    vec2(DepthSize[12], DepthSize[13]),
+    vec2(DepthSize[14], DepthSize[15])
     );
 
     frustum = frustumData;

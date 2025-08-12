@@ -56,13 +56,13 @@ public class VanillaTexture extends Texture {
      * Bind MC texture with proper MC texture manager integration
      */
     @Override
-    public void bind(int textureUnit) {
+    public void bind(Identifier resourceType, int textureUnit) {
         if (mcResourceLocation != null) {
             // TODO: Use MC texture manager to bind
             // MinecraftTextureManager.bind(mcResourceLocation, textureUnit);
             throw new UnsupportedOperationException("MC texture binding not implemented yet: " + mcResourceLocation);
         } else {
-            super.bind(textureUnit);
+            super.bind(resourceType, textureUnit);
         }
     }
 

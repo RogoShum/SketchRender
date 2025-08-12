@@ -9,13 +9,13 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.api.DataBufferObject;
+import rogo.sketch.api.DataResourceObject;
 
 /**
  * Modern SSBO implementation with integrated data format and filling capabilities
  * Supports both traditional vertex-like layouts and std430-compliant SSBO layouts
  */
-public class ModernShaderStorageBuffer implements DataBufferObject {
+public class ModernShaderStorageBuffer implements DataResourceObject {
     private final int id;
     private boolean isDisposed = false;
     private long bufferPointer;

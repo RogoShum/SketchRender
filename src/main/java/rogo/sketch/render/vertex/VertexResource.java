@@ -7,17 +7,16 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.BufferResourceObject;
-import rogo.sketch.render.data.format.DataElement;
-import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.filler.ByteBufferFiller;
 import rogo.sketch.render.data.filler.DataFiller;
 import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.data.format.DataElement;
+import rogo.sketch.render.data.format.DataFormat;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 
 public class VertexResource implements BufferResourceObject, AutoCloseable {
-
     // Static buffer for main vertex data
     private final int staticVBO;
     private final DataFormat staticFormat;

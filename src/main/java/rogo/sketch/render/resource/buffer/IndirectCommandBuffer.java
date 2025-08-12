@@ -3,9 +3,9 @@ package rogo.sketch.render.resource.buffer;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.api.DataBufferObject;
+import rogo.sketch.api.DataResourceObject;
 
-public class IndirectCommandBuffer implements DataBufferObject {
+public class IndirectCommandBuffer implements DataResourceObject {
     //                      ModelQuadFacing.COUNT * 256 + 1
     public static final int REGION_COMMAND_SIZE = 7 * 256 + 1;
     public static final int PASS_SIZE = 3;

@@ -1,6 +1,6 @@
 package rogo.sketch.api;
 
-public interface DataBufferObject extends ResourceObject {
+public interface DataResourceObject extends ResourceObject {
     long getDataCount();
 
     long getCapacity();

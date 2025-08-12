@@ -98,15 +98,77 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
     }
 
     private void collectAndInitializeUniforms() {
-        Map<String, ShaderResource<?>> uniformMap = collectUniforms();
-        UniformHookRegistry.getInstance().initializeHooks(this, uniformMap);
+        UnifiedUniformInfo uniformInfo = discoverAllUniforms();
+        UniformHookRegistry.getInstance().initializeHooks(this, uniformInfo.uniformMap);
     }
 
     private void discoverResourceBindings() {
         discoverSSBOBindings();
         discoverUBOBindings();
-        discoverTextureBindings();
-        discoverImageBindings();
+    }
+
+    /**
+     * Unified uniform and resource discovery to eliminate redundant GL queries
+     */
+    private UnifiedUniformInfo discoverAllUniforms() {
+        Map<String, ShaderResource<?>> uniforms = new HashMap<>();
+        Map<Identifier, Integer> textureBindings = new HashMap<>();
+        Map<Identifier, Integer> imageBindings = new HashMap<>();
+
+        // Reusable buffers to avoid repeated allocations
+        IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
+        IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
+
+        int uniformCount = GL20.glGetProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
+
+        for (int i = 0; i < uniformCount; i++) {
+            sizeBuffer.clear();
+            typeBuffer.clear();
+
+            String uniformName = GL20.glGetActiveUniform(program, i, sizeBuffer, typeBuffer);
+            int location = GL20.glGetUniformLocation(program, uniformName);
+            int glType = typeBuffer.get(0);
+
+            if (location >= 0) {
+                // Create shader uniform for regular uniforms
+                DataType dataType = inferUniformType(glType);
+                if (dataType != null) {
+                    Identifier uniformId = Identifier.of(uniformName);
+                    ShaderUniform<?> shaderUniform = new ShaderUniform<>(uniformId, location, dataType, program);
+                    uniforms.put(uniformName, shaderUniform);
+                }
+
+                if (isSamplerType(glType)) {
+                    textureBindings.put(Identifier.of(uniformName), location);
+                    System.out.println("Discovered Texture: " + uniformName + " -> location " + location);
+                }
+
+                // Check for image uniforms (requires OpenGL 4.2+)
+                if (GL.getCapabilities().OpenGL42 && isImageType(glType)) {
+                    int unit = GL20.glGetUniformi(program, location);
+                    imageBindings.put(Identifier.of(uniformName), unit);
+                    System.out.println("Discovered Image: " + uniformName + " -> unit " + unit);
+                }
+            }
+        }
+
+        // Store discovered bindings
+        if (!textureBindings.isEmpty()) {
+            resourceBindings.put(ResourceTypes.TEXTURE, textureBindings);
+        }
+        if (!imageBindings.isEmpty()) {
+            resourceBindings.put(ResourceTypes.IMAGE_BUFFER, imageBindings);
+        }
+
+        return new UnifiedUniformInfo(uniforms, textureBindings, imageBindings);
+    }
+
+    /**
+     * Container for unified uniform discovery results
+     */
+    private record UnifiedUniformInfo(Map<String, ShaderResource<?>> uniformMap,
+                                      Map<Identifier, Integer> textureBindings,
+                                      Map<Identifier, Integer> imageBindings) {
     }
 
     /**
@@ -172,65 +234,7 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
         }
     }
 
-    private void discoverTextureBindings() {
-        int uniformCount = GL20.glGetProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
-        if (uniformCount > 0) {
-            resourceBindings.put(ResourceTypes.TEXTURE, new HashMap<>());
-            Map<Identifier, Integer> textureBindings = resourceBindings.get(ResourceTypes.TEXTURE);
-
-            for (int i = 0; i < uniformCount; i++) {
-                IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
-                IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
-                String uniformName = GL20.glGetActiveUniform(program, i, sizeBuffer, typeBuffer);
-                int type = typeBuffer.get(0);
-
-                // Check if it's a sampler uniform
-                if (isSamplerType(type)) {
-                    int location = GL20.glGetUniformLocation(program, uniformName);
-                    if (location >= 0) {
-                        textureBindings.put(Identifier.of(uniformName), location);
-                        System.out.println("Discovered Texture: " + uniformName + " -> location " + location);
-                    }
-                }
-            }
-        }
-    }
-
-    private void discoverImageBindings() {
-        // image uniforms require OpenGL 4.2 or later (image types)
-        if (!GL.getCapabilities().OpenGL42) return;
-
-        // enumerate active uniforms via program interface
-        int numUniforms = GL43.glGetProgramInterfacei(program, GL43.GL_UNIFORM, GL43.GL_ACTIVE_RESOURCES);
-
-        // we'll ask each uniform for its TYPE so we can detect image types
-        IntBuffer typeProp = BufferUtils.createIntBuffer(1).put(0, GL43.GL_TYPE);
-        IntBuffer params = BufferUtils.createIntBuffer(1);
-
-        resourceBindings.put(ResourceTypes.IMAGE_BUFFER, new HashMap<>());
-        Map<Identifier, Integer> imageBindings = resourceBindings.get(ResourceTypes.IMAGE_BUFFER);
-
-        for (int i = 0; i < numUniforms; i++) {
-            String uniformName = GL43.glGetProgramResourceName(program, GL43.GL_UNIFORM, i, 256);
-
-            // get TYPE of this uniform
-            params.clear();
-            GL43.glGetProgramResourceiv(program, GL43.GL_UNIFORM, i, typeProp, null, params);
-            int type = params.get(0);
-
-            if (isImageType(type)) {
-                // image's binding is stored as the integer value of the uniform -> query it
-                int location = GL20.glGetUniformLocation(program, uniformName);
-                int unit = -1;
-                if (location >= 0) {
-                    // glGetUniformi / glGetUniformiv returns the current integer value of the uniform
-                    unit = GL20.glGetUniformi(program, location);
-                }
-                imageBindings.put(Identifier.of(uniformName), unit);
-                System.out.println("Discovered Image: " + uniformName + " -> unit " + unit);
-            }
-        }
-    }
+    // Texture and image binding discovery moved to discoverAllUniforms() for efficiency
 
     private boolean isSamplerType(int type) {
         return switch (type) {
@@ -250,69 +254,20 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
     }
 
     private boolean isImageType(int type) {
-        switch (type) {
-            case GL42.GL_IMAGE_1D:
-            case GL42.GL_IMAGE_2D:
-            case GL42.GL_IMAGE_3D:
-            case GL42.GL_IMAGE_2D_RECT:
-            case GL42.GL_IMAGE_CUBE:
-            case GL42.GL_IMAGE_BUFFER:
-            case GL42.GL_IMAGE_1D_ARRAY:
-            case GL42.GL_IMAGE_2D_ARRAY:
-            case GL42.GL_IMAGE_2D_MULTISAMPLE:
-            case GL42.GL_IMAGE_2D_MULTISAMPLE_ARRAY:
-            case GL42.GL_INT_IMAGE_1D:
-            case GL42.GL_INT_IMAGE_2D:
-            case GL42.GL_INT_IMAGE_3D:
-            case GL42.GL_INT_IMAGE_2D_RECT:
-            case GL42.GL_INT_IMAGE_CUBE:
-            case GL42.GL_INT_IMAGE_BUFFER:
-            case GL42.GL_INT_IMAGE_1D_ARRAY:
-            case GL42.GL_INT_IMAGE_2D_ARRAY:
-            case GL42.GL_UNSIGNED_INT_IMAGE_1D:
-            case GL42.GL_UNSIGNED_INT_IMAGE_2D:
-            case GL42.GL_UNSIGNED_INT_IMAGE_3D:
-            case GL42.GL_UNSIGNED_INT_IMAGE_2D_RECT:
-            case GL42.GL_UNSIGNED_INT_IMAGE_CUBE:
-            case GL42.GL_UNSIGNED_INT_IMAGE_BUFFER:
-            case GL42.GL_UNSIGNED_INT_IMAGE_1D_ARRAY:
-            case GL42.GL_UNSIGNED_INT_IMAGE_2D_ARRAY:
-                return true;
-            default:
-                return false;
-        }
+        return switch (type) {
+            case GL42.GL_IMAGE_1D, GL42.GL_IMAGE_2D, GL42.GL_IMAGE_3D, GL42.GL_IMAGE_2D_RECT, GL42.GL_IMAGE_CUBE,
+                 GL42.GL_IMAGE_BUFFER, GL42.GL_IMAGE_1D_ARRAY, GL42.GL_IMAGE_2D_ARRAY, GL42.GL_IMAGE_2D_MULTISAMPLE,
+                 GL42.GL_IMAGE_2D_MULTISAMPLE_ARRAY, GL42.GL_INT_IMAGE_1D, GL42.GL_INT_IMAGE_2D, GL42.GL_INT_IMAGE_3D,
+                 GL42.GL_INT_IMAGE_2D_RECT, GL42.GL_INT_IMAGE_CUBE, GL42.GL_INT_IMAGE_BUFFER,
+                 GL42.GL_INT_IMAGE_1D_ARRAY, GL42.GL_INT_IMAGE_2D_ARRAY, GL42.GL_UNSIGNED_INT_IMAGE_1D,
+                 GL42.GL_UNSIGNED_INT_IMAGE_2D, GL42.GL_UNSIGNED_INT_IMAGE_3D, GL42.GL_UNSIGNED_INT_IMAGE_2D_RECT,
+                 GL42.GL_UNSIGNED_INT_IMAGE_CUBE, GL42.GL_UNSIGNED_INT_IMAGE_BUFFER,
+                 GL42.GL_UNSIGNED_INT_IMAGE_1D_ARRAY, GL42.GL_UNSIGNED_INT_IMAGE_2D_ARRAY -> true;
+            default -> false;
+        };
     }
 
-    /**
-     * Collect active uniforms from the shader program using ShaderUniform
-     */
-    private Map<String, ShaderResource<?>> collectUniforms() {
-        Map<String, ShaderResource<?>> uniforms = new HashMap<>();
-
-        int uniformCount = GL20.glGetProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
-
-        IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
-        IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
-
-        for (int i = 0; i < uniformCount; i++) {
-            String uniformName = GL20.glGetActiveUniform(program, i, sizeBuffer, typeBuffer);
-            int location = GL20.glGetUniformLocation(program, uniformName);
-
-            if (location >= 0) {
-                // Get the uniform type and create ShaderUniform
-                int glType = typeBuffer.get(0);
-                DataType dataType = inferUniformType(glType);
-
-                if (dataType != null) {
-                    Identifier uniformId = Identifier.of(uniformName);
-                    ShaderUniform<?> shaderUniform = new ShaderUniform<>(uniformId, location, dataType, program);
-                    uniforms.put(uniformName, shaderUniform);
-                }
-            }
-        }
-
-        return uniforms;
-    }
+    // Uniform collection moved to discoverAllUniforms() to avoid redundant GL queries
 
     /**
      * Infer DataType from OpenGL uniform type
@@ -334,10 +289,7 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
             case GL20.GL_FLOAT_MAT2 -> DataType.MAT2;
             case GL20.GL_FLOAT_MAT3 -> DataType.MAT3;
             case GL20.GL_FLOAT_MAT4 -> DataType.MAT4;
-            default -> {
-                System.err.println("Unknown uniform type: " + glType);
-                yield null;
-            }
+            default -> null;
         };
     }
 

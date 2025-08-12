@@ -1,30 +1,36 @@
 package rogo.sketch.render.resource;
 
+import rogo.sketch.api.BindingResource;
+import rogo.sketch.api.ResourceObject;
+import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.util.Identifier;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ResourceBinding {
     // Map: ResourceType -> (BindingName -> ResourceIdentifier)
     private final Map<Identifier, Map<Identifier, Identifier>> bindings = new HashMap<>();
     
+    // Cache for ResourceReferences to avoid repeated lookups
+    private final Map<String, ResourceReference<? extends ResourceObject>> resourceCache = new ConcurrentHashMap<>();
+
     public ResourceBinding() {
     }
-    
+
     /**
      * Add a resource binding
-     * @param resourceType Type of resource (e.g., "texture", "ssbo", "ubo")
-     * @param bindingName Name used in shader to reference this resource
+     *
+     * @param resourceType       Type of resource (e.g., "texture", "ssbo", "ubo")
+     * @param bindingName        Name used in shader to reference this resource
      * @param resourceIdentifier Identifier of the actual resource
      */
     public void addBinding(Identifier resourceType, Identifier bindingName, Identifier resourceIdentifier) {
         bindings.computeIfAbsent(resourceType, k -> new HashMap<>())
                 .put(bindingName, resourceIdentifier);
     }
-    
+
     /**
      * Get resource identifier by type and binding name
      */
@@ -32,21 +38,21 @@ public class ResourceBinding {
         Map<Identifier, Identifier> typeBindings = bindings.get(resourceType);
         return typeBindings != null ? typeBindings.get(bindingName) : null;
     }
-    
+
     /**
      * Get all bindings for a specific resource type
      */
     public Map<Identifier, Identifier> getBindingsForType(Identifier resourceType) {
         return bindings.getOrDefault(resourceType, new HashMap<>());
     }
-    
+
     /**
      * Get all resource types that have bindings
      */
     public Set<Identifier> getResourceTypes() {
         return bindings.keySet();
     }
-    
+
     /**
      * Check if a binding exists
      */
@@ -54,7 +60,7 @@ public class ResourceBinding {
         Map<Identifier, Identifier> typeBindings = bindings.get(resourceType);
         return typeBindings != null && typeBindings.containsKey(bindingName);
     }
-    
+
     /**
      * Remove a binding
      */
@@ -67,21 +73,21 @@ public class ResourceBinding {
             }
         }
     }
-    
+
     /**
      * Clear all bindings
      */
     public void clear() {
         bindings.clear();
     }
-    
+
     /**
      * Get all bindings as a map
      */
     public Map<Identifier, Map<Identifier, Identifier>> getAllBindings() {
         return new HashMap<>(bindings);
     }
-    
+
     /**
      * Merge another ResourceBinding into this one
      */
@@ -89,53 +95,76 @@ public class ResourceBinding {
         for (Map.Entry<Identifier, Map<Identifier, Identifier>> typeEntry : other.bindings.entrySet()) {
             Identifier resourceType = typeEntry.getKey();
             Map<Identifier, Identifier> otherBindings = typeEntry.getValue();
-            
+
             Map<Identifier, Identifier> currentBindings = bindings.computeIfAbsent(resourceType, k -> new HashMap<>());
             currentBindings.putAll(otherBindings);
         }
     }
-    
+
     /**
      * Bind all resources to their appropriate shader slots
      * Called by RenderStateManager when switching resource bindings
      */
     public void bind(RenderContext context) {
-        // TODO: Implement resource binding based on context and available resource managers
-        // This would typically:
-        // 1. Get GraphicsResourceManager from context
-        // 2. For each resource type and binding, get the actual resource
-        // 3. Bind the resource to the appropriate OpenGL slot (texture units, SSBOs, etc.)
-        
-        // For now, this is a placeholder - actual implementation would depend on
-        // the specifics of how resources are managed and bound in the system
-        for (Map.Entry<Identifier, Map<Identifier, Identifier>> typeEntry : bindings.entrySet()) {
-            Identifier resourceType = typeEntry.getKey();
-            Map<Identifier, Identifier> typeBindings = typeEntry.getValue();
-            
-            for (Map.Entry<Identifier, Identifier> bindingEntry : typeBindings.entrySet()) {
-                Identifier bindingName = bindingEntry.getKey();
-                Identifier resourceIdentifier = bindingEntry.getValue();
-                
-                // Bind resource to context based on type
-                bindResource(context, resourceType, bindingName, resourceIdentifier);
+        ShaderProvider shader = context.shaderProvider();
+
+        if (shader != null) {
+            for (Map.Entry<Identifier, Map<Identifier, Identifier>> typeEntry : bindings.entrySet()) {
+                Identifier resourceType = typeEntry.getKey();
+                if (shader.getResourceBindings().containsKey(resourceType)) {
+                    Map<Identifier, Identifier> typeBindings = typeEntry.getValue();
+
+                    for (Map.Entry<Identifier, Identifier> bindingEntry : typeBindings.entrySet()) {
+                        Identifier bindingName = bindingEntry.getKey();
+                        Identifier resourceIdentifier = bindingEntry.getValue();
+
+                        if (shader.getResourceBindings().get(resourceType).containsKey(bindingName)) {
+                            int binding = shader.getResourceBindings().get(resourceType).get(bindingName);
+                            bindResource(resourceType, binding, resourceIdentifier);
+                        }
+                    }
+                }
             }
         }
     }
+
+    /**
+     * Bind a single resource to the context using cached ResourceReference
+     */
+    private void bindResource(Identifier resourceType, int binding, Identifier resourceIdentifier) {
+        String cacheKey = resourceType + ":" + resourceIdentifier;
+        
+        ResourceReference<? extends ResourceObject> reference = resourceCache.computeIfAbsent(cacheKey, 
+            k -> GraphicsResourceManager.getInstance().getReference(resourceType, resourceIdentifier));
+        
+        reference.ifPresent(resource -> {
+            if (resource instanceof BindingResource bindingResource) {
+                bindingResource.bind(resourceType, binding);
+            }
+        });
+    }
     
     /**
-     * Bind a single resource to the context
+     * Clear the resource reference cache
+     * Call this when you know resources have been reloaded
      */
-    private void bindResource(RenderContext context, Identifier resourceType, Identifier bindingName, Identifier resourceIdentifier) {
-        // TODO: Implement specific resource binding logic
-        // This would switch on resourceType and handle different binding strategies
+    public void clearResourceCache() {
+        resourceCache.clear();
+    }
+
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
         
-        // Example structure:
-        // switch (resourceType.toString()) {
-        //     case "texture" -> bindTexture(context, bindingName, resourceIdentifier);
-        //     case "ssbo" -> bindSSBO(context, bindingName, resourceIdentifier);
-        //     case "ubo" -> bindUBO(context, bindingName, resourceIdentifier);
-        //     // etc.
-        // }
+        ResourceBinding that = (ResourceBinding) obj;
+        return Objects.equals(bindings, that.bindings);
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(bindings);
     }
     
     @Override

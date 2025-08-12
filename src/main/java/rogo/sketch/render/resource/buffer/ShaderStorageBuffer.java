@@ -4,9 +4,11 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.api.DataBufferObject;
+import rogo.sketch.api.BindingResource;
+import rogo.sketch.api.DataResourceObject;
+import rogo.sketch.util.Identifier;
 
-public class ShaderStorageBuffer implements DataBufferObject {
+public class ShaderStorageBuffer implements DataResourceObject, BindingResource {
     private final int id;
     private boolean isDisposed = false;
     private long bufferPointer;
@@ -37,7 +39,7 @@ public class ShaderStorageBuffer implements DataBufferObject {
         GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
-    public ShaderStorageBuffer(DataBufferObject buffer) {
+    public ShaderStorageBuffer(DataResourceObject buffer) {
         this.capacity = buffer.getCapacity();
         this.bufferPointer = buffer.getMemoryAddress();
         this.id = buffer.getHandle();
@@ -68,11 +70,6 @@ public class ShaderStorageBuffer implements DataBufferObject {
 
     public long getStride() {
         return stride;
-    }
-
-    public void bindShaderSlot(int bindingPoint) {
-        checkDisposed();
-        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, bindingPoint, id);
     }
 
     public void upload() {
@@ -160,5 +157,11 @@ public class ShaderStorageBuffer implements DataBufferObject {
 
     public void discardMemory() {
         MemoryUtil.nmemFree(bufferPointer);
+    }
+
+    @Override
+    public void bind(Identifier resourceType, int binding) {
+        checkDisposed();
+        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, binding, id);
     }
 }

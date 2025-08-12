@@ -23,7 +23,7 @@ public class SSBOMemoryManager {
         
         // Create SSBO with calculated total capacity
         long totalCapacity = layout.calculateTotalSize(format.getStride());
-        this.ssbo = new ShaderStorageBuffer(totalCapacity / format.getStride(), format.getStride(), 
+        this.ssbo = new ShaderStorageBuffer(totalCapacity / format.getStride(), format.getStride(),
                                           org.lwjgl.opengl.GL15.GL_DYNAMIC_DRAW);
     }
     

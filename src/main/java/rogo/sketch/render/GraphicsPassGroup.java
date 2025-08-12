@@ -1,10 +1,11 @@
 package rogo.sketch.render;
 
 import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
-import rogo.sketch.render.vertex.DrawMode;
 import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.render.vertex.VertexResource;
+import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.render.vertex.VertexResourcePair;
 import rogo.sketch.util.Identifier;
 
@@ -16,7 +17,7 @@ import java.util.Map;
 public class GraphicsPassGroup<C extends RenderContext> {
     private final Identifier stageIdentifier;
     private final Map<RenderSetting, GraphicsPass<C>> groups = new LinkedHashMap<>();
-    private final Map<RenderParameter, VertexResource> sharedResources = new LinkedHashMap<>();
+    private final VertexResourceManager vertexResourceManager = VertexResourceManager.getInstance();
 
     public GraphicsPassGroup(Identifier stageIdentifier) {
         this.stageIdentifier = stageIdentifier;
@@ -52,13 +53,10 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            manager.accept(setting, context);
+            // Use the centralized VertexResourceManager to get shared resources
+            VertexResource resource = vertexResourceManager.getOrCreateVertexResource(setting);
 
-            VertexResource resource = sharedResources.computeIfAbsent(setting.renderParameter(), (parameter) -> {
-                return new VertexResource(parameter.dataFormat(), null, DrawMode.NORMAL, parameter.primitiveType(), parameter.usage());
-            });
-
-            context.shaderProvider().getUniformHookGroup().updateUniforms(context);
+            applyRenderSetting(manager, context, setting);
 
             VertexFiller filler = resource.beginFill();
 
@@ -86,9 +84,8 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            manager.accept(setting, context);
+            applyRenderSetting(manager, context, setting);
 
-            context.shaderProvider().getUniformHookGroup().updateUniforms(context);
             List<VertexResourcePair> pairs = pass.fillIndependentVertex();
 
             for (VertexResourcePair pair : pairs) {
@@ -107,12 +104,17 @@ public class GraphicsPassGroup<C extends RenderContext> {
             }
 
             if (setting.shouldSwitchRenderState()) {
-                manager.accept(setting, context);
-                context.shaderProvider().getUniformHookGroup().updateUniforms(context);
+                applyRenderSetting(manager, context, setting);
             }
 
             pass.endCustom();
         }
+    }
+
+    protected void applyRenderSetting(RenderStateManager manager, C context, RenderSetting setting) {
+        manager.accept(setting, context);
+        ShaderProvider shader = context.shaderProvider();
+        shader.getUniformHookGroup().updateUniforms(context);
     }
 
     public GraphicsPass<C> getPass(RenderSetting setting) {

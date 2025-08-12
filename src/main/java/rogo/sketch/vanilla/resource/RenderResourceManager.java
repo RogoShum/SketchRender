@@ -28,7 +28,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
 
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
-        GraphicsResourceManager.getInstance().clearJsonResources();
+        GraphicsResourceManager.getInstance().clearAllResources();
         scanAndLoad(resourceManager);
     }
 
@@ -43,12 +43,10 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
 
             for (Map.Entry<ResourceLocation, Resource> entry : found.entrySet()) {
                 ResourceLocation id = entry.getKey();
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(entry.getValue().open()))) {
-
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(entry.getValue().open()))) {
                     JsonObject json = GSON.fromJson(reader, JsonObject.class);
-                    handleJsonResource(subDir, id, json, resourceManager);
-
+                    String identifier = getIdentifierWithoutExtension(id);
+                    handleJsonResource(subDir, Identifier.of(identifier), json, resourceManager);
                 } catch (IOException | JsonParseException e) {
                     System.err.println("Failed to load JSON " + id + ": " + e.getMessage());
                 }
@@ -56,10 +54,10 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
         }
     }
 
-    private void handleJsonResource(Identifier type, ResourceLocation id, JsonObject json, ResourceManager resourceManager) {
+    private void handleJsonResource(Identifier type, Identifier identifier, JsonObject json, ResourceManager resourceManager) {
         if (type.equals(ResourceTypes.SHADER_PROGRAM)) {
-            GraphicsResourceManager.getInstance().registerJson(type, Identifier.valueOf(id), json.toString(), (identifier) -> {
-                ResourceLocation loc = new ResourceLocation(identifier.toString());
+            GraphicsResourceManager.getInstance().registerJson(type, identifier, json.toString(), (id) -> {
+                ResourceLocation loc = new ResourceLocation(id.toString());
                 loc = new ResourceLocation(loc.getNamespace(), "render/shader_type/" + loc.getPath());
                 try {
                     BufferedReader reader = resourceManager.openAsReader(loc);
@@ -71,7 +69,20 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
                 }
             });
         } else {
-            GraphicsResourceManager.getInstance().registerJson(type, Identifier.valueOf(id), json.getAsString());
+            GraphicsResourceManager.getInstance().registerJson(type, identifier, json.getAsString());
         }
+    }
+
+    public static String getIdentifierWithoutExtension(ResourceLocation loc) {
+        String path = loc.getPath();
+
+        int lastSlash = path.lastIndexOf('/');
+        String fileName = (lastSlash >= 0) ? path.substring(lastSlash + 1) : path;
+
+        int lastDot = fileName.lastIndexOf('.');
+        if (lastDot > 0) {
+            fileName = fileName.substring(0, lastDot);
+        }
+        return loc.getNamespace() + ":" + fileName;
     }
 }

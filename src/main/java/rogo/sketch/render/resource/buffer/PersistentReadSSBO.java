@@ -6,11 +6,11 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.api.DataBufferObject;
+import rogo.sketch.api.DataResourceObject;
 
 import java.nio.ByteBuffer;
 
-public class PersistentReadSSBO implements DataBufferObject {
+public class PersistentReadSSBO implements DataResourceObject {
     private int id;
     private boolean isDisposed = false;
     private long bufferPointer;

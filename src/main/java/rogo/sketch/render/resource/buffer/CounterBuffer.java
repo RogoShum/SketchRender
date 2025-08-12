@@ -3,11 +3,11 @@ package rogo.sketch.render.resource.buffer;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import org.lwjgl.opengl.*;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.api.DataBufferObject;
+import rogo.sketch.api.DataResourceObject;
 
 import java.nio.ByteBuffer;
 
-public class CounterBuffer implements DataBufferObject {
+public class CounterBuffer implements DataResourceObject {
     private final boolean persistent;
     private long bufferPointer;
     private final int bufferId;

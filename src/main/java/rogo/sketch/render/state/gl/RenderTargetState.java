@@ -8,6 +8,7 @@ import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.RenderTarget;
+import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.Identifier;
 
@@ -15,15 +16,17 @@ import java.util.Optional;
 
 public class RenderTargetState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("render_target");
-
-    private Identifier renderTarget;
+    private ResourceReference<RenderTarget> renderTarget;
+    private Identifier rtId;
 
     public RenderTargetState() {
-        this.renderTarget = Identifier.of("minecraft:main");
+        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, Identifier.of("minecraft:main"));
+        this.rtId = Identifier.of("minecraft:main");
     }
 
     public RenderTargetState(Identifier identifier) {
-        this.renderTarget = identifier;
+        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, identifier);
+        this.rtId = identifier;
     }
 
     public static RenderTargetState defaultFramebuffer() {
@@ -37,7 +40,7 @@ public class RenderTargetState implements RenderStateComponent {
 
     @Override
     public void apply(RenderContext context) {
-        Optional<RenderTarget> rt = GraphicsResourceManager.getInstance().getResource(ResourceTypes.RENDER_TARGET, renderTarget);
+        Optional<RenderTarget> rt = renderTarget.get();
         if (rt.isPresent()) {
             GL31.glBindFramebuffer(GL30.GL_FRAMEBUFFER, rt.get().getHandle());
         }
@@ -46,8 +49,8 @@ public class RenderTargetState implements RenderStateComponent {
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
         String id = json.get("identifier").getAsString();
-
-        renderTarget = Identifier.of(id);
+        renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, Identifier.of(id));
+        this.rtId = Identifier.of(id);
     }
 
     @Override
@@ -61,11 +64,11 @@ public class RenderTargetState implements RenderStateComponent {
         if (!(o instanceof RenderTargetState)) return false;
 
         RenderTargetState that = (RenderTargetState) o;
-        return java.util.Objects.equals(renderTarget, that.renderTarget);
+        return java.util.Objects.equals(rtId, that.rtId);
     }
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(renderTarget);
+        return java.util.Objects.hash(rtId);
     }
 }

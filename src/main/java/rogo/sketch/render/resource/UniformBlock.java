@@ -5,15 +5,17 @@ import net.minecraft.core.Vec3i;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
-import rogo.sketch.api.DataBufferObject;
+import rogo.sketch.api.BindingResource;
+import rogo.sketch.api.DataResourceObject;
 import rogo.sketch.render.shader.uniform.DataType;
+import rogo.sketch.util.Identifier;
 
 import java.nio.FloatBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class UniformBlock implements DataBufferObject {
+public class UniformBlock implements DataResourceObject, BindingResource {
     private final int handle;
     private final long stride;
     private final String blockName;
@@ -95,6 +97,11 @@ public class UniformBlock implements DataBufferObject {
     @Override
     public void dispose() {
 
+    }
+
+    @Override
+    public void bind(Identifier resourceType, int binding) {
+        GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, binding, handle);
     }
 
     public static class Variable {
