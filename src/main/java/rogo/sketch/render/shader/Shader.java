@@ -7,8 +7,9 @@ import rogo.sketch.api.ShaderCollector;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.ShaderResource;
 import rogo.sketch.render.resource.ResourceTypes;
-import rogo.sketch.render.shader.uniform.DataType;
+import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.shader.uniform.ShaderUniform;
+import rogo.sketch.render.uniform.UniformHookGroup;
 import rogo.sketch.render.uniform.UniformHookRegistry;
 import rogo.sketch.util.Identifier;
 

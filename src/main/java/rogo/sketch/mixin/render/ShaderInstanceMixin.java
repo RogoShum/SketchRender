@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.vanilla.uniform.McUniformWrapperFactory;
-import rogo.sketch.render.shader.UniformHookGroup;
+import rogo.sketch.render.uniform.UniformHookGroup;
 import rogo.sketch.render.uniform.UniformHookRegistry;
 import rogo.sketch.util.Identifier;
 

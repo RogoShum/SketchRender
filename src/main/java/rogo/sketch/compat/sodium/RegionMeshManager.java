@@ -3,6 +3,7 @@ package rogo.sketch.compat.sodium;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.util.IndexPool;
 
@@ -99,7 +100,7 @@ public class RegionMeshManager {
     }
 
     public void bindMeshData(int slot) {
-        meshDataBuffer.bindShaderSlot(slot);
+        meshDataBuffer.bind(ResourceTypes.SHADER_STORAGE_BUFFER, slot);
     }
 
     public int size() {

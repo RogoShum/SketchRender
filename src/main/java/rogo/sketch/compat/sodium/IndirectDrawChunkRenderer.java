@@ -30,6 +30,7 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.shader.ShaderManager;
 import rogo.sketch.util.GLFeatureChecker;
@@ -141,11 +142,11 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
     public void preRender() {
         MeshResource.elementCounter.updateCount(0);
-        MeshResource.batchMaxElement.bindShaderSlot(7);
+        MeshResource.batchMaxElement.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 7);
         MeshResource.meshManager.bindMeshData(0);
-        MeshResource.batchCommand.bindShaderSlot(1);
-        MeshResource.batchCounter.bindShaderSlot(2);
-        MeshResource.batchRegionIndex.bindShaderSlot(3);
+        MeshResource.batchCommand.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 1);
+        MeshResource.batchCounter.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 2);
+        MeshResource.batchRegionIndex.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 3);
         MeshResource.cullingCounter.updateCount(0);
 
         CullingStateManager.runOnDepthFrame((depthContext) -> {
@@ -161,7 +162,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
                         GL_ATOMIC_COUNTER_BARRIER_BIT |
                         GL_COMMAND_BARRIER_BIT);
 
-        MeshResource.batchMaxElement.bindShaderSlot(0);
+        MeshResource.batchMaxElement.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 0);
         MeshResource.maxElementPersistent.bindShaderSlot(1);
         ShaderManager.COPY_COUNTER_CS.bind();
         ShaderManager.COPY_COUNTER_CS.execute(1, 1, 1);

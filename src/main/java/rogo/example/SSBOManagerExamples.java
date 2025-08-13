@@ -44,7 +44,7 @@ public class SSBOManagerExamples {
         manager.uploadBlock(manager.getBlock(0, 1)); // Upload Region 0, Pass 1
         
         // Bind to shader
-        manager.bindToShaderSlot(0);
+        manager.bind(0);
         
         // Cleanup
         manager.dispose();
@@ -124,7 +124,7 @@ public class SSBOManagerExamples {
         volumeManager.uploadBlock(zSlice);
         
         // Bind to compute shader
-        volumeManager.bindToShaderSlot(2);
+        volumeManager.bind(2);
         
         volumeManager.dispose();
     }
@@ -207,7 +207,7 @@ public class SSBOManagerExamples {
         meshManager.uploadBlock(sectionBlock);
         
         // This would bind to your compute shader
-        meshManager.bindToShaderSlot(0); // binding = 0 like in your GLSL
+        meshManager.bind(0); // binding = 0 like in your GLSL
         
         meshManager.dispose();
     }

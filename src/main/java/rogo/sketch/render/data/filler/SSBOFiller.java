@@ -1,5 +1,6 @@
 package rogo.sketch.render.data.filler;
 
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.render.data.format.DataFormat;
 
@@ -118,8 +119,8 @@ public class SSBOFiller extends DataFiller {
     /**
      * Bind the SSBO to a shader slot
      */
-    public SSBOFiller bindToShaderSlot(int bindingPoint) {
-        ssbo.bindShaderSlot(bindingPoint);
+    public SSBOFiller bind(int bindingPoint) {
+        ssbo.bind(ResourceTypes.SHADER_STORAGE_BUFFER, bindingPoint);
         return this;
     }
 

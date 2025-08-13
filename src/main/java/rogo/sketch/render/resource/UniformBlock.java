@@ -7,7 +7,7 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
 import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.DataResourceObject;
-import rogo.sketch.render.shader.uniform.DataType;
+import rogo.sketch.render.data.DataType;
 import rogo.sketch.util.Identifier;
 
 import java.nio.FloatBuffer;

@@ -3,6 +3,7 @@ package rogo.sketch.render.shader.uniform;
 import org.joml.*;
 import org.lwjgl.opengl.GL20;
 import rogo.sketch.api.ShaderResource;
+import rogo.sketch.render.data.DataType;
 import rogo.sketch.util.Identifier;
 
 

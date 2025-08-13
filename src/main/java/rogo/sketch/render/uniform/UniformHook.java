@@ -19,10 +19,25 @@ public class UniformHook<T> {
 
     public void checkUpdate(Object graph) {
         T currentValue = valueGetter.get(graph, identifier);
-        if (!currentValue.equals(value)) {
+        if (!Objects.equals(currentValue, value)) {
             value = currentValue;
             uniform.set(value);
         }
+    }
+
+    public void setDirectValue(T newValue) {
+        if (!Objects.equals(newValue, value)) {
+            value = newValue;
+            uniform.set(value);
+        }
+    }
+
+    public T getCurrentValue() {
+        return value;
+    }
+
+    public Identifier getIdentifier() {
+        return identifier;
     }
 
     public ShaderResource<T> uniform() {

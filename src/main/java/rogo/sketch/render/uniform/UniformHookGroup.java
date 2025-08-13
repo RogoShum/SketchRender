@@ -1,10 +1,10 @@
-package rogo.sketch.render.shader;
+package rogo.sketch.render.uniform;
 
 import rogo.sketch.api.ShaderResource;
-import rogo.sketch.render.uniform.UniformHook;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class UniformHookGroup {
     private final Map<String, UniformHook<?>> uniforms = new HashMap<>();
@@ -24,10 +24,17 @@ public class UniformHookGroup {
         return uniforms.get(uniformName).uniform();
     }
 
-    //TODO 个体uniform绑定添加到resource binding
     public void updateUniforms(Object c) {
         for (final UniformHook<?> uniformHook : uniforms.values()) {
             uniformHook.checkUpdate(c);
         }
+    }
+
+    public Set<String> getUniformNames() {
+        return uniforms.keySet();
+    }
+
+    public boolean hasUniform(String uniformName) {
+        return uniforms.containsKey(uniformName);
     }
 }

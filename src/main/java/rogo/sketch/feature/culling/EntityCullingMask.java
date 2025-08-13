@@ -7,6 +7,7 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.SketchRender;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.PersistentReadSSBO;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.util.IndexPool;
@@ -34,7 +35,7 @@ public class EntityCullingMask {
     }
 
     public void bindSSBO() {
-        this.entityDataShaderStorageBuffer.bindShaderSlot(0);
+        this.entityDataShaderStorageBuffer.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 0);
         this.cullingResultSSBO.bindShaderSlot(1);
     }
 

@@ -3,6 +3,7 @@ package rogo.sketch.render.resource.buffer;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.Std430DataFormat;
 import rogo.sketch.render.data.filler.SSBOFiller;
+import rogo.sketch.render.resource.ResourceTypes;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -103,8 +104,8 @@ public class SSBOMemoryManager {
     /**
      * Bind SSBO to shader slot
      */
-    public void bindToShaderSlot(int bindingPoint) {
-        ssbo.bindShaderSlot(bindingPoint);
+    public void bind(int bindingPoint) {
+        ssbo.bind(ResourceTypes.SHADER_STORAGE_BUFFER, bindingPoint);
     }
     
     /**

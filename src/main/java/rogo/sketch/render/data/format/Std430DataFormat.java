@@ -1,6 +1,6 @@
 package rogo.sketch.render.data.format;
 
-import rogo.sketch.render.shader.uniform.DataType;
+import rogo.sketch.render.data.DataType;
 
 import java.util.ArrayList;
 import java.util.Arrays;

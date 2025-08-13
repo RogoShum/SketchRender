@@ -55,11 +55,12 @@ public class GraphicsPass<C extends RenderContext> {
         }
     }
 
-    public boolean fillSharedVertex(VertexFiller filler) {
+    public boolean fillSharedVertexForBatch(VertexFiller filler, List<GraphicsInstance> batchInstances) {
         boolean result = false;
-        for (SharedVertexGraphics instance : sharedGraphics.values()) {
-            if (instance.shouldRender()) {
-                instance.fillVertexData(filler);
+
+        for (GraphicsInstance instance : batchInstances) {
+            if (instance instanceof SharedVertexGraphics sharedInstance && instance.shouldRender()) {
+                sharedInstance.fillVertexData(filler);
                 activatedGraphics.add(instance);
                 result = true;
             }
@@ -68,12 +69,33 @@ public class GraphicsPass<C extends RenderContext> {
         return result;
     }
 
-    public List<VertexResourcePair> fillIndependentVertex() {
+    public Collection<GraphicsInstance> getSharedInstances() {
+        return new ArrayList<>(sharedGraphics.values());
+    }
+
+    public Collection<GraphicsInstance> getIndependentInstances() {
+        return new ArrayList<>(independentGraphics.values());
+    }
+
+    public Collection<GraphicsInstance> getCustomInstances() {
+        return new ArrayList<>(customGraphics.values());
+    }
+
+    public Collection<GraphicsInstance> getAllInstances() {
+        List<GraphicsInstance> allInstances = new ArrayList<>();
+        allInstances.addAll(sharedGraphics.values());
+        allInstances.addAll(independentGraphics.values());
+        allInstances.addAll(customGraphics.values());
+        return allInstances;
+    }
+
+    public List<VertexResourcePair> fillIndependentVertexForBatch(List<GraphicsInstance> batchInstances) {
         List<VertexResourcePair> result = new ArrayList<>();
-        for (IndependentVertexProvider instance : independentGraphics.values()) {
-            if (instance.shouldRender()) {
-                instance.fillVertexData();
-                result.addAll(instance.getVertexResources());
+
+        for (GraphicsInstance instance : batchInstances) {
+            if (instance instanceof IndependentVertexProvider independentInstance && instance.shouldRender()) {
+                independentInstance.fillVertexData();
+                result.addAll(independentInstance.getVertexResources());
                 activatedGraphics.add(instance);
             }
         }
@@ -84,6 +106,15 @@ public class GraphicsPass<C extends RenderContext> {
     public void endCustom() {
         for (GraphicsInstance instance : customGraphics.values()) {
             instance.endDraw();
+        }
+    }
+
+    public void executeCustomBatch(List<GraphicsInstance> batchInstances, C context) {
+        for (GraphicsInstance instance : batchInstances) {
+            if (customGraphics.containsValue(instance) && instance.shouldRender()) {
+                instance.endDraw();
+                activatedGraphics.add(instance);
+            }
         }
     }
 
