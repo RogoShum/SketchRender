@@ -17,7 +17,7 @@ public class ForgeEventBusImplementation implements IEventBusImplementation {
 
     @Override
     public <T> void post(T event) {
-        MinecraftForge.EVENT_BUS.post(new ProxyEvent<>(event));
+        MinecraftForge.EVENT_BUS.post(new ProxyEvent(event));
     }
 
     @Override
@@ -25,8 +25,9 @@ public class ForgeEventBusImplementation implements IEventBusImplementation {
         listeners.computeIfAbsent(eventType, k -> new ArrayList<>()).add(listener);
     }
 
+    //TODO: 早于forge event bus生命周期似乎会不触发
     @SubscribeEvent
-    public void onProxy(ProxyEvent<?> proxy) {
+    public void onProxy(ProxyEvent proxy) {
         Object wrapped = proxy.getWrapped();
         List<EventListener<?>> list = listeners.get(wrapped.getClass());
         if (list != null) {

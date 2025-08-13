@@ -3,7 +3,9 @@ package rogo.sketch.render;
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.async.AsyncRenderExecutor;
+import rogo.sketch.render.async.AsyncRenderManager;
 import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.uniform.UniformValueSnapshot;
 import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.render.vertex.VertexResource;
@@ -18,26 +20,16 @@ public class GraphicsPassGroup<C extends RenderContext> {
     private final Identifier stageIdentifier;
     private final Map<RenderSetting, GraphicsPass<C>> groups = new LinkedHashMap<>();
     private final VertexResourceManager vertexResourceManager = VertexResourceManager.getInstance();
+    private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
+    private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     
-    // Lazy initialization to avoid initialization order issues
-    private AsyncRenderExecutor asyncExecutor;
-    private boolean enableAsyncTick = true;
-    private boolean enableAsyncUniformCollection = true;
-    private int asyncThreshold = 32;
+    // Note: AsyncRenderExecutor is deprecated, using AsyncRenderManager instead
 
     public GraphicsPassGroup(Identifier stageIdentifier) {
         this.stageIdentifier = stageIdentifier;
     }
 
-    /**
-     * Get AsyncRenderExecutor with lazy initialization
-     */
-    private AsyncRenderExecutor getAsyncExecutor() {
-        if (asyncExecutor == null) {
-            asyncExecutor = AsyncRenderExecutor.getInstance();
-        }
-        return asyncExecutor;
-    }
+
 
     public void addGraphInstance(GraphicsInstance instance, RenderSetting setting) {
         GraphicsPass<C> group = groups.computeIfAbsent(setting, s -> new GraphicsPass<>());
@@ -45,8 +37,13 @@ public class GraphicsPassGroup<C extends RenderContext> {
     }
 
     public void tick(C context) {
-        if (enableAsyncTick) {
-            tickAsync(context);
+        // Use the global async manager to determine execution mode
+        Collection<GraphicsInstance> allInstances = groups.values().stream()
+            .flatMap(pass -> pass.getAllInstances().stream())
+            .toList();
+        
+        if (asyncManager.shouldUseAsync(allInstances.size())) {
+            asyncManager.tickInstancesAsync(allInstances, context).join();
         } else {
             tickSync(context);
         }
@@ -58,24 +55,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
         });
     }
 
-    private void tickAsync(C context) {
-        List<CompletableFuture<Void>> tickTasks = new ArrayList<>();
-
-        for (GraphicsPass<C> pass : groups.values()) {
-            Collection<GraphicsInstance> allInstances = pass.getAllInstances();
-
-            if (getAsyncExecutor().shouldUseAsync(allInstances.size())) {
-                CompletableFuture<Void> task = getAsyncExecutor().tickInstancesAsync(allInstances, context);
-                tickTasks.add(task);
-            } else {
-                pass.tick(context);
-            }
-        }
-
-        if (!tickTasks.isEmpty()) {
-            CompletableFuture.allOf(tickTasks.toArray(new CompletableFuture[0])).join();
-        }
-    }
+    // Note: tickAsync method removed, using AsyncRenderManager directly in tick() method
 
     public void render(RenderStateManager manager, C context) {
         context.preStage(stageIdentifier);
@@ -110,9 +90,13 @@ public class GraphicsPassGroup<C extends RenderContext> {
     private List<UniformBatchGroup> collectUniformBatches(GraphicsPass<C> pass, C context) {
         Collection<GraphicsInstance> instances = pass.getSharedInstances();
 
-        if (enableAsyncUniformCollection && getAsyncExecutor().shouldUseAsync(instances.size())) {
-            return collectUniformBatchesAsync(instances, context);
-        } else {
+        try {
+            return asyncManager.collectUniformsAsync(
+                () -> collectUniformBatchesSync(instances, context),
+                instances.size()
+            ).join();
+        } catch (Exception e) {
+            // Fallback to sync if async fails
             return collectUniformBatchesSync(instances, context);
         }
     }
@@ -133,35 +117,17 @@ public class GraphicsPassGroup<C extends RenderContext> {
         return new ArrayList<>(batches.values());
     }
 
-    private List<UniformBatchGroup> collectUniformBatchesAsync(Collection<GraphicsInstance> instances, C context) {
-        ShaderProvider shader = context.shaderProvider();
-
-        CompletableFuture<List<AsyncRenderExecutor.UniformCollectionResult>> futureResults =
-                getAsyncExecutor().collectUniformsAsync(instances, instance ->
-                        UniformValueSnapshot.captureFrom(shader.getUniformHookGroup(), instance));
-
-        List<AsyncRenderExecutor.UniformCollectionResult> results = futureResults.join();
-        Map<UniformValueSnapshot, UniformBatchGroup> batches = new HashMap<>();
-
-        for (AsyncRenderExecutor.UniformCollectionResult result : results) {
-            if (result.isSuccess()) {
-                batches.computeIfAbsent(result.snapshot(), UniformBatchGroup::new)
-                        .addInstance(result.instance());
-            } else {
-                System.err.println("Failed to collect uniform for instance " +
-                        result.instance().getIdentifier() + ": " + result.error().getMessage());
-            }
-        }
-
-        return new ArrayList<>(batches.values());
-    }
+    // Note: collectUniformBatchesAsync method removed, using AsyncRenderManager instead
 
     private List<UniformBatchGroup> collectIndependentUniformBatches(GraphicsPass<C> pass, C context) {
         Collection<GraphicsInstance> instances = pass.getIndependentInstances();
 
-        if (enableAsyncUniformCollection && getAsyncExecutor().shouldUseAsync(instances.size())) {
-            return collectUniformBatchesAsync(instances, context);
-        } else {
+        try {
+            return asyncManager.collectUniformsAsync(
+                () -> collectUniformBatchesSync(instances, context),
+                instances.size()
+            ).join();
+        } catch (Exception e) {
             return collectUniformBatchesSync(instances, context);
         }
     }
@@ -169,9 +135,12 @@ public class GraphicsPassGroup<C extends RenderContext> {
     private List<UniformBatchGroup> collectCustomUniformBatches(GraphicsPass<C> pass, C context) {
         Collection<GraphicsInstance> instances = pass.getCustomInstances();
 
-        if (enableAsyncUniformCollection && getAsyncExecutor().shouldUseAsync(instances.size())) {
-            return collectUniformBatchesAsync(instances, context);
-        } else {
+        try {
+            return asyncManager.collectUniformsAsync(
+                () -> collectUniformBatchesSync(instances, context),
+                instances.size()
+            ).join();
+        } catch (Exception e) {
             return collectUniformBatchesSync(instances, context);
         }
     }
@@ -293,33 +262,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
         groups.clear();
     }
 
-    public void setAsyncTickEnabled(boolean enabled) {
-        this.enableAsyncTick = enabled;
-    }
-
-    public void setAsyncUniformCollectionEnabled(boolean enabled) {
-        this.enableAsyncUniformCollection = enabled;
-    }
-
-    public void setAsyncThreshold(int threshold) {
-        this.asyncThreshold = threshold;
-    }
-
-    public boolean isAsyncTickEnabled() {
-        return enableAsyncTick;
-    }
-
-    public boolean isAsyncUniformCollectionEnabled() {
-        return enableAsyncUniformCollection;
-    }
-
-    public int getAsyncThreshold() {
-        return asyncThreshold;
-    }
-
-    public AsyncRenderExecutor.AsyncPerformanceStats getAsyncPerformanceStats() {
-        return getAsyncExecutor().getPerformanceStats();
-    }
+    // Note: Async configuration methods removed, use AsyncRenderManager.getInstance().getConfig() instead
 
     public StageStats getStageStats() {
         int totalInstances = 0;
@@ -364,6 +307,15 @@ public class GraphicsPassGroup<C extends RenderContext> {
                     stageIdentifier, totalPasses, totalInstances,
                     sharedInstances, independentInstances, customInstances
             );
+        }
+    }
+    
+    /**
+     * Cleanup discarded instances and return them to the pool
+     */
+    public void cleanupDiscardedInstances() {
+        for (GraphicsPass<C> pass : groups.values()) {
+            pass.cleanupDiscardedInstances(poolManager);
         }
     }
 }

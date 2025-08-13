@@ -59,6 +59,8 @@ import java.util.Map;
 import static java.lang.Thread.MAX_PRIORITY;
 import static rogo.sketch.feature.culling.CullingStateManager.*;
 
+import rogo.sketch.vanilla.event.VanillaPipelineEventHandler;
+
 @Mod(SketchRender.MOD_ID)
 public class SketchRender {
     public static final String MOD_ID = "sketchrender";
@@ -69,6 +71,7 @@ public class SketchRender {
     @SuppressWarnings("removal")
     public SketchRender() {
         EventBusBridge.setImplementation(new ForgeEventBusImplementation());
+        VanillaPipelineEventHandler.register(); // Register vanilla pipeline event handler
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());

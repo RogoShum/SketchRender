@@ -33,8 +33,7 @@ public abstract class MixinLevelRenderer {
     @Inject(method = "<init>", at = @At(value = "RETURN"))
     private void onInit(Minecraft p_234245_, EntityRenderDispatcher p_234246_, BlockEntityRenderDispatcher p_234247_, RenderBuffers p_234248_, CallbackInfo ci) {
         sketchlib$graphPipeline = new McGraphicsPipeline(true);
-        MinecraftRenderStages.registerVanillaStages(sketchlib$graphPipeline);
-        MinecraftRenderStages.registerExtraStages(sketchlib$graphPipeline);
+        sketchlib$graphPipeline.initialize(); // This will post initialization events
     }
 
     @Inject(method = "renderLevel", at = @At(value = "HEAD"))

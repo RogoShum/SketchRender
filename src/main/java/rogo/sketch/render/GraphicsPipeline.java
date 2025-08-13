@@ -1,6 +1,10 @@
 package rogo.sketch.render;
 
 import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.event.GraphicsPipelineInitEvent;
+import rogo.sketch.event.bridge.EventBusBridge;
+import rogo.sketch.render.async.AsyncRenderManager;
+import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OrderedList;
 
@@ -13,11 +17,15 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final Map<GraphicsStage, GraphicsPassGroup<C>> passMap = new HashMap<>();
     private final Map<Identifier, GraphicsStage> idToStage = new HashMap<>();
     private final RenderStateManager renderStateManager = new RenderStateManager();
+    private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
+    private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     private C currentContext;
+    private boolean initialized = false;
 
     public GraphicsPipeline(boolean throwOnSortFail, C defaultContext) {
         this.stages = new OrderedList<>(throwOnSortFail);
         this.currentContext = defaultContext;
+        // Don't initialize immediately, wait for explicit call
     }
 
     /**
@@ -122,5 +130,110 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void resetRenderContext(C context) {
         this.currentContext = context;
+    }
+    
+    /**
+     * Initialize the pipeline and post initialization events
+     */
+    public void initialize() {
+        if (initialized) {
+            return;
+        }
+        
+        // Post initialization events for different phases
+        EventBusBridge.post(new GraphicsPipelineInitEvent<>(this, GraphicsPipelineInitEvent.InitPhase.EARLY));
+        EventBusBridge.post(new GraphicsPipelineInitEvent<>(this, GraphicsPipelineInitEvent.InitPhase.NORMAL));
+        EventBusBridge.post(new GraphicsPipelineInitEvent<>(this, GraphicsPipelineInitEvent.InitPhase.LATE));
+        
+        initialized = true;
+    }
+    
+    /**
+     * Add a GraphInstance from the instance pool to a specific stage
+     */
+    public void addPooledGraphInstance(Identifier stageId, Class<? extends GraphicsInstance> instanceType, RenderSetting renderSetting) {
+        if (!poolManager.isPoolingEnabled()) {
+            throw new IllegalStateException("Instance pooling is not enabled");
+        }
+        
+        GraphicsInstance instance = poolManager.borrowInstance(instanceType);
+        addGraphInstance(stageId, instance, renderSetting);
+    }
+    
+    /**
+     * Add a GraphInstance from a named pool to a specific stage
+     */
+    public void addNamedPoolGraphInstance(Identifier stageId, Identifier poolName, RenderSetting renderSetting) {
+        if (!poolManager.isPoolingEnabled()) {
+            throw new IllegalStateException("Instance pooling is not enabled");
+        }
+        
+        GraphicsInstance instance = poolManager.borrowInstance(poolName);
+        addGraphInstance(stageId, instance, renderSetting);
+    }
+    
+    /**
+     * Tick all stages with async support
+     */
+    public void tickAllStages() {
+        for (GraphicsStage stage : stages.getOrderedList()) {
+            GraphicsPassGroup<C> group = passMap.get(stage);
+            if (group != null) {
+                group.tick(currentContext);
+            }
+        }
+    }
+    
+    /**
+     * Cleanup discarded instances and return them to pools
+     */
+    public void cleanupInstances() {
+        for (GraphicsPassGroup<C> group : passMap.values()) {
+            group.cleanupDiscardedInstances();
+        }
+    }
+    
+    /**
+     * Get the instance pool manager
+     */
+    public InstancePoolManager getPoolManager() {
+        return poolManager;
+    }
+    
+    /**
+     * Get the async render manager
+     */
+    public AsyncRenderManager getAsyncManager() {
+        return asyncManager;
+    }
+    
+    /**
+     * Check if the pipeline is initialized
+     */
+    public boolean isInitialized() {
+        return initialized;
+    }
+    
+    /**
+     * Get pipeline statistics
+     */
+    public PipelineStats getStats() {
+        int totalStages = stages.getOrderedList().size();
+        int pendingStages = stages.getPendingElements().size();
+        int totalInstances = passMap.values().stream()
+            .mapToInt(group -> group.getPasses().stream()
+                .mapToInt(pass -> pass.getAllInstances().size())
+                .sum())
+            .sum();
+        
+        return new PipelineStats(totalStages, pendingStages, totalInstances, initialized);
+    }
+    
+    public record PipelineStats(int totalStages, int pendingStages, int totalInstances, boolean initialized) {
+        @Override
+        public String toString() {
+            return String.format("Pipeline[stages=%d, pending=%d, instances=%d, init=%s]", 
+                totalStages, pendingStages, totalInstances, initialized);
+        }
     }
 }

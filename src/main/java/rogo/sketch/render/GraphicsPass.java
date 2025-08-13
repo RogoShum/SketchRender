@@ -4,6 +4,7 @@ import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.api.IndependentVertexProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.instance.SharedVertexGraphics;
+import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.vertex.VertexResourcePair;
 import rogo.sketch.util.Identifier;
 
@@ -136,5 +137,40 @@ public class GraphicsPass<C extends RenderContext> {
 
     public boolean containsCustom() {
         return !customGraphics.isEmpty();
+    }
+    
+    /**
+     * Cleanup discarded instances and return them to the pool
+     */
+    public void cleanupDiscardedInstances(InstancePoolManager poolManager) {
+        // Check shared graphics
+        sharedGraphics.entrySet().removeIf(entry -> {
+            GraphicsInstance instance = entry.getValue();
+            if (instance.shouldDiscard()) {
+                poolManager.returnInstance(instance);
+                return true;
+            }
+            return false;
+        });
+        
+        // Check independent graphics
+        independentGraphics.entrySet().removeIf(entry -> {
+            GraphicsInstance instance = entry.getValue();
+            if (instance.shouldDiscard()) {
+                poolManager.returnInstance(instance);
+                return true;
+            }
+            return false;
+        });
+        
+        // Check custom graphics
+        customGraphics.entrySet().removeIf(entry -> {
+            GraphicsInstance instance = entry.getValue();
+            if (instance.shouldDiscard()) {
+                poolManager.returnInstance(instance);
+                return true;
+            }
+            return false;
+        });
     }
 }
