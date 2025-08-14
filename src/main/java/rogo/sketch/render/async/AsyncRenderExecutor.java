@@ -2,7 +2,7 @@ package rogo.sketch.render.async;
 
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.render.RenderContext;
-import rogo.sketch.render.uniform.UniformValueSnapshot;
+import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 
 import java.util.Collection;
 import java.util.List;

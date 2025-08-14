@@ -1,6 +1,6 @@
 package rogo.sketch.api;
 
-import rogo.sketch.render.uniform.UniformHookGroup;
+import rogo.sketch.render.shader.uniform.UniformHookGroup;
 import rogo.sketch.util.Identifier;
 
 import java.util.Map;

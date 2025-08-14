@@ -1,7 +1,7 @@
 package rogo.sketch.render;
 
 import rogo.sketch.api.GraphicsInstance;
-import rogo.sketch.render.uniform.UniformValueSnapshot;
+import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;

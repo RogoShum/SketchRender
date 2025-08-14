@@ -1,5 +1,6 @@
 package rogo.sketch.event;
 
+import rogo.sketch.event.bridge.RegistryEvent;
 import rogo.sketch.render.GraphicsPipeline;
 import rogo.sketch.render.RenderContext;
 
@@ -7,23 +8,23 @@ import rogo.sketch.render.RenderContext;
  * Event fired when a GraphicsPipeline is initialized
  * Compatible with the existing EventBusBridge system
  */
-public class GraphicsPipelineInitEvent<C extends RenderContext> {
-    private final GraphicsPipeline<C> pipeline;
+public class GraphicsPipelineInitEvent implements RegistryEvent {
+    private final GraphicsPipeline<?> pipeline;
     private final InitPhase phase;
     
-    public GraphicsPipelineInitEvent(GraphicsPipeline<C> pipeline, InitPhase phase) {
+    public GraphicsPipelineInitEvent(GraphicsPipeline<?> pipeline, InitPhase phase) {
         this.pipeline = pipeline;
         this.phase = phase;
     }
     
-    public GraphicsPipeline<C> getPipeline() {
+    public GraphicsPipeline<?> getPipeline() {
         return pipeline;
     }
     
     public InitPhase getPhase() {
         return phase;
     }
-    
+
     /**
      * Phases of pipeline initialization
      */

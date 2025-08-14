@@ -139,11 +139,10 @@ public class GraphicsPipeline<C extends RenderContext> {
         if (initialized) {
             return;
         }
-        
-        // Post initialization events for different phases
-        EventBusBridge.post(new GraphicsPipelineInitEvent<>(this, GraphicsPipelineInitEvent.InitPhase.EARLY));
-        EventBusBridge.post(new GraphicsPipelineInitEvent<>(this, GraphicsPipelineInitEvent.InitPhase.NORMAL));
-        EventBusBridge.post(new GraphicsPipelineInitEvent<>(this, GraphicsPipelineInitEvent.InitPhase.LATE));
+
+        EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.EARLY));
+        EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.NORMAL));
+        EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.LATE));
         
         initialized = true;
     }

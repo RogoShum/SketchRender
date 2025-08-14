@@ -5,7 +5,7 @@ import org.lwjgl.opengl.GL20;
 import rogo.sketch.render.data.format.DataElement;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.DataType;
-import rogo.sketch.render.uniform.UniformHookGroup;
+import rogo.sketch.render.shader.uniform.UniformHookGroup;
 import rogo.sketch.util.Identifier;
 
 import java.io.IOException;

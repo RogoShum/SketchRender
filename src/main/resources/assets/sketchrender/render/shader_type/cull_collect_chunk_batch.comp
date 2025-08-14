@@ -66,12 +66,12 @@ layout(std430, binding = 7) writeonly buffer ElementCountBuffer {
 //section sort
 shared SortEntry sort_entries[256];
 
-uniform int sketch_render_distance;
-uniform int sketch_check_culling;
-uniform int sketch_cull_facing;
-uniform int sketch_translucent_sort;
-uniform ivec3 sketch_camera_offset;
-uniform ivec3 sketch_camera_pos;
+uniform int sketch_renderDistance;
+uniform int sketch_checkCulling;
+uniform int sketch_cullFacing;
+uniform int sketch_translucentSort;
+uniform ivec3 sketch_cameraOffset;
+uniform ivec3 sketch_cameraPos;
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
 uniform sampler2D Sampler2;
@@ -81,13 +81,13 @@ uniform sampler2D Sampler5;
 uniform sampler2D Sampler6;
 uniform sampler2D Sampler7;
 
-uniform mat4 sketch_culling_view_mat;
-uniform mat4 sketch_culling_proj_mat;
-uniform vec3 sketch_culling_camera_pos;
-uniform vec3 sketch_culling_camera_dir;
-uniform vec3 sketch_frustum_pos;
-uniform float[24] sketch_culling_frustum;
-uniform float[16] sketch_depth_size;
+uniform mat4 sketch_cullingViewMat;
+uniform mat4 sketch_cullingProjMat;
+uniform vec3 sketch_cullingCameraPos;
+uniform vec3 sketch_cullingCameraDir;
+uniform vec3 sketch_frustumPos;
+uniform float[24] sketch_cullingFrustum;
+uniform float[16] sketch_depthSize;
 
 #define REGION_SIZE 256
 #define LAYER_COUNT 3
@@ -111,25 +111,25 @@ layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 vec4[6] getFrustumData() {
     return vec4[](
-    vec4(sketch_culling_frustum[0], sketch_culling_frustum[1], sketch_culling_frustum[2], sketch_culling_frustum[3]),
-    vec4(sketch_culling_frustum[4], sketch_culling_frustum[5], sketch_culling_frustum[6], sketch_culling_frustum[7]),
-    vec4(sketch_culling_frustum[8], sketch_culling_frustum[9], sketch_culling_frustum[10], sketch_culling_frustum[11]),
-    vec4(sketch_culling_frustum[12], sketch_culling_frustum[13], sketch_culling_frustum[14], sketch_culling_frustum[15]),
-    vec4(sketch_culling_frustum[16], sketch_culling_frustum[17], sketch_culling_frustum[18], sketch_culling_frustum[19]),
-    vec4(sketch_culling_frustum[20], sketch_culling_frustum[21], sketch_culling_frustum[22], sketch_culling_frustum[23])
+    vec4(sketch_cullingFrustum[0], sketch_cullingFrustum[1], sketch_cullingFrustum[2], sketch_cullingFrustum[3]),
+    vec4(sketch_cullingFrustum[4], sketch_cullingFrustum[5], sketch_cullingFrustum[6], sketch_cullingFrustum[7]),
+    vec4(sketch_cullingFrustum[8], sketch_cullingFrustum[9], sketch_cullingFrustum[10], sketch_cullingFrustum[11]),
+    vec4(sketch_cullingFrustum[12], sketch_cullingFrustum[13], sketch_cullingFrustum[14], sketch_cullingFrustum[15]),
+    vec4(sketch_cullingFrustum[16], sketch_cullingFrustum[17], sketch_cullingFrustum[18], sketch_cullingFrustum[19]),
+    vec4(sketch_cullingFrustum[20], sketch_cullingFrustum[21], sketch_cullingFrustum[22], sketch_cullingFrustum[23])
     );
 }
 
 vec2[8] getDepthScreenSize() {
     return vec2[](
-    vec2(sketch_depth_size[0], sketch_depth_size[1]),
-    vec2(sketch_depth_size[2], sketch_depth_size[3]),
-    vec2(sketch_depth_size[4], sketch_depth_size[5]),
-    vec2(sketch_depth_size[6], sketch_depth_size[7]),
-    vec2(sketch_depth_size[8], sketch_depth_size[9]),
-    vec2(sketch_depth_size[10], sketch_depth_size[11]),
-    vec2(sketch_depth_size[12], sketch_depth_size[13]),
-    vec2(sketch_depth_size[14], sketch_depth_size[15])
+    vec2(sketch_depthSize[0], sketch_depthSize[1]),
+    vec2(sketch_depthSize[2], sketch_depthSize[3]),
+    vec2(sketch_depthSize[4], sketch_depthSize[5]),
+    vec2(sketch_depthSize[6], sketch_depthSize[7]),
+    vec2(sketch_depthSize[8], sketch_depthSize[9]),
+    vec2(sketch_depthSize[10], sketch_depthSize[11]),
+    vec2(sketch_depthSize[12], sketch_depthSize[13]),
+    vec2(sketch_depthSize[14], sketch_depthSize[15])
     );
 }
 
@@ -159,7 +159,7 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
     result.screenMin = vec2(1.0);
     result.screenMax = vec2(0.0);
 
-    mat4 mvp = sketch_culling_proj_mat * sketch_culling_view_mat;
+    mat4 mvp = sketch_cullingProjMat * sketch_cullingViewMat;
 
     vec4 clipPositions[8];
     for(int i = 0; i < 8; i++) {
@@ -199,7 +199,7 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
 }
 
 vec3 moveTowardsCamera(vec3 pos, float distance) {
-    vec3 direction = normalize(pos - sketch_culling_camera_pos);
+    vec3 direction = normalize(pos - sketch_cullingCameraPos);
     vec3 newPos = pos - direction * distance;
     return newPos;
 }
@@ -231,12 +231,12 @@ bool cubeInFrustum(float minX, float minY, float minZ, float maxX, float maxY, f
 }
 
 bool calculateCube(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-    float f = minX - sketch_frustum_pos.x;
-    float f1 = minY - sketch_frustum_pos.y;
-    float f2 = minZ - sketch_frustum_pos.z;
-    float f3 = maxX - sketch_frustum_pos.x;
-    float f4 = maxY - sketch_frustum_pos.y;
-    float f5 = maxZ - sketch_frustum_pos.z;
+    float f = minX - sketch_frustumPos.x;
+    float f1 = minY - sketch_frustumPos.y;
+    float f2 = minZ - sketch_frustumPos.z;
+    float f3 = maxX - sketch_frustumPos.x;
+    float f4 = maxY - sketch_frustumPos.y;
+    float f5 = maxZ - sketch_frustumPos.z;
     return cubeInFrustum(f, f1, f2, f3, f4, f5);
 }
 
@@ -258,7 +258,7 @@ bool isVisible(vec3 center) {
     for (int i = 0; i < 6; i++) {
         bool inside = false;
         for (int j = 0; j < 8 && !inside; j++) {
-            inside = dot(frustum[i], vec4(corners[j] - sketch_frustum_pos, 1.0)) > 0.0;
+            inside = dot(frustum[i], vec4(corners[j] - sketch_frustumPos, 1.0)) > 0.0;
         }
         if (!inside) return false;
     }
@@ -292,9 +292,9 @@ bool _is_chunk_culled(ivec3 sectionPos) {
         return true;
     }
 
-    far = sketch_render_distance * 64.0;
+    far = sketch_renderDistance * 64.0;
 
-    ClipResult clip = getClippedMinDepth(chunkPos + sketch_culling_camera_dir, 10.0);
+    ClipResult clip = getClippedMinDepth(chunkPos + sketch_cullingCameraDir, 10.0);
     float sectionDepth = LinearizeDepth(clip.minDepth);
 
     vec2 mins = clamp(clip.screenMin, 0.0, 1.0);
@@ -403,13 +403,13 @@ void main() {
     unpackZ(sectionIndex) + (regionPos.z));
 
     bool culled = _is_chunk_culled(sectionPos);
-    if (sketch_check_culling > 0) {
+    if (sketch_checkCulling > 0) {
         culled = !culled;
     }
 
     vec3 chunkPos = vec3(sectionPos) * 16;
     chunkPos = vec3(chunkPos.x + 8.0, chunkPos.y + 8.0, chunkPos.z + 8.0);
-    float distance = length(vec3(chunkPos - sketch_camera_pos));
+    float distance = length(vec3(chunkPos - sketch_cameraPos));
 
     int passIndex = int(gl_WorkGroupID.x);
     int slices = 0;
@@ -423,9 +423,9 @@ void main() {
     SectionMesh[7] drawVertex;
 
     if (!culled) {
-        int sorted = (sketch_translucent_sort > 0 && passIndex == 2) ? 1 : 0;
-        if (sketch_cull_facing > 0 && sorted == 0) {
-            slices = getVisibleFaces(sketch_camera_pos.x, sketch_camera_pos.y, sketch_camera_pos.z, sectionPos.x, sectionPos.y, sectionPos.z);
+        int sorted = (sketch_translucentSort > 0 && passIndex == 2) ? 1 : 0;
+        if (sketch_cullFacing > 0 && sorted == 0) {
+            slices = getVisibleFaces(sketch_cameraPos.x, sketch_cameraPos.y, sketch_cameraPos.z, sectionPos.x, sectionPos.y, sectionPos.z);
         } else {
             slices = 127;
         }

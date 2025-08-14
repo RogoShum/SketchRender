@@ -23,5 +23,6 @@ public class McUniformWrapper<T> implements ShaderResource<T> {
     @Override
     public void set(T value) {
         setter.apply(mcUniform, value);
+        mcUniform.upload();
     }
 }

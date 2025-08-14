@@ -4,7 +4,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.render.RenderContext;
-import rogo.sketch.render.uniform.UniformValueSnapshot;
+import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.util.Identifier;
 
 /**

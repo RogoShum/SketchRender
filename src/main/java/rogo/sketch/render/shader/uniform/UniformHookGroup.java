@@ -1,4 +1,4 @@
-package rogo.sketch.render.uniform;
+package rogo.sketch.render.shader.uniform;
 
 import rogo.sketch.api.ShaderResource;
 

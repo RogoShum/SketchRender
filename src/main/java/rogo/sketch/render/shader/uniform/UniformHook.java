@@ -1,4 +1,4 @@
-package rogo.sketch.render.uniform;
+package rogo.sketch.render.shader.uniform;
 
 import rogo.sketch.api.ShaderResource;
 import rogo.sketch.util.Identifier;
@@ -18,7 +18,7 @@ public class UniformHook<T> {
     }
 
     public void checkUpdate(Object graph) {
-        T currentValue = valueGetter.get(graph, identifier);
+        T currentValue = valueGetter.get(graph);
         if (!Objects.equals(currentValue, value)) {
             value = currentValue;
             uniform.set(value);

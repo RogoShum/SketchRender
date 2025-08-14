@@ -9,8 +9,8 @@ import rogo.sketch.api.ShaderResource;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.shader.uniform.ShaderUniform;
-import rogo.sketch.render.uniform.UniformHookGroup;
-import rogo.sketch.render.uniform.UniformHookRegistry;
+import rogo.sketch.render.shader.uniform.UniformHookGroup;
+import rogo.sketch.render.shader.uniform.UniformHookRegistry;
 import rogo.sketch.util.Identifier;
 
 import java.io.IOException;
@@ -128,14 +128,16 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
 
             String uniformName = GL20.glGetActiveUniform(program, i, sizeBuffer, typeBuffer);
             int location = GL20.glGetUniformLocation(program, uniformName);
+            uniformName = uniformName.replaceFirst("\\[0]$", "");
             int glType = typeBuffer.get(0);
+            int glSize = sizeBuffer.get(0);
 
             if (location >= 0) {
                 // Create shader uniform for regular uniforms
                 DataType dataType = inferUniformType(glType);
                 if (dataType != null) {
                     Identifier uniformId = Identifier.of(uniformName);
-                    ShaderUniform<?> shaderUniform = new ShaderUniform<>(uniformId, location, dataType, program);
+                    ShaderUniform<?> shaderUniform = new ShaderUniform<>(uniformId, location, dataType, glSize, program);
                     uniforms.put(uniformName, shaderUniform);
                 }
 

@@ -44,11 +44,13 @@ import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.gui.ConfigScreen;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.shader.ShaderManager;
-import rogo.sketch.render.uniform.UniformHookRegistry;
+import rogo.sketch.render.shader.uniform.UniformHookRegistry;
 import rogo.sketch.util.CommandCallTimer;
 import rogo.sketch.util.GLFeatureChecker;
 import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.util.RenderCallTimer;
+import rogo.sketch.vanilla.McPipelineRegister;
+import rogo.sketch.vanilla.event.VanillaPipelineEventHandler;
 import rogo.sketch.vanilla.instance.AABBObject;
 import rogo.sketch.vanilla.resource.RenderResourceManager;
 
@@ -58,8 +60,6 @@ import java.util.Map;
 
 import static java.lang.Thread.MAX_PRIORITY;
 import static rogo.sketch.feature.culling.CullingStateManager.*;
-
-import rogo.sketch.vanilla.event.VanillaPipelineEventHandler;
 
 @Mod(SketchRender.MOD_ID)
 public class SketchRender {
@@ -71,15 +71,16 @@ public class SketchRender {
     @SuppressWarnings("removal")
     public SketchRender() {
         EventBusBridge.setImplementation(new ForgeEventBusImplementation());
-        VanillaPipelineEventHandler.register(); // Register vanilla pipeline event handler
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+            FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onPipelineInit);
+            FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onUniformInit);
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
             ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_CONFIG);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
             RenderSystem.recordRenderCall(GLFeatureChecker::initialize);
-            FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerUniform);
+            FMLJavaModLoadingContext.get().getModEventBus().addListener(this::initClient);
             init();
         });
     }
@@ -273,7 +274,8 @@ public class SketchRender {
         }
     }
 
-    public void registerUniform(FMLClientSetupEvent event) {
+    public void initClient(FMLClientSetupEvent event) {
+        McPipelineRegister.initPipeline();
         UniformHookRegistry.getInstance().init();
     }
 

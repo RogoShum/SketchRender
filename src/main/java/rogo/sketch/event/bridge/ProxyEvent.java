@@ -1,15 +1,15 @@
 package rogo.sketch.event.bridge;
 
-import net.minecraftforge.eventbus.api.Event;
+import net.minecraftforge.eventbus.api.GenericEvent;
 
-public class ProxyEvent extends Event {
-    private final Object wrapped;
+public class ProxyEvent<T> extends GenericEvent<T> {
+    private final T wrapped;
 
-    public ProxyEvent(Object wrapped) {
+    public ProxyEvent(T wrapped) {
         this.wrapped = wrapped;
     }
 
-    public Object getWrapped() {
+    public T getWrapped() {
         return wrapped;
     }
 }

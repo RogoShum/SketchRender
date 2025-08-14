@@ -14,14 +14,16 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.api.LevelPipeline;
+import rogo.sketch.render.GraphicsPipeline;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.McRenderContext;
+import rogo.sketch.vanilla.MinecraftRenderStages;
 
 import javax.annotation.Nullable;
 
 @Mixin(LevelRenderer.class)
-public abstract class MixinLevelRenderer {
+public abstract class MixinLevelRenderer implements LevelPipeline {
     @Shadow
     private int ticks;
     @Shadow
@@ -33,7 +35,6 @@ public abstract class MixinLevelRenderer {
     @Inject(method = "<init>", at = @At(value = "RETURN"))
     private void onInit(Minecraft p_234245_, EntityRenderDispatcher p_234246_, BlockEntityRenderDispatcher p_234247_, RenderBuffers p_234248_, CallbackInfo ci) {
         sketchlib$graphPipeline = new McGraphicsPipeline(true);
-        sketchlib$graphPipeline.initialize(); // This will post initialization events
     }
 
     @Inject(method = "renderLevel", at = @At(value = "HEAD"))
@@ -164,5 +165,10 @@ public abstract class MixinLevelRenderer {
     @Inject(method = "renderLevel", at = @At(value = "RETURN"))
     private void onRenderEnd(PoseStack modelViewMatrix, float partialTicks, long nanoTime, boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesAfter(MinecraftRenderStages.WEATHER.getIdentifier());
+    }
+
+    @Override
+    public GraphicsPipeline<?> getGraphicsPipeline() {
+        return sketchlib$graphPipeline;
     }
 }

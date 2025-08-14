@@ -5,6 +5,9 @@ import org.joml.*;
 import rogo.sketch.api.ShaderResource;
 import rogo.sketch.util.Identifier;
 
+import java.lang.Math;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,6 +32,89 @@ public class McUniformWrapperFactory {
         ));
         register(Matrix3f.class, Uniform::set);
         register(Matrix4f.class, Uniform::set);
+
+        register(int[].class, (u, arr) -> {
+            IntBuffer buf = u.getIntBuffer();
+            buf.clear();
+            buf.put(arr, 0, Math.min(arr.length, u.getCount()));
+            buf.flip();
+        });
+
+        register(Vector2i[].class, (u, arr) -> {
+            IntBuffer buf = u.getIntBuffer();
+            buf.clear();
+            for (Vector2i v : arr) buf.put(v.x).put(v.y);
+            buf.flip();
+        });
+
+        register(Vector3i[].class, (u, arr) -> {
+            IntBuffer buf = u.getIntBuffer();
+            buf.clear();
+            for (Vector3i v : arr) buf.put(v.x).put(v.y).put(v.z);
+            buf.flip();
+        });
+
+        register(Vector4i[].class, (u, arr) -> {
+            IntBuffer buf = u.getIntBuffer();
+            buf.clear();
+            for (Vector4i v : arr) buf.put(v.x).put(v.y).put(v.z).put(v.w);
+            buf.flip();
+        });
+
+        register(float[].class, (u, arr) -> {
+            FloatBuffer buf = u.getFloatBuffer();
+            buf.clear();
+            buf.put(arr, 0, Math.min(arr.length, u.getCount()));
+            buf.flip();
+        });
+
+        register(Vector2f[].class, (u, arr) -> {
+            FloatBuffer buf = u.getFloatBuffer();
+            buf.clear();
+            for (Vector2f v : arr) buf.put(v.x).put(v.y);
+            buf.flip();
+        });
+
+        register(Vector3f[].class, (u, arr) -> {
+            FloatBuffer buf = u.getFloatBuffer();
+            buf.clear();
+            for (Vector3f v : arr) buf.put(v.x).put(v.y).put(v.z);
+            buf.flip();
+        });
+
+        register(Vector4f[].class, (u, arr) -> {
+            FloatBuffer buf = u.getFloatBuffer();
+            buf.clear();
+            for (Vector4f v : arr) buf.put(v.x).put(v.y).put(v.z).put(v.w);
+            buf.flip();
+        });
+
+        register(Matrix2f[].class, (u, arr) -> {
+            FloatBuffer buf = u.getFloatBuffer();
+            buf.clear();
+            for (Matrix2f m : arr) {
+                m.get(buf);
+            }
+            buf.flip();
+        });
+
+        register(Matrix3f[].class, (u, arr) -> {
+            FloatBuffer buf = u.getFloatBuffer();
+            buf.clear();
+            for (Matrix3f m : arr) {
+                m.get(buf);
+            }
+            buf.flip();
+        });
+
+        register(Matrix4f[].class, (u, arr) -> {
+            FloatBuffer buf = u.getFloatBuffer();
+            buf.clear();
+            for (Matrix4f m : arr) {
+                m.get(buf);
+            }
+            buf.flip();
+        });
     }
 
     public static <T> McUniformWrapper<T> create(Identifier id, Uniform uniform, Class<T> clazz) {
@@ -60,22 +146,56 @@ public class McUniformWrapperFactory {
 
     private static ShaderResource<?> guessUniformWrapper(Identifier id, Uniform uniform) {
         int type = uniform.getType();
-        return switch (type) {
-            case Uniform.UT_INT1 -> create(id, uniform, Integer.class);
-            case Uniform.UT_INT2 -> create(id, uniform, Vector2i.class);
-            case Uniform.UT_INT3 -> create(id, uniform, Vector3i.class);
-            case Uniform.UT_INT4 -> create(id, uniform, Vector4i.class);
+        int count = uniform.getCount();
 
-            case Uniform.UT_FLOAT1 -> create(id, uniform, Float.class);
-            case Uniform.UT_FLOAT2 -> create(id, uniform, Vector2f.class);
-            case Uniform.UT_FLOAT3 -> create(id, uniform, Vector3f.class);
-            case Uniform.UT_FLOAT4 -> create(id, uniform, Vector4f.class);
-
-            case Uniform.UT_MAT2 -> create(id, uniform, Matrix2f.class);
-            case Uniform.UT_MAT3 -> create(id, uniform, Matrix3f.class);
-            case Uniform.UT_MAT4 -> create(id, uniform, Matrix4f.class);
-            default -> null;
+        int elementSize = switch (type) {
+            case Uniform.UT_INT1, Uniform.UT_FLOAT1 -> 1;
+            case Uniform.UT_INT2, Uniform.UT_FLOAT2 -> 2;
+            case Uniform.UT_INT3, Uniform.UT_FLOAT3 -> 3;
+            case Uniform.UT_INT4, Uniform.UT_FLOAT4 -> 4;
+            case Uniform.UT_MAT2 -> 4;
+            case Uniform.UT_MAT3 -> 9;
+            case Uniform.UT_MAT4 -> 16;
+            default -> 1;
         };
+
+        boolean isArray = count > elementSize;
+
+        if (!isArray) {
+            return switch (type) {
+                case Uniform.UT_INT1 -> create(id, uniform, Integer.class);
+                case Uniform.UT_INT2 -> create(id, uniform, Vector2i.class);
+                case Uniform.UT_INT3 -> create(id, uniform, Vector3i.class);
+                case Uniform.UT_INT4 -> create(id, uniform, Vector4i.class);
+
+                case Uniform.UT_FLOAT1 -> create(id, uniform, Float.class);
+                case Uniform.UT_FLOAT2 -> create(id, uniform, Vector2f.class);
+                case Uniform.UT_FLOAT3 -> create(id, uniform, Vector3f.class);
+                case Uniform.UT_FLOAT4 -> create(id, uniform, Vector4f.class);
+
+                case Uniform.UT_MAT2 -> create(id, uniform, Matrix2f.class);
+                case Uniform.UT_MAT3 -> create(id, uniform, Matrix3f.class);
+                case Uniform.UT_MAT4 -> create(id, uniform, Matrix4f.class);
+                default -> null;
+            };
+        } else {
+            return switch (type) {
+                case Uniform.UT_INT1 -> create(id, uniform, int[].class);
+                case Uniform.UT_INT2 -> create(id, uniform, Vector2i[].class);
+                case Uniform.UT_INT3 -> create(id, uniform, Vector3i[].class);
+                case Uniform.UT_INT4 -> create(id, uniform, Vector4i[].class);
+
+                case Uniform.UT_FLOAT1 -> create(id, uniform, float[].class);
+                case Uniform.UT_FLOAT2 -> create(id, uniform, Vector2f[].class);
+                case Uniform.UT_FLOAT3 -> create(id, uniform, Vector3f[].class);
+                case Uniform.UT_FLOAT4 -> create(id, uniform, Vector4f[].class);
+
+                case Uniform.UT_MAT2 -> create(id, uniform, Matrix2f[].class);
+                case Uniform.UT_MAT3 -> create(id, uniform, Matrix3f[].class);
+                case Uniform.UT_MAT4 -> create(id, uniform, Matrix4f[].class);
+                default -> null;
+            };
+        }
     }
 
     @FunctionalInterface

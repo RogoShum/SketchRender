@@ -2,11 +2,10 @@ package rogo.sketch.render;
 
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.api.ShaderProvider;
-import rogo.sketch.render.async.AsyncRenderExecutor;
 import rogo.sketch.render.async.AsyncRenderManager;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.pool.InstancePoolManager;
-import rogo.sketch.render.uniform.UniformValueSnapshot;
+import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.render.vertex.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
@@ -14,7 +13,6 @@ import rogo.sketch.render.vertex.VertexResourcePair;
 import rogo.sketch.util.Identifier;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 
 public class GraphicsPassGroup<C extends RenderContext> {
     private final Identifier stageIdentifier;

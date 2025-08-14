@@ -119,7 +119,7 @@ public class IntegratedRenderingExample {
     /**
      * Handle pipeline initialization events
      */
-    private static void onPipelineInit(GraphicsPipelineInitEvent<?> event) {
+    private static void onPipelineInit(GraphicsPipelineInitEvent event) {
         System.out.println("Pipeline init event: " + event.getPhase());
         
         if (event.getPipeline() instanceof McGraphicsPipeline pipeline) {

@@ -2,6 +2,10 @@ package rogo.sketch.event.bridge;
 
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import rogo.sketch.SketchRender;
+import rogo.sketch.event.GraphicsPipelineInitEvent;
+import rogo.sketch.event.UniformHookRegisterEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,9 +19,23 @@ public class ForgeEventBusImplementation implements IEventBusImplementation {
         MinecraftForge.EVENT_BUS.register(this);
     }
 
+    @SuppressWarnings("removal")
     @Override
     public <T> void post(T event) {
-        MinecraftForge.EVENT_BUS.post(new ProxyEvent(event));
+        if (event instanceof RegistryEvent registryEvent) {
+            FMLJavaModLoadingContext.get().getModEventBus().post(new ProxyModEvent(registryEvent));
+        } else {
+            MinecraftForge.EVENT_BUS.post(new ProxyEvent<>(event));
+        }
+
+        List<EventListener<?>> list = listeners.get(event.getClass());
+        if (list != null) {
+            for (EventListener<?> l : list) {
+                @SuppressWarnings("unchecked")
+                EventListener<Object> casted = (EventListener<Object>) l;
+                casted.onEvent(event);
+            }
+        }
     }
 
     @Override
@@ -25,17 +43,18 @@ public class ForgeEventBusImplementation implements IEventBusImplementation {
         listeners.computeIfAbsent(eventType, k -> new ArrayList<>()).add(listener);
     }
 
-    //TODO: 早于forge event bus生命周期似乎会不触发
     @SubscribeEvent
     public void onProxy(ProxyEvent proxy) {
-        Object wrapped = proxy.getWrapped();
-        List<EventListener<?>> list = listeners.get(wrapped.getClass());
-        if (list != null) {
-            for (EventListener<?> l : list) {
-                @SuppressWarnings("unchecked")
-                EventListener<Object> casted = (EventListener<Object>) l;
-                casted.onEvent(wrapped);
-            }
-        }
+        SketchRender.LOGGER.info("onProxy");
+    }
+
+    @SubscribeEvent
+    public void onUniform(ProxyEvent<UniformHookRegisterEvent> proxy) {
+        SketchRender.LOGGER.info("onUniform");
+    }
+
+    @SubscribeEvent
+    public void onPipeline(ProxyEvent<GraphicsPipelineInitEvent> proxy) {
+        SketchRender.LOGGER.info("onPipeline");
     }
 }

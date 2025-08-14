@@ -12,7 +12,7 @@ import rogo.sketch.api.ShaderCollector;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.event.ProgramEvent;
 import rogo.sketch.render.shader.uniform.UnsafeUniformMap;
-import rogo.sketch.render.uniform.UniformHookGroup;
+import rogo.sketch.render.shader.uniform.UniformHookGroup;
 import rogo.sketch.util.Identifier;
 
 import java.io.BufferedReader;
