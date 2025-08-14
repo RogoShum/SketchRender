@@ -1,11 +1,7 @@
 package rogo.sketch.event.bridge;
 
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import rogo.sketch.SketchRender;
-import rogo.sketch.event.GraphicsPipelineInitEvent;
-import rogo.sketch.event.UniformHookRegisterEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,20 +37,5 @@ public class ForgeEventBusImplementation implements IEventBusImplementation {
     @Override
     public <T> void subscribe(Class<T> eventType, EventListener<T> listener) {
         listeners.computeIfAbsent(eventType, k -> new ArrayList<>()).add(listener);
-    }
-
-    @SubscribeEvent
-    public void onProxy(ProxyEvent proxy) {
-        SketchRender.LOGGER.info("onProxy");
-    }
-
-    @SubscribeEvent
-    public void onUniform(ProxyEvent<UniformHookRegisterEvent> proxy) {
-        SketchRender.LOGGER.info("onUniform");
-    }
-
-    @SubscribeEvent
-    public void onPipeline(ProxyEvent<GraphicsPipelineInitEvent> proxy) {
-        SketchRender.LOGGER.info("onPipeline");
     }
 }

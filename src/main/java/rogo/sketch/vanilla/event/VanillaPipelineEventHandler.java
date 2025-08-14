@@ -16,15 +16,44 @@ import rogo.sketch.event.UniformHookRegisterEvent;
 import rogo.sketch.event.bridge.ProxyModEvent;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.mixin.AccessorFrustum;
+import rogo.sketch.render.resource.GraphicsResourceManager;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.ValueGetter;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.vanilla.resource.TempTexture;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class VanillaPipelineEventHandler {
+    public static final TempTexture mainColor = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(), false);
+    public static final TempTexture mainDepth = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(), true);
+
+    public static void registerStaticResource() {
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_0"),
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET[0].texture());
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_1"),
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET[1].texture());
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_2"),
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET[2].texture());
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_3"),
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET[3].texture());
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_4"),
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET[4].texture());
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_5"),
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET[5].texture());
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_6"),
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET[6].texture());
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_7"),
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET[7].texture());
+
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_color"),
+                () -> mainColor.getTexture());
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_depth"),
+                () -> mainDepth.getTexture());
+    }
 
     public static void onUniformInit(ProxyModEvent event) {
         if (event.getWrapped() instanceof UniformHookRegisterEvent uniformEvent) {

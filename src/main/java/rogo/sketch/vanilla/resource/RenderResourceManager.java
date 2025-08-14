@@ -3,10 +3,16 @@ package rogo.sketch.vanilla.resource;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import rogo.sketch.SketchRender;
+import rogo.sketch.render.GraphicsPipeline;
+import rogo.sketch.render.PartialRenderSetting;
+import rogo.sketch.render.RenderSetting;
+import rogo.sketch.render.instance.ComputeChunkBatchingGraphics;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.Identifier;
@@ -23,13 +29,19 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
             ResourceTypes.SHADER_PROGRAM,
             ResourceTypes.TEXTURE,
             ResourceTypes.RENDER_TARGET,
-            ResourceTypes.RENDER_SETTING
+            ResourceTypes.PARTIAL_RENDER_SETTING
     };
 
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
         GraphicsResourceManager.getInstance().clearAllResources();
         scanAndLoad(resourceManager);
+        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of("sketchrender:batch_chunk"));
+        if (renderSetting.isPresent()) {
+            PartialRenderSetting partialRenderSetting = renderSetting.get();
+            RenderSetting setting = RenderSetting.computeShader(partialRenderSetting.resourceBinding());
+            ((GraphicsPipeline) (Object) Minecraft.getInstance().levelRenderer).addGraphInstance(Identifier.of(SketchRender.MOD_ID, "batch_chunk"), new ComputeChunkBatchingGraphics(Identifier.of(SketchRender.MOD_ID, "batch_chunk")), setting);
+        }
     }
 
     private void scanAndLoad(ResourceManager resourceManager) {
@@ -69,7 +81,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
                 }
             });
         } else {
-            GraphicsResourceManager.getInstance().registerJson(type, identifier, json.getAsString());
+            GraphicsResourceManager.getInstance().registerJson(type, identifier, json.toString());
         }
     }
 

@@ -12,6 +12,9 @@ public final class GLFeatureChecker {
     private static boolean cachedPersistentMapping = false;
     private static boolean cachedIndirectDrawCount46 = false;
     private static boolean cachedIndirectDrawCountARB = false;
+    private static boolean cachedDSA45 = false;
+    private static boolean cachedDSA_ARB = false;
+    private static boolean cachedDSA_EXT = false;
 
     public static synchronized void initialize() {
         if (initialized) return;
@@ -24,6 +27,9 @@ public final class GLFeatureChecker {
         cachedPersistentMapping = caps.OpenGL44 || caps.GL_ARB_buffer_storage;
         cachedIndirectDrawCount46 = caps.OpenGL46;
         cachedIndirectDrawCountARB = caps.GL_ARB_indirect_parameters;
+        cachedDSA45 = caps.OpenGL45;
+        cachedDSA_ARB = caps.GL_ARB_direct_state_access;
+        cachedDSA_EXT = caps.GL_EXT_direct_state_access;
 
         initialized = true;
     }
@@ -46,6 +52,26 @@ public final class GLFeatureChecker {
     public static boolean supportsIndirectDrawCountARB() {
         ensureInitialized();
         return cachedIndirectDrawCountARB;
+    }
+
+    public static boolean supportsDSA() {
+        ensureInitialized();
+        return cachedDSA45 || cachedDSA_ARB || cachedDSA_EXT;
+    }
+
+    public static boolean supportsDSA45() {
+        ensureInitialized();
+        return cachedDSA45;
+    }
+
+    public static boolean supportsDSA_ARB() {
+        ensureInitialized();
+        return cachedDSA_ARB;
+    }
+
+    public static boolean supportsDSA_EXT() {
+        ensureInitialized();
+        return cachedDSA_EXT;
     }
 
     private static void ensureInitialized() {

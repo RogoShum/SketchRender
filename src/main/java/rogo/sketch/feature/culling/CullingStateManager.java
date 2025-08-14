@@ -53,7 +53,7 @@ public class CullingStateManager {
     public static final int DEPTH_SIZE = 8;
     public static int DEPTH_INDEX;
     public static int MAIN_DEPTH_TEXTURE = 0;
-    public static RenderTarget[] DEPTH_BUFFER_TARGET = new RenderTarget[DEPTH_SIZE];
+    public static HizTarget[] DEPTH_BUFFER_TARGET = new HizTarget[DEPTH_SIZE];
     public static Frustum FRUSTUM;
     public static boolean updatingDepth;
     public static boolean applyFrustum;
