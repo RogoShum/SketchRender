@@ -6,13 +6,16 @@ import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.util.Identifier;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ResourceBinding {
     // Map: ResourceType -> (BindingName -> ResourceIdentifier)
     private final Map<Identifier, Map<Identifier, Identifier>> bindings = new HashMap<>();
-    
+
     // Cache for ResourceReferences to avoid repeated lookups
     private final Map<String, ResourceReference<? extends ResourceObject>> resourceCache = new ConcurrentHashMap<>();
 
@@ -125,6 +128,9 @@ public class ResourceBinding {
                     }
                 }
             }
+
+            //TODO
+            clearResourceCache();
         }
     }
 
@@ -133,17 +139,17 @@ public class ResourceBinding {
      */
     private void bindResource(Identifier resourceType, int binding, Identifier resourceIdentifier) {
         String cacheKey = resourceType + ":" + resourceIdentifier;
-        
-        ResourceReference<? extends ResourceObject> reference = resourceCache.computeIfAbsent(cacheKey, 
-            k -> GraphicsResourceManager.getInstance().getReference(resourceType, resourceIdentifier));
-        
+
+        ResourceReference<? extends ResourceObject> reference = resourceCache.computeIfAbsent(cacheKey,
+                k -> GraphicsResourceManager.getInstance().getReference(resourceType, resourceIdentifier));
+
         reference.ifPresent(resource -> {
             if (resource instanceof BindingResource bindingResource) {
                 bindingResource.bind(resourceType, binding);
             }
         });
     }
-    
+
     /**
      * Clear the resource reference cache
      * Call this when you know resources have been reloaded
@@ -157,16 +163,16 @@ public class ResourceBinding {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        
+
         ResourceBinding that = (ResourceBinding) obj;
         return Objects.equals(bindings, that.bindings);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(bindings);
     }
-    
+
     @Override
     public String toString() {
         return "ResourceBinding{" + bindings + '}';

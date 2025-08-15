@@ -39,7 +39,7 @@ public class EntityGraphicsInstance extends SharedVertexGraphics {
     }
 
     @Override
-    public void endDraw() {
+    public <C extends RenderContext> void afterDraw(C context) {
 
     }
 

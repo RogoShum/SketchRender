@@ -41,7 +41,6 @@ public class ComputeShaderProgram extends Shader {
      * @param numGroupsZ Number of work groups in Z dimension
      */
     public void dispatch(int numGroupsX, int numGroupsY, int numGroupsZ) {
-        bind();
         GL43.glDispatchCompute(numGroupsX, numGroupsY, numGroupsZ);
     }
 

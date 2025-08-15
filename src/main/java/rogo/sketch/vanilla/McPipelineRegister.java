@@ -1,10 +1,10 @@
 package rogo.sketch.vanilla;
 
 import net.minecraft.client.Minecraft;
-import rogo.sketch.api.LevelPipeline;
+import rogo.sketch.api.LevelPipelineProvider;
 
 public class McPipelineRegister {
     public static void initPipeline() {
-        ((LevelPipeline) Minecraft.getInstance().levelRenderer).getGraphicsPipeline().initialize();
+        ((LevelPipelineProvider) Minecraft.getInstance().levelRenderer).getGraphicsPipeline().initialize();
     }
 }

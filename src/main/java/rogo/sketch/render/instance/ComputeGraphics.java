@@ -9,9 +9,9 @@ import java.util.function.Consumer;
 public abstract class ComputeGraphics implements GraphicsInstance {
     private final Identifier id;
     private final Consumer<RenderContext> tick;
-    private final Runnable dispatch;
+    private final Consumer<RenderContext> dispatch;
 
-    public ComputeGraphics(Identifier identifier, Consumer<RenderContext> tick, Runnable dispatchCommand) {
+    public ComputeGraphics(Identifier identifier, Consumer<RenderContext> tick, Consumer<RenderContext> dispatchCommand) {
         this.id = identifier;
         this.tick = tick;
         this.dispatch = dispatchCommand;
@@ -33,7 +33,7 @@ public abstract class ComputeGraphics implements GraphicsInstance {
     }
 
     @Override
-    public void endDraw() {
-        dispatch.run();
+    public <C extends RenderContext> void afterDraw(C context) {
+        dispatch.accept(context);
     }
 }

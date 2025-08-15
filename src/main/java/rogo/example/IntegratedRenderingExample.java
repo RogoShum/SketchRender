@@ -210,8 +210,8 @@ public class IntegratedRenderingExample {
         
         // Print final statistics
         System.out.println("Final pipeline stats: " + pipeline.getStats());
-        System.out.println("Pool manager stats: " + pipeline.getPoolManager().getStats());
-        System.out.println("Async manager stats: " + pipeline.getAsyncManager().getPerformanceStats());
+        System.out.println("Pool manager stats: " + pipeline.poolManager().getStats());
+        System.out.println("Async manager stats: " + pipeline.asyncManager().getPerformanceStats());
     }
     
     // Example implementations
@@ -240,7 +240,7 @@ public class IntegratedRenderingExample {
         public boolean shouldRender() { return true; }
         
         @Override
-        public void endDraw() {
+        public <C extends RenderContext> void afterDraw(C context) {
             // Example end draw logic
         }
     }
@@ -285,7 +285,7 @@ public class IntegratedRenderingExample {
         public boolean shouldRender() { return params != null; }
         
         @Override
-        public void endDraw() {
+        public <C extends RenderContext> void afterDraw(C context) {
             // Example end draw logic
         }
     }

@@ -40,16 +40,19 @@ import org.slf4j.Logger;
 import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.event.bridge.ForgeEventBusImplementation;
 import rogo.sketch.feature.culling.CullingRenderEvent;
+import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.gui.ConfigScreen;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.shader.ShaderManager;
 import rogo.sketch.render.shader.uniform.UniformHookRegistry;
+import rogo.sketch.render.state.RenderStateRegistry;
 import rogo.sketch.util.CommandCallTimer;
 import rogo.sketch.util.GLFeatureChecker;
 import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.util.RenderCallTimer;
 import rogo.sketch.vanilla.McPipelineRegister;
+import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.event.VanillaPipelineEventHandler;
 import rogo.sketch.vanilla.instance.AABBObject;
 import rogo.sketch.vanilla.resource.RenderResourceManager;
@@ -72,6 +75,7 @@ public class SketchRender {
     public SketchRender() {
         EventBusBridge.setImplementation(new ForgeEventBusImplementation());
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+            MinecraftRenderStages.addStage(CullingStages.HIZ_STAGE);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onPipelineInit);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onUniformInit);
             MinecraftForge.EVENT_BUS.register(this);
@@ -278,6 +282,7 @@ public class SketchRender {
     public void initClient(FMLClientSetupEvent event) {
         McPipelineRegister.initPipeline();
         UniformHookRegistry.getInstance().init();
+        RenderStateRegistry.init();
     }
 
     public static CommandCallTimer COMMAND_TIMER = new CommandCallTimer();

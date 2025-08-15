@@ -9,13 +9,14 @@ import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OrderedList;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class GraphicsPipeline<C extends RenderContext> {
     private final OrderedList<GraphicsStage> stages;
-    private final Map<GraphicsStage, GraphicsPassGroup<C>> passMap = new HashMap<>();
-    private final Map<Identifier, GraphicsStage> idToStage = new HashMap<>();
+    private final Map<GraphicsStage, GraphicsPassGroup<C>> passMap = new LinkedHashMap<>();
+    private final Map<Identifier, GraphicsStage> idToStage = new LinkedHashMap<>();
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
@@ -62,8 +63,8 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Add a GraphInstance to a specific stage.
      */
-    public void addGraphInstance(Identifier id, GraphicsInstance graph, RenderSetting renderSetting) {
-        GraphicsStage stage = idToStage.get(id);
+    public void addGraphInstance(Identifier stageId, GraphicsInstance graph, RenderSetting renderSetting) {
+        GraphicsStage stage = idToStage.get(stageId);
         if (stage != null) {
             passMap.get(stage).addGraphInstance(graph, renderSetting);
         }
@@ -130,6 +131,7 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void resetRenderContext(C context) {
         this.currentContext = context;
+        this.renderStateManager().reset();
     }
     
     /**
@@ -195,14 +197,14 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Get the instance pool manager
      */
-    public InstancePoolManager getPoolManager() {
+    public InstancePoolManager poolManager() {
         return poolManager;
     }
     
     /**
      * Get the async render manager
      */
-    public AsyncRenderManager getAsyncManager() {
+    public AsyncRenderManager asyncManager() {
         return asyncManager;
     }
     
@@ -212,7 +214,15 @@ public class GraphicsPipeline<C extends RenderContext> {
     public boolean isInitialized() {
         return initialized;
     }
-    
+
+    public RenderStateManager renderStateManager() {
+        return renderStateManager;
+    }
+
+    public C currentContext() {
+        return currentContext;
+    }
+
     /**
      * Get pipeline statistics
      */

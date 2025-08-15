@@ -96,8 +96,6 @@ public class LibraryShaderExamples {
         if (lightPosition != null) {
             lightPosition.set(new Vector3f(5.0f, 5.0f, 5.0f));
         }
-
-        shader.close();
     }
 
     /**
@@ -169,8 +167,6 @@ public class LibraryShaderExamples {
         // Dispatch compute work
         computeShader.dispatch(1000 / 64 + 1); // Process 1000 particles with 64 per work group
         computeShader.shaderStorageBarrier();
-
-        computeShader.close();
     }
 
     /**
@@ -255,8 +251,6 @@ public class LibraryShaderExamples {
 
         System.out.println("Created advanced graphics shader: " + shader.getIdentifier());
         System.out.println("Vertex format: " + shader.getVertexFormat());
-
-        shader.close();
     }
 
     /**

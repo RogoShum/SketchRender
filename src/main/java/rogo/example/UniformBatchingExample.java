@@ -55,7 +55,7 @@ public class UniformBatchingExample {
         }
 
         @Override
-        public void endDraw() {
+        public <C extends RenderContext> void afterDraw(C context) {
             // 绘制完成
         }
 

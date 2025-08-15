@@ -4,24 +4,24 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL20;
 import rogo.sketch.api.RenderStateComponent;
+import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
-import rogo.sketch.render.shader.Shader;
 import rogo.sketch.util.Identifier;
 
 import java.util.Objects;
 import java.util.Optional;
 
 public class ShaderState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("shader");
-    private ResourceReference<Shader> shader;
+    public static final Identifier TYPE = ResourceTypes.SHADER_PROGRAM;
+    private ResourceReference<ShaderProvider> shader;
     private Identifier shaderId;
 
     public ShaderState() {
-        this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, Identifier.of(""));
-        this.shaderId = Identifier.of("");
+        this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, Identifier.of("empty"));
+        this.shaderId = Identifier.of("empty");
     }
 
     public ShaderState(Identifier identifier) {
@@ -44,7 +44,7 @@ public class ShaderState implements RenderStateComponent {
 
     @Override
     public void apply(RenderContext context) {
-        Optional<Shader> shader = this.shader.get();
+        Optional<ShaderProvider> shader = this.shader.get();
         if (shader.isPresent()) {
             GL20.glUseProgram(shader.get().getHandle());
             context.setShaderProvider(shader.get());
@@ -68,5 +68,9 @@ public class ShaderState implements RenderStateComponent {
     @Override
     public RenderStateComponent createInstance() {
         return new ShaderState();
+    }
+
+    public ResourceReference<ShaderProvider> shader() {
+        return shader;
     }
 }

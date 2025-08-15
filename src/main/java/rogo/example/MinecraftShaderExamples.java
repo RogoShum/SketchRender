@@ -21,13 +21,11 @@ public class MinecraftShaderExamples {
     public static void loadComputeShaderFromResources(ResourceProvider resourceProvider) throws Exception {
         // This will load from assets/sketchrender/shaders/compute/particle_sim.comp
         ComputeShaderProgram computeShader = ShaderUtils.loadComputeShader(
-            resourceProvider,
-            new ResourceLocation("sketchrender", "particle_sim")
+                resourceProvider,
+                new ResourceLocation("sketchrender", "particle_sim")
         );
 
         System.out.println("Loaded compute shader: " + computeShader.getIdentifier());
-        
-        computeShader.close();
     }
 
     /**
@@ -38,16 +36,14 @@ public class MinecraftShaderExamples {
         // - assets/sketchrender/shaders/graphics/basic_mesh.vert
         // - assets/sketchrender/shaders/graphics/basic_mesh.frag
         GraphicsShaderProgram graphicsShader = ShaderUtils.loadSimpleGraphicsShader(
-            resourceProvider,
-            new ResourceLocation("sketchrender", "basic_mesh"),
-            "basic_mesh", // vertex shader name
-            "basic_mesh"  // fragment shader name
+                resourceProvider,
+                new ResourceLocation("sketchrender", "basic_mesh"),
+                "basic_mesh", // vertex shader name
+                "basic_mesh"  // fragment shader name
         );
 
         System.out.println("Loaded graphics shader: " + graphicsShader.getIdentifier());
         System.out.println("Vertex format: " + graphicsShader.getVertexFormat());
-        
-        graphicsShader.close();
     }
 
     /**
@@ -55,16 +51,16 @@ public class MinecraftShaderExamples {
      */
     public static void loadAdvancedGraphicsShader(ResourceProvider resourceProvider) throws Exception {
         GraphicsShaderProgram shader = ShaderUtils.graphicsBuilder(resourceProvider, new ResourceLocation("sketchrender", "terrain"))
-            .vertex("terrain_vertex")           // loads terrain_vertex.vert
-            .tessControl("terrain_tess_ctrl")   // loads terrain_tess_ctrl.tesc
-            .tessEvaluation("terrain_tess_eval") // loads terrain_tess_eval.tese
-            .geometry("terrain_geometry")       // loads terrain_geometry.geom
-            .fragment("terrain_fragment")       // loads terrain_fragment.frag
-            .build();
+                .vertex("terrain_vertex")           // loads terrain_vertex.vert
+                .tessControl("terrain_tess_ctrl")   // loads terrain_tess_ctrl.tesc
+                .tessEvaluation("terrain_tess_eval") // loads terrain_tess_eval.tese
+                .geometry("terrain_geometry")       // loads terrain_geometry.geom
+                .fragment("terrain_fragment")       // loads terrain_fragment.frag
+                .build();
 
         System.out.println("Loaded advanced shader: " + shader.getIdentifier());
-        
-        shader.close();
+
+
     }
 
     /**
@@ -72,26 +68,26 @@ public class MinecraftShaderExamples {
      */
     public static void mixedShaderLoading(ResourceProvider resourceProvider) throws Exception {
         String inlineFragmentShader = """
-            #version 330 core
-            in vec3 fragColor;
-            out vec4 finalColor;
-            
-            uniform float time;
-            
-            void main() {
-                float pulse = 0.5 + 0.5 * sin(time * 2.0);
-                finalColor = vec4(fragColor * pulse, 1.0);
-            }
-            """;
+                #version 330 core
+                in vec3 fragColor;
+                out vec4 finalColor;
+                            
+                uniform float time;
+                            
+                void main() {
+                    float pulse = 0.5 + 0.5 * sin(time * 2.0);
+                    finalColor = vec4(fragColor * pulse, 1.0);
+                }
+                """;
 
         GraphicsShaderProgram shader = ShaderUtils.graphicsBuilder(resourceProvider, new ResourceLocation("sketchrender", "mixed"))
-            .vertex("simple_vertex")        // Load from resource
-            .fragment(inlineFragmentShader) // Use inline GLSL
-            .build();
+                .vertex("simple_vertex")        // Load from resource
+                .fragment(inlineFragmentShader) // Use inline GLSL
+                .build();
 
         System.out.println("Created mixed shader: " + shader.getIdentifier());
-        
-        shader.close();
+
+
     }
 
     /**
@@ -100,15 +96,15 @@ public class MinecraftShaderExamples {
     public static void customDirectoryExample(ResourceProvider resourceProvider) throws Exception {
         // For more complex loading scenarios, you can implement custom logic
         Map<ShaderType, String> shaderSources = Map.of(
-            ShaderType.VERTEX, loadCustomShader(resourceProvider, "custom/path/vertex_shader.glsl"),
-            ShaderType.FRAGMENT, loadCustomShader(resourceProvider, "custom/path/fragment_shader.glsl")
+                ShaderType.VERTEX, loadCustomShader(resourceProvider, "custom/path/vertex_shader.glsl"),
+                ShaderType.FRAGMENT, loadCustomShader(resourceProvider, "custom/path/fragment_shader.glsl")
         );
 
         GraphicsShaderProgram shader = new GraphicsShaderProgram(Identifier.of("custom_shader"), shaderSources);
-        
+
         System.out.println("Created custom shader: " + shader.getIdentifier());
-        
-        shader.close();
+
+
     }
 
     /**
@@ -117,7 +113,7 @@ public class MinecraftShaderExamples {
     private static String loadCustomShader(ResourceProvider resourceProvider, String path) throws Exception {
         ResourceLocation location = new ResourceLocation("sketchrender", path);
         return resourceProvider.openAsReader(location).lines()
-            .reduce("", (a, b) -> a + "\n" + b);
+                .reduce("", (a, b) -> a + "\n" + b);
     }
 
     /**
@@ -128,12 +124,12 @@ public class MinecraftShaderExamples {
         // - assets/sketchrender/shaders/graphics/my_shader_vertex.vert
         // - assets/sketchrender/shaders/graphics/my_shader_fragment.frag
         GraphicsShaderProgram shader = ShaderUtils.loadDefaultGraphicsShader(
-            resourceProvider,
-            new ResourceLocation("sketchrender", "my_shader")
+                resourceProvider,
+                new ResourceLocation("sketchrender", "my_shader")
         );
 
         System.out.println("Loaded shader with default naming: " + shader.getIdentifier());
-        
-        shader.close();
+
+
     }
 }

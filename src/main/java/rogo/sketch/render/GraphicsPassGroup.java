@@ -5,7 +5,9 @@ import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.async.AsyncRenderManager;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.pool.InstancePoolManager;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
+import rogo.sketch.render.state.gl.ShaderState;
 import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.render.vertex.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
@@ -20,13 +22,12 @@ public class GraphicsPassGroup<C extends RenderContext> {
     private final VertexResourceManager vertexResourceManager = VertexResourceManager.getInstance();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
-    
+
     // Note: AsyncRenderExecutor is deprecated, using AsyncRenderManager instead
 
     public GraphicsPassGroup(Identifier stageIdentifier) {
         this.stageIdentifier = stageIdentifier;
     }
-
 
 
     public void addGraphInstance(GraphicsInstance instance, RenderSetting setting) {
@@ -37,9 +38,9 @@ public class GraphicsPassGroup<C extends RenderContext> {
     public void tick(C context) {
         // Use the global async manager to determine execution mode
         Collection<GraphicsInstance> allInstances = groups.values().stream()
-            .flatMap(pass -> pass.getAllInstances().stream())
-            .toList();
-        
+                .flatMap(pass -> pass.getAllInstances().stream())
+                .toList();
+
         if (asyncManager.shouldUseAsync(allInstances.size())) {
             asyncManager.tickInstancesAsync(allInstances, context).join();
         } else {
@@ -90,8 +91,8 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
         try {
             return asyncManager.collectUniformsAsync(
-                () -> collectUniformBatchesSync(instances, context),
-                instances.size()
+                    () -> collectUniformBatchesSync(instances, context),
+                    instances.size()
             ).join();
         } catch (Exception e) {
             // Fallback to sync if async fails
@@ -122,8 +123,8 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
         try {
             return asyncManager.collectUniformsAsync(
-                () -> collectUniformBatchesSync(instances, context),
-                instances.size()
+                    () -> collectUniformBatchesSync(instances, context),
+                    instances.size()
             ).join();
         } catch (Exception e) {
             return collectUniformBatchesSync(instances, context);
@@ -135,8 +136,8 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
         try {
             return asyncManager.collectUniformsAsync(
-                () -> collectUniformBatchesSync(instances, context),
-                instances.size()
+                    () -> collectUniformBatchesSync(instances, context),
+                    instances.size()
             ).join();
         } catch (Exception e) {
             return collectUniformBatchesSync(instances, context);
@@ -167,7 +168,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
             resource.endFill();
             VertexRenderer.render(resource);
             for (GraphicsInstance instance : batch.getInstances()) {
-                instance.endDraw();
+                instance.afterDraw(context);
             }
         }
     }
@@ -206,7 +207,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
         }
 
         for (GraphicsInstance instance : batch.getInstances()) {
-            instance.endDraw();
+            instance.afterDraw(context);
         }
     }
 
@@ -307,7 +308,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
             );
         }
     }
-    
+
     /**
      * Cleanup discarded instances and return them to the pool
      */

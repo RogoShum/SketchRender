@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import rogo.sketch.api.LevelPipeline;
+import rogo.sketch.api.LevelPipelineProvider;
 import rogo.sketch.render.GraphicsPipeline;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.McRenderContext;
@@ -23,7 +23,7 @@ import rogo.sketch.vanilla.MinecraftRenderStages;
 import javax.annotation.Nullable;
 
 @Mixin(LevelRenderer.class)
-public abstract class MixinLevelRenderer implements LevelPipeline {
+public abstract class MixinLevelRendererProvider implements LevelPipelineProvider {
     @Shadow
     private int ticks;
     @Shadow

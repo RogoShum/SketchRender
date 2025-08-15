@@ -9,10 +9,11 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import rogo.sketch.SketchRender;
-import rogo.sketch.render.GraphicsPipeline;
+import rogo.sketch.api.LevelPipelineProvider;
+import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.render.PartialRenderSetting;
 import rogo.sketch.render.RenderSetting;
-import rogo.sketch.render.instance.ComputeChunkBatchingGraphics;
+import rogo.sketch.vanilla.instance.ComputeHIZGraphics;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.Identifier;
@@ -36,11 +37,18 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
     public void onResourceManagerReload(ResourceManager resourceManager) {
         GraphicsResourceManager.getInstance().clearAllResources();
         scanAndLoad(resourceManager);
-        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of("sketchrender:batch_chunk"));
+        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of("sketchrender:hierarchy_depth_buffer_first"));
         if (renderSetting.isPresent()) {
             PartialRenderSetting partialRenderSetting = renderSetting.get();
-            RenderSetting setting = RenderSetting.computeShader(partialRenderSetting.resourceBinding());
-            ((GraphicsPipeline) (Object) Minecraft.getInstance().levelRenderer).addGraphInstance(Identifier.of(SketchRender.MOD_ID, "batch_chunk"), new ComputeChunkBatchingGraphics(Identifier.of(SketchRender.MOD_ID, "batch_chunk")), setting);
+            RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
+            ((LevelPipelineProvider) Minecraft.getInstance().levelRenderer).getGraphicsPipeline().addGraphInstance(CullingStages.HIZ, new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true), setting);
+        }
+
+        renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"));
+        if (renderSetting.isPresent()) {
+            PartialRenderSetting partialRenderSetting = renderSetting.get();
+            RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
+            ((LevelPipelineProvider) Minecraft.getInstance().levelRenderer).getGraphicsPipeline().addGraphInstance(CullingStages.HIZ, new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"), false), setting);
         }
     }
 

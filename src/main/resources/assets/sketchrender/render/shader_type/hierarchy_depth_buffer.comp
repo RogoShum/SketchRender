@@ -5,11 +5,11 @@ layout(binding = 1, r16f) uniform writeonly image2D output_texture_1;
 layout(binding = 2, r16f) uniform writeonly image2D output_texture_2;
 layout(binding = 3, r16f) uniform writeonly image2D output_texture_3;
 
-uniform sampler2D sketch_sampler_texture_0;
+uniform sampler2D sketch_SamplerTexture;
 
-uniform ivec2 sketch_screen_size;
-uniform int sketch_liner_depth;
-uniform int sketch_render_distance;
+uniform ivec2 sketch_screenSize;
+uniform int sketch_linerDepth;
+uniform int sketch_renderDistance;
 
 #define MIP_LEVELS 4
 #define TILE_SIZE_X 16
@@ -32,14 +32,14 @@ float LinearizeDepth(float depth) {
 void main() {
     ivec2 groupStart = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);
     ivec2 localID = ivec2(gl_LocalInvocationID.xy);
-    far = sketch_render_distance * 64.0;
+    far = sketch_renderDistance * 64.0;
 
     for (int dy = 0; dy < 2; ++dy) {
         for (int dx = 0; dx < 2; ++dx) {
             ivec2 cachePos = localID * 2 + ivec2(dx, dy);
             ivec2 texPos = groupStart * 2 + cachePos;
-            if (texPos.x < sketch_screen_size.x && texPos.y < sketch_screen_size.y) {
-                float depth = sketch_liner_depth > 0 ? LinearizeDepth(texelFetch(sketch_sampler_texture_0, texPos, 0).r) : texelFetch(sketch_sampler_texture_0, texPos, 0).r;
+            if (texPos.x < sketch_screenSize.x && texPos.y < sketch_screenSize.y) {
+                float depth = sketch_linerDepth > 0 ? LinearizeDepth(texelFetch(sketch_SamplerTexture, texPos, 0).r) : texelFetch(sketch_SamplerTexture, texPos, 0).r;
                 depthCache[cachePos.y][cachePos.x] = depth;
             } else {
                 depthCache[cachePos.y][cachePos.x] = 0.0;
@@ -71,7 +71,7 @@ void main() {
         mipGroupStart >>= level;
 
         ivec2 outPos = mipGroupStart + localID;
-        ivec2 outSize = max(sketch_screen_size >> (level + 1), ivec2(1, 1));
+        ivec2 outSize = max(sketch_screenSize >> (level + 1), ivec2(1, 1));
 
         if (localID.x < nextWidth && localID.y < nextHeight &&
         outPos.x < outSize.x && outPos.y < outSize.y) {

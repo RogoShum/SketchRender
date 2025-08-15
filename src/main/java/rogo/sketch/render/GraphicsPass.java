@@ -12,9 +12,9 @@ import java.util.*;
 
 public class GraphicsPass<C extends RenderContext> {
     private final Set<GraphicsInstance> activatedGraphics = new HashSet<>();
-    private final Map<Identifier, SharedVertexGraphics> sharedGraphics = new HashMap<>();
-    private final Map<Identifier, IndependentVertexProvider> independentGraphics = new HashMap<>();
-    private final Map<Identifier, GraphicsInstance> customGraphics = new HashMap<>();
+    private final Map<Identifier, SharedVertexGraphics> sharedGraphics = new LinkedHashMap<>();
+    private final Map<Identifier, IndependentVertexProvider> independentGraphics = new LinkedHashMap<>();
+    private final Map<Identifier, GraphicsInstance> customGraphics = new LinkedHashMap<>();
 
     public GraphicsPass() {
     }
@@ -103,29 +103,29 @@ public class GraphicsPass<C extends RenderContext> {
 
         return result;
     }
-
-    public void endCustom() {
-        for (GraphicsInstance instance : customGraphics.values()) {
-            instance.endDraw();
-        }
-    }
+//
+//    public void endCustom() {
+//        for (GraphicsInstance instance : customGraphics.values()) {
+//            instance.endDraw();
+//        }
+//    }
 
     public void executeCustomBatch(List<GraphicsInstance> batchInstances, C context) {
         for (GraphicsInstance instance : batchInstances) {
             if (customGraphics.containsValue(instance) && instance.shouldRender()) {
-                instance.endDraw();
+                instance.afterDraw(context);
                 activatedGraphics.add(instance);
             }
         }
     }
 
-    public void endDraw() {
-        for (GraphicsInstance instance : activatedGraphics) {
-            instance.endDraw();
-        }
-
-        activatedGraphics.clear();
-    }
+//    public void endDraw() {
+//        for (GraphicsInstance instance : activatedGraphics) {
+//            instance.endDraw();
+//        }
+//
+//        activatedGraphics.clear();
+//    }
 
     public boolean containsShared() {
         return !sharedGraphics.isEmpty();

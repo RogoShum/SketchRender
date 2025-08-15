@@ -11,8 +11,8 @@ import rogo.sketch.api.ExtraUniform;
 import rogo.sketch.api.ShaderCollector;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.event.ProgramEvent;
-import rogo.sketch.render.shader.uniform.UnsafeUniformMap;
 import rogo.sketch.render.shader.uniform.UniformHookGroup;
+import rogo.sketch.render.shader.uniform.UnsafeUniformMap;
 import rogo.sketch.util.Identifier;
 
 import java.io.BufferedReader;
@@ -24,7 +24,6 @@ public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvi
     private final UniformHookGroup uniformHookGroup = new UniformHookGroup();
     private final UnsafeUniformMap unsafeUniformMap;
     private final Identifier identifier;
-    public Shader shader;
     private final int program;
 
     public ComputeShader(ResourceProvider resourceProvider, ResourceLocation shaderLocation) throws IOException {
@@ -32,7 +31,6 @@ public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvi
         this.identifier = Identifier.valueOf(shaderLocation);
         BufferedReader reader = resourceProvider.openAsReader(resourcelocation);
         String content = reader.lines().collect(Collectors.joining("\n"));
-        shader = new ComputeShaderProgram(identifier, content);
 
         int computeShader = GL20.glCreateShader(GL43.GL_COMPUTE_SHADER);
         GL20.glShaderSource(computeShader, content);

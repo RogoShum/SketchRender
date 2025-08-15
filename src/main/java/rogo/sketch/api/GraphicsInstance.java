@@ -14,5 +14,5 @@ public interface GraphicsInstance {
 
     boolean shouldRender();
 
-    void endDraw();
+    <C extends RenderContext> void afterDraw(C context);
 }

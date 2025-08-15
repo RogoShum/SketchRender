@@ -1,0 +1,19 @@
+{
+  "renderState": {
+    "shader_program": {
+      "identifier": "sketchrender:hierarchy_depth_buffer"
+    }
+  },
+  "resourceBinding": {
+    "image_buffer": {
+      "output_texture_0": "sketchrender:hiz_texture_4",
+      "output_texture_1": "sketchrender:hiz_texture_5",
+      "output_texture_2": "sketchrender:hiz_texture_6",
+      "output_texture_3": "sketchrender:hiz_texture_7"
+    },
+    "texture": {
+      "sketch_SamplerTexture": "sketchrender:hiz_texture_0"
+    }
+  },
+  "shouldSwitchRenderState": true
+}

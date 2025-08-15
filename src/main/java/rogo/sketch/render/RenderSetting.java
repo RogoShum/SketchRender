@@ -42,12 +42,12 @@ public record RenderSetting(
         );
     }
 
-    public static RenderSetting computeShader(ResourceBinding resourceBinding) {
+    public static RenderSetting computeShader(PartialRenderSetting partial) {
         return new RenderSetting(
+                partial.renderState(),
+                partial.resourceBinding(),
                 null,
-                resourceBinding,
-                null,
-                false
+                partial.shouldSwitchRenderState()
         );
     }
 }

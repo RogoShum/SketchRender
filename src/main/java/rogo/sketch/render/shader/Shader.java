@@ -2,12 +2,10 @@ package rogo.sketch.render.shader;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.*;
-import rogo.sketch.SketchRender;
-import rogo.sketch.api.ShaderCollector;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.ShaderResource;
-import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.data.DataType;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.ShaderUniform;
 import rogo.sketch.render.shader.uniform.UniformHookGroup;
 import rogo.sketch.render.shader.uniform.UniformHookRegistry;
@@ -21,7 +19,7 @@ import java.util.Map;
 /**
  * Base class for all shaders (graphics and compute)
  */
-public abstract class Shader implements ShaderCollector, ShaderProvider {
+public abstract class Shader implements ShaderProvider {
     private final Map<Identifier, Map<Identifier, Integer>> resourceBindings = new HashMap<>();
     protected final UniformHookGroup uniformHookGroup = new UniformHookGroup();
     protected final Identifier identifier;
@@ -45,8 +43,6 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
 
         collectAndInitializeUniforms();
         postLinkInitialization();
-
-        onShadeCreate();
     }
 
     /**
@@ -142,8 +138,9 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
                 }
 
                 if (isSamplerType(glType)) {
-                    textureBindings.put(Identifier.of(uniformName), location);
-                    System.out.println("Discovered Texture: " + uniformName + " -> location " + location);
+                    int unit = GL20.glGetUniformi(program, location);
+                    textureBindings.put(Identifier.of(uniformName), unit);
+                    System.out.println("Discovered Texture: " + uniformName + " -> unit " + unit);
                 }
 
                 // Check for image uniforms (requires OpenGL 4.2+)
@@ -330,11 +327,6 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
         return resourceBindings;
     }
 
-    @Override
-    public void onShadeCreate() {
-        SketchRender.getShaderManager().onShaderLoad(this);
-    }
-
     /**
      * Dispose of all OpenGL resources
      */
@@ -343,11 +335,6 @@ public abstract class Shader implements ShaderCollector, ShaderProvider {
         if (program > 0) {
             GL20.glDeleteProgram(program);
         }
-    }
-
-    @Override
-    public void close() {
-        dispose();
     }
 
     @Override

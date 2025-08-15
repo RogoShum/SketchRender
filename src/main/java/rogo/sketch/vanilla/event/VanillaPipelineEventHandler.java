@@ -1,13 +1,11 @@
 package rogo.sketch.vanilla.event;
 
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
-import org.joml.Vector3i;
-import org.joml.Vector4f;
+import org.joml.*;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
@@ -22,6 +20,7 @@ import rogo.sketch.render.shader.uniform.ValueGetter;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.vanilla.instance.ComputeHIZGraphics;
 import rogo.sketch.vanilla.resource.TempTexture;
 
 import java.util.ArrayList;
@@ -158,6 +157,21 @@ public class VanillaPipelineEventHandler {
 
                 return array;
             }, float[].class));
+
+            uniformEvent.register(Identifier.of("sketch_linerDepth"), ValueGetter.create((instance) -> {
+                if (instance instanceof ComputeHIZGraphics hizGraphics) {
+                    return hizGraphics.first() ? 1 : 0;
+                }
+                return 0;
+            }, Integer.class));
+
+            uniformEvent.register(Identifier.of("sketch_screenSize"), ValueGetter.create((instance) -> {
+                if (instance instanceof ComputeHIZGraphics hizGraphics) {
+                    RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
+                    return hizGraphics.first() ? new Vector2i(screen.width, screen.height) : new Vector2i(screen.width >> 4, screen.height >> 4);
+                }
+                return new Vector2i(0, 0);
+            }, Vector2i.class));
         }
     }
 

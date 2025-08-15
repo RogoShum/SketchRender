@@ -2,7 +2,9 @@ package rogo.sketch.render;
 
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.resource.ResourceBinding;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.state.FullRenderState;
+import rogo.sketch.render.state.gl.ShaderState;
 import rogo.sketch.util.Identifier;
 
 import java.util.Objects;
@@ -15,7 +17,7 @@ public class RenderStateManager {
         // Only switch render state if requested (compute shaders don't need it)
         if (setting.shouldSwitchRenderState() && setting.renderState() != null) {
             FullRenderState newState = setting.renderState();
-            
+
             if (currentState == null) {
                 // First time, apply all components
                 for (RenderStateComponent comp : newState.getComponentTypes().stream().map(newState::get).toList()) {
@@ -42,7 +44,7 @@ public class RenderStateManager {
             currentResourceBinding = setting.resourceBinding();
         }
     }
-    
+
     /**
      * Force apply all render state components (e.g., after context reset)
      */
@@ -56,21 +58,21 @@ public class RenderStateManager {
             currentResourceBinding.bind(context);
         }
     }
-    
+
     /**
      * Get current render state
      */
     public FullRenderState getCurrentState() {
         return currentState;
     }
-    
+
     /**
      * Get current resource binding
      */
     public ResourceBinding getCurrentResourceBinding() {
         return currentResourceBinding;
     }
-    
+
     /**
      * Reset state manager
      */
