@@ -108,6 +108,7 @@ public abstract class Shader implements ShaderProvider {
      * Unified uniform and resource discovery to eliminate redundant GL queries
      */
     private UnifiedUniformInfo discoverAllUniforms() {
+        bind();
         Map<String, ShaderResource<?>> uniforms = new HashMap<>();
         Map<Identifier, Integer> textureBindings = new HashMap<>();
         Map<Identifier, Integer> imageBindings = new HashMap<>();
@@ -117,6 +118,7 @@ public abstract class Shader implements ShaderProvider {
         IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
 
         int uniformCount = GL20.glGetProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
+        int nextTextureUnit = 0;
 
         for (int i = 0; i < uniformCount; i++) {
             sizeBuffer.clear();
@@ -138,7 +140,8 @@ public abstract class Shader implements ShaderProvider {
                 }
 
                 if (isSamplerType(glType)) {
-                    int unit = GL20.glGetUniformi(program, location);
+                    int unit = nextTextureUnit++;
+                    GL20.glUniform1i(location, unit);
                     textureBindings.put(Identifier.of(uniformName), unit);
                     System.out.println("Discovered Texture: " + uniformName + " -> unit " + unit);
                 }
@@ -156,9 +159,12 @@ public abstract class Shader implements ShaderProvider {
         if (!textureBindings.isEmpty()) {
             resourceBindings.put(ResourceTypes.TEXTURE, textureBindings);
         }
+
         if (!imageBindings.isEmpty()) {
             resourceBindings.put(ResourceTypes.IMAGE_BUFFER, imageBindings);
         }
+
+        unbind();
 
         return new UnifiedUniformInfo(uniforms, textureBindings, imageBindings);
     }

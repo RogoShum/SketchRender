@@ -12,7 +12,7 @@
       "output_texture_3": "sketchrender:hiz_texture_7"
     },
     "texture": {
-      "sketch_SamplerTexture": "sketchrender:hiz_texture_0"
+      "sketch_SamplerTexture": "sketchrender:hiz_texture_3"
     }
   },
   "shouldSwitchRenderState": true

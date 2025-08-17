@@ -23,35 +23,51 @@ import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.instance.ComputeHIZGraphics;
 import rogo.sketch.vanilla.resource.TempTexture;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Optional;
 
 public class VanillaPipelineEventHandler {
     public static final TempTexture mainColor = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(), false);
     public static final TempTexture mainDepth = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(), true);
 
-    public static void registerStaticResource() {
+    public static void registerPersistentResource() {
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_0"),
-                () -> CullingStateManager.DEPTH_BUFFER_TARGET[0].texture());
+                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[0].texture()));
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_1"),
-                () -> CullingStateManager.DEPTH_BUFFER_TARGET[1].texture());
+                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[1].texture()));
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_2"),
-                () -> CullingStateManager.DEPTH_BUFFER_TARGET[2].texture());
+                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[2].texture()));
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_3"),
-                () -> CullingStateManager.DEPTH_BUFFER_TARGET[3].texture());
+                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[3].texture()));
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_4"),
-                () -> CullingStateManager.DEPTH_BUFFER_TARGET[4].texture());
+                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[4].texture()));
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_5"),
-                () -> CullingStateManager.DEPTH_BUFFER_TARGET[5].texture());
+                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[5].texture()));
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_6"),
-                () -> CullingStateManager.DEPTH_BUFFER_TARGET[6].texture());
+                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[6].texture()));
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_7"),
-                () -> CullingStateManager.DEPTH_BUFFER_TARGET[7].texture());
+                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[7].texture()));
 
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_color"),
-                () -> mainColor.getTexture());
+                () -> Optional.of(mainColor.getTexture()));
         GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_depth"),
-                () -> mainDepth.getTexture());
+                () -> Optional.of(mainDepth.getTexture()));
+
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "entity_data"),
+                () -> {
+                    if (CullingStateManager.ENTITY_CULLING_MASK != null) {
+                        return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityDataSSBO());
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "entity_culling_result"),
+                () -> {
+                    if (CullingStateManager.ENTITY_CULLING_MASK != null) {
+                        return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityCullingResult());
+                    } else {
+                        return Optional.empty();
+                    }
+                });
     }
 
     public static void onUniformInit(ProxyModEvent event) {
@@ -65,7 +81,7 @@ public class VanillaPipelineEventHandler {
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("sketch_entityCount"), ValueGetter.create(() -> {
-                return CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size();
+                return CullingStateManager.ENTITY_CULLING_MASK == null ? 0 : CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size();
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("sketch_cullingTerrain"), ValueGetter.create(() -> {
@@ -132,31 +148,17 @@ public class VanillaPipelineEventHandler {
 
             uniformEvent.register(Identifier.of("sketch_cullingFrustum"), ValueGetter.create(() -> {
                 Vector4f[] frustumData = SketchRender.getFrustumPlanes(((AccessorFrustum) CullingStateManager.FRUSTUM).frustumIntersection());
-                List<Float> data = new ArrayList<>();
-                for (Vector4f frustumDatum : frustumData) {
-                    data.add(frustumDatum.x());
-                    data.add(frustumDatum.y());
-                    data.add(frustumDatum.z());
-                    data.add(frustumDatum.w());
-                }
-                float[] array = new float[data.size()];
-                for (int i = 0; i < data.size(); i++) {
-                    array[i] = data.get(i);
-                }
-
-                return array;
-            }, float[].class));
+                return frustumData;
+            }, Vector4f[].class));
 
             uniformEvent.register(Identifier.of("sketch_depthSize"), ValueGetter.create(() -> {
-                float[] array = new float[CullingStateManager.DEPTH_SIZE * 2];
+                Vector2f[] array = new Vector2f[CullingStateManager.DEPTH_SIZE];
                 for (int i = 0; i < CullingStateManager.DEPTH_SIZE; ++i) {
-                    int arrayIdx = i * 2;
-                    array[arrayIdx] = (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].width;
-                    array[arrayIdx + 1] = (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].height;
+                    array[i] = new Vector2f((float) CullingStateManager.DEPTH_BUFFER_TARGET[i].width, (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].height);
                 }
 
                 return array;
-            }, float[].class));
+            }, Vector2f[].class));
 
             uniformEvent.register(Identifier.of("sketch_linerDepth"), ValueGetter.create((instance) -> {
                 if (instance instanceof ComputeHIZGraphics hizGraphics) {

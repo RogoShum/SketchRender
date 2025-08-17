@@ -61,12 +61,6 @@ public class CullingRenderEvent {
             tessellator.end();
         }
 
-        CullingStateManager.callDepthTexture();
-
-        if (Config.doEntityCulling() && CullingStateManager.ENTITY_CULLING_MASK != null) {
-            CullingStateManager.ENTITY_CULLING_MASK.updateEntityData();
-            CullingStateManager.computeEntityCulling();
-        }
         CullingStateManager.bindMainFrameTarget();
     }
 

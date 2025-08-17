@@ -24,10 +24,7 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
-import org.lwjgl.opengl.ARBIndirectParameters;
-import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL43;
-import org.lwjgl.opengl.GL46C;
+import org.lwjgl.opengl.*;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.resource.ResourceTypes;
@@ -151,7 +148,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
         CullingStateManager.runOnDepthFrame((depthContext) -> {
             RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
-            RenderSystem.bindTexture(depthContext.frame().getColorTextureId());
+            GL11.glBindTexture(3553, depthContext.frame().getColorTextureId());
         });
 
         RenderSystem.activeTexture(GL_TEXTURE0);
@@ -163,7 +160,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
                         GL_COMMAND_BARRIER_BIT);
 
         MeshResource.batchMaxElement.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 0);
-        MeshResource.maxElementPersistent.bindShaderSlot(1);
+        MeshResource.maxElementPersistent.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 1);
         ShaderManager.COPY_COUNTER_CS.bind();
         ShaderManager.COPY_COUNTER_CS.execute(1, 1, 1);
         ShaderManager.COPY_COUNTER_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);

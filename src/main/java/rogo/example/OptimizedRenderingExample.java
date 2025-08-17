@@ -39,9 +39,7 @@ public class OptimizedRenderingExample {
         
         System.out.println("Subsequent bind calls - Uses cached ResourceReferences for faster lookup");
         // binding1.bind(mockRenderContext); // Much faster due to caching
-        
-        // Clear cache when resources are reloaded
-        binding1.clearResourceCache();
+
         System.out.println("Resource cache cleared - next bind will recreate references");
     }
     

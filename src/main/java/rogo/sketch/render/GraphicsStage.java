@@ -36,4 +36,11 @@ public class GraphicsStage {
     public int hashCode() {
         return identifier.hashCode();
     }
+
+    @Override
+    public String toString() {
+        return "GraphicsStage{" +
+                "identifier=" + identifier +
+                '}';
+    }
 }

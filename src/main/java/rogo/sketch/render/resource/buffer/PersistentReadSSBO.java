@@ -6,11 +6,13 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.DataResourceObject;
+import rogo.sketch.util.Identifier;
 
 import java.nio.ByteBuffer;
 
-public class PersistentReadSSBO implements DataResourceObject {
+public class PersistentReadSSBO implements DataResourceObject, BindingResource {
     private int id;
     private boolean isDisposed = false;
     private long bufferPointer;
@@ -78,11 +80,6 @@ public class PersistentReadSSBO implements DataResourceObject {
 
     public long getStride() {
         return stride;
-    }
-
-    public void bindShaderSlot(int bindingPoint) {
-        checkDisposed();
-        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, bindingPoint, id);
     }
 
     public void ensureCapacity(int requiredCount, boolean force) {
@@ -175,5 +172,11 @@ public class PersistentReadSSBO implements DataResourceObject {
     public void sync() {
         checkDisposed();
         GL45.glMemoryBarrier(GL45.GL_SHADER_STORAGE_BARRIER_BIT);
+    }
+
+    @Override
+    public void bind(Identifier resourceType, int binding) {
+        checkDisposed();
+        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, binding, id);
     }
 }

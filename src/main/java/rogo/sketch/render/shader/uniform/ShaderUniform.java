@@ -32,11 +32,11 @@ public class ShaderUniform<T> implements ShaderResource<T> {
         this.program = program;
         this.valueConsumer = createValueSetter();
         if (dataType.isIntegerType()) {
-            this.intValues = MemoryUtil.memAllocInt(dataCount);
+            this.intValues = MemoryUtil.memAllocInt(this.dataCount);
             this.floatValues = null;
         } else {
             this.intValues = null;
-            this.floatValues = MemoryUtil.memAllocFloat(dataCount);
+            this.floatValues = MemoryUtil.memAllocFloat(this.dataCount);
         }
     }
 

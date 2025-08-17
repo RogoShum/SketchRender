@@ -11,16 +11,16 @@ uniform sampler2D Sampler5;
 uniform sampler2D Sampler6;
 uniform sampler2D Sampler7;
 
-uniform mat4 sketch_culling_view_mat;
-uniform mat4 sketch_culling_proj_mat;
-uniform vec3 sketch_culling_camera_pos;
-uniform vec3 sketch_culling_camera_dir;
-uniform vec3 sketch_frustum_pos;
-uniform int sketch_render_distance;
-uniform int sketch_level_section_range;
-uniform int sketch_entity_count;
-uniform float[24] sketch_culling_frustum;
-uniform float[16] sketch_depth_size;
+uniform mat4 sketch_cullingViewMat;
+uniform mat4 sketch_cullingProjMat;
+uniform vec3 sketch_cullingCameraPos;
+uniform vec3 sketch_cullingCameraDir;
+uniform vec3 sketch_frustumPos;
+uniform int sketch_renderDistance;
+uniform int sketch_levelSectionRange;
+uniform int sketch_entityCount;
+uniform vec4[6] sketch_cullingFrustum;
+uniform vec2[8] sketch_depthSize;
 
 layout(std430, binding = 0) readonly buffer EntityDataBuffer {
     float entityData[]; // float * 6: center.x, center.y, center.z, size.x, size.y, size.z
@@ -40,40 +40,15 @@ struct ClipResult {
     vec2 screenMax;
 };
 
-vec4[6] getFrustumData() {
-    return vec4[](
-    vec4(sketch_culling_frustum[0], sketch_culling_frustum[1], sketch_culling_frustum[2], sketch_culling_frustum[3]),
-    vec4(sketch_culling_frustum[4], sketch_culling_frustum[5], sketch_culling_frustum[6], sketch_culling_frustum[7]),
-    vec4(sketch_culling_frustum[8], sketch_culling_frustum[9], sketch_culling_frustum[10], sketch_culling_frustum[11]),
-    vec4(sketch_culling_frustum[12], sketch_culling_frustum[13], sketch_culling_frustum[14], sketch_culling_frustum[15]),
-    vec4(sketch_culling_frustum[16], sketch_culling_frustum[17], sketch_culling_frustum[18], sketch_culling_frustum[19]),
-    vec4(sketch_culling_frustum[20], sketch_culling_frustum[21], sketch_culling_frustum[22], sketch_culling_frustum[23])
-    );
-}
-
-vec2[8] getDepthScreenSize() {
-    return vec2[](
-    vec2(sketch_depth_size[0], sketch_depth_size[1]),
-    vec2(sketch_depth_size[2], sketch_depth_size[3]),
-    vec2(sketch_depth_size[4], sketch_depth_size[5]),
-    vec2(sketch_depth_size[6], sketch_depth_size[7]),
-    vec2(sketch_depth_size[8], sketch_depth_size[9]),
-    vec2(sketch_depth_size[10], sketch_depth_size[11]),
-    vec2(sketch_depth_size[12], sketch_depth_size[13]),
-    vec2(sketch_depth_size[14], sketch_depth_size[15])
-    );
-}
-
 int getSampler(float xLength, float yLength) {
-    vec2[8] DepthScreenSize = getDepthScreenSize();
-    for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 2.1 / DepthScreenSize[i].x;
-        float yStep = 2.1 / DepthScreenSize[i].y;
+    for (int i = 0; i < sketch_depthSize.length(); ++i) {
+        float xStep = 2.1 / sketch_depthSize[i].x;
+        float yStep = 2.1 / sketch_depthSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
     }
-    return DepthScreenSize.length() - 1;
+    return sketch_depthSize.length() - 1;
 }
 
 float LinearizeDepth(float z) {
@@ -90,7 +65,7 @@ ClipResult getClippedMinDepth(vec3 center, float extentWidth, float extentHeight
     result.screenMin = vec2(1.0);
     result.screenMax = vec2(0.0);
 
-    mat4 mvp = sketch_culling_proj_mat * sketch_culling_view_mat;
+    mat4 mvp = sketch_cullingProjMat * sketch_cullingViewMat;
 
     vec4 clipPositions[8];
     for(int i = 0; i < 8; i++) {
@@ -130,7 +105,7 @@ ClipResult getClippedMinDepth(vec3 center, float extentWidth, float extentHeight
 }
 
 vec3 moveTowardsCamera(vec3 pos, float distance) {
-    vec3 direction = normalize(pos - sketch_culling_camera_pos);
+    vec3 direction = normalize(pos - sketch_cullingCameraPos);
     vec3 newPos = pos - direction * distance;
     return newPos;
 }
@@ -154,12 +129,11 @@ bool isVisible(vec3 center, vec3 min, vec3 max) {
     vec3(min.x, max.y, max.z),
     vec3(max.x, max.y, max.z)
     );
-    vec4[6] frustum = getFrustumData();
 
     for(int i = 0; i < 6; i++) {
         bool inside = false;
         for(int j = 0; j < 8 && !inside; j++) {
-            inside = dot(frustum[i], vec4(corners[j] - sketch_frustum_pos, 1.0)) > 0.0;
+            inside = dot(sketch_cullingFrustum[i], vec4(corners[j] - sketch_frustumPos, 1.0)) > 0.0;
         }
         if(!inside) return false;
     }
@@ -195,7 +169,7 @@ void main() {
     uint localIndex = gl_LocalInvocationID.x; // 0~63
     uint globalIndex = gl_GlobalInvocationID.x;
 
-    if(globalIndex >= sketch_entity_count) {
+    if(globalIndex >= sketch_entityCount) {
         return;
     }
 
@@ -212,14 +186,14 @@ void main() {
     uint visibleByte = 0u;
 
     if (visible) {
-        far = sketch_render_distance * 64.0;
+        far = sketch_renderDistance * 64.0;
         ClipResult clip = getClippedMinDepth(center, halfWidth, halfHeight);
         float sectionDepth = LinearizeDepth(clip.minDepth);
 
         int idx = getSampler(clip.screenMax.x - clip.screenMin.x, clip.screenMax.y - clip.screenMin.y);
-        vec2[8] DepthScreenSize = getDepthScreenSize();
-        int depthX = int(DepthScreenSize[idx].x);
-        int depthY = int(DepthScreenSize[idx].y);
+
+        int depthX = int(sketch_depthSize[idx].x);
+        int depthY = int(sketch_depthSize[idx].y);
 
         int coordMinX = max(int(floor(clip.screenMin.x * depthX)), 0);
         int coordMaxX = min(int(ceil(clip.screenMax.x * depthX)), depthX - 1);

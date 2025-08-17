@@ -110,7 +110,7 @@ public class SketchRender {
     public void registerReloadListener(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(SketchRender.shaderManager);
         event.registerReloadListener(SketchRender.resourceManager);
-        VanillaPipelineEventHandler.registerStaticResource();
+        VanillaPipelineEventHandler.registerPersistentResource();
     }
 
     public void registerKeyBinding(RegisterKeyMappingsEvent event) {

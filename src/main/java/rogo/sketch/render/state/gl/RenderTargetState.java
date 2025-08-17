@@ -40,9 +40,8 @@ public class RenderTargetState implements RenderStateComponent {
 
     @Override
     public void apply(RenderContext context) {
-        Optional<RenderTarget> rt = renderTarget.get();
-        if (rt.isPresent()) {
-            GL31.glBindFramebuffer(GL30.GL_FRAMEBUFFER, rt.get().getHandle());
+        if (renderTarget.isAvailable()) {
+            GL31.glBindFramebuffer(GL30.GL_FRAMEBUFFER, renderTarget.get().get().getHandle());
         }
     }
 

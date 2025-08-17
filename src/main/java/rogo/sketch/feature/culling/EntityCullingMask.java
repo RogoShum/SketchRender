@@ -7,6 +7,7 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.SketchRender;
+import rogo.sketch.api.ResourceObject;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.PersistentReadSSBO;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
@@ -36,7 +37,7 @@ public class EntityCullingMask {
 
     public void bindSSBO() {
         this.entityDataShaderStorageBuffer.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 0);
-        this.cullingResultSSBO.bindShaderSlot(1);
+        this.cullingResultSSBO.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 1);
     }
 
     public boolean isObjectVisible(Object o) {
@@ -136,6 +137,14 @@ public class EntityCullingMask {
         this.cullingResultSSBO = buffer;
         MemoryUtil.memSet(buffer.getMemoryAddress(), 0, buffer.getCapacity());
         getEntityMap().tickTemp(tickCount);
+    }
+
+    public ResourceObject getEntityDataSSBO() {
+        return entityDataShaderStorageBuffer;
+    }
+
+    public ResourceObject getEntityCullingResult() {
+        return cullingResultSSBO;
     }
 
     public EntityMap getEntityMap() {

@@ -20,17 +20,27 @@ public class ResourceReference<T extends ResourceObject> {
     @Nullable
     private T cachedResource;
     private boolean cacheValid = false;
+    boolean persistentResources;
 
     public ResourceReference(Identifier resourceId, Identifier resourceType, Supplier<Optional<T>> resolver) {
+        this(resourceId, resourceType, resolver, false);
+    }
+
+    public ResourceReference(Identifier resourceId, Identifier resourceType, Supplier<Optional<T>> resolver, boolean persistentResources) {
         this.resourceId = resourceId;
         this.resourceType = resourceType;
         this.resolver = resolver;
+        this.persistentResources = persistentResources;
     }
 
     /**
      * Get the resource if available
      */
     public Optional<T> get() {
+        if (this.persistentResources) {
+            return resolver.get();
+        }
+
         if (!cacheValid) {
             cachedResource = resolver.get().orElse(null);
             cacheValid = true;
