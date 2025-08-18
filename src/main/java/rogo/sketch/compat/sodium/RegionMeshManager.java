@@ -123,4 +123,8 @@ public class RegionMeshManager {
     public long getBufferCapacity() {
         return meshDataBuffer.getCapacity();
     }
+
+    public ShaderStorageBuffer meshDataBuffer() {
+        return meshDataBuffer;
+    }
 }

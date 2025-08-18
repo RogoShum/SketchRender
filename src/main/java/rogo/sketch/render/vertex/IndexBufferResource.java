@@ -17,6 +17,7 @@ import java.util.List;
 public class IndexBufferResource implements BufferResourceObject {
     private int id;
     private final List<Integer> indices;
+    private boolean disposed = false;
     private boolean isDirty;
     
     public IndexBufferResource() {
@@ -201,6 +202,13 @@ public class IndexBufferResource implements BufferResourceObject {
             GL15.glDeleteBuffers(id);
             id = 0;
         }
+
         indices.clear();
+        disposed = true;
+    }
+
+    @Override
+    public boolean isDisposed() {
+        return disposed;
     }
 }

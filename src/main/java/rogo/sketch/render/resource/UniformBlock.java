@@ -20,6 +20,7 @@ public class UniformBlock implements DataResourceObject, BindingResource {
     private final long stride;
     private final String blockName;
     private final Map<Integer, Vec3i> shaderBinding = new HashMap<>();
+    private boolean disposed = false;
 
     public UniformBlock(String blockName, List<Variable> variables) {
         this.stride = calculateStride(variables);
@@ -96,7 +97,12 @@ public class UniformBlock implements DataResourceObject, BindingResource {
 
     @Override
     public void dispose() {
+        disposed = true;
+    }
 
+    @Override
+    public boolean isDisposed() {
+        return disposed;
     }
 
     @Override

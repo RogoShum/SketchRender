@@ -10,7 +10,7 @@ import rogo.sketch.util.Identifier;
 
 public class ShaderStorageBuffer implements DataResourceObject, BindingResource {
     private final int id;
-    private boolean isDisposed = false;
+    private boolean disposed = false;
     private long bufferPointer;
     private long capacity;
     private long dataCount;
@@ -139,14 +139,19 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource 
     }
 
     public void dispose() {
-        if (isDisposed) return;
+        if (disposed) return;
         MemoryUtil.nmemFree(bufferPointer);
         GL15.glDeleteBuffers(id);
-        isDisposed = true;
+        disposed = true;
+    }
+
+    @Override
+    public boolean isDisposed() {
+        return disposed;
     }
 
     private void checkDisposed() {
-        if (isDisposed) {
+        if (disposed) {
             throw new IllegalStateException("Buffer has been disposed");
         }
     }

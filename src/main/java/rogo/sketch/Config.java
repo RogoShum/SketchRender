@@ -90,9 +90,6 @@ public class Config {
         if (!shouldCullChunk())
             return false;
 
-        if (CullingStateManager.needPauseRebuild())
-            return false;
-
         if (!SketchRender.hasSodium())
             return false;
 
@@ -107,9 +104,6 @@ public class Config {
             return;
 
         if (!SketchRender.hasSodium())
-            return;
-
-        if (CullingStateManager.needPauseRebuild())
             return;
 
         ASYNC.set(value);

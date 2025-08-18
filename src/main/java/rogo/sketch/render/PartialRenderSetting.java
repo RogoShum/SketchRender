@@ -22,7 +22,12 @@ public record PartialRenderSetting(
     public void dispose() {
         // Partial settings don't own resources
     }
-    
+
+    @Override
+    public boolean isDisposed() {
+        return false;
+    }
+
     /**
      * Create a basic partial render setting
      */

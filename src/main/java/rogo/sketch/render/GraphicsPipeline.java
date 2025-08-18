@@ -34,7 +34,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * @return true if added successfully, false if delayed
      */
     public boolean registerStage(GraphicsStage stage) {
-        boolean added = stages.add(stage, stage.getOrderRequirement(), (s, req) -> passMap.put(s, new GraphicsPassGroup<>(s.getIdentifier())));
+        boolean added = stages.add(stage, stage.getOrderRequirement(), (s, req) -> passMap.put(s, new GraphicsPassGroup<>(this, s.getIdentifier())));
         if (added) {
             idToStage.put(stage.getIdentifier(), stage);
         }
@@ -93,6 +93,8 @@ public class GraphicsPipeline<C extends RenderContext> {
             GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
             if (passGroup != null) passGroup.render(renderStateManager, currentContext);
         }
+
+        renderStage(toId);
     }
 
     /**
@@ -116,9 +118,13 @@ public class GraphicsPipeline<C extends RenderContext> {
             GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
             if (passGroup != null) passGroup.render(renderStateManager, currentContext);
         }
+
+        renderStage(id);
     }
 
     public void renderStagesAfter(Identifier id) {
+        renderStage(id);
+
         List<GraphicsStage> ordered = stages.getOrderedList();
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);

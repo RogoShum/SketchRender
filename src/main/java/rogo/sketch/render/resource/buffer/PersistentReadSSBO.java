@@ -14,7 +14,7 @@ import java.nio.ByteBuffer;
 
 public class PersistentReadSSBO implements DataResourceObject, BindingResource {
     private int id;
-    private boolean isDisposed = false;
+    private boolean disposed = false;
     private long bufferPointer;
     private long capacity;
     private long dataCount;
@@ -125,7 +125,7 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
     }
 
     public void dispose() {
-        if (isDisposed) return;
+        if (disposed) return;
 
         if (mappedBuffer != null) {
             GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
@@ -135,17 +135,17 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
         }
 
         GL15.glDeleteBuffers(id);
-        isDisposed = true;
+        disposed = true;
     }
 
     private void checkDisposed() {
-        if (isDisposed) {
+        if (disposed) {
             throw new IllegalStateException("Buffer has been disposed");
         }
     }
 
     public boolean isDisposed() {
-        return isDisposed;
+        return disposed;
     }
 
     public void discardBufferId() {

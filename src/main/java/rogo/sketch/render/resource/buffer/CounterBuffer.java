@@ -13,6 +13,7 @@ public class CounterBuffer implements DataResourceObject {
     private final int bufferId;
     private long capacity;
     private long counterCount;
+    private boolean disposed = false;
     private final VertexFormatElement.Type counterType;
 
     private ByteBuffer mappedBuffer;
@@ -116,6 +117,13 @@ public class CounterBuffer implements DataResourceObject {
             GL45.glUnmapBuffer(GL43.GL_SHADER_STORAGE_BUFFER);
             mappedBuffer = null;
         }
+
+        disposed = true;
+    }
+
+    @Override
+    public boolean isDisposed() {
+        return disposed;
     }
 
     public ByteBuffer getMappedBuffer() {

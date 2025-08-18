@@ -18,6 +18,7 @@ public class MeshResource {
     public static int theoreticalRegionQuantity = 0;
 
     public static int currentFrame = 0;
+    public static int orderedRegionSize = 0;
 
     public static ShaderStorageBuffer batchCommand;
     public static ShaderStorageBuffer batchCounter;

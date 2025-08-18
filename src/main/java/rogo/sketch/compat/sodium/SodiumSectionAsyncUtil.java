@@ -39,9 +39,6 @@ public class SodiumSectionAsyncUtil {
 
     public static void asyncSearchRebuildSection() {
         shouldUpdate.acquireUninterruptibly();
-        if (CullingStateManager.needPauseRebuild()) {
-            return;
-        }
         if (CullingStateManager.enabledShader() && shadowViewport != null) {
             frame++;
             CullingStateManager.useOcclusionCulling = false;

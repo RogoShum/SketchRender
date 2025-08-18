@@ -17,6 +17,7 @@ public class RenderTarget implements ResourceObject {
     private Identifier depthAttachmentId;
     private Identifier stencilAttachmentId;
     private int clearColor; // ARGB format
+    private boolean disposed = false;
 
     // Resolution management
     private final ResolutionMode resolutionMode;
@@ -355,6 +356,13 @@ public class RenderTarget implements ResourceObject {
         if (handle > 0) {
             GL30.glDeleteFramebuffers(handle);
         }
+
+        disposed = true;
+    }
+
+    @Override
+    public boolean isDisposed() {
+        return disposed;
     }
 
     /**

@@ -12,8 +12,6 @@ import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.Identifier;
 
-import java.util.Optional;
-
 public class RenderTargetState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("render_target");
     private ResourceReference<RenderTarget> renderTarget;
@@ -41,7 +39,7 @@ public class RenderTargetState implements RenderStateComponent {
     @Override
     public void apply(RenderContext context) {
         if (renderTarget.isAvailable()) {
-            GL31.glBindFramebuffer(GL30.GL_FRAMEBUFFER, renderTarget.get().get().getHandle());
+            GL31.glBindFramebuffer(GL30.GL_FRAMEBUFFER, renderTarget.get().getHandle());
         }
     }
 

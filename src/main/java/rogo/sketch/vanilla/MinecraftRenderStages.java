@@ -11,7 +11,8 @@ public class MinecraftRenderStages {
     public static final OrderRequirement<GraphicsStage> NONE_REQUIREMENT = OrderRequirement.Builder.<GraphicsStage>create().build();
 
     public static final GraphicsStage RENDER_START = new GraphicsStage("vanilla_render_start", NONE_REQUIREMENT);
-    public static final GraphicsStage SKY = new GraphicsStage("vanilla_sky", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(RENDER_START).build());
+    public static final GraphicsStage PREPARE_FRUSTUM = new GraphicsStage("vanilla_prepare_frustum", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(RENDER_START).build());
+    public static final GraphicsStage SKY = new GraphicsStage("vanilla_sky", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(PREPARE_FRUSTUM).build());
     public static final GraphicsStage TERRAIN_SOLID = new GraphicsStage("vanilla_terrain_solid", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(SKY).build());
     public static final GraphicsStage TERRAIN_CUTOUT_MIPPED = new GraphicsStage("vanilla_terrain_cutout_mipped", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(TERRAIN_SOLID).build());
     public static final GraphicsStage TERRAIN_CUTOUT = new GraphicsStage("vanilla_terrain_cutout", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(TERRAIN_CUTOUT_MIPPED).build());
@@ -30,6 +31,7 @@ public class MinecraftRenderStages {
 
     public static void registerVanillaStages(GraphicsPipeline<?> pipeline) {
         pipeline.registerStage(RENDER_START);
+        pipeline.registerStage(PREPARE_FRUSTUM);
         pipeline.registerStage(SKY);
         pipeline.registerStage(TERRAIN_SOLID);
         pipeline.registerStage(TERRAIN_CUTOUT_MIPPED);

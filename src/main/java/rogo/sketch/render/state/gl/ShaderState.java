@@ -12,7 +12,6 @@ import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.Identifier;
 
 import java.util.Objects;
-import java.util.Optional;
 
 public class ShaderState implements RenderStateComponent {
     public static final Identifier TYPE = ResourceTypes.SHADER_PROGRAM;
@@ -44,8 +43,7 @@ public class ShaderState implements RenderStateComponent {
 
     @Override
     public void apply(RenderContext context) {
-        Optional<ShaderProvider> shader = this.shader.get();
-        if (shader.isPresent()) {
+        if (shader.isAvailable()) {
             GL20.glUseProgram(shader.get().getHandle());
             context.setShaderProvider(shader.get());
         }

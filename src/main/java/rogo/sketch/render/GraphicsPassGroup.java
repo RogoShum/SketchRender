@@ -2,9 +2,12 @@ package rogo.sketch.render;
 
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.api.ShaderProvider;
+import rogo.sketch.event.GraphicsPipelineStageEvent;
+import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.async.AsyncRenderManager;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.pool.InstancePoolManager;
+import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.render.state.gl.ShaderState;
@@ -17,6 +20,7 @@ import rogo.sketch.util.Identifier;
 import java.util.*;
 
 public class GraphicsPassGroup<C extends RenderContext> {
+    private final GraphicsPipeline<C> graphicsPipeline;
     private final Identifier stageIdentifier;
     private final Map<RenderSetting, GraphicsPass<C>> groups = new LinkedHashMap<>();
     private final VertexResourceManager vertexResourceManager = VertexResourceManager.getInstance();
@@ -25,10 +29,10 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
     // Note: AsyncRenderExecutor is deprecated, using AsyncRenderManager instead
 
-    public GraphicsPassGroup(Identifier stageIdentifier) {
+    public GraphicsPassGroup(GraphicsPipeline<C> graphicsPipeline, Identifier stageIdentifier) {
+        this.graphicsPipeline = graphicsPipeline;
         this.stageIdentifier = stageIdentifier;
     }
-
 
     public void addGraphInstance(GraphicsInstance instance, RenderSetting setting) {
         GraphicsPass<C> group = groups.computeIfAbsent(setting, s -> new GraphicsPass<>());
@@ -54,9 +58,8 @@ public class GraphicsPassGroup<C extends RenderContext> {
         });
     }
 
-    // Note: tickAsync method removed, using AsyncRenderManager directly in tick() method
-
     public void render(RenderStateManager manager, C context) {
+        EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageIdentifier, context, GraphicsPipelineStageEvent.Phase.PRE));
         context.preStage(stageIdentifier);
 
         renderSharedResources(manager, context);
@@ -64,6 +67,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
         renderCustomResources(manager, context);
 
         context.postStage(stageIdentifier);
+        EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageIdentifier, context, GraphicsPipelineStageEvent.Phase.POST));
     }
 
     private void renderSharedResources(RenderStateManager manager, C context) {
@@ -77,12 +81,14 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
             VertexResource resource = vertexResourceManager.getOrCreateVertexResource(setting);
 
-            ShaderProvider shaderProvider = context.shaderProvider();
+            ShaderProvider shaderProvider = null;
+            ResourceReference<ShaderProvider> reference = ((ShaderState) setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader();
+            if (reference.isAvailable()) {
+                shaderProvider = reference.get();
+            }
+
             if (shaderProvider == null) {
-                Optional<ShaderProvider> optional = ((ShaderState)setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader().get();
-                if (optional.isPresent()) {
-                    shaderProvider = optional.get();
-                }
+                continue;
             }
 
             List<UniformBatchGroup> uniformBatches = collectUniformBatches(pass, shaderProvider);
@@ -191,12 +197,14 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            ShaderProvider shaderProvider = context.shaderProvider();
+            ShaderProvider shaderProvider = null;
+            ResourceReference<ShaderProvider> reference = ((ShaderState) setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader();
+            if (reference.isAvailable()) {
+                shaderProvider = reference.get();
+            }
+
             if (shaderProvider == null) {
-                Optional<ShaderProvider> optional = ((ShaderState)setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader().get();
-                if (optional.isPresent()) {
-                    shaderProvider = optional.get();
-                }
+                continue;
             }
 
             List<UniformBatchGroup> uniformBatches = collectIndependentUniformBatches(pass, shaderProvider);
@@ -239,12 +247,14 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            ShaderProvider shaderProvider = context.shaderProvider();
+            ShaderProvider shaderProvider = null;
+            ResourceReference<ShaderProvider> reference = ((ShaderState) setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader();
+            if (reference.isAvailable()) {
+                shaderProvider = reference.get();
+            }
+
             if (shaderProvider == null) {
-                Optional<ShaderProvider> optional = ((ShaderState)setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader().get();
-                if (optional.isPresent()) {
-                    shaderProvider = optional.get();
-                }
+                continue;
             }
 
             List<UniformBatchGroup> uniformBatches = collectCustomUniformBatches(pass, shaderProvider);

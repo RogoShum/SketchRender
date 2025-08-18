@@ -17,6 +17,7 @@ public class IndirectCommandBuffer implements DataResourceObject {
     private int commandCount;
     public int maxElementCount;
     public int position;
+    protected boolean disposed = false;
 
     public IndirectCommandBuffer(int capacity) {
         iCapacity = capacity * getStride();
@@ -80,5 +81,11 @@ public class IndirectCommandBuffer implements DataResourceObject {
     public void dispose() {
         MemoryUtil.nmemFree(this.commandBuffer);
         GL15.nglDeleteBuffers(GL43.GL_DRAW_INDIRECT_BUFFER, id);
+        disposed = true;
+    }
+
+    @Override
+    public boolean isDisposed() {
+        return disposed;
     }
 }

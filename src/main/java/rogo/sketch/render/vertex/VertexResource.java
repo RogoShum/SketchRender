@@ -41,6 +41,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     private VertexFiller reusableVertexFiller;
     private ByteBufferFiller reusableByteBufferFiller;
     private boolean useReusableFillers;
+    private boolean disposed = false;
 
     public VertexResource(DataFormat staticFormat, DataFormat dynamicFormat, DrawMode drawMode, int primitiveType, int staticUsage) {
         this.staticFormat = staticFormat;
@@ -498,6 +499,13 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         if (vao > 0) {
             GL30.glDeleteVertexArrays(vao);
         }
+
+        disposed = true;
+    }
+
+    @Override
+    public boolean isDisposed() {
+        return disposed;
     }
 
     @Override

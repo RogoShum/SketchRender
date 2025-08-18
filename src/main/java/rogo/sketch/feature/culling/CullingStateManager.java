@@ -1,6 +1,5 @@
 package rogo.sketch.feature.culling;
 
-import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -17,29 +16,30 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Matrix4f;
-import org.joml.Vector2i;
-import org.lwjgl.opengl.GL43;
-import rogo.sketch.SketchRender;
 import rogo.sketch.Config;
-import rogo.sketch.vanilla.VanillaShaderPackLoader;
+import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.compat.sodium.SodiumSectionAsyncUtil;
+import rogo.sketch.event.GraphicsPipelineStageEvent;
+import rogo.sketch.event.bridge.ProxyEvent;
 import rogo.sketch.mixin.AccessorLevelRender;
 import rogo.sketch.mixin.AccessorMinecraft;
-import rogo.sketch.render.shader.ComputeShader;
-import rogo.sketch.render.shader.ShaderManager;
 import rogo.sketch.render.shader.ShaderModifier;
 import rogo.sketch.util.DepthContext;
+import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.util.ShaderPackLoader;
+import rogo.sketch.vanilla.McRenderContext;
+import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.vanilla.VanillaShaderPackLoader;
 
 import java.util.HashMap;
 import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
-import static org.lwjgl.opengl.GL42C.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class CullingStateManager {
     public static EntityCullingMask ENTITY_CULLING_MASK = null;
@@ -83,7 +83,10 @@ public class CullingStateManager {
     public static boolean checkCulling = false;
     public static boolean checkTexture = false;
     private static boolean usingShader = false;
-    public static int fullChunkUpdateCooldown = 0;
+    public static Identifier LEVEL_SECTION_RANGE_ID = Identifier.of("level_section_range");
+    public static Identifier LEVEL_POS_RANGE_ID = Identifier.of("level_pos_range");
+    public static Identifier LEVEL_MIN_SECTION_ABS_ID = Identifier.of("level_min_section_abs");
+    public static Identifier LEVEL_MIN_POS_ID = Identifier.of("level_min_section_abs");
     public static int LEVEL_SECTION_RANGE;
     public static int LEVEL_POS_RANGE;
     public static int LEVEL_MIN_SECTION_ABS;
@@ -132,7 +135,6 @@ public class CullingStateManager {
             ENTITY_CULLING_MASK = null;
         }
         SHADER_DEPTH_BUFFER_ID.clear();
-        SketchRender.pauseAsync();
         if (SketchRender.hasSodium()) {
             SodiumSectionAsyncUtil.pauseAsync();
         }
@@ -175,24 +177,84 @@ public class CullingStateManager {
         return true;
     }
 
-    public static void onProfilerPopPush(String s) {
-        switch (s) {
-            case "beforeRunTick" -> {
-                if (((AccessorLevelRender) Minecraft.getInstance().levelRenderer).getNeedsFullRenderChunkUpdate() && Minecraft.getInstance().level != null) {
-                    if (SketchRender.hasMod("embeddium")) {
-                        SketchRender.pauseAsync();
+    @SubscribeEvent
+    public void renderStage(ProxyEvent<GraphicsPipelineStageEvent<McRenderContext>> proxyEvent) {
+        if (!(proxyEvent.getWrapped() instanceof GraphicsPipelineStageEvent)) return;
+
+        GraphicsPipelineStageEvent<McRenderContext> event = proxyEvent.getWrapped();
+        McRenderContext context = event.getContext();
+
+        if (event.getPhase() == GraphicsPipelineStageEvent.Phase.PRE) {
+            if (event.getStage() == MinecraftRenderStages.SKY.getIdentifier()) {
+                CAMERA = Minecraft.getInstance().gameRenderer.getMainCamera();
+                int thisTick = clientTickCount % 20;
+                nextTick = new boolean[20];
+
+                if (tick != thisTick) {
+                    tick = thisTick;
+                    nextTick[thisTick] = true;
+                }
+
+                entityCulling = 0;
+                entityCount = 0;
+                blockCulling = 0;
+                blockCount = 0;
+
+                if (anyNextTick()) {
+                    if (continueUpdateCount > 0) {
+                        continueUpdateCount--;
                     }
+                }
+
+                if (isNextLoop()) {
+                    if (CullingStateManager.ENTITY_CULLING_MASK != null) {
+                        CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(clientTickCount);
+                    }
+
+                    applyFrustumTime = preApplyFrustumTime;
+                    preApplyFrustumTime = 0;
+
+                    entityCullingTime = preEntityCullingTime;
+                    preEntityCullingTime = 0;
+
+                    blockCullingTime = preBlockCullingTime;
+                    preBlockCullingTime = 0;
+
+                    cullingInitCount = preCullingInitCount;
+                    preCullingInitCount = 0;
+
+                    entityCullingInitTime = preEntityCullingInitTime;
+                    preEntityCullingInitTime = 0;
+
+                    MeshResource.lastQueueUpdateCount = MeshResource.queueUpdateCount;
+                    MeshResource.queueUpdateCount = 0;
+
+                    if (preChunkCullingTime != 0) {
+                        chunkCullingTime = preChunkCullingTime;
+                        preChunkCullingTime = 0;
+                    }
+                }
+            } else if (event.getStage() == MinecraftRenderStages.RENDER_START.getIdentifier()) {
+                if (((AccessorLevelRender) Minecraft.getInstance().levelRenderer).getNeedsFullRenderChunkUpdate() && Minecraft.getInstance().level != null) {
+                    context.set(LEVEL_SECTION_RANGE_ID, Minecraft.getInstance().level.getMaxSection() - Minecraft.getInstance().level.getMinSection());
+                    context.set(LEVEL_POS_RANGE_ID, Minecraft.getInstance().level.getMaxBuildHeight() - Minecraft.getInstance().level.getMinBuildHeight());
+                    context.set(LEVEL_MIN_SECTION_ABS_ID, Math.abs(Minecraft.getInstance().level.getMinSection()));
+                    context.set(LEVEL_MIN_POS_ID, Minecraft.getInstance().level.getMinBuildHeight());
+
                     LEVEL_SECTION_RANGE = Minecraft.getInstance().level.getMaxSection() - Minecraft.getInstance().level.getMinSection();
                     LEVEL_MIN_SECTION_ABS = Math.abs(Minecraft.getInstance().level.getMinSection());
                     LEVEL_MIN_POS = Minecraft.getInstance().level.getMinBuildHeight();
                     LEVEL_POS_RANGE = Minecraft.getInstance().level.getMaxBuildHeight() - Minecraft.getInstance().level.getMinBuildHeight();
                 }
-            }
-            case "afterRunTick" -> {
+            } else if (event.getStage() == MinecraftRenderStages.RENDER_END.getIdentifier()) {
                 updateMapData();
                 OcclusionCullerThread.shouldUpdate();
-            }
-            case "captureFrustum" -> {
+            } else if (event.getStage() == MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier()) {
+                updatingDepth = true;
+                updateDepthMap();
+                CullingRenderEvent.updateEntityCullingMap();
+                updatingDepth = false;
+            } else if (event.getStage() == MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier()) {
                 AccessorLevelRender levelFrustum = (AccessorLevelRender) Minecraft.getInstance().levelRenderer;
                 Frustum frustum;
                 if (levelFrustum.getCapturedFrustum() != null) {
@@ -203,71 +265,6 @@ public class CullingStateManager {
                 CullingStateManager.FRUSTUM = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
                 checkShader();
                 CullingRenderEvent.updateChunkCullingMap();
-            }
-            case "destroyProgress" -> {
-                updatingDepth = true;
-                updateDepthMap();
-                CullingRenderEvent.updateEntityCullingMap();
-                updatingDepth = false;
-            }
-        }
-    }
-
-    public static void onProfilerPush(String s) {
-        if (s.equals("onKeyboardInput")) {
-            SketchRender.onKeyPress();
-        } else if (s.equals("center")) {
-            CAMERA = Minecraft.getInstance().gameRenderer.getMainCamera();
-            int thisTick = clientTickCount % 20;
-            nextTick = new boolean[20];
-
-            if (tick != thisTick) {
-                tick = thisTick;
-                nextTick[thisTick] = true;
-            }
-
-            entityCulling = 0;
-            entityCount = 0;
-            blockCulling = 0;
-            blockCount = 0;
-
-            if (anyNextTick()) {
-                if (fullChunkUpdateCooldown > 0) {
-                    fullChunkUpdateCooldown--;
-                }
-
-                if (continueUpdateCount > 0) {
-                    continueUpdateCount--;
-                }
-            }
-
-            if (isNextLoop()) {
-                if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                    CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(clientTickCount);
-                }
-
-                applyFrustumTime = preApplyFrustumTime;
-                preApplyFrustumTime = 0;
-
-                entityCullingTime = preEntityCullingTime;
-                preEntityCullingTime = 0;
-
-                blockCullingTime = preBlockCullingTime;
-                preBlockCullingTime = 0;
-
-                cullingInitCount = preCullingInitCount;
-                preCullingInitCount = 0;
-
-                entityCullingInitTime = preEntityCullingInitTime;
-                preEntityCullingInitTime = 0;
-
-                MeshResource.lastQueueUpdateCount = MeshResource.queueUpdateCount;
-                MeshResource.queueUpdateCount = 0;
-
-                if (preChunkCullingTime != 0) {
-                    chunkCullingTime = preChunkCullingTime;
-                    preChunkCullingTime = 0;
-                }
             }
         }
     }
@@ -422,10 +419,6 @@ public class CullingStateManager {
 
     public static boolean anyCulling() {
         return Config.getCullChunk() || Config.doEntityCulling();
-    }
-
-    public static boolean needPauseRebuild() {
-        return fullChunkUpdateCooldown > 0;
     }
 
     public static void updating() {

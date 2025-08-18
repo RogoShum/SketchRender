@@ -25,6 +25,7 @@ public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvi
     private final UnsafeUniformMap unsafeUniformMap;
     private final Identifier identifier;
     private final int program;
+    private boolean disposed = false;
 
     public ComputeShader(ResourceProvider resourceProvider, ResourceLocation shaderLocation) throws IOException {
         ResourceLocation resourcelocation = new ResourceLocation(shaderLocation.getNamespace(), "shaders/compute/" + shaderLocation.getPath() + ".comp");
@@ -116,7 +117,11 @@ public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvi
 
     @Override
     public void dispose() {
-
+        disposed = true;
     }
 
+    @Override
+    public boolean isDisposed() {
+        return disposed;
+    }
 }

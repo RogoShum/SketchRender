@@ -9,7 +9,7 @@ public class UniformValueSnapshot {
     private final int hashCode;
 
     public UniformValueSnapshot(Map<String, Object> uniformValues) {
-        this.uniformValues = Map.copyOf(uniformValues);
+        this.uniformValues = new HashMap<>(uniformValues);
         this.hashCode = Objects.hash(this.uniformValues);
     }
 

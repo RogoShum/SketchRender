@@ -20,8 +20,9 @@ import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.ValueGetter;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.McGraphicsPipeline;
+import rogo.sketch.vanilla.McRenderContext;
 import rogo.sketch.vanilla.MinecraftRenderStages;
-import rogo.sketch.vanilla.instance.ComputeHIZGraphics;
+import rogo.sketch.vanilla.graph.ComputeHIZGraphics;
 import rogo.sketch.vanilla.resource.TempTexture;
 
 import java.util.Optional;
@@ -65,6 +66,55 @@ public class VanillaPipelineEventHandler {
                 () -> {
                     if (CullingStateManager.ENTITY_CULLING_MASK != null) {
                         return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityCullingResult());
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_section_mesh"),
+                () -> {
+                    return Optional.of(MeshResource.meshManager.meshDataBuffer());
+                });
+
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_draw_command"),
+                () -> {
+                    if (MeshResource.batchCommand != null) {
+                        return Optional.of(MeshResource.batchCommand);
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "mesh_counter"),
+                () -> {
+                    if (MeshResource.batchCounter != null) {
+                        return Optional.of(MeshResource.batchCounter);
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "region_pos"),
+                () -> {
+                    if (MeshResource.batchRegionIndex != null) {
+                        return Optional.of(MeshResource.batchRegionIndex);
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "max_element_count"),
+                () -> {
+                    if (MeshResource.batchMaxElement != null) {
+                        return Optional.of(MeshResource.batchMaxElement);
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "persistent_max_element_count"),
+                () -> {
+                    if (MeshResource.maxElementPersistent != null) {
+                        return Optional.of(MeshResource.maxElementPersistent);
                     } else {
                         return Optional.empty();
                     }
@@ -129,6 +179,25 @@ public class VanillaPipelineEventHandler {
                 return null;
             }, Integer.class));
 
+            uniformEvent.register(Identifier.of("sketch_frustumPos"), ValueGetter.create((instance) -> {
+                if (instance instanceof McRenderContext context && context.frustum() != null) {
+                    return new Vector3f(
+                            (float) ((AccessorFrustum) context.frustum()).camX(),
+                            (float) ((AccessorFrustum) context.frustum()).camY(),
+                            (float) ((AccessorFrustum) context.frustum()).camZ());
+                }
+
+                return null;
+            }, Vector3f.class));
+
+            uniformEvent.register(Identifier.of("sketch_cullingFrustum"), ValueGetter.create((instance) -> {
+                if (instance instanceof McRenderContext context && context.frustum() != null) {
+                    return SketchRender.getFrustumPlanes(((AccessorFrustum) context.frustum()).frustumIntersection());
+                }
+
+                return null;
+            }, Vector4f[].class));
+
             uniformEvent.register(Identifier.of("sketch_cullFacing"), ValueGetter.create(() -> {
                 return SodiumClientMod.options().performance.useBlockFaceCulling ? 1 : 0;
             }, Integer.class));
@@ -149,22 +218,38 @@ public class VanillaPipelineEventHandler {
                 return CullingStateManager.checkCulling ? 1 : 0;
             }, Integer.class));
 
-            uniformEvent.register(Identifier.of("sketch_levelMinPos"), ValueGetter.create(() -> {
-                return CullingStateManager.LEVEL_MIN_POS;
+            uniformEvent.register(Identifier.of("sketch_levelMinPos"), ValueGetter.create((instance) -> {
+                if (instance instanceof McRenderContext context) {
+                    return context.get(CullingStateManager.LEVEL_MIN_POS_ID);
+                }
+
+                return null;
             }, Integer.class));
 
-            uniformEvent.register(Identifier.of("sketch_levelPosRange"), ValueGetter.create(() -> {
-                return CullingStateManager.LEVEL_POS_RANGE;
+            uniformEvent.register(Identifier.of("sketch_levelPosRange"), ValueGetter.create((instance) -> {
+                if (instance instanceof McRenderContext context) {
+                    return context.get(CullingStateManager.LEVEL_POS_RANGE_ID);
+                }
+
+                return null;
             }, Integer.class));
 
-            uniformEvent.register(Identifier.of("sketch_levelSectionRange"), ValueGetter.create(() -> {
-                return CullingStateManager.LEVEL_SECTION_RANGE;
+            uniformEvent.register(Identifier.of("sketch_levelSectionRange"), ValueGetter.create((instance) -> {
+                if (instance instanceof McRenderContext context) {
+                    return context.get(CullingStateManager.LEVEL_SECTION_RANGE_ID);
+                }
+
+                return null;
             }, Integer.class));
 
-            uniformEvent.register(Identifier.of("sketch_cameraOffset"), ValueGetter.create(() -> {
-                Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-                BlockPos blockPos = new BlockPos((int) pos.x >> 4, CullingStateManager.LEVEL_MIN_POS >> 4, (int) pos.z >> 4);
-                return new Vector3i(blockPos.getX(), blockPos.getY(), blockPos.getZ());
+            uniformEvent.register(Identifier.of("sketch_cameraOffset"), ValueGetter.create((instance) -> {
+                if (instance instanceof McRenderContext context) {
+                    Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+                    BlockPos blockPos = new BlockPos((int) pos.x >> 4, context.<Integer>get(CullingStateManager.LEVEL_MIN_POS_ID) >> 4, (int) pos.z >> 4);
+                    return new Vector3i(blockPos.getX(), blockPos.getY(), blockPos.getZ());
+                }
+
+                return null;
             }, Vector3i.class));
 
             uniformEvent.register(Identifier.of("sketch_cameraPos"), ValueGetter.create(() -> {
@@ -180,12 +265,20 @@ public class VanillaPipelineEventHandler {
                 return MeshResource.getSpacePartitionSize();
             }, Integer.class));
 
-            uniformEvent.register(Identifier.of("sketch_cullingViewMat"), ValueGetter.create(() -> {
-                return CullingStateManager.VIEW_MATRIX;
+            uniformEvent.register(Identifier.of("sketch_cullingViewMat"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.viewMatrix();
+                }
+
+                return null;
             }, Matrix4f.class));
 
-            uniformEvent.register(Identifier.of("sketch_cullingProjMat"), ValueGetter.create(() -> {
-                return CullingStateManager.PROJECTION_MATRIX;
+            uniformEvent.register(Identifier.of("sketch_cullingProjMat"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.projectionMatrix();
+                }
+
+                return null;
             }, Matrix4f.class));
 
             uniformEvent.register(Identifier.of("sketch_cullingCameraPos"), ValueGetter.create(() -> {
@@ -195,18 +288,6 @@ public class VanillaPipelineEventHandler {
             uniformEvent.register(Identifier.of("sketch_cullingCameraDir"), ValueGetter.create(() -> {
                 return Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
             }, Vector3f.class));
-
-            uniformEvent.register(Identifier.of("sketch_frustumPos"), ValueGetter.create(() -> {
-                return new Vec3(
-                        ((AccessorFrustum) CullingStateManager.FRUSTUM).camX(),
-                        ((AccessorFrustum) CullingStateManager.FRUSTUM).camY(),
-                        ((AccessorFrustum) CullingStateManager.FRUSTUM).camZ()).toVector3f();
-            }, Vector3f.class));
-
-            uniformEvent.register(Identifier.of("sketch_cullingFrustum"), ValueGetter.create(() -> {
-                Vector4f[] frustumData = SketchRender.getFrustumPlanes(((AccessorFrustum) CullingStateManager.FRUSTUM).frustumIntersection());
-                return frustumData;
-            }, Vector4f[].class));
 
             uniformEvent.register(Identifier.of("sketch_depthSize"), ValueGetter.create(() -> {
                 Vector2f[] array = new Vector2f[CullingStateManager.DEPTH_SIZE];

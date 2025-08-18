@@ -15,13 +15,11 @@ import rogo.sketch.vanilla.PipelineUtil;
 public class MixinMinecraft {
     @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;render(FJZ)V", shift = At.Shift.AFTER))
     public void afterRunTick(boolean p_91384_, CallbackInfo ci) {
-        CullingStateManager.onProfilerPopPush("afterRunTick");
         PipelineUtil.pipeline().renderStagesAfter(MinecraftRenderStages.RENDER_END.getIdentifier());
     }
 
     @Inject(method = "runTick", at = @At(value = "HEAD"))
     public void beforeRunTick(boolean p_91384_, CallbackInfo ci) {
-        CullingStateManager.onProfilerPopPush("beforeRunTick");
         PipelineUtil.pipeline().renderStateManager().reset();
         PipelineUtil.pipeline().renderStagesBefore(MinecraftRenderStages.RENDER_START.getIdentifier());
     }

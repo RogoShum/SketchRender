@@ -5,12 +5,16 @@ import rogo.sketch.api.IndependentVertexProvider;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.SharedVertexProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.resource.GraphicsResourceManager;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.render.vertex.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.render.vertex.VertexResourcePair;
+import rogo.sketch.util.Identifier;
 
 import java.util.List;
+import java.util.Optional;
 
 public class RenderHelper {
     private final GraphicsPipeline<?> pipeline;

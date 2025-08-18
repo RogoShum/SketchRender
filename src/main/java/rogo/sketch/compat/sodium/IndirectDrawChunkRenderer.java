@@ -24,13 +24,25 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
-import org.lwjgl.opengl.*;
+import org.lwjgl.opengl.ARBIndirectParameters;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketch.SketchRender;
 import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.render.PartialRenderSetting;
+import rogo.sketch.render.RenderSetting;
+import rogo.sketch.render.resource.GraphicsResourceManager;
+import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.shader.ShaderManager;
 import rogo.sketch.util.GLFeatureChecker;
+import rogo.sketch.util.Identifier;
+import rogo.sketch.vanilla.PipelineUtil;
+import rogo.sketch.vanilla.graph.ComputeChunkCullingGraphics;
+import rogo.sketch.vanilla.graph.CopyCounterGraphics;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -49,6 +61,10 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
     private int lastUpdateFrame = 0;
     private List<RenderRegion> orderedRegions;
     private final ExtraChunkRenderer defaultChunkRenderer;
+    private final ComputeChunkCullingGraphics chunkCullingGraphics = new ComputeChunkCullingGraphics(Identifier.of(SketchRender.MOD_ID, "culling_chunk"));
+    private final ResourceReference<PartialRenderSetting> cullingChunkSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "cull_chunk"));
+    private final CopyCounterGraphics copyCounterGraphics = new CopyCounterGraphics(Identifier.of(SketchRender.MOD_ID, "copy_counter"));
+    private final ResourceReference<PartialRenderSetting> copyCounterSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "copy_counter"));
 
     public IndirectDrawChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
         super(device, vertexType);
@@ -139,12 +155,24 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
     public void preRender() {
         MeshResource.elementCounter.updateCount(0);
-        MeshResource.batchMaxElement.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 7);
+        MeshResource.cullingCounter.updateCount(0);
+        MeshResource.orderedRegionSize = orderedRegions.size();
+
+        if (cullingChunkSetting.isAvailable()) {
+            RenderSetting setting = RenderSetting.computeShader(cullingChunkSetting.get());
+            PipelineUtil.renderHelper().renderInstanceImmediately(chunkCullingGraphics, setting);
+        }
+
+        if (copyCounterSetting.isAvailable()) {
+            RenderSetting setting = RenderSetting.computeShader(copyCounterSetting.get());
+            PipelineUtil.renderHelper().renderInstanceImmediately(copyCounterGraphics, setting);
+        }
+
+        MeshResource.batchMaxElement.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 4);
         MeshResource.meshManager.bindMeshData(0);
         MeshResource.batchCommand.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 1);
         MeshResource.batchCounter.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 2);
         MeshResource.batchRegionIndex.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 3);
-        MeshResource.cullingCounter.updateCount(0);
 
         CullingStateManager.runOnDepthFrame((depthContext) -> {
             RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
@@ -165,7 +193,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         ShaderManager.COPY_COUNTER_CS.execute(1, 1, 1);
         ShaderManager.COPY_COUNTER_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
+        //GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
     }
 

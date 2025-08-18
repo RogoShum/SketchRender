@@ -59,7 +59,7 @@ layout(std430, binding = 3) readonly buffer RegionPosBuffer {
     RegionPos region_pos[];
 };
 
-layout(std430, binding = 7) writeonly buffer ElementCountBuffer {
+layout(std430, binding = 4) writeonly buffer ElementCountBuffer {
     int element_count;
 };
 
@@ -86,8 +86,8 @@ uniform mat4 sketch_cullingProjMat;
 uniform vec3 sketch_cullingCameraPos;
 uniform vec3 sketch_cullingCameraDir;
 uniform vec3 sketch_frustumPos;
-uniform float[24] sketch_cullingFrustum;
-uniform float[16] sketch_depthSize;
+uniform vec4[6] sketch_cullingFrustum;
+uniform vec2[8] sketch_depthSize;
 
 #define REGION_SIZE 256
 #define LAYER_COUNT 3
@@ -109,40 +109,15 @@ float far = 16.0;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
-vec4[6] getFrustumData() {
-    return vec4[](
-    vec4(sketch_cullingFrustum[0], sketch_cullingFrustum[1], sketch_cullingFrustum[2], sketch_cullingFrustum[3]),
-    vec4(sketch_cullingFrustum[4], sketch_cullingFrustum[5], sketch_cullingFrustum[6], sketch_cullingFrustum[7]),
-    vec4(sketch_cullingFrustum[8], sketch_cullingFrustum[9], sketch_cullingFrustum[10], sketch_cullingFrustum[11]),
-    vec4(sketch_cullingFrustum[12], sketch_cullingFrustum[13], sketch_cullingFrustum[14], sketch_cullingFrustum[15]),
-    vec4(sketch_cullingFrustum[16], sketch_cullingFrustum[17], sketch_cullingFrustum[18], sketch_cullingFrustum[19]),
-    vec4(sketch_cullingFrustum[20], sketch_cullingFrustum[21], sketch_cullingFrustum[22], sketch_cullingFrustum[23])
-    );
-}
-
-vec2[8] getDepthScreenSize() {
-    return vec2[](
-    vec2(sketch_depthSize[0], sketch_depthSize[1]),
-    vec2(sketch_depthSize[2], sketch_depthSize[3]),
-    vec2(sketch_depthSize[4], sketch_depthSize[5]),
-    vec2(sketch_depthSize[6], sketch_depthSize[7]),
-    vec2(sketch_depthSize[8], sketch_depthSize[9]),
-    vec2(sketch_depthSize[10], sketch_depthSize[11]),
-    vec2(sketch_depthSize[12], sketch_depthSize[13]),
-    vec2(sketch_depthSize[14], sketch_depthSize[15])
-    );
-}
-
 int getSampler(float xLength, float yLength) {
-    vec2[8] DepthScreenSize = getDepthScreenSize();
-    for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 3.1 / DepthScreenSize[i].x;
-        float yStep = 3.1 / DepthScreenSize[i].y;
+    for (int i = 0; i < sketch_depthSize.length(); ++i) {
+        float xStep = 3.1 / sketch_depthSize[i].x;
+        float yStep = 3.1 / sketch_depthSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
     }
-    return DepthScreenSize.length() - 1;
+    return sketch_depthSize.length() - 1;
 }
 
 float calculateDistance(vec3 P, vec3 Q) {
@@ -162,7 +137,7 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
     mat4 mvp = sketch_cullingProjMat * sketch_cullingViewMat;
 
     vec4 clipPositions[8];
-    for(int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         vec3 vertex = center + vec3(
         (i & 1) == 0 ? -extent : extent,
         (i & 2) == 0 ? -extent : extent,
@@ -171,7 +146,7 @@ ClipResult getClippedMinDepth(vec3 center, float extent) {
         clipPositions[i] = mvp * vec4(vertex, 1.0);
     }
 
-    for(int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         vec4 clipPos = clipPositions[i];
         vec2 ndcXY;
 
@@ -213,9 +188,8 @@ vec3 blockToChunk(vec3 blockPos) {
 }
 
 bool cubeInFrustum(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-    vec4[6] frustum = getFrustumData();
     for (int i = 0; i < 6; ++i) {
-        vec4 plane = frustum[i];
+        vec4 plane = sketch_cullingFrustum[i];
         if (!(dot(plane, vec4(minX, minY, minZ, 1.0)) > 0.0) &&
         !(dot(plane, vec4(maxX, minY, minZ, 1.0)) > 0.0) &&
         !(dot(plane, vec4(minX, maxY, minZ, 1.0)) > 0.0) &&
@@ -253,7 +227,7 @@ bool isVisible(vec3 center) {
     vec3(min.x, max.y, max.z),
     vec3(max.x, max.y, max.z)
     );
-    vec4[6] frustum = getFrustumData();
+    vec4[6] frustum = sketch_cullingFrustum;
 
     for (int i = 0; i < 6; i++) {
         bool inside = false;
@@ -302,9 +276,8 @@ bool _is_chunk_culled(ivec3 sectionPos) {
 
     int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
 
-    vec2[8] DepthScreenSize = getDepthScreenSize();
-    int depthX = int(DepthScreenSize[idx].x);
-    int depthY = int(DepthScreenSize[idx].y);
+    int depthX = int(sketch_depthSize[idx].x);
+    int depthY = int(sketch_depthSize[idx].y);
 
     int coordMinX = max(int(floor(mins.x * depthX)), 0);
     int coordMaxX = min(int(ceil(maxs.x * depthX)), depthX - 1);
@@ -390,7 +363,7 @@ void bitonicSort(bool reverse) {
 void main() {
     int dataIndex = int(gl_LocalInvocationID.x);
 
-    int outputIndex = int(gl_WorkGroupID.y);
+    int outputIndex = int(gl_WorkGroupID.x);
     int posIndexOffset = outputIndex;
     RegionPos regionQueue = region_pos[posIndexOffset];
     int regionIndex = regionQueue.index;
@@ -411,7 +384,7 @@ void main() {
     chunkPos = vec3(chunkPos.x + 8.0, chunkPos.y + 8.0, chunkPos.z + 8.0);
     float distance = length(vec3(chunkPos - sketch_cameraPos));
 
-    int passIndex = int(gl_WorkGroupID.x);
+    int passIndex = int(gl_WorkGroupID.y);
     int slices = 0;
     sort_entries[dataIndex].originalIndex = dataIndex;
     sort_entries[dataIndex].value = 1e30;

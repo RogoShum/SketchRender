@@ -25,6 +25,7 @@ public abstract class Shader implements ShaderProvider {
     protected final Identifier identifier;
     protected final int program;
     protected final Map<ShaderType, Integer> shaderIds = new HashMap<>();
+    protected boolean disposed = false;
 
     /**
      * Create a shader program from GLSL source code
@@ -340,7 +341,13 @@ public abstract class Shader implements ShaderProvider {
     public void dispose() {
         if (program > 0) {
             GL20.glDeleteProgram(program);
+            disposed = true;
         }
+    }
+
+    @Override
+    public boolean isDisposed() {
+        return disposed;
     }
 
     @Override

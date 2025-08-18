@@ -29,6 +29,8 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     @Shadow
     @Nullable
     private Frustum capturedFrustum;
+    @Shadow
+    private Frustum cullingFrustum;
     @Unique
     private McGraphicsPipeline sketchlib$graphPipeline;
 
@@ -39,8 +41,28 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
 
     @Inject(method = "renderLevel", at = @At(value = "HEAD"))
     private void onRenderStart(PoseStack modelViewMatrix, float partialTicks, long nanoTime, boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
-        McRenderContext context = new McRenderContext((LevelRenderer) (Object) this, modelViewMatrix, projectionMatrix, camera, this.capturedFrustum, this.ticks, partialTicks);
+        Frustum frustum;
+        if (capturedFrustum != null) {
+            frustum = this.capturedFrustum;
+        } else {
+            frustum = this.cullingFrustum;
+        }
+
+        McRenderContext context = new McRenderContext((LevelRenderer) (Object) this, modelViewMatrix, projectionMatrix, camera, frustum, this.ticks, partialTicks);
         sketchlib$graphPipeline.resetRenderContext(context);
+    }
+
+    @Inject(
+            method = {"renderLevel"},
+            at = {@At(
+                    value = "CONSTANT",
+                    args = {"stringValue=captureFrustum"},
+                    shift = At.Shift.BEFORE,
+                    by = 1
+            )}
+    )
+    private void beforeFrustumStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime, boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
+        sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.RENDER_START.getIdentifier(), MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier());
     }
 
     @Inject(
@@ -53,7 +75,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
             )}
     )
     private void beforeSkyStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime, boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
-        sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.RENDER_START.getIdentifier(), MinecraftRenderStages.SKY.getIdentifier());
+        sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(), MinecraftRenderStages.SKY.getIdentifier());
     }
 
     @Inject(method = "renderChunkLayer", at = @At(value = "HEAD"))

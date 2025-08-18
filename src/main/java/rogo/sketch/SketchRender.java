@@ -80,6 +80,7 @@ public class SketchRender {
             FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onUniformInit);
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
+            MinecraftForge.EVENT_BUS.register(new CullingStateManager());
             ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_CONFIG);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
@@ -171,9 +172,6 @@ public class SketchRender {
     public static Entity testEntity = null;
     public static BlockEntity testBlockEntity = null;
 
-    public static void onKeyPress() {
-    }
-
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
@@ -234,10 +232,6 @@ public class SketchRender {
         }
 
         return null;
-    }
-
-    public static void pauseAsync() {
-        fullChunkUpdateCooldown = 0;
     }
 
     @SubscribeEvent

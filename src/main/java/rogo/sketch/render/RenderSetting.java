@@ -24,6 +24,11 @@ public record RenderSetting(
 
     }
 
+    @Override
+    public boolean isDisposed() {
+        return false;
+    }
+
     public static RenderSetting fromPartial(PartialRenderSetting partial, RenderParameter renderParameter) {
         return new RenderSetting(
                 partial.renderState(),

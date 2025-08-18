@@ -36,37 +36,37 @@ public class ResourceReference<T extends ResourceObject> {
     /**
      * Get the resource if available
      */
-    public Optional<T> get() {
+    public T get() {
         if (this.persistentResources) {
-            return resolver.get();
+            return resolver.get().get();
         }
 
         if (!cacheValid) {
             cachedResource = resolver.get().orElse(null);
             cacheValid = true;
         }
-        return Optional.ofNullable(cachedResource);
+        return cachedResource;
     }
 
     /**
      * Check if resource is currently available
      */
     public boolean isAvailable() {
-        return get().isPresent();
+        return resolver.get().isPresent();
     }
 
     /**
      * Execute action if resource is available
      */
     public void ifPresent(ResourceAction<T> action) {
-        get().ifPresent(action::accept);
+        resolver.get().ifPresent(action::accept);
     }
 
     /**
      * Get resource or throw exception
      */
     public T getOrThrow() {
-        return get().orElseThrow(() ->
+        return resolver.get().orElseThrow(() ->
                 new ResourceNotFoundException("Resource not found: " + resourceId + " of type " + resourceType)
         );
     }
@@ -75,7 +75,7 @@ public class ResourceReference<T extends ResourceObject> {
      * Get resource or return default
      */
     public T getOrDefault(T defaultResource) {
-        return get().orElse(defaultResource);
+        return resolver.get().orElse(defaultResource);
     }
 
     /**
