@@ -243,6 +243,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
         pass.executeCustomBatch(batch.getInstances(), context);
     }
 
+    //TODO: 有Instance需要render时才切换状态
     protected void applyRenderSetting(RenderStateManager manager, C context, RenderSetting setting) {
         manager.accept(setting, context);
         ShaderProvider shader = context.shaderProvider();

@@ -1,5 +1,6 @@
 package rogo.sketch.vanilla;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
@@ -8,7 +9,9 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL13;
 import rogo.sketch.render.RenderContext;
+import rogo.sketch.util.Identifier;
 
 public class McRenderContext extends RenderContext {
     private final PoseStack vanillaModelView;
@@ -34,6 +37,8 @@ public class McRenderContext extends RenderContext {
         this.frustum = frustum;
         this.renderTick = renderTick;
         this.partialTicks = partialTicks;
+        this.windowWidth = Minecraft.getInstance().getWindow().getWidth();
+        this.windowHeight = Minecraft.getInstance().getWindow().getHeight();
     }
 
     public PoseStack vanillaModelView() {
@@ -62,5 +67,11 @@ public class McRenderContext extends RenderContext {
 
     public void setLevelRenderer(LevelRenderer levelRenderer) {
         this.levelRenderer = levelRenderer;
+    }
+
+    @Override
+    public void postStage(Identifier stage) {
+        RenderSystem.activeTexture(GL13.GL_TEXTURE1);
+        RenderSystem.activeTexture(GL13.GL_TEXTURE0);
     }
 }

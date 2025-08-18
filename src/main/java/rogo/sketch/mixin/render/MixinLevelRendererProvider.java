@@ -53,7 +53,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
             )}
     )
     private void beforeSkyStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime, boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
-        sketchlib$graphPipeline.renderStagesBefore(MinecraftRenderStages.SKY.getIdentifier());
+        sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.RENDER_START.getIdentifier(), MinecraftRenderStages.SKY.getIdentifier());
     }
 
     @Inject(method = "renderChunkLayer", at = @At(value = "HEAD"))
@@ -164,7 +164,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
 
     @Inject(method = "renderLevel", at = @At(value = "RETURN"))
     private void onRenderEnd(PoseStack modelViewMatrix, float partialTicks, long nanoTime, boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
-        sketchlib$graphPipeline.renderStagesAfter(MinecraftRenderStages.WEATHER.getIdentifier());
+        sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.WEATHER.getIdentifier(), MinecraftRenderStages.RENDER_END.getIdentifier());
     }
 
     @Override

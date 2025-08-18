@@ -147,11 +147,20 @@ public class SketchRender {
                     }
                 } else if (hitResult instanceof BlockHitResult) {
                     BlockPos pos = ((BlockHitResult) hitResult).getBlockPos();
-                    BlockPos testPos_ = new BlockPos(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4);
-                    if (testPos_.equals(testPos)) {
-                        testPos = null;
+                    if (Minecraft.getInstance().level.getBlockEntity(pos) != null) {
+                        BlockEntity blockEntity = Minecraft.getInstance().level.getBlockEntity(pos);
+                        if (blockEntity != testBlockEntity) {
+                            testBlockEntity = blockEntity;
+                        } else {
+                            testBlockEntity = null;
+                        }
                     } else {
-                        testPos = testPos_;
+                        BlockPos testPos_ = new BlockPos(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4);
+                        if (testPos_.equals(testPos)) {
+                            testPos = null;
+                        } else {
+                            testPos = testPos_;
+                        }
                     }
                 }
             }
@@ -160,6 +169,7 @@ public class SketchRender {
 
     public static BlockPos testPos = null;
     public static Entity testEntity = null;
+    public static BlockEntity testBlockEntity = null;
 
     public static void onKeyPress() {
     }

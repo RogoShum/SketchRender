@@ -14,6 +14,7 @@ import rogo.sketch.event.UniformHookRegisterEvent;
 import rogo.sketch.event.bridge.ProxyModEvent;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.mixin.AccessorFrustum;
+import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.ValueGetter;
@@ -72,6 +73,62 @@ public class VanillaPipelineEventHandler {
 
     public static void onUniformInit(ProxyModEvent event) {
         if (event.getWrapped() instanceof UniformHookRegisterEvent uniformEvent) {
+            uniformEvent.register(Identifier.of("viewMatrix"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.viewMatrix();
+                }
+
+                return new Matrix4f();
+            }, Matrix4f.class));
+
+            uniformEvent.register(Identifier.of("modelMatrix"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.modelMatrix();
+                }
+
+                return new Matrix4f();
+            }, Matrix4f.class));
+
+            uniformEvent.register(Identifier.of("projectionMatrix"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.projectionMatrix();
+                }
+
+                return new Matrix4f();
+            }, Matrix4f.class));
+
+            uniformEvent.register(Identifier.of("partialTicks"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.partialTicks();
+                }
+
+                return 0.0f;
+            }, Float.class));
+
+            uniformEvent.register(Identifier.of("renderTick"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.renderTick();
+                }
+
+                return 0;
+            }, Integer.class));
+
+            uniformEvent.register(Identifier.of("windowWidth"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.windowWidth();
+                }
+
+                return 0;
+            }, Integer.class));
+
+            uniformEvent.register(Identifier.of("windowHeight"), ValueGetter.create((instance) -> {
+                if (instance instanceof RenderContext context) {
+                    return context.windowHeight();
+                }
+
+                return 0;
+            }, Integer.class));
+
             uniformEvent.register(Identifier.of("sketch_cullFacing"), ValueGetter.create(() -> {
                 return SodiumClientMod.options().performance.useBlockFaceCulling ? 1 : 0;
             }, Integer.class));

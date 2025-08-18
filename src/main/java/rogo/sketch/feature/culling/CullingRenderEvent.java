@@ -104,18 +104,18 @@ public class CullingRenderEvent {
             shaderInstance.getBoxScale().set(4.0f);
         }
         if (shaderInstance.getTestPos() != null) {
-            float[] array;
+            float[] array = new float[]{0, 0, 0, 0};
             if (SketchRender.testPos != null) {
                 array = new float[]{SketchRender.testPos.getX(), SketchRender.testPos.getY(), SketchRender.testPos.getZ(), 1};
-            } else {
-                array = new float[]{0, 0, 0, 0};
             }
 
             shaderInstance.getTestPos().set(array);
         }
         if (shaderInstance.getTestEntityPos() != null) {
             float[] array;
-            if (SketchRender.testEntity != null) {
+            if (SketchRender.testBlockEntity != null) {
+                array = new float[]{(float) SketchRender.testBlockEntity.getBlockPos().getX() + 0.5f, (float) SketchRender.testBlockEntity.getBlockPos().getY(), (float) SketchRender.testBlockEntity.getBlockPos().getZ() + 0.5f, 1};
+            } else if (SketchRender.testEntity != null) {
                 array = new float[]{(float) SketchRender.testEntity.position().x, (float) SketchRender.testEntity.position().y, (float) SketchRender.testEntity.position().z, 1};
             } else {
                 array = new float[]{0, 0, 0, 0};
@@ -124,13 +124,15 @@ public class CullingRenderEvent {
             shaderInstance.getTestEntityPos().set(array);
         }
         if (shaderInstance.getTestEntityAABB() != null) {
-            float[] array;
-            if (SketchRender.testEntity != null) {
+            float[] array = new float[]{0, 0, 0};
+            if (SketchRender.testBlockEntity != null) {
+                array = new float[]{(float) SketchRender.testBlockEntity.getRenderBoundingBox().getXsize()
+                        , (float) SketchRender.testBlockEntity.getRenderBoundingBox().getYsize()
+                        , (float) SketchRender.testBlockEntity.getRenderBoundingBox().getZsize()};
+            } else if (SketchRender.testEntity != null) {
                 array = new float[]{(float) SketchRender.testEntity.getBoundingBoxForCulling().getXsize()
                         , (float) SketchRender.testEntity.getBoundingBoxForCulling().getYsize()
                         , (float) SketchRender.testEntity.getBoundingBoxForCulling().getZsize()};
-            } else {
-                array = new float[]{0, 0, 0};
             }
 
             shaderInstance.getTestEntityAABB().set(array);

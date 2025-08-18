@@ -8,7 +8,6 @@ import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OrderedList;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -131,9 +130,12 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void resetRenderContext(C context) {
         this.currentContext = context;
+    }
+
+    public void resetRenderState() {
         this.renderStateManager().reset();
     }
-    
+
     /**
      * Initialize the pipeline and post initialization events
      */
@@ -145,10 +147,10 @@ public class GraphicsPipeline<C extends RenderContext> {
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.EARLY));
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.NORMAL));
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.LATE));
-        
+
         initialized = true;
     }
-    
+
     /**
      * Add a GraphInstance from the instance pool to a specific stage
      */
@@ -156,11 +158,11 @@ public class GraphicsPipeline<C extends RenderContext> {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
         }
-        
+
         GraphicsInstance instance = poolManager.borrowInstance(instanceType);
         addGraphInstance(stageId, instance, renderSetting);
     }
-    
+
     /**
      * Add a GraphInstance from a named pool to a specific stage
      */
@@ -168,11 +170,11 @@ public class GraphicsPipeline<C extends RenderContext> {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
         }
-        
+
         GraphicsInstance instance = poolManager.borrowInstance(poolName);
         addGraphInstance(stageId, instance, renderSetting);
     }
-    
+
     /**
      * Tick all stages with async support
      */
@@ -184,7 +186,7 @@ public class GraphicsPipeline<C extends RenderContext> {
             }
         }
     }
-    
+
     /**
      * Cleanup discarded instances and return them to pools
      */
@@ -193,21 +195,21 @@ public class GraphicsPipeline<C extends RenderContext> {
             group.cleanupDiscardedInstances();
         }
     }
-    
+
     /**
      * Get the instance pool manager
      */
     public InstancePoolManager poolManager() {
         return poolManager;
     }
-    
+
     /**
      * Get the async render manager
      */
     public AsyncRenderManager asyncManager() {
         return asyncManager;
     }
-    
+
     /**
      * Check if the pipeline is initialized
      */
@@ -230,19 +232,19 @@ public class GraphicsPipeline<C extends RenderContext> {
         int totalStages = stages.getOrderedList().size();
         int pendingStages = stages.getPendingElements().size();
         int totalInstances = passMap.values().stream()
-            .mapToInt(group -> group.getPasses().stream()
-                .mapToInt(pass -> pass.getAllInstances().size())
-                .sum())
-            .sum();
-        
+                .mapToInt(group -> group.getPasses().stream()
+                        .mapToInt(pass -> pass.getAllInstances().size())
+                        .sum())
+                .sum();
+
         return new PipelineStats(totalStages, pendingStages, totalInstances, initialized);
     }
-    
+
     public record PipelineStats(int totalStages, int pendingStages, int totalInstances, boolean initialized) {
         @Override
         public String toString() {
-            return String.format("Pipeline[stages=%d, pending=%d, instances=%d, init=%s]", 
-                totalStages, pendingStages, totalInstances, initialized);
+            return String.format("Pipeline[stages=%d, pending=%d, instances=%d, init=%s]",
+                    totalStages, pendingStages, totalInstances, initialized);
         }
     }
 }

@@ -12,6 +12,8 @@ public class RenderContext {
     private final Matrix4f viewMatrix = new Matrix4f();
     private final Matrix4f modelMatrix = new Matrix4f();
     private final Matrix4f projectionMatrix = new Matrix4f();
+    protected int windowWidth;
+    protected int windowHeight;
     protected int renderTick;
     protected float partialTicks;
 
@@ -43,6 +45,14 @@ public class RenderContext {
 
     public void setPartialTicks(float partialTicks) {
         this.partialTicks = partialTicks;
+    }
+
+    public int windowHeight() {
+        return windowHeight;
+    }
+
+    public int windowWidth() {
+        return windowWidth;
     }
 
     public void setShaderProvider(ShaderProvider shaderProvider) {

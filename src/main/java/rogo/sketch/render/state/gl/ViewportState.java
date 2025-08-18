@@ -7,10 +7,13 @@ import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.util.Identifier;
 
+import java.util.Objects;
+
 public class ViewportState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("viewport");
-    
+
     private int x, y, width, height;
+    private boolean auto = true;
 
     public ViewportState() {
         this.x = 0;
@@ -35,20 +38,29 @@ public class ViewportState implements RenderStateComponent {
     public boolean equals(Object other) {
         if (!(other instanceof ViewportState)) return false;
         ViewportState o = (ViewportState) other;
-        return x == o.x && y == o.y && width == o.width && height == o.height;
+        return x == o.x && y == o.y && width == o.width && height == o.height && auto == o.auto;
     }
 
     @Override
     public void apply(RenderContext context) {
-        GL11.glViewport(x, y, width, height);
+        if (auto) {
+            GL11.glViewport(0, 0, context.windowWidth(), context.windowHeight());
+        } else {
+            GL11.glViewport(x, y, width, height);
+        }
+
     }
 
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
-        this.x = json.has("x") ? json.get("x").getAsInt() : 0;
-        this.y = json.has("y") ? json.get("y").getAsInt() : 0;
-        this.width = json.has("width") ? json.get("width").getAsInt() : 1920;
-        this.height = json.has("height") ? json.get("height").getAsInt() : 1080;
+        if (json.has("x") && json.has("y") && json.has("width") && json.has("height")) {
+            x = json.get("x").getAsInt();
+            y = json.get("y").getAsInt();
+            width = json.get("width").getAsInt();
+            height = json.get("height").getAsInt();
+
+            auto = false;
+        }
     }
 
     @Override
@@ -58,6 +70,6 @@ public class ViewportState implements RenderStateComponent {
 
     @Override
     public int hashCode() {
-        return x ^ y ^ width ^ height;
+        return Objects.hash(x, y, width, height, auto);
     }
 }

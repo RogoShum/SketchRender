@@ -10,7 +10,8 @@ import java.util.Set;
 public class MinecraftRenderStages {
     public static final OrderRequirement<GraphicsStage> NONE_REQUIREMENT = OrderRequirement.Builder.<GraphicsStage>create().build();
 
-    public static final GraphicsStage SKY = new GraphicsStage("vanilla_sky", NONE_REQUIREMENT);
+    public static final GraphicsStage RENDER_START = new GraphicsStage("vanilla_render_start", NONE_REQUIREMENT);
+    public static final GraphicsStage SKY = new GraphicsStage("vanilla_sky", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(RENDER_START).build());
     public static final GraphicsStage TERRAIN_SOLID = new GraphicsStage("vanilla_terrain_solid", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(SKY).build());
     public static final GraphicsStage TERRAIN_CUTOUT_MIPPED = new GraphicsStage("vanilla_terrain_cutout_mipped", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(TERRAIN_SOLID).build());
     public static final GraphicsStage TERRAIN_CUTOUT = new GraphicsStage("vanilla_terrain_cutout", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(TERRAIN_CUTOUT_MIPPED).build());
@@ -23,10 +24,12 @@ public class MinecraftRenderStages {
     public static final GraphicsStage PARTICLE = new GraphicsStage("vanilla_particle", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(TERRAIN_TRIPWIRE).build());
     public static final GraphicsStage CLOUDS = new GraphicsStage("vanilla_clouds", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(PARTICLE).build());
     public static final GraphicsStage WEATHER = new GraphicsStage("vanilla_weather", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(CLOUDS).build());
+    public static final GraphicsStage RENDER_END = new GraphicsStage("vanilla_render_end", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(WEATHER).build());
 
     private static final Set<GraphicsStage> extraStages = new HashSet<>();
 
     public static void registerVanillaStages(GraphicsPipeline<?> pipeline) {
+        pipeline.registerStage(RENDER_START);
         pipeline.registerStage(SKY);
         pipeline.registerStage(TERRAIN_SOLID);
         pipeline.registerStage(TERRAIN_CUTOUT_MIPPED);
@@ -40,6 +43,7 @@ public class MinecraftRenderStages {
         pipeline.registerStage(PARTICLE);
         pipeline.registerStage(CLOUDS);
         pipeline.registerStage(WEATHER);
+        pipeline.registerStage(RENDER_END);
     }
 
     public static void registerExtraStages(GraphicsPipeline<?> pipeline) {
