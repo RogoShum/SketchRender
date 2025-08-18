@@ -132,10 +132,6 @@ public class GraphicsPipeline<C extends RenderContext> {
         this.currentContext = context;
     }
 
-    public void resetRenderState() {
-        this.renderStateManager().reset();
-    }
-
     /**
      * Initialize the pipeline and post initialization events
      */

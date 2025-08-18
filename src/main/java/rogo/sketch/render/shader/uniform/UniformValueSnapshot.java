@@ -17,32 +17,8 @@ public class UniformValueSnapshot {
         return new UniformValueSnapshot(Map.of());
     }
 
-    //TODO 调整数值检查和缓存部分
     public static UniformValueSnapshot captureFrom(UniformHookGroup hookGroup, Object instance) {
-        Map<String, Object> values = new HashMap<>();
-
-        Map<String, Object> originalValues = new HashMap<>();
-        for (String uniformName : hookGroup.getUniformNames()) {
-            UniformHook<?> hook = hookGroup.getUniformHook(uniformName);
-            if (hook != null) {
-                originalValues.put(uniformName, hook.getCurrentValue());
-            }
-        }
-
-        hookGroup.updateUniforms(instance);
-
-        for (String uniformName : hookGroup.getUniformNames()) {
-            UniformHook<?> hook = hookGroup.getUniformHook(uniformName);
-            if (hook != null) {
-                Object currentValue = hook.getCurrentValue();
-                Object originalValue = originalValues.get(uniformName);
-
-                if (!Objects.equals(currentValue, originalValue)) {
-                    values.put(uniformName, currentValue);
-                }
-            }
-        }
-
+        Map<String, Object> values = hookGroup.getUniformsDirect(instance);
         return new UniformValueSnapshot(values);
     }
 

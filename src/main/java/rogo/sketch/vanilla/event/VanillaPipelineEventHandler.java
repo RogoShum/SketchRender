@@ -78,7 +78,7 @@ public class VanillaPipelineEventHandler {
                     return context.viewMatrix();
                 }
 
-                return new Matrix4f();
+                return null;
             }, Matrix4f.class));
 
             uniformEvent.register(Identifier.of("modelMatrix"), ValueGetter.create((instance) -> {
@@ -86,7 +86,7 @@ public class VanillaPipelineEventHandler {
                     return context.modelMatrix();
                 }
 
-                return new Matrix4f();
+                return null;
             }, Matrix4f.class));
 
             uniformEvent.register(Identifier.of("projectionMatrix"), ValueGetter.create((instance) -> {
@@ -94,7 +94,7 @@ public class VanillaPipelineEventHandler {
                     return context.projectionMatrix();
                 }
 
-                return new Matrix4f();
+                return null;
             }, Matrix4f.class));
 
             uniformEvent.register(Identifier.of("partialTicks"), ValueGetter.create((instance) -> {
@@ -102,7 +102,7 @@ public class VanillaPipelineEventHandler {
                     return context.partialTicks();
                 }
 
-                return 0.0f;
+                return null;
             }, Float.class));
 
             uniformEvent.register(Identifier.of("renderTick"), ValueGetter.create((instance) -> {
@@ -110,7 +110,7 @@ public class VanillaPipelineEventHandler {
                     return context.renderTick();
                 }
 
-                return 0;
+                return null;
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("windowWidth"), ValueGetter.create((instance) -> {
@@ -118,7 +118,7 @@ public class VanillaPipelineEventHandler {
                     return context.windowWidth();
                 }
 
-                return 0;
+                return null;
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("windowHeight"), ValueGetter.create((instance) -> {
@@ -126,7 +126,7 @@ public class VanillaPipelineEventHandler {
                     return context.windowHeight();
                 }
 
-                return 0;
+                return null;
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("sketch_cullFacing"), ValueGetter.create(() -> {

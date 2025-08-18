@@ -30,6 +30,15 @@ public class UniformHookGroup {
         }
     }
 
+    public Map<String, Object> getUniformsDirect(Object c) {
+        Map<String, Object> values = new HashMap<>();
+        for (Map.Entry<String, UniformHook<?>> entry : uniforms.entrySet()) {
+            values.put(entry.getKey(), entry.getValue().getDirectValue(c));
+        }
+
+        return values;
+    }
+
     public Set<String> getUniformNames() {
         return uniforms.keySet();
     }

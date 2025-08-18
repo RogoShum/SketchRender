@@ -22,7 +22,7 @@ public class MixinMinecraft {
     @Inject(method = "runTick", at = @At(value = "HEAD"))
     public void beforeRunTick(boolean p_91384_, CallbackInfo ci) {
         CullingStateManager.onProfilerPopPush("beforeRunTick");
-        PipelineUtil.pipeline().renderStateManager();
+        PipelineUtil.pipeline().renderStateManager().reset();
         PipelineUtil.pipeline().renderStagesBefore(MinecraftRenderStages.RENDER_START.getIdentifier());
     }
 

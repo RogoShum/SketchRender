@@ -2,6 +2,7 @@ package rogo.sketch.render.shader.uniform;
 
 import org.joml.*;
 
+import javax.annotation.Nullable;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -33,6 +34,7 @@ public class ValueGetter<T> {
         return new ValueGetter<>(value, clazz);
     }
 
+    @Nullable
     public T get(Object graph) {
         return valueGetter.apply(graph);
     }

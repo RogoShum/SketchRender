@@ -37,7 +37,6 @@ public class HizTarget extends RenderTarget {
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.frameBufferId);
         GlStateManager._glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, this.colorTextureId, 0);
 
-        //TODO: fix linear
         texture = new Texture(this.colorTextureId, Identifier.of("hiz_texture"), GL30.GL_R16F, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE);
     }
 

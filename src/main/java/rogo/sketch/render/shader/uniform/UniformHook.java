@@ -19,14 +19,19 @@ public class UniformHook<T> {
 
     public void checkUpdate(Object graph) {
         T currentValue = valueGetter.get(graph);
-        if (!Objects.equals(currentValue, value)) {
+        if (currentValue != null && !Objects.equals(currentValue, value)) {
             value = currentValue;
             uniform.set(value);
         }
     }
 
+    public T getDirectValue(Object graph) {
+        T currentValue = valueGetter.get(graph);
+        return currentValue == null ? value : currentValue;
+    }
+
     public void setDirectValue(T newValue) {
-        if (!Objects.equals(newValue, value)) {
+        if (newValue != null && !Objects.equals(newValue, value)) {
             value = newValue;
             uniform.set(value);
         }

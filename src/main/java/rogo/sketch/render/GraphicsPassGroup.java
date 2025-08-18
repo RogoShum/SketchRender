@@ -75,10 +75,20 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            applyRenderSetting(manager, context, setting);
             VertexResource resource = vertexResourceManager.getOrCreateVertexResource(setting);
 
-            List<UniformBatchGroup> uniformBatches = collectUniformBatches(pass, context);
+            ShaderProvider shaderProvider = context.shaderProvider();
+            if (shaderProvider == null) {
+                Optional<ShaderProvider> optional = ((ShaderState)setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader().get();
+                if (optional.isPresent()) {
+                    shaderProvider = optional.get();
+                }
+            }
+
+            List<UniformBatchGroup> uniformBatches = collectUniformBatches(pass, shaderProvider);
+            if (setting.shouldSwitchRenderState() && !uniformBatches.isEmpty()) {
+                applyRenderSetting(manager, context, setting);
+            }
 
             for (UniformBatchGroup batch : uniformBatches) {
                 renderUniformBatch(batch, resource, setting, pass, context);
@@ -86,28 +96,27 @@ public class GraphicsPassGroup<C extends RenderContext> {
         }
     }
 
-    private List<UniformBatchGroup> collectUniformBatches(GraphicsPass<C> pass, C context) {
+    private List<UniformBatchGroup> collectUniformBatches(GraphicsPass<C> pass, ShaderProvider shaderProvider) {
         Collection<GraphicsInstance> instances = pass.getSharedInstances();
 
         try {
             return asyncManager.collectUniformsAsync(
-                    () -> collectUniformBatchesSync(instances, context),
+                    () -> collectUniformBatchesSync(instances, shaderProvider),
                     instances.size()
             ).join();
         } catch (Exception e) {
             // Fallback to sync if async fails
-            return collectUniformBatchesSync(instances, context);
+            return collectUniformBatchesSync(instances, shaderProvider);
         }
     }
 
-    private List<UniformBatchGroup> collectUniformBatchesSync(Collection<GraphicsInstance> instances, C context) {
+    private List<UniformBatchGroup> collectUniformBatchesSync(Collection<GraphicsInstance> instances, ShaderProvider shaderProvider) {
         Map<UniformValueSnapshot, UniformBatchGroup> batches = new HashMap<>();
-        ShaderProvider shader = context.shaderProvider();
 
         for (GraphicsInstance instance : instances) {
             if (instance.shouldRender()) {
                 UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(
-                        shader.getUniformHookGroup(), instance);
+                        shaderProvider.getUniformHookGroup(), instance);
 
                 batches.computeIfAbsent(snapshot, UniformBatchGroup::new).addInstance(instance);
             }
@@ -118,29 +127,29 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
     // Note: collectUniformBatchesAsync method removed, using AsyncRenderManager instead
 
-    private List<UniformBatchGroup> collectIndependentUniformBatches(GraphicsPass<C> pass, C context) {
+    private List<UniformBatchGroup> collectIndependentUniformBatches(GraphicsPass<C> pass, ShaderProvider shaderProvider) {
         Collection<GraphicsInstance> instances = pass.getIndependentInstances();
 
         try {
             return asyncManager.collectUniformsAsync(
-                    () -> collectUniformBatchesSync(instances, context),
+                    () -> collectUniformBatchesSync(instances, shaderProvider),
                     instances.size()
             ).join();
         } catch (Exception e) {
-            return collectUniformBatchesSync(instances, context);
+            return collectUniformBatchesSync(instances, shaderProvider);
         }
     }
 
-    private List<UniformBatchGroup> collectCustomUniformBatches(GraphicsPass<C> pass, C context) {
+    private List<UniformBatchGroup> collectCustomUniformBatches(GraphicsPass<C> pass, ShaderProvider shaderProvider) {
         Collection<GraphicsInstance> instances = pass.getCustomInstances();
 
         try {
             return asyncManager.collectUniformsAsync(
-                    () -> collectUniformBatchesSync(instances, context),
+                    () -> collectUniformBatchesSync(instances, shaderProvider),
                     instances.size()
             ).join();
         } catch (Exception e) {
-            return collectUniformBatchesSync(instances, context);
+            return collectUniformBatchesSync(instances, shaderProvider);
         }
     }
 
@@ -182,8 +191,18 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            applyRenderSetting(manager, context, setting);
-            List<UniformBatchGroup> uniformBatches = collectIndependentUniformBatches(pass, context);
+            ShaderProvider shaderProvider = context.shaderProvider();
+            if (shaderProvider == null) {
+                Optional<ShaderProvider> optional = ((ShaderState)setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader().get();
+                if (optional.isPresent()) {
+                    shaderProvider = optional.get();
+                }
+            }
+
+            List<UniformBatchGroup> uniformBatches = collectIndependentUniformBatches(pass, shaderProvider);
+            if (setting.shouldSwitchRenderState() && !uniformBatches.isEmpty()) {
+                applyRenderSetting(manager, context, setting);
+            }
 
             for (UniformBatchGroup batch : uniformBatches) {
                 renderIndependentUniformBatch(batch, setting, pass, context);
@@ -220,11 +239,18 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            if (setting.shouldSwitchRenderState()) {
-                applyRenderSetting(manager, context, setting);
+            ShaderProvider shaderProvider = context.shaderProvider();
+            if (shaderProvider == null) {
+                Optional<ShaderProvider> optional = ((ShaderState)setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader().get();
+                if (optional.isPresent()) {
+                    shaderProvider = optional.get();
+                }
             }
 
-            List<UniformBatchGroup> uniformBatches = collectCustomUniformBatches(pass, context);
+            List<UniformBatchGroup> uniformBatches = collectCustomUniformBatches(pass, shaderProvider);
+            if (setting.shouldSwitchRenderState() && !uniformBatches.isEmpty()) {
+                applyRenderSetting(manager, context, setting);
+            }
 
             for (UniformBatchGroup batch : uniformBatches) {
                 renderCustomUniformBatch(batch, setting, pass, context);
@@ -243,7 +269,6 @@ public class GraphicsPassGroup<C extends RenderContext> {
         pass.executeCustomBatch(batch.getInstances(), context);
     }
 
-    //TODO: 有Instance需要render时才切换状态
     protected void applyRenderSetting(RenderStateManager manager, C context, RenderSetting setting) {
         manager.accept(setting, context);
         ShaderProvider shader = context.shaderProvider();
