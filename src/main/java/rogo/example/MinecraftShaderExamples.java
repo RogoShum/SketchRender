@@ -19,7 +19,7 @@ public class MinecraftShaderExamples {
      * Example: Load a compute shader from Minecraft resources
      */
     public static void loadComputeShaderFromResources(ResourceProvider resourceProvider) throws Exception {
-        // This will load from assets/sketchrender/shaders/compute/particle_sim.comp
+        // This will load from assets/sketchrender/shaders/compute/particle_sim.hierarchy_depth_buffer.comp
         ComputeShader computeShader = ShaderUtils.loadComputeShader(
                 resourceProvider,
                 new ResourceLocation("sketchrender", "particle_sim")

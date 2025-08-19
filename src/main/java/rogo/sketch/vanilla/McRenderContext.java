@@ -7,6 +7,9 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL13;
@@ -18,6 +21,7 @@ public class McRenderContext extends RenderContext {
 
     private Camera camera;
     private Frustum frustum;
+    private Frustum cullingFrustum;
     private LevelRenderer levelRenderer;
 
     public McRenderContext(LevelRenderer levelRenderer, PoseStack vanillaModelView, Matrix4f projectionMatrix, Camera camera, Frustum frustum, int renderTick, float partialTicks) {
@@ -35,6 +39,7 @@ public class McRenderContext extends RenderContext {
         this.modelMatrix().identity();
         this.camera = camera;
         this.frustum = frustum;
+        this.cullingFrustum = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
         this.renderTick = renderTick;
         this.partialTicks = partialTicks;
         this.windowWidth = Minecraft.getInstance().getWindow().getWidth();
@@ -59,6 +64,11 @@ public class McRenderContext extends RenderContext {
 
     public void setFrustum(Frustum frustum) {
         this.frustum = frustum;
+        this.cullingFrustum = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
+    }
+
+    public Frustum cullingFrustum() {
+        return cullingFrustum;
     }
 
     public LevelRenderer levelRenderer() {
@@ -70,8 +80,19 @@ public class McRenderContext extends RenderContext {
     }
 
     @Override
+    public void preStage(Identifier stage) {
+        this.set(Identifier.of("rendered"), false);
+    }
+
+    @Override
     public void postStage(Identifier stage) {
-        RenderSystem.activeTexture(GL13.GL_TEXTURE1);
-        RenderSystem.activeTexture(GL13.GL_TEXTURE0);
+        if (get(Identifier.of("rendered")) instanceof Boolean rendered && rendered) {
+            RenderSystem.activeTexture(GL13.GL_TEXTURE1);
+            RenderSystem.activeTexture(GL13.GL_TEXTURE0);
+            TextureManager texturemanager = Minecraft.getInstance().getTextureManager();
+            AbstractTexture abstracttexture = texturemanager.getTexture(TextureAtlas.LOCATION_BLOCKS);
+            RenderSystem.bindTexture(abstracttexture.getId());
+            this.set(Identifier.of("rendered"), false);
+        }
     }
 }

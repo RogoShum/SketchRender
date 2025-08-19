@@ -180,6 +180,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
         boolean hasData = pass.fillSharedVertexForBatch(filler, batch.getInstances());
 
         if (hasData) {
+            context.set(Identifier.of("rendered"), true);
             resource.endFill();
             VertexRenderer.render(resource);
             for (GraphicsInstance instance : batch.getInstances()) {
@@ -223,6 +224,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
         if (batch.isEmpty()) {
             return;
         }
+        context.set(Identifier.of("rendered"), true);
 
         ShaderProvider shader = context.shaderProvider();
         batch.getUniformSnapshot().applyTo(shader.getUniformHookGroup());
@@ -274,6 +276,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
             return;
         }
 
+        context.set(Identifier.of("rendered"), true);
         ShaderProvider shader = context.shaderProvider();
         batch.getUniformSnapshot().applyTo(shader.getUniformHookGroup());
         pass.executeCustomBatch(batch.getInstances(), context);

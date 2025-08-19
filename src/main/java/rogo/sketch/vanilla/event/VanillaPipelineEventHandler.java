@@ -186,19 +186,19 @@ public class VanillaPipelineEventHandler {
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("sketch_frustumPos"), ValueGetter.create((instance) -> {
-                if (instance instanceof McRenderContext context && context.frustum() != null) {
+                if (instance instanceof McRenderContext context && context.cullingFrustum() != null) {
                     return new Vector3f(
-                            (float) ((AccessorFrustum) context.frustum()).camX(),
-                            (float) ((AccessorFrustum) context.frustum()).camY(),
-                            (float) ((AccessorFrustum) context.frustum()).camZ());
+                            (float) ((AccessorFrustum) context.cullingFrustum()).camX(),
+                            (float) ((AccessorFrustum) context.cullingFrustum()).camY(),
+                            (float) ((AccessorFrustum) context.cullingFrustum()).camZ());
                 }
 
                 return null;
             }, Vector3f.class));
 
             uniformEvent.register(Identifier.of("sketch_cullingFrustum"), ValueGetter.create((instance) -> {
-                if (instance instanceof McRenderContext context && context.frustum() != null) {
-                    return SketchRender.getFrustumPlanes(((AccessorFrustum) context.frustum()).frustumIntersection());
+                if (instance instanceof McRenderContext context && context.cullingFrustum() != null) {
+                    return SketchRender.getFrustumPlanes(((AccessorFrustum) context.cullingFrustum()).frustumIntersection());
                 }
 
                 return null;
@@ -308,7 +308,8 @@ public class VanillaPipelineEventHandler {
                 if (instance instanceof ComputeHIZGraphics hizGraphics) {
                     return hizGraphics.first() ? 1 : 0;
                 }
-                return 0;
+
+                return null;
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("sketch_screenSize"), ValueGetter.create((instance) -> {
@@ -316,7 +317,8 @@ public class VanillaPipelineEventHandler {
                     RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
                     return hizGraphics.first() ? new Vector2i(screen.width, screen.height) : new Vector2i(screen.width >> 4, screen.height >> 4);
                 }
-                return new Vector2i(0, 0);
+
+                return null;
             }, Vector2i.class));
         }
     }

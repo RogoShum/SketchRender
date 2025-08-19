@@ -24,6 +24,6 @@ public class CopyCounterGraphics extends ComputeGraphics {
 
     @Override
     public boolean shouldRender() {
-        return Config.getCullEntity() && CullingStateManager.ENTITY_CULLING_MASK != null;
+        return true;
     }
 }

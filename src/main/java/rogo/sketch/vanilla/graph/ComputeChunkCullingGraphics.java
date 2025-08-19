@@ -1,6 +1,10 @@
 package rogo.sketch.vanilla.graph;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureManager;
 import org.lwjgl.opengl.GL13;
 import rogo.sketch.Config;
 import rogo.sketch.compat.sodium.MeshResource;
@@ -34,6 +38,6 @@ public class ComputeChunkCullingGraphics extends ComputeGraphics {
 
     @Override
     public boolean shouldRender() {
-        return Config.getCullEntity() && CullingStateManager.ENTITY_CULLING_MASK != null;
+        return true;
     }
 }
