@@ -5,10 +5,10 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL15;
 import rogo.sketch.Config;
-import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
-import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.resource.buffer.CounterBuffer;
+import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.resource.buffer.PersistentReadSSBO;
+import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 
 public class MeshResource {
     private static int renderDistance = -1;
@@ -28,7 +28,7 @@ public class MeshResource {
     public static CounterBuffer cullingCounter;
     public static CounterBuffer elementCounter;
 
-    public static final RegionMeshManager meshManager = new RegionMeshManager();
+    public static final RegionMeshManager MESH_MANAGER = new RegionMeshManager();
 
     static {
         batchCommand = new ShaderStorageBuffer(IndirectCommandBuffer.INSTANCE);
@@ -42,14 +42,14 @@ public class MeshResource {
     }
 
     public static void addIndexedRegion(RenderRegion region) {
-        meshManager.addRegion(region);
+        MESH_MANAGER.addRegion(region);
 
         if (Config.getCullChunk()) {
-            int regionSize = meshManager.size();
+            int regionSize = MESH_MANAGER.size();
             int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
 
             if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getCapacity()) {
-                IndirectCommandBuffer.INSTANCE.resize(meshManager.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
+                IndirectCommandBuffer.INSTANCE.resize(MESH_MANAGER.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
                 batchCommand.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
                 batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getCapacity());
                 batchCommand.resetUpload(GL15.GL_STATIC_DRAW);
@@ -67,11 +67,11 @@ public class MeshResource {
     }
 
     public static void removeRegion(RenderRegion region) {
-        meshManager.removeRegion(region);
+        MESH_MANAGER.removeRegion(region);
     }
 
     public static void clearRegions() {
-        meshManager.refresh();
+        MESH_MANAGER.refresh();
         IndirectCommandBuffer.INSTANCE.resize(IndirectCommandBuffer.REGION_COMMAND_SIZE);
         cullingCounter.resize(1);
         batchRegionIndex.dispose();
@@ -86,7 +86,7 @@ public class MeshResource {
 
             if (Minecraft.getInstance().level != null && Config.getCullChunk()) {
                 theoreticalRegionQuantity = (int) (spacePartitionSize * spacePartitionSize * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
-                meshManager.initCapacity(theoreticalRegionQuantity);
+                MESH_MANAGER.initCapacity(theoreticalRegionQuantity);
             }
         }
     }

@@ -49,27 +49,27 @@ public class RegionMeshDataStorage extends SectionRenderDataStorage {
             sectionFacingCount[sectionIndex] = facingCount;
             totalFacingCount = Arrays.stream(sectionFacingCount).sum();
         }
-        int regionIdx = MeshResource.meshManager.indexOf(region);
-        MeshResource.meshManager.uploadRegionPassData(regionIdx, passIndex);
+        int regionIdx = MeshResource.MESH_MANAGER.indexOf(region);
+        MeshResource.MESH_MANAGER.uploadRegionPassData(regionIdx, passIndex);
     }
 
     @Override
     public long getDataPointer(int sectionIndex) {
-        return MeshResource.meshManager.getSectionMemPointer(region, passIndex, sectionIndex);
+        return MeshResource.MESH_MANAGER.getSectionMemPointer(region, passIndex, sectionIndex);
     }
 
     @Override
     public void delete() {
         super.delete();
-        MemoryUtil.memSet(getDataPointer(0), 0, RegionMeshManager.PASS_DATA_SIZE);
-        int regionIdx = MeshResource.meshManager.indexOf(region);
-        MeshResource.meshManager.uploadRegionPassData(regionIdx, passIndex);
+        MemoryUtil.memSet(getDataPointer(0), 0, MeshResource.MESH_MANAGER.getSectionSize());
+        int regionIdx = MeshResource.MESH_MANAGER.indexOf(region);
+        MeshResource.MESH_MANAGER.uploadRegionPassData(regionIdx, passIndex);
         totalFacingCount = 0;
     }
 
     protected void updateSectionMesh(int sectionIndex) {
-        int regionIdx = MeshResource.meshManager.indexOf(region);
-        MeshResource.meshManager.uploadSectionData(regionIdx, passIndex, sectionIndex);
+        int regionIdx = MeshResource.MESH_MANAGER.indexOf(region);
+        MeshResource.MESH_MANAGER.uploadSectionData(regionIdx, passIndex, sectionIndex);
         int sliceMask = SectionRenderDataUnsafe.getSliceMask(getDataPointer(sectionIndex));
         int facingCount = Integer.bitCount(sliceMask);
         sectionFacingCount[sectionIndex] = facingCount;

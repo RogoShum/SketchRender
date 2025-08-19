@@ -3,23 +3,50 @@ package rogo.sketch.compat.sodium;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.render.resource.ResourceTypes;
+import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.render.data.format.MemoryLayout;
+import rogo.sketch.render.data.format.Std430DataFormat;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.util.IndexPool;
 
 public class RegionMeshManager {
+    private static final DataFormat SECTION_DATA_FORMAT = Std430DataFormat.std430Builder("SectionData")
+            .intElement("mask")
+            .intElement("visibility")
+            .intElement("mesh_0_vertex_offset").intElement("mesh_0_element_count").intElement("mesh_0_index_offset")
+            .intElement("mesh_1_vertex_offset").intElement("mesh_1_element_count").intElement("mesh_1_index_offset")
+            .intElement("mesh_2_vertex_offset").intElement("mesh_2_element_count").intElement("mesh_2_index_offset")
+            .intElement("mesh_3_vertex_offset").intElement("mesh_3_element_count").intElement("mesh_3_index_offset")
+            .intElement("mesh_4_vertex_offset").intElement("mesh_4_element_count").intElement("mesh_4_index_offset")
+            .intElement("mesh_5_vertex_offset").intElement("mesh_5_element_count").intElement("mesh_5_index_offset")
+            .intElement("mesh_6_vertex_offset").intElement("mesh_6_element_count").intElement("mesh_6_index_offset")
+            .build();
+
     private static final int SECTION_COUNT = 256;
     private static final int PASS_COUNT = 3;
-    public static final long SECTION_DATA_SIZE = 92; // bytes
-    public static final long PASS_DATA_SIZE = SECTION_DATA_SIZE * SECTION_COUNT;
+    public static final long SECTION_DATA_SIZE = SECTION_DATA_FORMAT.getStride();
 
     private final IndexPool<RenderRegion> regionIndex = new IndexPool<>();
     private ShaderStorageBuffer meshDataBuffer;
+    private MemoryLayout memoryLayout;
     private long meshDataPointer;
     private int currentCapacity;
 
     public RegionMeshManager() {
         currentCapacity = 1;
+        initializeMemoryLayout();
+        initializeBuffer();
+    }
+
+    private void initializeMemoryLayout() {
+        this.memoryLayout = MemoryLayout.builder(SECTION_DATA_FORMAT)
+                .addDimension("region", currentCapacity)
+                .addDimension("pass", PASS_COUNT)
+                .addDimension("section", SECTION_COUNT)
+                .build();
+    }
+
+    private void initializeBuffer() {
         meshDataBuffer = new ShaderStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
         meshDataPointer = meshDataBuffer.getMemoryAddress();
     }
@@ -28,7 +55,6 @@ public class RegionMeshManager {
         if (!regionIndex.contains(region)) {
             regionIndex.add(region);
         }
-
         return regionIndex.indexOf(region);
     }
 
@@ -39,10 +65,6 @@ public class RegionMeshManager {
         if (index >= currentCapacity) {
             expandCapacity((int) ((currentCapacity + 1) * 1.2));
         }
-    }
-
-    public boolean containRegion(RenderRegion region) {
-        return regionIndex.contains(region);
     }
 
     public void initCapacity(int capacity) {
@@ -67,40 +89,43 @@ public class RegionMeshManager {
         meshDataBuffer.setBufferPointer(meshDataPointer);
         meshDataBuffer.setCapacity(requiredCapacity * meshDataBuffer.getStride());
         meshDataBuffer.resetUpload(GL15.GL_DYNAMIC_DRAW);
+
+        initializeMemoryLayout();
     }
 
     public long getSectionMemPointer(RenderRegion region, int passIndex, int sectionIndex) {
         int regionIdx = regionIndex.indexOf(region);
-        long sectionOffset = getSectionOffset(regionIdx, passIndex, sectionIndex);
+        long byteOffset = memoryLayout.calculateByteOffset(regionIdx, passIndex, sectionIndex);
 
-        if (sectionOffset + SECTION_DATA_SIZE > meshDataBuffer.getCapacity()) {
-            throw new RuntimeException("Out of capacity " + sectionOffset);
+        if (byteOffset + SECTION_DATA_SIZE > meshDataBuffer.getCapacity()) {
+            throw new RuntimeException("Out of capacity " + byteOffset);
         }
 
-        return meshDataPointer + sectionOffset;
-    }
-
-    public long getSectionOffset(int regionIndex, int passIndex, int sectionIndex) {
-        return ((long) regionIndex * SECTION_COUNT * SECTION_DATA_SIZE * PASS_COUNT) +
-                ((long) passIndex * SECTION_COUNT * SECTION_DATA_SIZE) +
-                ((long) sectionIndex * SECTION_DATA_SIZE);
+        return meshDataPointer + byteOffset;
     }
 
     public void uploadSectionData(int regionIndex, int passIndex, int sectionIndex) {
-        long offset = ((long) regionIndex * SECTION_COUNT * PASS_COUNT +
-                (long) passIndex * SECTION_COUNT +
-                sectionIndex);
-        meshDataBuffer.upload(offset, (int) SECTION_DATA_SIZE);
+        long elementOffset = memoryLayout.calculateElementOffset(regionIndex, passIndex, sectionIndex);
+        meshDataBuffer.upload(elementOffset, (int) SECTION_DATA_SIZE);
     }
 
     public void uploadRegionPassData(int regionIndex, int passIndex) {
-        long offset = ((long) regionIndex * PASS_COUNT +
-                (long) passIndex);
-        meshDataBuffer.upload(offset, (int) PASS_DATA_SIZE);
+        long passElementOffset = ((long) regionIndex * PASS_COUNT + (long) passIndex);
+        long passDataSize = memoryLayout.getDataSize("section");
+
+        meshDataBuffer.upload(passElementOffset, (int) passDataSize);
     }
 
-    public void bindMeshData(int slot) {
-        meshDataBuffer.bind(ResourceTypes.SHADER_STORAGE_BUFFER, slot);
+    public long getPassDataSize() {
+        return memoryLayout.getDataSize("pass");
+    }
+
+    public long getRegionDataSize() {
+        return memoryLayout.getDataSize("region");
+    }
+
+    public long getSectionSize() {
+        return memoryLayout.getDataSize("section");
     }
 
     public int size() {
@@ -110,21 +135,27 @@ public class RegionMeshManager {
     public void refresh() {
         dispose();
         currentCapacity = 1;
-        meshDataBuffer = new ShaderStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
-        meshDataPointer = meshDataBuffer.getMemoryAddress();
+        initializeMemoryLayout();
+        initializeBuffer();
     }
 
     public void dispose() {
         regionIndex.forEach((region, index) -> ((ExtraRenderRegion) region).refreshSectionData());
-        meshDataBuffer.dispose();
+        if (meshDataBuffer != null) {
+            meshDataBuffer.dispose();
+        }
         regionIndex.clear();
-    }
-
-    public long getBufferCapacity() {
-        return meshDataBuffer.getCapacity();
     }
 
     public ShaderStorageBuffer meshDataBuffer() {
         return meshDataBuffer;
+    }
+
+    public MemoryLayout getMemoryLayout() {
+        return memoryLayout;
+    }
+
+    public DataFormat getSectionDataFormat() {
+        return SECTION_DATA_FORMAT;
     }
 }

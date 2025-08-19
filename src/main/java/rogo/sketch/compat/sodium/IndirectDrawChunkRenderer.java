@@ -97,7 +97,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
                 MemoryUtil.memPutInt(ptr + offset, region.getChunkX());
                 MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkY());
                 MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
-                MemoryUtil.memPutInt(ptr + offset + 12, MeshResource.meshManager.indexOf(region));
+                MemoryUtil.memPutInt(ptr + offset + 12, MeshResource.MESH_MANAGER.indexOf(region));
             }
             MeshResource.batchRegionIndex.position = (int) MeshResource.batchRegionIndex.getCapacity();
             MeshResource.batchRegionIndex.upload();
@@ -131,7 +131,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             this.isIndexedPass = renderPass.isSorted();
             int maxElement = MeshResource.maxElementPersistent.getInt(0);
             if (maxElementCount < maxElement && !this.isIndexedPass) {
-                this.defaultChunkRenderer.getSharedIndexBuffer().ensureCapacity(commandList, maxElement);
+                getSharedIndexBuffer().ensureCapacity(commandList, maxElement);
                 maxElementCount = maxElement;
             }
 

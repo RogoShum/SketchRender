@@ -5,6 +5,7 @@ import rogo.sketch.util.Identifier;
 
 import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.Set;
 
 public class UniformHook<T> {
     private final Identifier identifier;
@@ -49,6 +50,13 @@ public class UniformHook<T> {
 
     public ShaderResource<T> uniform() {
         return uniform;
+    }
+
+    /**
+     * Get the target classes this UniformHook can work with
+     */
+    public Set<Class<?>> getTargetClasses() {
+        return valueGetter.getTargetClasses();
     }
 
     @Override

@@ -79,7 +79,7 @@ public class VanillaPipelineEventHandler {
 
         GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_section_mesh"),
                 () -> {
-                    return Optional.of(MeshResource.meshManager.meshDataBuffer());
+                    return Optional.of(MeshResource.MESH_MANAGER.meshDataBuffer());
                 });
 
         GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_draw_command"),
@@ -130,79 +130,58 @@ public class VanillaPipelineEventHandler {
     public static void onUniformInit(ProxyModEvent event) {
         if (event.getWrapped() instanceof UniformHookRegisterEvent uniformEvent) {
             uniformEvent.register(Identifier.of("viewMatrix"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.viewMatrix();
-                }
-
-                return null;
-            }, Matrix4f.class));
+                RenderContext context = (RenderContext) instance;
+                return context.viewMatrix();
+            }, Matrix4f.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("modelMatrix"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.modelMatrix();
-                }
-
-                return null;
-            }, Matrix4f.class));
+                RenderContext context = (RenderContext) instance;
+                return context.modelMatrix();
+            }, Matrix4f.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("projectionMatrix"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.projectionMatrix();
-                }
-
-                return null;
-            }, Matrix4f.class));
+                RenderContext context = (RenderContext) instance;
+                return context.projectionMatrix();
+            }, Matrix4f.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("partialTicks"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.partialTicks();
-                }
-
-                return null;
-            }, Float.class));
+                RenderContext context = (RenderContext) instance;
+                return context.partialTicks();
+            }, Float.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("renderTick"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.renderTick();
-                }
-
-                return null;
-            }, Integer.class));
+                RenderContext context = (RenderContext) instance;
+                return context.renderTick();
+            }, Integer.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("windowWidth"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.windowWidth();
-                }
-
-                return null;
-            }, Integer.class));
+                RenderContext context = (RenderContext) instance;
+                return context.windowWidth();
+            }, Integer.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("windowHeight"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.windowHeight();
-                }
-
-                return null;
-            }, Integer.class));
+                RenderContext context = (RenderContext) instance;
+                return context.windowHeight();
+            }, Integer.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_frustumPos"), ValueGetter.create((instance) -> {
-                if (instance instanceof McRenderContext context && context.cullingFrustum() != null) {
+                McRenderContext context = (McRenderContext) instance;
+                if (context.cullingFrustum() != null) {
                     return new Vector3f(
                             (float) ((AccessorFrustum) context.cullingFrustum()).camX(),
                             (float) ((AccessorFrustum) context.cullingFrustum()).camY(),
                             (float) ((AccessorFrustum) context.cullingFrustum()).camZ());
                 }
-
                 return null;
-            }, Vector3f.class));
+            }, Vector3f.class, McRenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_cullingFrustum"), ValueGetter.create((instance) -> {
-                if (instance instanceof McRenderContext context && context.cullingFrustum() != null) {
+                McRenderContext context = (McRenderContext) instance;
+                if (context.cullingFrustum() != null) {
                     return SketchRender.getFrustumPlanes(((AccessorFrustum) context.cullingFrustum()).frustumIntersection());
                 }
-
                 return null;
-            }, Vector4f[].class));
+            }, Vector4f[].class, McRenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_cullFacing"), ValueGetter.create(() -> {
                 return SodiumClientMod.options().performance.useBlockFaceCulling ? 1 : 0;
@@ -225,38 +204,26 @@ public class VanillaPipelineEventHandler {
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("sketch_levelMinPos"), ValueGetter.create((instance) -> {
-                if (instance instanceof McRenderContext context) {
-                    return context.get(CullingStateManager.LEVEL_MIN_POS_ID);
-                }
-
-                return null;
-            }, Integer.class));
+                McRenderContext context = (McRenderContext) instance;
+                return context.get(CullingStateManager.LEVEL_MIN_POS_ID);
+            }, Integer.class, McRenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_levelPosRange"), ValueGetter.create((instance) -> {
-                if (instance instanceof McRenderContext context) {
-                    return context.get(CullingStateManager.LEVEL_POS_RANGE_ID);
-                }
-
-                return null;
-            }, Integer.class));
+                McRenderContext context = (McRenderContext) instance;
+                return context.get(CullingStateManager.LEVEL_POS_RANGE_ID);
+            }, Integer.class, McRenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_levelSectionRange"), ValueGetter.create((instance) -> {
-                if (instance instanceof McRenderContext context) {
-                    return context.get(CullingStateManager.LEVEL_SECTION_RANGE_ID);
-                }
-
-                return null;
-            }, Integer.class));
+                McRenderContext context = (McRenderContext) instance;
+                return context.get(CullingStateManager.LEVEL_SECTION_RANGE_ID);
+            }, Integer.class, McRenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_cameraOffset"), ValueGetter.create((instance) -> {
-                if (instance instanceof McRenderContext context) {
-                    Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-                    BlockPos blockPos = new BlockPos((int) pos.x >> 4, context.<Integer>get(CullingStateManager.LEVEL_MIN_POS_ID) >> 4, (int) pos.z >> 4);
-                    return new Vector3i(blockPos.getX(), blockPos.getY(), blockPos.getZ());
-                }
-
-                return null;
-            }, Vector3i.class));
+                McRenderContext context = (McRenderContext) instance;
+                Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+                BlockPos blockPos = new BlockPos((int) pos.x >> 4, context.<Integer>get(CullingStateManager.LEVEL_MIN_POS_ID) >> 4, (int) pos.z >> 4);
+                return new Vector3i(blockPos.getX(), blockPos.getY(), blockPos.getZ());
+            }, Vector3i.class, McRenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_cameraPos"), ValueGetter.create(() -> {
                 Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
@@ -272,20 +239,14 @@ public class VanillaPipelineEventHandler {
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("sketch_cullingViewMat"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.viewMatrix();
-                }
-
-                return null;
-            }, Matrix4f.class));
+                RenderContext context = (RenderContext) instance;
+                return context.viewMatrix();
+            }, Matrix4f.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_cullingProjMat"), ValueGetter.create((instance) -> {
-                if (instance instanceof RenderContext context) {
-                    return context.projectionMatrix();
-                }
-
-                return null;
-            }, Matrix4f.class));
+                RenderContext context = (RenderContext) instance;
+                return context.projectionMatrix();
+            }, Matrix4f.class, RenderContext.class));
 
             uniformEvent.register(Identifier.of("sketch_cullingCameraPos"), ValueGetter.create(() -> {
                 return Minecraft.getInstance().gameRenderer.getMainCamera().getPosition().toVector3f();
@@ -305,24 +266,18 @@ public class VanillaPipelineEventHandler {
             }, Vector2f[].class));
 
             uniformEvent.register(Identifier.of("sketch_linerDepth"), ValueGetter.create((instance) -> {
-                if (instance instanceof ComputeHIZGraphics hizGraphics) {
-                    return hizGraphics.first() ? 1 : 0;
-                }
-
-                return null;
-            }, Integer.class));
+                ComputeHIZGraphics hizGraphics = (ComputeHIZGraphics) instance;
+                return hizGraphics.first() ? 1 : 0;
+            }, Integer.class, ComputeHIZGraphics.class));
 
             uniformEvent.register(Identifier.of("sketch_screenSize"), ValueGetter.create((instance) -> {
-                if (instance instanceof ComputeHIZGraphics hizGraphics) {
-                    RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
-                    if (!hizGraphics.first()) {
-                        screen = CullingStateManager.DEPTH_BUFFER_TARGET[3];
-                    }
-                    return new Vector2i(screen.width, screen.height);
+                ComputeHIZGraphics hizGraphics = (ComputeHIZGraphics) instance;
+                RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
+                if (!hizGraphics.first()) {
+                    screen = CullingStateManager.DEPTH_BUFFER_TARGET[3];
                 }
-
-                return null;
-            }, Vector2i.class));
+                return new Vector2i(screen.width, screen.height);
+            }, Vector2i.class, ComputeHIZGraphics.class));
         }
     }
 
