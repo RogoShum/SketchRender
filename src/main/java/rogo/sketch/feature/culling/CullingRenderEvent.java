@@ -19,14 +19,14 @@ import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
-import rogo.sketch.SketchRender;
 import rogo.sketch.Config;
-import rogo.sketch.vanilla.CullingShader;
+import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.event.ProgramEvent;
 import rogo.sketch.mixin.AccessorFrustum;
 import rogo.sketch.render.shader.ShaderManager;
 import rogo.sketch.render.shader.uniform.UnsafeUniformMap;
+import rogo.sketch.vanilla.CullingShader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,13 +60,6 @@ public class CullingRenderEvent {
             CullingStateManager.callDepthTexture();
             tessellator.end();
         }
-
-        CullingStateManager.bindMainFrameTarget();
-    }
-
-    protected static void updateChunkCullingMap() {
-        if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
-            return;
 
         CullingStateManager.bindMainFrameTarget();
     }

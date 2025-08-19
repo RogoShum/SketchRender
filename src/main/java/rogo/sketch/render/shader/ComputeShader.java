@@ -1,127 +1,119 @@
 package rogo.sketch.render.shader;
 
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.ResourceProvider;
-import net.minecraftforge.common.MinecraftForge;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL43;
-import rogo.sketch.SketchRender;
-import rogo.sketch.api.ExtraUniform;
-import rogo.sketch.api.ShaderCollector;
-import rogo.sketch.api.ShaderProvider;
-import rogo.sketch.event.ProgramEvent;
-import rogo.sketch.render.shader.uniform.UniformHookGroup;
-import rogo.sketch.render.shader.uniform.UnsafeUniformMap;
 import rogo.sketch.util.Identifier;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-public class ComputeShader implements ShaderCollector, ExtraUniform, ShaderProvider {
-    private final UniformHookGroup uniformHookGroup = new UniformHookGroup();
-    private final UnsafeUniformMap unsafeUniformMap;
-    private final Identifier identifier;
-    private final int program;
-    private boolean disposed = false;
+/**
+ * Compute shader program for general purpose GPU computing
+ */
+public class ComputeShader extends Shader {
 
-    public ComputeShader(ResourceProvider resourceProvider, ResourceLocation shaderLocation) throws IOException {
-        ResourceLocation resourcelocation = new ResourceLocation(shaderLocation.getNamespace(), "shaders/compute/" + shaderLocation.getPath() + ".comp");
-        this.identifier = Identifier.valueOf(shaderLocation);
-        BufferedReader reader = resourceProvider.openAsReader(resourcelocation);
-        String content = reader.lines().collect(Collectors.joining("\n"));
+    /**
+     * Create a compute shader from GLSL source code
+     */
+    public ComputeShader(Identifier identifier, String computeShaderSource) throws IOException {
+        super(identifier, ShaderType.COMPUTE, computeShaderSource);
+    }
 
-        int computeShader = GL20.glCreateShader(GL43.GL_COMPUTE_SHADER);
-        GL20.glShaderSource(computeShader, content);
-        GL20.glCompileShader(computeShader);
+    @Override
+    protected void postLinkInitialization() {
+        super.postLinkInitialization();
+    }
 
-        if (GL20.glGetShaderi(computeShader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            throw new IOException("Error compiling compute shader [" + shaderLocation + "] :\n" + GL20.glGetShaderInfoLog(computeShader));
+    @Override
+    protected void validateShaderTypes(Map<ShaderType, String> shaderSources) {
+        if (!shaderSources.containsKey(ShaderType.COMPUTE)) {
+            throw new IllegalArgumentException("Compute shader program requires a compute shader");
         }
-
-        program = GL20.glCreateProgram();
-        GL20.glAttachShader(program, computeShader);
-        GL20.glLinkProgram(program);
-
-        if (GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            throw new IOException("Error linking compute shader program [" + shaderLocation + "] :\n" + GL20.glGetProgramInfoLog(program));
+        if (shaderSources.size() != 1) {
+            throw new IllegalArgumentException("Compute shader program can only contain a compute shader");
         }
-
-        GL43.glDeleteShader(computeShader);
-        unsafeUniformMap = new UnsafeUniformMap(program);
-        MinecraftForge.EVENT_BUS.post(new ProgramEvent.Init(this.getUniforms().getProgramId(), this));
-        onShadeCreate();
     }
 
-    public void bindUniforms() {
-        GL20.glUseProgram(program);
-        MinecraftForge.EVENT_BUS.post(new ProgramEvent.Bind(this.getUniforms().getProgramId(), this));
+    /**
+     * Dispatch compute work groups
+     *
+     * @param numGroupsX Number of work groups in X dimension
+     * @param numGroupsY Number of work groups in Y dimension
+     * @param numGroupsZ Number of work groups in Z dimension
+     */
+    public void dispatch(int numGroupsX, int numGroupsY, int numGroupsZ) {
+        GL43.glDispatchCompute(numGroupsX, numGroupsY, numGroupsZ);
     }
 
-    public void bind() {
-        GL20.glUseProgram(program);
+    /**
+     * Dispatch compute work groups (1D)
+     */
+    public void dispatch(int numGroups) {
+        dispatch(numGroups, 1, 1);
     }
 
-    public void execute(int xWorkGroups, int yWorkGroups, int zWorkGroups) {
-        GL43.glDispatchCompute(xWorkGroups, yWorkGroups, zWorkGroups);
+    /**
+     * Dispatch compute work groups (2D)
+     */
+    public void dispatch(int numGroupsX, int numGroupsY) {
+        dispatch(numGroupsX, numGroupsY, 1);
     }
 
-    public void memoryBarrier(int bit) {
-        GL43.glMemoryBarrier(bit);
+    /**
+     * Issue a memory barrier to ensure compute writes are visible
+     *
+     * @param barriers Bitfield of barrier types (e.g., GL_SHADER_STORAGE_BARRIER_BIT)
+     */
+    public void memoryBarrier(int barriers) {
+        GL43.glMemoryBarrier(barriers);
     }
 
-    public void discard() {
-        GL20.glDeleteProgram(program);
+    /**
+     * Convenience method for shader storage buffer barrier
+     */
+    public void shaderStorageBarrier() {
+        memoryBarrier(GL43.GL_SHADER_STORAGE_BARRIER_BIT);
     }
 
-    public int getId() {
-        return program;
+    /**
+     * Convenience method for all barriers
+     */
+    public void allBarriers() {
+        memoryBarrier(GL43.GL_ALL_BARRIER_BITS);
     }
 
-    @Override
-    public void close() {
-        discard();
+    /**
+     * Get the maximum work group count for each dimension
+     */
+    public static int[] getMaxWorkGroupCount() {
+        int[] maxCount = new int[3];
+        maxCount[0] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0);
+        maxCount[1] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1);
+        maxCount[2] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2);
+        return maxCount;
     }
 
-    @Override
-    public void onShadeCreate() {
-        SketchRender.getShaderManager().onShaderLoad(this);
+    /**
+     * Get the maximum work group size for each dimension
+     */
+    public static int[] getMaxWorkGroupSize() {
+        int[] maxSize = new int[3];
+        maxSize[0] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0);
+        maxSize[1] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1);
+        maxSize[2] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2);
+        return maxSize;
     }
 
-    @Override
-    public UnsafeUniformMap getUniforms() {
-        return unsafeUniformMap;
+    /**
+     * Get the maximum total work group size
+     */
+    public static int getMaxWorkGroupInvocations() {
+        return GL43.glGetInteger(GL43.GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS);
     }
 
-    @Override
-    public Identifier getIdentifier() {
-        return identifier;
-    }
-
-    @Override
-    public UniformHookGroup getUniformHookGroup() {
-        return uniformHookGroup;
-    }
-
-    @Override
-    public Map<Identifier, Map<Identifier, Integer>> getResourceBindings() {
-        return Map.of();
-    }
-
-    @Override
-    public int getHandle() {
-        return this.program;
-    }
-
-    @Override
-    public void dispose() {
-        disposed = true;
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return disposed;
+    /**
+     * Create a compute shader from source code
+     */
+    public static ComputeShader fromSource(Identifier identifier, String computeSource) throws IOException {
+        return new ComputeShader(identifier, computeSource);
     }
 }

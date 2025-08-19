@@ -7,4 +7,8 @@ public class McPipelineRegister {
     public static void initPipeline() {
         ((LevelPipelineProvider) Minecraft.getInstance().levelRenderer).getGraphicsPipeline().initialize();
     }
+
+    public static void initGraphics() {
+        ((LevelPipelineProvider) Minecraft.getInstance().levelRenderer).getGraphicsPipeline().initStaticGraphics();
+    }
 }

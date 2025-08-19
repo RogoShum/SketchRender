@@ -16,9 +16,9 @@ public class OcclusionCullerThread extends Thread {
         INSTANCE = this;
     }
 
-    public static void shouldUpdate() {
+    public static void notifyUpdate() {
         if (Config.getAsyncChunkRebuild() && SketchRender.hasSodium()) {
-            SodiumSectionAsyncUtil.shouldUpdate();
+            SodiumSectionAsyncUtil.notifyUpdate();
         }
     }
 

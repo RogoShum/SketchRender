@@ -3,8 +3,8 @@ package rogo.sketch.render.resource.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import rogo.sketch.render.shader.ComputeShaderProgram;
-import rogo.sketch.render.shader.GraphicsShaderProgram;
+import rogo.sketch.render.shader.ComputeShader;
+import rogo.sketch.render.shader.GraphicsShader;
 import rogo.sketch.render.shader.Shader;
 import rogo.sketch.render.shader.ShaderType;
 import rogo.sketch.util.Identifier;
@@ -29,7 +29,7 @@ public class ShaderProgramLoader implements ResourceLoader<Shader> {
             if (json.has("compute")) {
                 String compute = json.get("compute").getAsString();
 
-                return new ComputeShaderProgram(identifier, loadShaderSource(compute, resourceProvider));
+                return new ComputeShader(identifier, loadShaderSource(compute, resourceProvider));
             } else {
                 Map<ShaderType, String> shaderSources = new HashMap<>();
 
@@ -64,7 +64,7 @@ public class ShaderProgramLoader implements ResourceLoader<Shader> {
                     shaderSources.put(ShaderType.TESS_EVALUATION, tessEvalSource);
                 }
 
-                return new GraphicsShaderProgram(identifier, shaderSources);
+                return new GraphicsShader(identifier, shaderSources);
             }
         } catch (Exception e) {
             System.err.println("Failed to load shader program from JSON: " + e.getMessage());

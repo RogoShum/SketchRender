@@ -4,8 +4,8 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import rogo.sketch.api.ShaderResource;
-import rogo.sketch.render.shader.ComputeShaderProgram;
-import rogo.sketch.render.shader.GraphicsShaderProgram;
+import rogo.sketch.render.shader.ComputeShader;
+import rogo.sketch.render.shader.GraphicsShader;
 import rogo.sketch.util.Identifier;
 
 /**
@@ -70,7 +70,7 @@ public class LibraryShaderExamples {
             """;
 
         // Create shader from source code directly
-        GraphicsShaderProgram shader = GraphicsShaderProgram.create(
+        GraphicsShader shader = GraphicsShader.create(
                 Identifier.of("basic_lighting_shader"),
             vertexSource, 
             fragmentSource
@@ -142,7 +142,7 @@ public class LibraryShaderExamples {
             }
             """;
 
-        ComputeShaderProgram computeShader = new ComputeShaderProgram(Identifier.of("particle_simulation"), computeSource);
+        ComputeShader computeShader = new ComputeShader(Identifier.of("particle_simulation"), computeSource);
 
         System.out.println("Created compute shader: " + computeShader.getIdentifier());
 
@@ -241,7 +241,7 @@ public class LibraryShaderExamples {
             }
             """;
 
-        GraphicsShaderProgram shader = GraphicsShaderProgram.builder(Identifier.of("advanced_graphics_shader"))
+        GraphicsShader shader = GraphicsShader.builder(Identifier.of("advanced_graphics_shader"))
             .vertex(vertexSource)
             .tessControl(tessControlSource)
             .tessEvaluation(tessEvalSource)
@@ -279,7 +279,7 @@ public class LibraryShaderExamples {
                 }
                 """;
 
-            GraphicsShaderProgram.create(Identifier.valueOf("error_test"), invalidVertexSource, fragmentSource);
+            GraphicsShader.create(Identifier.valueOf("error_test"), invalidVertexSource, fragmentSource);
             
         } catch (Exception e) {
             System.out.println("Expected shader compilation error: " + e.getMessage());

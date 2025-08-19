@@ -1,5 +1,7 @@
 package rogo.sketch.vanilla.graph;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import org.lwjgl.opengl.GL13;
 import rogo.sketch.Config;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.feature.culling.CullingStateManager;
@@ -19,6 +21,9 @@ public class ComputeChunkCullingGraphics extends ComputeGraphics {
             shader.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                     GL_ATOMIC_COUNTER_BARRIER_BIT |
                     GL_COMMAND_BARRIER_BIT);
+
+            RenderSystem.activeTexture(GL13.GL_TEXTURE1);
+            RenderSystem.activeTexture(GL13.GL_TEXTURE0);
         });
     }
 

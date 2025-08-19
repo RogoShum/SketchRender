@@ -3,7 +3,7 @@ package rogo.sketch.render.instance;
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.RenderContext;
-import rogo.sketch.render.shader.ComputeShaderProgram;
+import rogo.sketch.render.shader.ComputeShader;
 import rogo.sketch.util.Identifier;
 
 import java.util.function.BiConsumer;
@@ -12,9 +12,9 @@ import java.util.function.Consumer;
 public abstract class ComputeGraphics implements GraphicsInstance {
     private final Identifier id;
     private final Consumer<RenderContext> tick;
-    private final BiConsumer<RenderContext, ComputeShaderProgram> dispatch;
+    private final BiConsumer<RenderContext, ComputeShader> dispatch;
 
-    public ComputeGraphics(Identifier identifier, Consumer<RenderContext> tick, BiConsumer<RenderContext, ComputeShaderProgram> dispatchCommand) {
+    public ComputeGraphics(Identifier identifier, Consumer<RenderContext> tick, BiConsumer<RenderContext, ComputeShader> dispatchCommand) {
         this.id = identifier;
         this.tick = tick;
         this.dispatch = dispatchCommand;
@@ -38,8 +38,8 @@ public abstract class ComputeGraphics implements GraphicsInstance {
     @Override
     public <C extends RenderContext> void afterDraw(C context) {
         ShaderProvider shader = context.shaderProvider();
-        if (shader instanceof ComputeShaderProgram computeShaderProgram) {
-            dispatch.accept(context, computeShaderProgram);
+        if (shader instanceof ComputeShader computeShader) {
+            dispatch.accept(context, computeShader);
         }
     }
 }

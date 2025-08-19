@@ -2,8 +2,8 @@ package rogo.sketch.vanilla;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;
-import rogo.sketch.render.shader.ComputeShaderProgram;
-import rogo.sketch.render.shader.GraphicsShaderProgram;
+import rogo.sketch.render.shader.ComputeShader;
+import rogo.sketch.render.shader.GraphicsShader;
 import rogo.sketch.render.shader.ShaderType;
 import rogo.sketch.util.Identifier;
 
@@ -22,27 +22,27 @@ public class ShaderUtils {
     /**
      * Load a compute shader from Minecraft resources
      */
-    public static ComputeShaderProgram loadComputeShader(ResourceProvider resourceProvider,
-                                                         ResourceLocation shaderLocation) throws IOException {
+    public static ComputeShader loadComputeShader(ResourceProvider resourceProvider,
+                                                  ResourceLocation shaderLocation) throws IOException {
         return loadComputeShader(resourceProvider, shaderLocation, shaderLocation.getPath());
     }
 
     /**
      * Load a compute shader from Minecraft resources with custom source name
      */
-    public static ComputeShaderProgram loadComputeShader(ResourceProvider resourceProvider,
-                                                         ResourceLocation shaderLocation,
-                                                         String computeShaderSource) throws IOException {
+    public static ComputeShader loadComputeShader(ResourceProvider resourceProvider,
+                                                  ResourceLocation shaderLocation,
+                                                  String computeShaderSource) throws IOException {
         String shaderCode = loadShaderSource(resourceProvider, shaderLocation, "compute", computeShaderSource, ShaderType.COMPUTE);
-        return new ComputeShaderProgram(Identifier.valueOf(shaderLocation), shaderCode);
+        return new ComputeShader(Identifier.valueOf(shaderLocation), shaderCode);
     }
 
     /**
      * Load a graphics shader from Minecraft resources
      */
-    public static GraphicsShaderProgram loadGraphicsShader(ResourceProvider resourceProvider,
-                                                           ResourceLocation shaderLocation,
-                                                           Map<ShaderType, String> shaderSources) throws IOException {
+    public static GraphicsShader loadGraphicsShader(ResourceProvider resourceProvider,
+                                                    ResourceLocation shaderLocation,
+                                                    Map<ShaderType, String> shaderSources) throws IOException {
         Map<ShaderType, String> loadedSources = new HashMap<>();
 
         for (Map.Entry<ShaderType, String> entry : shaderSources.entrySet()) {
@@ -53,7 +53,7 @@ public class ShaderUtils {
             loadedSources.put(type, shaderCode);
         }
 
-        return new GraphicsShaderProgram(Identifier.valueOf(shaderLocation), loadedSources);
+        return new GraphicsShader(Identifier.valueOf(shaderLocation), loadedSources);
     }
 
     /**
@@ -124,7 +124,7 @@ public class ShaderUtils {
             return this;
         }
 
-        public GraphicsShaderProgram build() throws IOException {
+        public GraphicsShader build() throws IOException {
             return loadGraphicsShader(resourceProvider, shaderLocation, shaderSources);
         }
     }
@@ -132,10 +132,10 @@ public class ShaderUtils {
     /**
      * Load a simple graphics shader with vertex and fragment shaders
      */
-    public static GraphicsShaderProgram loadSimpleGraphicsShader(ResourceProvider resourceProvider,
-                                                                 ResourceLocation shaderLocation,
-                                                                 String vertexShader,
-                                                                 String fragmentShader) throws IOException {
+    public static GraphicsShader loadSimpleGraphicsShader(ResourceProvider resourceProvider,
+                                                          ResourceLocation shaderLocation,
+                                                          String vertexShader,
+                                                          String fragmentShader) throws IOException {
         return graphicsBuilder(resourceProvider, shaderLocation)
                 .vertex(vertexShader)
                 .fragment(fragmentShader)
@@ -145,8 +145,8 @@ public class ShaderUtils {
     /**
      * Convenience method to load a shader where the vertex and fragment shader names match the location path
      */
-    public static GraphicsShaderProgram loadDefaultGraphicsShader(ResourceProvider resourceProvider,
-                                                                  ResourceLocation shaderLocation) throws IOException {
+    public static GraphicsShader loadDefaultGraphicsShader(ResourceProvider resourceProvider,
+                                                           ResourceLocation shaderLocation) throws IOException {
         String baseName = shaderLocation.getPath();
         return loadSimpleGraphicsShader(resourceProvider, shaderLocation, baseName + "_vertex", baseName + "_fragment");
     }

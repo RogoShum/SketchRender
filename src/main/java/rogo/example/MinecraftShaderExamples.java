@@ -2,8 +2,8 @@ package rogo.example;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;
-import rogo.sketch.render.shader.ComputeShaderProgram;
-import rogo.sketch.render.shader.GraphicsShaderProgram;
+import rogo.sketch.render.shader.ComputeShader;
+import rogo.sketch.render.shader.GraphicsShader;
 import rogo.sketch.render.shader.ShaderType;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.ShaderUtils;
@@ -20,7 +20,7 @@ public class MinecraftShaderExamples {
      */
     public static void loadComputeShaderFromResources(ResourceProvider resourceProvider) throws Exception {
         // This will load from assets/sketchrender/shaders/compute/particle_sim.comp
-        ComputeShaderProgram computeShader = ShaderUtils.loadComputeShader(
+        ComputeShader computeShader = ShaderUtils.loadComputeShader(
                 resourceProvider,
                 new ResourceLocation("sketchrender", "particle_sim")
         );
@@ -35,7 +35,7 @@ public class MinecraftShaderExamples {
         // This will load:
         // - assets/sketchrender/shaders/graphics/basic_mesh.vert
         // - assets/sketchrender/shaders/graphics/basic_mesh.frag
-        GraphicsShaderProgram graphicsShader = ShaderUtils.loadSimpleGraphicsShader(
+        GraphicsShader graphicsShader = ShaderUtils.loadSimpleGraphicsShader(
                 resourceProvider,
                 new ResourceLocation("sketchrender", "basic_mesh"),
                 "basic_mesh", // vertex shader name
@@ -50,7 +50,7 @@ public class MinecraftShaderExamples {
      * Example: Load an advanced graphics shader with multiple stages
      */
     public static void loadAdvancedGraphicsShader(ResourceProvider resourceProvider) throws Exception {
-        GraphicsShaderProgram shader = ShaderUtils.graphicsBuilder(resourceProvider, new ResourceLocation("sketchrender", "terrain"))
+        GraphicsShader shader = ShaderUtils.graphicsBuilder(resourceProvider, new ResourceLocation("sketchrender", "terrain"))
                 .vertex("terrain_vertex")           // loads terrain_vertex.vert
                 .tessControl("terrain_tess_ctrl")   // loads terrain_tess_ctrl.tesc
                 .tessEvaluation("terrain_tess_eval") // loads terrain_tess_eval.tese
@@ -80,7 +80,7 @@ public class MinecraftShaderExamples {
                 }
                 """;
 
-        GraphicsShaderProgram shader = ShaderUtils.graphicsBuilder(resourceProvider, new ResourceLocation("sketchrender", "mixed"))
+        GraphicsShader shader = ShaderUtils.graphicsBuilder(resourceProvider, new ResourceLocation("sketchrender", "mixed"))
                 .vertex("simple_vertex")        // Load from resource
                 .fragment(inlineFragmentShader) // Use inline GLSL
                 .build();
@@ -100,7 +100,7 @@ public class MinecraftShaderExamples {
                 ShaderType.FRAGMENT, loadCustomShader(resourceProvider, "custom/path/fragment_shader.glsl")
         );
 
-        GraphicsShaderProgram shader = new GraphicsShaderProgram(Identifier.of("custom_shader"), shaderSources);
+        GraphicsShader shader = new GraphicsShader(Identifier.of("custom_shader"), shaderSources);
 
         System.out.println("Created custom shader: " + shader.getIdentifier());
 
@@ -123,7 +123,7 @@ public class MinecraftShaderExamples {
         // This will automatically load:
         // - assets/sketchrender/shaders/graphics/my_shader_vertex.vert
         // - assets/sketchrender/shaders/graphics/my_shader_fragment.frag
-        GraphicsShaderProgram shader = ShaderUtils.loadDefaultGraphicsShader(
+        GraphicsShader shader = ShaderUtils.loadDefaultGraphicsShader(
                 resourceProvider,
                 new ResourceLocation("sketchrender", "my_shader")
         );

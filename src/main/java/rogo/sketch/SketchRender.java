@@ -25,6 +25,7 @@ import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModLoadingContext;
@@ -70,6 +71,7 @@ public class SketchRender {
     public static final Logger LOGGER = LogUtils.getLogger();
     private static final ShaderManager shaderManager = new ShaderManager();
     private static final RenderResourceManager resourceManager = new RenderResourceManager();
+    private static boolean initializedStaticGraphics = false;
 
     @SuppressWarnings("removal")
     public SketchRender() {
@@ -78,6 +80,7 @@ public class SketchRender {
             MinecraftRenderStages.addStage(CullingStages.HIZ_STAGE);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onPipelineInit);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onUniformInit);
+            MinecraftForge.EVENT_BUS.addListener(VanillaPipelineEventHandler::onStaticGraphicsRegister);
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
             MinecraftForge.EVENT_BUS.register(new CullingStateManager());
@@ -263,6 +266,14 @@ public class SketchRender {
                 event.getGuiGraphics().drawString(Minecraft.getInstance().font, strings[i], 0, Minecraft.getInstance().font.lineHeight * i
                         , 16777215 + (255 << 24));
             }
+        }
+    }
+
+    @SubscribeEvent
+    public void onEnterLevel(LevelEvent.Load event) {
+        if (!initializedStaticGraphics) {
+            McPipelineRegister.initGraphics();
+            initializedStaticGraphics = true;
         }
     }
 

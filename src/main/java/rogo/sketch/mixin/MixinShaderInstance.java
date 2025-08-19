@@ -9,8 +9,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketch.api.ExtraUniform;
-import rogo.sketch.feature.culling.CullingRenderEvent;
 import rogo.sketch.event.ProgramEvent;
+import rogo.sketch.feature.culling.CullingRenderEvent;
 import rogo.sketch.render.shader.uniform.UnsafeUniformMap;
 
 @Mixin(ShaderInstance.class)

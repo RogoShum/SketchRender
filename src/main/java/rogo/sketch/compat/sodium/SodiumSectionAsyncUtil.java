@@ -96,7 +96,7 @@ public class SodiumSectionAsyncUtil {
         return SodiumSectionAsyncUtil.shadowCollector;
     }
 
-    public static void shouldUpdate() {
+    public static void notifyUpdate() {
         if (shouldUpdate.availablePermits() < 1) {
             shouldUpdate.release();
         }

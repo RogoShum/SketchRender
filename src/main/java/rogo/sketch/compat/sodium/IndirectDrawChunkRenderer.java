@@ -1,6 +1,5 @@
 package rogo.sketch.compat.sodium;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import me.jellysquid.mods.sodium.client.gl.attribute.GlVertexAttributeBinding;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.gl.device.DrawCommandList;
@@ -25,19 +24,16 @@ import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
 import org.lwjgl.opengl.ARBIndirectParameters;
-import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.SketchRender;
-import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.PartialRenderSetting;
 import rogo.sketch.render.RenderSetting;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
-import rogo.sketch.render.shader.ShaderManager;
 import rogo.sketch.util.GLFeatureChecker;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.PipelineUtil;
@@ -47,11 +43,6 @@ import rogo.sketch.vanilla.graph.CopyCounterGraphics;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-
-import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
-import static org.lwjgl.opengl.GL42.GL_ATOMIC_COUNTER_BARRIER_BIT;
-import static org.lwjgl.opengl.GL42.GL_COMMAND_BARRIER_BIT;
-import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
     protected int maxElementCount = 0;
@@ -168,32 +159,6 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             PipelineUtil.renderHelper().renderInstanceImmediately(copyCounterGraphics, setting);
         }
 
-        MeshResource.batchMaxElement.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 4);
-        MeshResource.meshManager.bindMeshData(0);
-        MeshResource.batchCommand.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 1);
-        MeshResource.batchCounter.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 2);
-        MeshResource.batchRegionIndex.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 3);
-
-        CullingStateManager.runOnDepthFrame((depthContext) -> {
-            RenderSystem.activeTexture(GL_TEXTURE0 + depthContext.index());
-            GL11.glBindTexture(3553, depthContext.frame().getColorTextureId());
-        });
-
-        RenderSystem.activeTexture(GL_TEXTURE0);
-        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.bindUniforms();
-        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS.execute(3, orderedRegions.size(), 1);
-        ShaderManager.CULL_COLLECT_CHUNK_BATCH_CS
-                .memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
-                        GL_ATOMIC_COUNTER_BARRIER_BIT |
-                        GL_COMMAND_BARRIER_BIT);
-
-        MeshResource.batchMaxElement.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 0);
-        MeshResource.maxElementPersistent.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 1);
-        ShaderManager.COPY_COUNTER_CS.bind();
-        ShaderManager.COPY_COUNTER_CS.execute(1, 1, 1);
-        ShaderManager.COPY_COUNTER_CS.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
-        //GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
     }
 

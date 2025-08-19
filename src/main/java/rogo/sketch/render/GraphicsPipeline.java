@@ -3,6 +3,7 @@ package rogo.sketch.render;
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
+import rogo.sketch.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.render.async.AsyncRenderManager;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.util.Identifier;
@@ -21,6 +22,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     private C currentContext;
     private boolean initialized = false;
+    private boolean initializedStaticGraphics = false;
 
     public GraphicsPipeline(boolean throwOnSortFail, C defaultContext) {
         this.stages = new OrderedList<>(throwOnSortFail);
@@ -151,6 +153,16 @@ public class GraphicsPipeline<C extends RenderContext> {
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.LATE));
 
         initialized = true;
+    }
+
+    public void initStaticGraphics() {
+        if (initializedStaticGraphics) {
+            return;
+        }
+
+        EventBusBridge.post(new RegisterStaticGraphicsEvent(this));
+
+        initializedStaticGraphics = true;
     }
 
     /**

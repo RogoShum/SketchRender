@@ -54,7 +54,7 @@ public class EntityCullingMask {
         }
 
         if (idx > -1 && idx < cullingResultSSBO.getDataCount()) {
-           byte result = cullingResultSSBO.getMappedBuffer().get(idx);
+            byte result = cullingResultSSBO.getMappedBuffer().get(idx);
             if (result > 0) {
                 return true;
             } else if (idx < prevCullingResultSSBO.getDataCount()) {

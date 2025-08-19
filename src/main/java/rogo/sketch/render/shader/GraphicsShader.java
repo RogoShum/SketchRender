@@ -19,13 +19,13 @@ import java.util.Map;
  * Graphics shader program for rasterization pipeline
  * Supports vertex, fragment, geometry, and tessellation shaders
  */
-public class GraphicsShaderProgram extends Shader {
+public class GraphicsShader extends Shader {
     private DataFormat vertexFormat;
 
     /**
      * Create a graphics shader program from GLSL sources
      */
-    public GraphicsShaderProgram(Identifier identifier, Map<ShaderType, String> shaderSources) throws IOException {
+    public GraphicsShader(Identifier identifier, Map<ShaderType, String> shaderSources) throws IOException {
         super(identifier, shaderSources);
     }
 
@@ -248,8 +248,8 @@ public class GraphicsShaderProgram extends Shader {
             return this;
         }
 
-        public GraphicsShaderProgram build() throws IOException {
-            return new GraphicsShaderProgram(identifier, shaderSources);
+        public GraphicsShader build() throws IOException {
+            return new GraphicsShader(identifier, shaderSources);
         }
     }
 
@@ -263,7 +263,7 @@ public class GraphicsShaderProgram extends Shader {
     /**
      * Create a simple graphics shader program with vertex and fragment shaders
      */
-    public static GraphicsShaderProgram create(Identifier identifier, String vertexShader, String fragmentShader) throws IOException {
+    public static GraphicsShader create(Identifier identifier, String vertexShader, String fragmentShader) throws IOException {
         return builder(identifier)
                 .vertex(vertexShader)
                 .fragment(fragmentShader)

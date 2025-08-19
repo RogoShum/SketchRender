@@ -10,11 +10,16 @@ import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
+import rogo.sketch.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.event.UniformHookRegisterEvent;
+import rogo.sketch.event.bridge.ProxyEvent;
 import rogo.sketch.event.bridge.ProxyModEvent;
+import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.mixin.AccessorFrustum;
+import rogo.sketch.render.PartialRenderSetting;
 import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.RenderSetting;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.ValueGetter;
@@ -22,6 +27,7 @@ import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.McRenderContext;
 import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.vanilla.graph.ComputeEntityCullingGraphics;
 import rogo.sketch.vanilla.graph.ComputeHIZGraphics;
 import rogo.sketch.vanilla.resource.TempTexture;
 
@@ -32,29 +38,29 @@ public class VanillaPipelineEventHandler {
     public static final TempTexture mainDepth = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(), true);
 
     public static void registerPersistentResource() {
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_0"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_0"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[0].texture()));
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_1"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_1"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[1].texture()));
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_2"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_2"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[2].texture()));
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_3"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_3"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[3].texture()));
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_4"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_4"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[4].texture()));
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_5"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_5"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[5].texture()));
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_6"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_6"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[6].texture()));
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_7"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture_7"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET[7].texture()));
 
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_color"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_color"),
                 () -> Optional.of(mainColor.getTexture()));
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_depth"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_depth"),
                 () -> Optional.of(mainDepth.getTexture()));
 
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "entity_data"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "entity_data"),
                 () -> {
                     if (CullingStateManager.ENTITY_CULLING_MASK != null) {
                         return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityDataSSBO());
@@ -62,7 +68,7 @@ public class VanillaPipelineEventHandler {
                         return Optional.empty();
                     }
                 });
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "entity_culling_result"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "entity_culling_result"),
                 () -> {
                     if (CullingStateManager.ENTITY_CULLING_MASK != null) {
                         return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityCullingResult());
@@ -71,12 +77,12 @@ public class VanillaPipelineEventHandler {
                     }
                 });
 
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_section_mesh"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_section_mesh"),
                 () -> {
                     return Optional.of(MeshResource.meshManager.meshDataBuffer());
                 });
 
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_draw_command"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_draw_command"),
                 () -> {
                     if (MeshResource.batchCommand != null) {
                         return Optional.of(MeshResource.batchCommand);
@@ -85,7 +91,7 @@ public class VanillaPipelineEventHandler {
                     }
                 });
 
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "mesh_counter"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "mesh_counter"),
                 () -> {
                     if (MeshResource.batchCounter != null) {
                         return Optional.of(MeshResource.batchCounter);
@@ -93,7 +99,7 @@ public class VanillaPipelineEventHandler {
                         return Optional.empty();
                     }
                 });
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "region_pos"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "region_pos"),
                 () -> {
                     if (MeshResource.batchRegionIndex != null) {
                         return Optional.of(MeshResource.batchRegionIndex);
@@ -102,7 +108,7 @@ public class VanillaPipelineEventHandler {
                     }
                 });
 
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "max_element_count"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "max_element_count"),
                 () -> {
                     if (MeshResource.batchMaxElement != null) {
                         return Optional.of(MeshResource.batchMaxElement);
@@ -111,7 +117,7 @@ public class VanillaPipelineEventHandler {
                     }
                 });
 
-        GraphicsResourceManager.getInstance().registerManual(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "persistent_max_element_count"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "persistent_max_element_count"),
                 () -> {
                     if (MeshResource.maxElementPersistent != null) {
                         return Optional.of(MeshResource.maxElementPersistent);
@@ -335,6 +341,31 @@ public class VanillaPipelineEventHandler {
                         SketchRender.LOGGER.warn("Warning: {} stages are still pending", mcPipeline.getPendingStages().size());
                     }
                 }
+            }
+        }
+    }
+
+    public static void onStaticGraphicsRegister(ProxyEvent<?> event) {
+        if (event.getWrapped() instanceof RegisterStaticGraphicsEvent registerEvent) {
+            Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of("sketchrender:hierarchy_depth_buffer_first"));
+            if (renderSetting.isPresent()) {
+                PartialRenderSetting partialRenderSetting = renderSetting.get();
+                RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
+                registerEvent.register(CullingStages.HIZ, new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true), setting);
+            }
+
+            renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"));
+            if (renderSetting.isPresent()) {
+                PartialRenderSetting partialRenderSetting = renderSetting.get();
+                RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
+                registerEvent.register(CullingStages.HIZ, new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"), false), setting);
+            }
+
+            renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "cull_entity_batch"));
+            if (renderSetting.isPresent()) {
+                PartialRenderSetting partialRenderSetting = renderSetting.get();
+                RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
+                registerEvent.register(CullingStages.HIZ, new ComputeEntityCullingGraphics(Identifier.of(SketchRender.MOD_ID, "cull_entity_batch")), setting);
             }
         }
     }

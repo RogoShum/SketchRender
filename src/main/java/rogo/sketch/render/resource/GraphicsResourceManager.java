@@ -22,7 +22,7 @@ public class GraphicsResourceManager {
     private final Map<Identifier, Map<Identifier, ResourceObject>> resources = new ConcurrentHashMap<>();
 
     // Manual (code-controlled) resources: Type -> (Name -> Supplier)
-    private final Map<Identifier, Map<Identifier, Supplier<Optional<ResourceObject>>>> manualResources = new ConcurrentHashMap<>();
+    private final Map<Identifier, Map<Identifier, Supplier<Optional<ResourceObject>>>> mutableResources = new ConcurrentHashMap<>();
 
     // Resource references for external use
     private final Map<String, ResourceReference<?>> references = new ConcurrentHashMap<>();
@@ -50,8 +50,8 @@ public class GraphicsResourceManager {
     /**
      * Register a manual (code-controlled) resource
      */
-    public void registerManual(Identifier type, Identifier name, Supplier<Optional<ResourceObject>> resourceSupplier) {
-        manualResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
+    public void registerMutable(Identifier type, Identifier name, Supplier<Optional<ResourceObject>> resourceSupplier) {
+        mutableResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
                 .put(name, resourceSupplier);
 
         // Invalidate existing references
@@ -104,7 +104,7 @@ public class GraphicsResourceManager {
                     }
                 }
 
-                Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = manualResources.get(searchType);
+                Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = mutableResources.get(searchType);
                 if (typeManual != null) {
                     Supplier<Optional<ResourceObject>> supplier = typeManual.get(name);
                     if (supplier != null) {
@@ -137,7 +137,7 @@ public class GraphicsResourceManager {
             }
 
             // Try manual resources
-            Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = manualResources.get(searchType);
+            Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = mutableResources.get(searchType);
             if (typeManual != null) {
                 Supplier<Optional<ResourceObject>> supplier = typeManual.get(name);
                 if (supplier != null) {
@@ -145,7 +145,7 @@ public class GraphicsResourceManager {
                         Optional<ResourceObject> resource = supplier.get();
                         return (Optional<T>) resource;
                     } catch (Exception e) {
-                        System.err.println("Failed to create manual resource " + name + " of type " + searchType + ": " + e.getMessage());
+                        System.err.println("Failed to create mutable resource " + name + " of type " + searchType + ": " + e.getMessage());
                     }
                 }
             }
@@ -170,7 +170,7 @@ public class GraphicsResourceManager {
         }
 
         // Try manual resources
-        Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = manualResources.get(type);
+        Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = mutableResources.get(type);
         if (typeManual != null) {
             Supplier<Optional<ResourceObject>> supplier = typeManual.get(name);
             if (supplier != null) {
@@ -273,7 +273,7 @@ public class GraphicsResourceManager {
             }
 
             // Add manual resources (instantiate them)
-            Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = manualResources.get(searchType);
+            Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = mutableResources.get(searchType);
             if (typeManual != null) {
                 for (Map.Entry<Identifier, Supplier<Optional<ResourceObject>>> entry : typeManual.entrySet()) {
                     // Only add if not already present (child types take precedence)
@@ -312,7 +312,7 @@ public class GraphicsResourceManager {
         }
 
         // Add manual resources (instantiate them)
-        Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = manualResources.get(type);
+        Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = mutableResources.get(type);
         if (typeManual != null) {
             for (Map.Entry<Identifier, Supplier<Optional<ResourceObject>>> entry : typeManual.entrySet()) {
                 try {
@@ -355,7 +355,7 @@ public class GraphicsResourceManager {
         }
 
         // Remove from manual resources
-        Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = manualResources.get(type);
+        Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = mutableResources.get(type);
         if (typeManual != null) {
             typeManual.remove(name);
         }
@@ -381,7 +381,7 @@ public class GraphicsResourceManager {
         }
 
         resources.clear();
-        manualResources.clear();
+        mutableResources.clear();
         references.clear();
     }
 
@@ -405,7 +405,7 @@ public class GraphicsResourceManager {
             }
 
             // Check manual resources
-            Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = manualResources.get(searchType);
+            Map<Identifier, Supplier<Optional<ResourceObject>>> typeManual = mutableResources.get(searchType);
             if (!found && typeManual != null && typeManual.containsKey(name)) {
                 found = true;
                 info.append("  ").append(i == 0 ? "✓" : "↑").append(" Found in manual resources of type: ").append(searchType).append("\n");

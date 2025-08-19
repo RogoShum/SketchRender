@@ -248,7 +248,7 @@ public class CullingStateManager {
                 }
             } else if (event.getStage() == MinecraftRenderStages.RENDER_END.getIdentifier()) {
                 updateMapData();
-                OcclusionCullerThread.shouldUpdate();
+                OcclusionCullerThread.notifyUpdate();
             } else if (event.getStage() == MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier()) {
                 updatingDepth = true;
                 updateDepthMap();
@@ -264,7 +264,6 @@ public class CullingStateManager {
                 }
                 CullingStateManager.FRUSTUM = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
                 checkShader();
-                CullingRenderEvent.updateChunkCullingMap();
             }
         }
     }
