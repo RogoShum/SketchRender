@@ -3,6 +3,7 @@ package rogo.sketch.render.shader.uniform;
 import rogo.sketch.api.ShaderResource;
 import rogo.sketch.util.Identifier;
 
+import javax.annotation.Nullable;
 import java.util.Objects;
 
 public class UniformHook<T> {
@@ -25,9 +26,10 @@ public class UniformHook<T> {
         }
     }
 
+
+    @Nullable
     public T getDirectValue(Object graph) {
-        T currentValue = valueGetter.get(graph);
-        return currentValue == null ? value : currentValue;
+        return valueGetter.get(graph);
     }
 
     public void setDirectValue(T newValue) {

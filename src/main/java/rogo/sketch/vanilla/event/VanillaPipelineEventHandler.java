@@ -315,7 +315,10 @@ public class VanillaPipelineEventHandler {
             uniformEvent.register(Identifier.of("sketch_screenSize"), ValueGetter.create((instance) -> {
                 if (instance instanceof ComputeHIZGraphics hizGraphics) {
                     RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
-                    return hizGraphics.first() ? new Vector2i(screen.width, screen.height) : new Vector2i(screen.width >> 4, screen.height >> 4);
+                    if (!hizGraphics.first()) {
+                        screen = CullingStateManager.DEPTH_BUFFER_TARGET[3];
+                    }
+                    return new Vector2i(screen.width, screen.height);
                 }
 
                 return null;

@@ -1,5 +1,7 @@
 package rogo.sketch.vanilla.graph;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import org.lwjgl.opengl.GL13;
 import rogo.sketch.Config;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.instance.ComputeGraphics;
@@ -11,8 +13,10 @@ public class ComputeEntityCullingGraphics extends ComputeGraphics {
         super(identifier, (c) -> {
         }, (c, shader) -> {
             CullingStateManager.ENTITY_CULLING_MASK.updateEntityData();
-            CullingStateManager.ENTITY_CULLING_MASK.bindSSBO();
             shader.dispatch((CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size() / 64 + 1), 1, 1);
+
+            RenderSystem.activeTexture(GL13.GL_TEXTURE1);
+            RenderSystem.activeTexture(GL13.GL_TEXTURE0);
         });
     }
 

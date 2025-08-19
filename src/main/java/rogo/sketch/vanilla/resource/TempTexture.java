@@ -44,7 +44,7 @@ public class TempTexture {
                 glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, format);
                 glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
                 glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
-                glBindTexture(GL_TEXTURE_2D, 0); // 可选解绑
+                glBindTexture(GL_TEXTURE_2D, 0);
             }
 
             texture = new Texture(

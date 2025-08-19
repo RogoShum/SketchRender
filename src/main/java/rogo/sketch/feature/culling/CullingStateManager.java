@@ -1,6 +1,5 @@
 package rogo.sketch.feature.culling;
 
-import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -19,8 +18,6 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Matrix4f;
-import org.joml.Vector2i;
-import org.lwjgl.opengl.GL43;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
@@ -29,9 +26,6 @@ import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.ProxyEvent;
 import rogo.sketch.mixin.AccessorLevelRender;
 import rogo.sketch.mixin.AccessorMinecraft;
-import rogo.sketch.render.shader.ComputeShader;
-import rogo.sketch.render.shader.ComputeShaderProgram;
-import rogo.sketch.render.shader.ShaderManager;
 import rogo.sketch.render.shader.ShaderModifier;
 import rogo.sketch.util.DepthContext;
 import rogo.sketch.util.Identifier;
@@ -46,7 +40,6 @@ import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
-import static org.lwjgl.opengl.GL42C.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class CullingStateManager {
     public static EntityCullingMask ENTITY_CULLING_MASK = null;
@@ -184,48 +177,6 @@ public class CullingStateManager {
         return true;
     }
 
-    public static void computeHizTexture() {
-        ComputeShaderProgram shader = ShaderManager.COPY_HIERARCHY_DEPTH_CS;
-        shader.bind();
-        shader.getUniforms().setUniform("sketch_render_distance", Minecraft.getInstance().options.getEffectiveRenderDistance());
-        RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
-        shader.getUniforms().setUniform("sketch_sampler_texture_0", 0);
-        shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width, screen.height));
-        shader.getUniforms().setUniform("sketch_liner_depth", 1);
-
-        int tileSizeX = 16;
-        int tileSizeY = 16;
-        int groupsX = (screen.width / 2 + tileSizeX - 1) / tileSizeX;
-        int groupsY = (screen.height / 2 + tileSizeY - 1) / tileSizeY;
-        runOnDepthFrame((depthContext) -> {
-            GL43.glBindImageTexture(depthContext.index(), depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
-            if (depthContext.index() == 0) {
-                RenderSystem.activeTexture(GL43.GL_TEXTURE0);
-                RenderSystem.bindTexture(depthContext.lastTexture());
-            }
-        }, 0, 4);
-
-        shader.execute(groupsX, groupsY, 1);
-        shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-        groupsX = ((screen.width >> 4) / 2 + tileSizeX - 1) / tileSizeX;
-        groupsY = ((screen.height >> 4) / 2 + tileSizeY - 1) / tileSizeY;
-        runOnDepthFrame((depthContext) -> {
-            GL43.glBindImageTexture(depthContext.index() - 4, depthContext.frame().getColorTextureId(), 0, false, 0, GL_READ_WRITE, GL_R16F);
-            if (depthContext.index() == 4) {
-                RenderSystem.activeTexture(GL43.GL_TEXTURE0);
-                RenderSystem.bindTexture(depthContext.lastTexture());
-            }
-        }, 4, 8);
-        shader.getUniforms().setUniform("sketch_liner_depth", 0);
-        shader.getUniforms().setUniform("sketch_screen_size", new Vector2i(screen.width >> 4, screen.height >> 4));
-        shader.execute(groupsX, groupsY, 1);
-        shader.memoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-        RenderSystem.activeTexture(GL43.GL_TEXTURE0);
-        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, 0, 0);
-    }
-
     @SubscribeEvent
     public void renderStage(ProxyEvent<GraphicsPipelineStageEvent<McRenderContext>> proxyEvent) {
         if (!(proxyEvent.getWrapped() instanceof GraphicsPipelineStageEvent)) return;
@@ -346,6 +297,14 @@ public class CullingStateManager {
             runOnDepthFrame((depthContext) -> {
                 int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
                 int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
+
+                if (scaleWidth % 2 == 1) {
+                    scaleWidth += 1;
+                }
+
+                if (scaleHeight % 2 == 1) {
+                    scaleHeight += 1;
+                }
                 if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
                     depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
                 }
