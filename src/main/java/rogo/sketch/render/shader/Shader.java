@@ -53,7 +53,7 @@ public abstract class Shader implements ShaderProvider {
         this(identifier, Map.of(type, source));
     }
 
-    private void compileAndAttachShaders(Map<ShaderType, String> shaderSources) throws IOException {
+    protected void compileAndAttachShaders(Map<ShaderType, String> shaderSources) throws IOException {
         for (Map.Entry<ShaderType, String> entry : shaderSources.entrySet()) {
             ShaderType type = entry.getKey();
             String source = entry.getValue();
@@ -78,7 +78,7 @@ public abstract class Shader implements ShaderProvider {
         return shaderId;
     }
 
-    private void linkProgram() throws IOException {
+    protected void linkProgram() throws IOException {
         GL20.glLinkProgram(program);
 
         if (GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
@@ -87,7 +87,7 @@ public abstract class Shader implements ShaderProvider {
         }
     }
 
-    private void cleanupShaders() {
+    protected void cleanupShaders() {
         for (int shaderId : shaderIds.values()) {
             GL20.glDetachShader(program, shaderId);
             GL20.glDeleteShader(shaderId);
@@ -95,7 +95,7 @@ public abstract class Shader implements ShaderProvider {
         shaderIds.clear();
     }
 
-    private void collectAndInitializeUniforms() {
+    protected void collectAndInitializeUniforms() {
         UnifiedUniformInfo uniformInfo = discoverAllUniforms();
         UniformHookRegistry.getInstance().initializeHooks(this, uniformInfo.uniformMap);
     }

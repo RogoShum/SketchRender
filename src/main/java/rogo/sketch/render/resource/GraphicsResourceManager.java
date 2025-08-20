@@ -430,4 +430,23 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader());
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
     }
+    
+    /**
+     * Enable enhanced shader loading with preprocessing support
+     * Call this method after initializing with a Minecraft ResourceProvider
+     */
+    public void enableEnhancedShaderLoading(net.minecraft.server.packs.resources.ResourceProvider resourceProvider) {
+        // Replace the default shader loader with the enhanced one
+        registerLoader(ResourceTypes.SHADER_PROGRAM, 
+                      new rogo.sketch.render.resource.loader.EnhancedShaderProgramLoader(resourceProvider, true));
+        System.out.println("Enhanced shader loading with preprocessing enabled");
+    }
+    
+    /**
+     * Disable enhanced shader loading (fallback to basic loading)
+     */
+    public void disableEnhancedShaderLoading() {
+        registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader());
+        System.out.println("Enhanced shader loading disabled, using basic shader loader");
+    }
 }

@@ -14,7 +14,7 @@ public enum ShaderType {
     GEOMETRY(GL32.GL_GEOMETRY_SHADER, "geom"),
     TESS_CONTROL(GL40.GL_TESS_CONTROL_SHADER, "tesc"),
     TESS_EVALUATION(GL40.GL_TESS_EVALUATION_SHADER, "tese"),
-    COMPUTE(GL43.GL_COMPUTE_SHADER, "hierarchy_depth_buffer.comp");
+    COMPUTE(GL43.GL_COMPUTE_SHADER, "comp");
 
     private final int glType;
     private final String extension;
