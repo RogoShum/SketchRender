@@ -36,7 +36,7 @@ public class GraphicsResourceManager {
             .setPrettyPrinting()
             .create();
 
-    private GraphicsResourceManager() {
+    protected GraphicsResourceManager() {
         registerDefaultLoaders();
     }
 

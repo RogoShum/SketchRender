@@ -4,6 +4,8 @@ import net.minecraft.server.packs.resources.ResourceProvider;
 import rogo.sketch.render.shader.config.ShaderConfiguration;
 import rogo.sketch.util.Identifier;
 
+import java.util.Set;
+
 /**
  * Complete integration example showing the full shader preprocessing system
  */
