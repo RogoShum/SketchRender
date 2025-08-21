@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.server.packs.resources.ResourceProvider;
+import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.shader.*;
 import rogo.sketch.render.shader.config.ShaderConfiguration;
 import rogo.sketch.render.shader.config.ShaderConfigurationManager;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
  * Enhanced shader program loader with preprocessing support
  * This extends the original loader to support the new preprocessing system
  */
-public class EnhancedShaderProgramLoader implements ResourceLoader<Shader> {
+public class EnhancedShaderProgramLoader implements ResourceLoader<ShaderProvider> {
     
     private final boolean usePreprocessing;
     private final ShaderPreprocessor preprocessor;
@@ -44,8 +45,8 @@ public class EnhancedShaderProgramLoader implements ResourceLoader<Shader> {
     }
     
     @Override
-    public Shader loadFromJson(Identifier identifier, String jsonData, Gson gson, 
-                              Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public ShaderProvider loadFromJson(Identifier identifier, String jsonData, Gson gson,
+                                       Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
             
@@ -59,7 +60,8 @@ public class EnhancedShaderProgramLoader implements ResourceLoader<Shader> {
                 String computeSource = loadShaderSource(json.get("compute").getAsString(), resourceProvider);
                 
                 if (usePreprocessing) {
-                    return new RecompilableComputeShader(identifier, computeSource, preprocessor, this.resourceProvider);
+                    ShaderFactory factory = new ShaderFactory(this.preprocessor, this.resourceProvider);
+                    return factory.createComputeShader(identifier, computeSource);
                 } else {
                     return new ComputeShader(identifier, computeSource);
                 }
@@ -99,7 +101,8 @@ public class EnhancedShaderProgramLoader implements ResourceLoader<Shader> {
                 }
                 
                 if (usePreprocessing) {
-                    return new RecompilableGraphicsShader(identifier, shaderSources, preprocessor, this.resourceProvider);
+                    ShaderFactory factory = new ShaderFactory(this.preprocessor, this.resourceProvider);
+                    return factory.createGraphicsShader(identifier, shaderSources);
                 } else {
                     return new GraphicsShader(identifier, shaderSources);
                 }

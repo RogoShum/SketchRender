@@ -1,0 +1,26 @@
+{
+  "vertex": "lighting/advanced_vertex",
+  "fragment": "lighting/advanced_fragment",
+  "config": {
+    "preset": "quality",
+    "defines": {
+      "MAX_POINT_LIGHTS": 32,
+      "MAX_SPOT_LIGHTS": 16,
+      "MAX_DIRECTIONAL_LIGHTS": 4,
+      "SHADOW_MAP_SIZE": 2048,
+      "USE_PCF_FILTERING": true,
+      "ENABLE_NORMAL_MAPPING": true
+    },
+    "features": [
+      "pbr_lighting",
+      "shadow_mapping",
+      "ambient_occlusion",
+      "screen_space_reflections"
+    ],
+    "properties": {
+      "shadow_quality": "ultra",
+      "lighting_model": "pbr",
+      "optimization_level": 2
+    }
+  }
+}

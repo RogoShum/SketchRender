@@ -26,6 +26,9 @@ public class GraphicsPassGroup<C extends RenderContext> {
     private final VertexResourceManager vertexResourceManager = VertexResourceManager.getInstance();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
+    
+    // Enhanced features for RenderSetting reloading
+    private final Map<RenderSetting, RenderSetting> settingMappings = new LinkedHashMap<>();
 
     // Note: AsyncRenderExecutor is deprecated, using AsyncRenderManager instead
 
@@ -35,6 +38,12 @@ public class GraphicsPassGroup<C extends RenderContext> {
     }
 
     public void addGraphInstance(GraphicsInstance instance, RenderSetting setting) {
+        // Register reload listener if the setting is reloadable
+        if (setting.isReloadable()) {
+            setting.addUpdateListener(this::onRenderSettingUpdate);
+            settingMappings.put(setting, setting);
+        }
+        
         GraphicsPass<C> group = groups.computeIfAbsent(setting, s -> new GraphicsPass<>());
         group.addGraphInstance(instance);
     }
@@ -354,6 +363,89 @@ public class GraphicsPassGroup<C extends RenderContext> {
     public void cleanupDiscardedInstances() {
         for (GraphicsPass<C> pass : groups.values()) {
             pass.cleanupDiscardedInstances(poolManager);
+        }
+    }
+    
+    /**
+     * Handle RenderSetting update - migrate instances to new setting while preserving batching
+     */
+    private void onRenderSettingUpdate(RenderSetting newSetting) {
+        // Find the old setting that was updated
+        RenderSetting oldSetting = null;
+        for (Map.Entry<RenderSetting, RenderSetting> entry : settingMappings.entrySet()) {
+            if (entry.getValue().getSourcePartialSetting() != null && 
+                newSetting.getSourcePartialSetting() != null &&
+                Objects.equals(entry.getValue().getSourcePartialSetting().getSourceIdentifier(),
+                              newSetting.getSourcePartialSetting().getSourceIdentifier())) {
+                oldSetting = entry.getKey();
+                break;
+            }
+        }
+        
+        if (oldSetting != null) {
+            // Get the pass with all instances
+            GraphicsPass<C> oldPass = groups.get(oldSetting);
+            if (oldPass != null) {
+                // Remove old setting and pass
+                groups.remove(oldSetting);
+                settingMappings.remove(oldSetting);
+                
+                // Create new pass with updated setting
+                GraphicsPass<C> newPass = new GraphicsPass<>();
+                
+                // Migrate all instances to new pass
+                Collection<GraphicsInstance> allInstances = oldPass.getAllInstances();
+                for (GraphicsInstance instance : allInstances) {
+                    newPass.addGraphInstance(instance);
+                }
+                
+                // Register new setting
+                groups.put(newSetting, newPass);
+                settingMappings.put(newSetting, newSetting);
+                
+                // Setup reload listener for new setting
+                if (newSetting.isReloadable()) {
+                    newSetting.addUpdateListener(this::onRenderSettingUpdate);
+                }
+                
+                System.out.println("RenderSetting updated in stage " + stageIdentifier + 
+                                 ", migrated " + allInstances.size() + " instances");
+            }
+        }
+    }
+    
+    /**
+     * Force reload all reloadable render settings
+     */
+    public void forceReloadRenderSettings() {
+        for (RenderSetting setting : new ArrayList<>(settingMappings.keySet())) {
+            if (setting.isReloadable()) {
+                setting.forceReload();
+            }
+        }
+    }
+    
+    /**
+     * Get statistics about reloadable settings
+     */
+    public ReloadableSettingsStats getReloadableStats() {
+        int totalSettings = groups.size();
+        int reloadableSettings = (int) settingMappings.keySet().stream()
+                .filter(RenderSetting::isReloadable)
+                .count();
+        
+        return new ReloadableSettingsStats(stageIdentifier, totalSettings, reloadableSettings);
+    }
+    
+    public record ReloadableSettingsStats(
+            Identifier stageIdentifier,
+            int totalSettings,
+            int reloadableSettings
+    ) {
+        @Override
+        public String toString() {
+            return String.format("Stage[%s]: %d total settings, %d reloadable",
+                    stageIdentifier, totalSettings, reloadableSettings);
         }
     }
 }

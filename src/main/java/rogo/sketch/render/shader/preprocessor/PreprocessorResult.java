@@ -2,24 +2,46 @@ package rogo.sketch.render.shader.preprocessor;
 
 import rogo.sketch.util.Identifier;
 
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Result of shader preprocessing containing the processed source and metadata
  */
-public record PreprocessorResult(
-        String processedSource,
-        Set<Identifier> importedFiles,
-        List<String> warnings,
-        int finalGlslVersion
-) {
+public class PreprocessorResult {
+    private final String processedSource;
+    private final Set<Identifier> importedFiles;
+    private final List<String> warnings;
+    private final int finalGlslVersion;
+    
+    public PreprocessorResult(String processedSource, Set<Identifier> importedFiles, 
+                            List<String> warnings, int finalGlslVersion) {
+        this.processedSource = processedSource;
+        this.importedFiles = importedFiles;
+        this.warnings = warnings;
+        this.finalGlslVersion = finalGlslVersion;
+    }
+    
+    public String processedSource() {
+        return processedSource;
+    }
+    
+    public Set<Identifier> importedFiles() {
+        return importedFiles;
+    }
+    
+    public List<String> warnings() {
+        return warnings;
+    }
+    
+    public int finalGlslVersion() {
+        return finalGlslVersion;
+    }
     
     /**
      * Create a simple result with just processed source
      */
     public static PreprocessorResult simple(String processedSource) {
-        return new PreprocessorResult(processedSource, Set.of(), List.of(), 0);
+        return new PreprocessorResult(processedSource, new HashSet<>(), new ArrayList<>(), 0);
     }
     
     /**

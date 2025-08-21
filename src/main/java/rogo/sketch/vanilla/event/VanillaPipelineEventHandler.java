@@ -307,26 +307,41 @@ public class VanillaPipelineEventHandler {
 
     public static void onStaticGraphicsRegister(ProxyEvent<?> event) {
         if (event.getWrapped() instanceof RegisterStaticGraphicsEvent registerEvent) {
-            Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of("sketchrender:hierarchy_depth_buffer_first"));
-            if (renderSetting.isPresent()) {
-                PartialRenderSetting partialRenderSetting = renderSetting.get();
-                RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
-                registerEvent.register(CullingStages.HIZ, new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true), setting);
-            }
-
-            renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"));
-            if (renderSetting.isPresent()) {
-                PartialRenderSetting partialRenderSetting = renderSetting.get();
-                RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
-                registerEvent.register(CullingStages.HIZ, new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"), false), setting);
-            }
-
-            renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "cull_entity_batch"));
-            if (renderSetting.isPresent()) {
-                PartialRenderSetting partialRenderSetting = renderSetting.get();
-                RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
-                registerEvent.register(CullingStages.HIZ, new ComputeEntityCullingGraphics(Identifier.of(SketchRender.MOD_ID, "cull_entity_batch")), setting);
-            }
+            // Register compute shaders with automatic reloading support
+            registerReloadableComputeShader(registerEvent, "sketchrender:hierarchy_depth_buffer_first", 
+                    () -> new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true));
+            
+            registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":hierarchy_depth_buffer_second", 
+                    () -> new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"), false));
+            
+            registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":cull_entity_batch", 
+                    () -> new ComputeEntityCullingGraphics(Identifier.of(SketchRender.MOD_ID, "cull_entity_batch")));
+        }
+    }
+    
+    /**
+     * Helper method to register compute shader with automatic reloading
+     */
+    private static void registerReloadableComputeShader(RegisterStaticGraphicsEvent registerEvent, 
+                                                       String settingIdString, 
+                                                       java.util.function.Supplier<rogo.sketch.api.GraphicsInstance> instanceSupplier) {
+        Identifier settingId = Identifier.of(settingIdString);
+        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
+                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
+        
+        if (renderSetting.isPresent()) {
+            PartialRenderSetting partialRenderSetting = renderSetting.get();
+            
+            // Create reloadable render setting that tracks its source
+            RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
+            
+            // Register the graphics instance
+            registerEvent.register(CullingStages.HIZ, instanceSupplier.get(), setting);
+            
+            System.out.println("Registered reloadable compute shader: " + settingId + 
+                             " (reloadable: " + setting.isReloadable() + ")");
+        } else {
+            System.err.println("Failed to find PartialRenderSetting: " + settingId);
         }
     }
 }

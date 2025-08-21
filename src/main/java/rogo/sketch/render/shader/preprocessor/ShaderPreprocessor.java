@@ -2,8 +2,7 @@ package rogo.sketch.render.shader.preprocessor;
 
 import rogo.sketch.util.Identifier;
 
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Interface for shader preprocessing operations including imports and macro handling
@@ -27,7 +26,7 @@ public interface ShaderPreprocessor {
      */
     default PreprocessorResult process(String source, Identifier shaderIdentifier) 
             throws ShaderPreprocessorException {
-        return process(source, shaderIdentifier, Map.of());
+        return process(source, shaderIdentifier, Collections.emptyMap());
     }
     
     /**

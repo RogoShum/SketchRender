@@ -10,6 +10,7 @@ import java.io.BufferedReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -71,8 +72,20 @@ public class GraphicsResourceManager {
      * Note: This method directly loads and stores the resource without caching JSON
      */
     public void registerJson(Identifier type, Identifier name, String jsonData, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+        ResourceObject oldResource = null;
+        Map<Identifier, ResourceObject> typeResources = resources.get(type);
+        if (typeResources != null) {
+            oldResource = typeResources.get(name);
+        }
+        
         loadJsonResource(type, name, jsonData, resourceProvider);
         invalidateReferences(type, name);
+        
+        // Notify reload listeners if resource was updated
+        ResourceObject newResource = getResourceExact(type, name).orElse(null);
+        if (newResource != null && !Objects.equals(oldResource, newResource)) {
+            notifyReloadListeners(type, name, newResource);
+        }
     }
 
     /**
@@ -431,22 +444,82 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
     }
     
+    // Enhanced resource management features
+    private final Map<Identifier, Map<Identifier, ResourceReloadListener>> reloadListeners = new ConcurrentHashMap<>();
+    private net.minecraft.server.packs.resources.ResourceProvider minecraftResourceProvider;
+    private boolean enhancedFeaturesEnabled = false;
+    
     /**
-     * Enable enhanced shader loading with preprocessing support
+     * Enable enhanced features with preprocessing support for all resource types
      * Call this method after initializing with a Minecraft ResourceProvider
      */
-    public void enableEnhancedShaderLoading(net.minecraft.server.packs.resources.ResourceProvider resourceProvider) {
-        // Replace the default shader loader with the enhanced one
+    public void enableEnhancedFeatures(net.minecraft.server.packs.resources.ResourceProvider resourceProvider) {
+        this.minecraftResourceProvider = resourceProvider;
+        this.enhancedFeaturesEnabled = true;
+        
+        // Replace shader loader with enhanced version
         registerLoader(ResourceTypes.SHADER_PROGRAM, 
                       new rogo.sketch.render.resource.loader.EnhancedShaderProgramLoader(resourceProvider, true));
-        System.out.println("Enhanced shader loading with preprocessing enabled");
+        
+        System.out.println("Enhanced resource management features enabled");
     }
     
     /**
-     * Disable enhanced shader loading (fallback to basic loading)
+     * Disable enhanced features (fallback to basic loading)
      */
-    public void disableEnhancedShaderLoading() {
-        registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader());
-        System.out.println("Enhanced shader loading disabled, using basic shader loader");
+    public void disableEnhancedFeatures() {
+        this.enhancedFeaturesEnabled = false;
+        this.minecraftResourceProvider = null;
+        
+        // Restore default loaders
+        registerDefaultLoaders();
+        
+        System.out.println("Enhanced features disabled, using basic resource management");
+    }
+    
+    /**
+     * Register a resource reload listener for automatic updates
+     */
+    public void registerReloadListener(Identifier resourceType, Identifier resourceName, ResourceReloadListener listener) {
+        reloadListeners.computeIfAbsent(resourceType, k -> new ConcurrentHashMap<>())
+                      .put(resourceName, listener);
+    }
+    
+    /**
+     * Remove a resource reload listener
+     */
+    public void removeReloadListener(Identifier resourceType, Identifier resourceName) {
+        Map<Identifier, ResourceReloadListener> typeListeners = reloadListeners.get(resourceType);
+        if (typeListeners != null) {
+            typeListeners.remove(resourceName);
+            if (typeListeners.isEmpty()) {
+                reloadListeners.remove(resourceType);
+            }
+        }
+    }
+    
+    /**
+     * Notify reload listeners when a resource is updated
+     */
+    private void notifyReloadListeners(Identifier resourceType, Identifier resourceName, ResourceObject newResource) {
+        Map<Identifier, ResourceReloadListener> typeListeners = reloadListeners.get(resourceType);
+        if (typeListeners != null) {
+            ResourceReloadListener listener = typeListeners.get(resourceName);
+            if (listener != null) {
+                try {
+                    listener.onResourceReload(resourceName, newResource);
+                } catch (Exception e) {
+                    System.err.println("Error in resource reload listener for " + resourceType + ":" + resourceName + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    
+    /**
+     * Interface for resource reload listeners
+     */
+    public interface ResourceReloadListener {
+        void onResourceReload(Identifier resourceName, ResourceObject newResource);
     }
 }

@@ -3,6 +3,8 @@ package rogo.sketch.vanilla.resource;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -29,6 +31,10 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
         GraphicsResourceManager.getInstance().clearAllResources();
+        
+        // Enable enhanced features with the resource manager
+        GraphicsResourceManager.getInstance().enableEnhancedFeatures(resourceManager);
+        
         scanAndLoad(resourceManager);
     }
 

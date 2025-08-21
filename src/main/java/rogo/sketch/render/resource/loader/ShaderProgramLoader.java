@@ -3,6 +3,7 @@ package rogo.sketch.render.resource.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.shader.ComputeShader;
 import rogo.sketch.render.shader.GraphicsShader;
 import rogo.sketch.render.shader.Shader;
@@ -19,10 +20,10 @@ import java.util.stream.Collectors;
 /**
  * Loader for ShaderProgram resources from JSON
  */
-public class ShaderProgramLoader implements ResourceLoader<Shader> {
+public class ShaderProgramLoader implements ResourceLoader<ShaderProvider> {
 
     @Override
-    public Shader loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public ShaderProvider loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
 

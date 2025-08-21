@@ -4,6 +4,7 @@ import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.shader.ComputeShader;
+import rogo.sketch.render.shader.ShaderAdapter;
 import rogo.sketch.util.Identifier;
 
 import java.util.function.BiConsumer;
@@ -39,6 +40,8 @@ public abstract class ComputeGraphics implements GraphicsInstance {
     public <C extends RenderContext> void afterDraw(C context) {
         ShaderProvider shader = context.shaderProvider();
         if (shader instanceof ComputeShader computeShader) {
+            dispatch.accept(context, computeShader);
+        } else if (shader instanceof ShaderAdapter shaderAdapter && shaderAdapter.getCurrentShader() instanceof ComputeShader computeShader) {
             dispatch.accept(context, computeShader);
         }
     }

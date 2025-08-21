@@ -210,16 +210,19 @@ public class ModernShaderPreprocessor implements ShaderPreprocessor {
             
             // Process preprocessor directives even in disabled blocks
             if (line.trim().startsWith("#")) {
+                // Handle #define and #undef - parse them for conditional compilation but keep them in output
                 if (processDefine(line, localMacros)) {
                     if (shouldIncludeLine) {
-                        result.add("// " + line); // Comment out processed defines
+                        // Always keep source-level #define directives - they are part of the shader
+                        result.add(line);
                     }
                     continue;
                 }
                 
                 if (processUndef(line, localMacros)) {
                     if (shouldIncludeLine) {
-                        result.add("// " + line); // Comment out processed undefs
+                        // Always keep source-level #undef directives
+                        result.add(line);
                     }
                     continue;
                 }

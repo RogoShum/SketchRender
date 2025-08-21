@@ -3,8 +3,11 @@ package rogo.sketch.render;
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.state.FullRenderState;
+import rogo.sketch.util.Identifier;
 
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class RenderSetting implements ResourceObject {
     private final FullRenderState renderState;
@@ -12,12 +15,26 @@ public class RenderSetting implements ResourceObject {
     private final RenderParameter renderParameter;
     private final boolean shouldSwitchRenderState;
     private boolean disposed = false;
+    
+    // Enhanced features for automatic reloading
+    private final PartialRenderSetting sourcePartialSetting;
+    private final ConcurrentHashMap<Consumer<RenderSetting>, Object> updateListeners = new ConcurrentHashMap<>();
 
     public RenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, RenderParameter renderParameter, boolean shouldSwitchRenderState) {
+        this(renderState, resourceBinding, renderParameter, shouldSwitchRenderState, null);
+    }
+    
+    public RenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, RenderParameter renderParameter, boolean shouldSwitchRenderState, PartialRenderSetting sourcePartialSetting) {
         this.renderState = renderState;
         this.resourceBinding = resourceBinding;
         this.renderParameter = renderParameter;
         this.shouldSwitchRenderState = shouldSwitchRenderState;
+        this.sourcePartialSetting = sourcePartialSetting;
+        
+        // Setup reload listener if source partial setting is provided
+        if (sourcePartialSetting != null && sourcePartialSetting.isReloadable()) {
+            sourcePartialSetting.addUpdateListener(this::onPartialSettingUpdate);
+        }
     }
 
     public FullRenderState renderState() {
@@ -57,6 +74,12 @@ public class RenderSetting implements ResourceObject {
     @Override
     public void dispose() {
         disposed = true;
+        
+        // Cleanup reload listener
+        if (sourcePartialSetting != null && sourcePartialSetting.isReloadable()) {
+            sourcePartialSetting.removeUpdateListener(this::onPartialSettingUpdate);
+        }
+        updateListeners.clear();
     }
 
     @Override
@@ -69,7 +92,8 @@ public class RenderSetting implements ResourceObject {
                 partial.renderState(),
                 partial.resourceBinding(),
                 renderParameter,
-                partial.shouldSwitchRenderState()
+                partial.shouldSwitchRenderState(),
+                partial
         );
     }
 
@@ -87,7 +111,76 @@ public class RenderSetting implements ResourceObject {
                 partial.renderState(),
                 partial.resourceBinding(),
                 null,
-                partial.shouldSwitchRenderState()
+                partial.shouldSwitchRenderState(),
+                partial
         );
+    }
+    
+    /**
+     * Handle partial setting update
+     */
+    private void onPartialSettingUpdate(PartialRenderSetting newPartialSetting) {
+        // Create new RenderSetting with updated partial setting
+        RenderSetting updatedSetting = new RenderSetting(
+            newPartialSetting.renderState(),
+            newPartialSetting.resourceBinding(),
+            this.renderParameter,
+            newPartialSetting.shouldSwitchRenderState(),
+            newPartialSetting
+        );
+        
+        // Notify all listeners about the update
+        notifyUpdateListeners(updatedSetting);
+    }
+    
+    /**
+     * Register a listener for setting updates
+     */
+    public void addUpdateListener(Consumer<RenderSetting> listener) {
+        updateListeners.put(listener, new Object());
+    }
+    
+    /**
+     * Remove an update listener
+     */
+    public void removeUpdateListener(Consumer<RenderSetting> listener) {
+        updateListeners.remove(listener);
+    }
+    
+    /**
+     * Notify all listeners about setting update
+     */
+    private void notifyUpdateListeners(RenderSetting newSetting) {
+        for (Consumer<RenderSetting> listener : updateListeners.keySet()) {
+            try {
+                listener.accept(newSetting);
+            } catch (Exception e) {
+                System.err.println("Error in RenderSetting update listener: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    /**
+     * Check if this setting supports automatic reloading
+     */
+    public boolean isReloadable() {
+        return sourcePartialSetting != null && sourcePartialSetting.isReloadable();
+    }
+    
+    /**
+     * Get the source partial setting
+     */
+    public PartialRenderSetting getSourcePartialSetting() {
+        return sourcePartialSetting;
+    }
+    
+    /**
+     * Force reload this setting from its source
+     */
+    public void forceReload() {
+        if (sourcePartialSetting != null) {
+            sourcePartialSetting.forceReload();
+        }
     }
 }
