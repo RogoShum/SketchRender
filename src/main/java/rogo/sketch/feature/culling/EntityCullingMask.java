@@ -35,11 +35,6 @@ public class EntityCullingMask {
         this.prevCullingResultSSBO = new PersistentReadSSBO(initialCapacity, Byte.BYTES);
     }
 
-    public void bindSSBO() {
-        this.entityDataShaderStorageBuffer.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 0);
-        this.cullingResultSSBO.bind(ResourceTypes.SHADER_STORAGE_BUFFER, 1);
-    }
-
     public boolean isObjectVisible(Object o) {
         AABB aabb = SketchRender.getObjectAABB(o);
 
