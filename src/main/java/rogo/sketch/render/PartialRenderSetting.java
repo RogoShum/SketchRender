@@ -1,22 +1,29 @@
 package rogo.sketch.render;
 
 import rogo.sketch.api.ResourceObject;
+import rogo.sketch.api.ResourceReloadable;
 import rogo.sketch.render.resource.GraphicsResourceManager;
+import rogo.sketch.render.resource.ReloadableResourceSupport;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.state.FullRenderState;
 import rogo.sketch.util.Identifier;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Partial render setting for JSON loading (without render parameters)
- * Enhanced with automatic reload support
+ * Enhanced with automatic reload support using the generic reloadable system
  */
-public class PartialRenderSetting implements ResourceObject {
+public class PartialRenderSetting implements ResourceObject, ResourceReloadable<PartialRenderSetting> {
     protected final FullRenderState renderState;
     protected final ResourceBinding resourceBinding;
     protected final boolean shouldSwitchRenderState;
@@ -26,16 +33,45 @@ public class PartialRenderSetting implements ResourceObject {
     private final Identifier sourceIdentifier;
     private static final ConcurrentHashMap<Identifier, PartialRenderSetting> activeSettings = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Consumer<PartialRenderSetting>, Object> updateListeners = new ConcurrentHashMap<>();
+    
+    // Reloadable support for generic resource reloading
+    private ReloadableResourceSupport<PartialRenderSetting> reloadableSupport;
 
     public PartialRenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState) {
-        this(renderState, resourceBinding, shouldSwitchRenderState, null);
+        this(renderState, resourceBinding, shouldSwitchRenderState, null, null);
     }
     
     public PartialRenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState, Identifier sourceIdentifier) {
+        this(renderState, resourceBinding, shouldSwitchRenderState, sourceIdentifier, null);
+    }
+    
+    public PartialRenderSetting(FullRenderState renderState, 
+                               ResourceBinding resourceBinding, 
+                               boolean shouldSwitchRenderState, 
+                               Identifier sourceIdentifier,
+                               Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         this.renderState = renderState;
         this.resourceBinding = resourceBinding;
         this.shouldSwitchRenderState = shouldSwitchRenderState;
         this.sourceIdentifier = sourceIdentifier;
+        
+        // Setup reloadable support if both identifier and provider are given
+        if (sourceIdentifier != null && resourceProvider != null) {
+            this.reloadableSupport = new ReloadableResourceSupport<PartialRenderSetting>(sourceIdentifier, resourceProvider) {
+                @Override
+                protected ResourceLoadResult<PartialRenderSetting> performReload() throws IOException {
+                    // Reload from resource provider
+                    Optional<PartialRenderSetting> reloaded = GraphicsResourceManager.getInstance()
+                        .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, sourceIdentifier);
+                    
+                    if (reloaded.isPresent()) {
+                        return ResourceLoadResult.simple(reloaded.get());
+                    } else {
+                        throw new IOException("Failed to reload PartialRenderSetting: " + sourceIdentifier);
+                    }
+                }
+            };
+        }
         
         // Register for automatic reloading if source identifier is provided
         if (sourceIdentifier != null) {
@@ -195,7 +231,13 @@ public class PartialRenderSetting implements ResourceObject {
      * Force reload a setting from its source
      */
     public void forceReload() {
-        if (sourceIdentifier != null) {
+        if (reloadableSupport != null) {
+            try {
+                reloadableSupport.forceReload();
+            } catch (IOException e) {
+                System.err.println("Failed to force reload PartialRenderSetting: " + e.getMessage());
+            }
+        } else if (sourceIdentifier != null) {
             Optional<PartialRenderSetting> reloaded = GraphicsResourceManager.getInstance()
                 .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, sourceIdentifier);
             
@@ -203,5 +245,79 @@ public class PartialRenderSetting implements ResourceObject {
                 onSourceResourceReload(sourceIdentifier, reloaded.get());
             }
         }
+    }
+    
+    /**
+     * Create a fully reloadable partial render setting with resource provider
+     */
+    public static PartialRenderSetting fullyReloadable(FullRenderState renderState, 
+                                                       ResourceBinding resourceBinding, 
+                                                       boolean shouldSwitchRenderState, 
+                                                       Identifier sourceIdentifier,
+                                                       Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+        return new PartialRenderSetting(renderState, resourceBinding, shouldSwitchRenderState, sourceIdentifier, resourceProvider);
+    }
+    
+    // ResourceReloadable implementation
+    
+    @Override
+    public boolean needsReload() {
+        return reloadableSupport != null && reloadableSupport.needsReload();
+    }
+    
+    @Override
+    public void reload() throws IOException {
+        if (reloadableSupport != null) {
+            reloadableSupport.reload();
+        }
+    }
+    
+    @Override
+    public PartialRenderSetting getCurrentResource() {
+        return reloadableSupport != null ? reloadableSupport.getCurrentResource() : this;
+    }
+    
+    @Override
+    public Identifier getResourceIdentifier() {
+        return sourceIdentifier != null ? sourceIdentifier : Identifier.of("unknown");
+    }
+    
+    @Override
+    public Set<Identifier> getDependencies() {
+        return reloadableSupport != null ? reloadableSupport.getDependencies() : Collections.emptySet();
+    }
+    
+    @Override
+    public boolean hasDependencyChanges() {
+        return reloadableSupport != null && reloadableSupport.hasDependencyChanges();
+    }
+    
+    @Override
+    public void updateDependencyTimestamps() {
+        if (reloadableSupport != null) {
+            reloadableSupport.updateDependencyTimestamps();
+        }
+    }
+    
+    @Override
+    public void addReloadListener(Consumer<PartialRenderSetting> listener) {
+        if (reloadableSupport != null) {
+            reloadableSupport.addReloadListener(listener);
+        }
+        // Also add to local listeners for backward compatibility
+        updateListeners.put(listener, new Object());
+    }
+    
+    @Override
+    public void removeReloadListener(Consumer<PartialRenderSetting> listener) {
+        if (reloadableSupport != null) {
+            reloadableSupport.removeReloadListener(listener);
+        }
+        updateListeners.remove(listener);
+    }
+    
+    @Override
+    public ReloadMetadata getLastReloadMetadata() {
+        return reloadableSupport != null ? reloadableSupport.getLastReloadMetadata() : null;
     }
 }

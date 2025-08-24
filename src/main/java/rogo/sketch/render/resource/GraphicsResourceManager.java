@@ -64,7 +64,7 @@ public class GraphicsResourceManager {
      * Note: This method directly loads and stores the resource without caching JSON
      */
     public void registerJson(Identifier type, Identifier name, String jsonData) {
-        registerJson(type, name, jsonData, (i) -> Optional.empty());
+        registerJson(type, name, jsonData, null);
     }
 
     /**
@@ -78,7 +78,11 @@ public class GraphicsResourceManager {
             oldResource = typeResources.get(name);
         }
         
-        loadJsonResource(type, name, jsonData, resourceProvider);
+        // Use the provided resource provider or fall back to the global sub-resource provider
+        Function<Identifier, Optional<BufferedReader>> actualProvider = 
+            resourceProvider != null ? resourceProvider : subResourceProvider;
+        
+        loadJsonResource(type, name, jsonData, actualProvider);
         invalidateReferences(type, name);
         
         // Notify reload listeners if resource was updated
@@ -444,37 +448,28 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
     }
     
-    // Enhanced resource management features
-    private final Map<Identifier, Map<Identifier, ResourceReloadListener>> reloadListeners = new ConcurrentHashMap<>();
-    private net.minecraft.server.packs.resources.ResourceProvider minecraftResourceProvider;
-    private boolean enhancedFeaturesEnabled = false;
-    
     /**
-     * Enable enhanced features with preprocessing support for all resource types
-     * Call this method after initializing with a Minecraft ResourceProvider
+     * Get the current sub-resource provider
      */
-    public void enableEnhancedFeatures(net.minecraft.server.packs.resources.ResourceProvider resourceProvider) {
-        this.minecraftResourceProvider = resourceProvider;
-        this.enhancedFeaturesEnabled = true;
-        
-        // Replace shader loader with enhanced version
-        registerLoader(ResourceTypes.SHADER_PROGRAM, 
-                      new rogo.sketch.render.resource.loader.EnhancedShaderProgramLoader(resourceProvider, true));
-        
-        System.out.println("Enhanced resource management features enabled");
+    public Function<Identifier, Optional<BufferedReader>> getSubResourceProvider() {
+        return subResourceProvider;
     }
     
+    // Enhanced resource management features
+    private final Map<Identifier, Map<Identifier, ResourceReloadListener>> reloadListeners = new ConcurrentHashMap<>();
+    private Function<Identifier, Optional<BufferedReader>> subResourceProvider;
+    
     /**
-     * Disable enhanced features (fallback to basic loading)
+     * Set the sub-resource provider for loading child resources
+     * This allows resource loaders to load additional files they need
      */
-    public void disableEnhancedFeatures() {
-        this.enhancedFeaturesEnabled = false;
-        this.minecraftResourceProvider = null;
+    public void setSubResourceProvider(Function<Identifier, Optional<BufferedReader>> subResourceProvider) {
+        this.subResourceProvider = subResourceProvider;
         
-        // Restore default loaders
-        registerDefaultLoaders();
+        // Update shader loader to use preprocessing
+        registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader(true));
         
-        System.out.println("Enhanced features disabled, using basic resource management");
+        System.out.println("Sub-resource provider configured");
     }
     
     /**

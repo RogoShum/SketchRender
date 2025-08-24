@@ -24,8 +24,6 @@ public class ShaderManager implements ResourceManagerReloadListener {
 
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
-        ShaderModifier.clear();
-        ShaderModifier.loadAll(resourceManager);
         resetShader(resourceManager);
     }
 

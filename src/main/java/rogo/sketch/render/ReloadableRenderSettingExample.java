@@ -15,16 +15,16 @@ public class ReloadableRenderSettingExample {
         System.out.println("=== 可重载RenderSetting演示 ===\n");
         
         // 1. 启用增强功能
-        GraphicsResourceManager.getInstance().enableEnhancedFeatures(resourceManager);
-        
-        // 2. 演示自动重载功能
-        demonstrateAutomaticReloading(pipeline);
-        
-        // 3. 演示在GraphicsPipeline中的使用
-        demonstratePipelineIntegration(pipeline);
-        
-        // 4. 演示批处理保持功能
-        demonstrateBatchingPreservation(pipeline);
+//        GraphicsResourceManager.getInstance().enableEnhancedFeatures(resourceManager);
+//
+//        // 2. 演示自动重载功能
+//        demonstrateAutomaticReloading(pipeline);
+//
+//        // 3. 演示在GraphicsPipeline中的使用
+//        demonstratePipelineIntegration(pipeline);
+//
+//        // 4. 演示批处理保持功能
+//        demonstrateBatchingPreservation(pipeline);
     }
     
     private static void demonstrateAutomaticReloading(McGraphicsPipeline pipeline) {

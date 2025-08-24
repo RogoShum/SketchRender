@@ -37,7 +37,6 @@
     "sodium.MixinRenderRegionManager",
     "sodium.MixinRenderSectionManager",
     "sodium.MixinSectionRenderDataStorage",
-    "sodium.MixinShaderWorkarounds",
     "sodium.MixinSodiumWorldRenderer",
     "sodium.MixinVisibleChunkCollector"
   ],

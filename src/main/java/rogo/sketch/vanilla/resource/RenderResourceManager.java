@@ -9,6 +9,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+
+import java.util.function.Function;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.Identifier;
@@ -32,8 +34,19 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
     public void onResourceManagerReload(ResourceManager resourceManager) {
         GraphicsResourceManager.getInstance().clearAllResources();
         
-        // Enable enhanced features with the resource manager
-        GraphicsResourceManager.getInstance().enableEnhancedFeatures(resourceManager);
+        // Create general sub-resource provider for all resource types
+        Function<Identifier, Optional<BufferedReader>> subResourceProvider = (identifier) -> {
+            try {
+                ResourceLocation loc = new ResourceLocation(identifier.toString());
+                BufferedReader reader = resourceManager.openAsReader(loc);
+                return Optional.of(reader);
+            } catch (Exception e) {
+                return Optional.empty();
+            }
+        };
+        
+        // Set the sub-resource provider
+        GraphicsResourceManager.getInstance().setSubResourceProvider(subResourceProvider);
         
         scanAndLoad(resourceManager);
     }
@@ -61,22 +74,9 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
     }
 
     private void handleJsonResource(Identifier type, Identifier identifier, JsonObject json, ResourceManager resourceManager) {
-        if (type.equals(ResourceTypes.SHADER_PROGRAM)) {
-            GraphicsResourceManager.getInstance().registerJson(type, identifier, json.toString(), (id) -> {
-                ResourceLocation loc = new ResourceLocation(id.toString());
-                loc = new ResourceLocation(loc.getNamespace(), "render/shader_type/" + loc.getPath());
-                try {
-                    BufferedReader reader = resourceManager.openAsReader(loc);
-                    return Optional.of(reader);
-                } catch (Throwable t) {
-                    t.printStackTrace();
-
-                    return Optional.empty();
-                }
-            });
-        } else {
-            GraphicsResourceManager.getInstance().registerJson(type, identifier, json.toString());
-        }
+        // All resource types now use the same registration method
+        // The resource loaders themselves will handle their specific sub-resource loading needs
+        GraphicsResourceManager.getInstance().registerJson(type, identifier, json.toString());
     }
 
     public static String getIdentifierWithoutExtension(ResourceLocation loc) {

@@ -26,7 +26,6 @@ import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.ProxyEvent;
 import rogo.sketch.mixin.AccessorLevelRender;
 import rogo.sketch.mixin.AccessorMinecraft;
-import rogo.sketch.render.shader.ShaderModifier;
 import rogo.sketch.util.DepthContext;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OcclusionCullerThread;
@@ -116,8 +115,6 @@ public class CullingStateManager {
         } else {
             SHADER_LOADER = new VanillaShaderPackLoader();
         }
-
-        ShaderModifier.loadAll(Minecraft.getInstance().getResourceManager());
     }
 
     public static void onWorldUnload(Level world) {

@@ -1,10 +1,11 @@
 package rogo.sketch.render.instance;
 
 import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.ResourceReloadable;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.shader.ComputeShader;
-import rogo.sketch.render.shader.ShaderAdapter;
+import rogo.sketch.render.shader.Shader;
 import rogo.sketch.util.Identifier;
 
 import java.util.function.BiConsumer;
@@ -41,8 +42,12 @@ public abstract class ComputeGraphics implements GraphicsInstance {
         ShaderProvider shader = context.shaderProvider();
         if (shader instanceof ComputeShader computeShader) {
             dispatch.accept(context, computeShader);
-        } else if (shader instanceof ShaderAdapter shaderAdapter && shaderAdapter.getCurrentShader() instanceof ComputeShader computeShader) {
-            dispatch.accept(context, computeShader);
+        } else if (shader instanceof ResourceReloadable<?> reloadable) {
+            // Handle reloadable shaders
+            Shader currentShader = (Shader) reloadable.getCurrentResource();
+            if (currentShader instanceof ComputeShader computeShader) {
+                dispatch.accept(context, computeShader);
+            }
         }
     }
 }

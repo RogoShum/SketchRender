@@ -6,15 +6,24 @@ import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.ShaderResource;
 import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.resource.ResourceTypes;
+import rogo.sketch.render.shader.config.ShaderConfiguration;
+import rogo.sketch.render.shader.config.ShaderConfigurationManager;
+import rogo.sketch.render.shader.preprocessor.ShaderResourceProvider;
+import rogo.sketch.render.shader.preprocessor.PreprocessorResult;
+import rogo.sketch.render.shader.preprocessor.ShaderPreprocessor;
+import rogo.sketch.render.shader.preprocessor.ShaderPreprocessorException;
 import rogo.sketch.render.shader.uniform.ShaderUniform;
 import rogo.sketch.render.shader.uniform.UniformHookGroup;
 import rogo.sketch.render.shader.uniform.UniformHookRegistry;
 import rogo.sketch.util.Identifier;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.IntBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Base class for all shaders (graphics and compute)
@@ -45,12 +54,85 @@ public abstract class Shader implements ShaderProvider {
         collectAndInitializeUniforms();
         postLinkInitialization();
     }
+    
+    /**
+     * Create a shader program with preprocessing support
+     *
+     * @param identifier       Unique identifier for this shader
+     * @param shaderSources    Map of shader types to their GLSL source code (original, unprocessed)
+     * @param preprocessor     Shader preprocessor for handling imports and macros
+     * @param resourceProvider Resource provider for loading imported files
+     */
+    public Shader(Identifier identifier, 
+                  Map<ShaderType, String> shaderSources,
+                  ShaderPreprocessor preprocessor,
+                  Function<Identifier, Optional<java.io.BufferedReader>> resourceProvider) throws IOException {
+        this.identifier = identifier;
+        this.program = GL20.glCreateProgram();
+
+        // Preprocess all sources before compilation
+        Map<ShaderType, String> processedSources = preprocessSources(identifier, shaderSources, preprocessor, resourceProvider);
+        
+        validateShaderTypes(processedSources);
+        compileAndAttachShaders(processedSources);
+        linkProgram();
+        cleanupShaders();
+
+        collectAndInitializeUniforms();
+        postLinkInitialization();
+    }
 
     /**
      * Create a shader program with a single shader type
      */
     public Shader(Identifier identifier, ShaderType type, String source) throws IOException {
         this(identifier, Map.of(type, source));
+    }
+    
+    /**
+     * Create a shader program with a single shader type and preprocessing support
+     */
+    public Shader(Identifier identifier, 
+                  ShaderType type, 
+                  String source,
+                  ShaderPreprocessor preprocessor,
+                  Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
+        this(identifier, Map.of(type, source), preprocessor, resourceProvider);
+    }
+    
+    /**
+     * Preprocess shader sources with current configuration
+     */
+    protected static Map<ShaderType, String> preprocessSources(Identifier identifier,
+                                                              Map<ShaderType, String> originalSources,
+                                                              ShaderPreprocessor preprocessor,
+                                                              Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
+        try {
+            // Set up the resource provider for the preprocessor
+            if (preprocessor != null && resourceProvider != null) {
+                rogo.sketch.render.shader.preprocessor.ShaderResourceProvider adapter = 
+                    rogo.sketch.render.shader.preprocessor.ShaderResourceProvider.fromGenericProvider(resourceProvider);
+                preprocessor.setResourceProvider(adapter);
+            }
+            
+            // Get current configuration
+            ShaderConfiguration config =
+                ShaderConfigurationManager.getInstance().getConfiguration(identifier);
+            
+            Map<ShaderType, String> processedSources = new HashMap<>();
+            
+            // Preprocess each source
+            for (Map.Entry<ShaderType, String> entry : originalSources.entrySet()) {
+                PreprocessorResult result =
+                    preprocessor.process(entry.getValue(), identifier, config.getMacros());
+                processedSources.put(entry.getKey(), result.processedSource());
+            }
+            
+            return processedSources;
+            
+        } catch (ShaderPreprocessorException e) {
+            throw new IOException("Shader preprocessing failed for " + identifier, e);
+        }
     }
 
     protected void compileAndAttachShaders(Map<ShaderType, String> shaderSources) throws IOException {
