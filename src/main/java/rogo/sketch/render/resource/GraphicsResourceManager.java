@@ -7,11 +7,7 @@ import rogo.sketch.render.resource.loader.*;
 import rogo.sketch.util.Identifier;
 
 import java.io.BufferedReader;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -30,6 +26,10 @@ public class GraphicsResourceManager {
 
     // Resource loaders for different types
     private final ResourceLoaderRegistry loaderRegistry = new ResourceLoaderRegistry();
+
+    private final Map<Identifier, Map<Identifier, Set<ResourceReloadListener>>> reloadListeners = new ConcurrentHashMap<>();
+
+    private Function<Identifier, Optional<BufferedReader>> subResourceProvider;
 
     // JSON processor
     private final Gson gson = new GsonBuilder()
@@ -69,26 +69,34 @@ public class GraphicsResourceManager {
 
     /**
      * Register a resource from JSON data with resource provider
-     * Note: This method directly loads and stores the resource without caching JSON
+     * Enhanced to properly handle reload listeners during resource reload cycles
      */
     public void registerJson(Identifier type, Identifier name, String jsonData, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
-        ResourceObject oldResource = null;
-        Map<Identifier, ResourceObject> typeResources = resources.get(type);
-        if (typeResources != null) {
-            oldResource = typeResources.get(name);
-        }
-        
+        // Check if there's an existing reload listener for this resource
+        Set<ResourceReloadListener> existingListener = getReloadListener(type, name);
+
         // Use the provided resource provider or fall back to the global sub-resource provider
-        Function<Identifier, Optional<BufferedReader>> actualProvider = 
-            resourceProvider != null ? resourceProvider : subResourceProvider;
-        
+        Function<Identifier, Optional<BufferedReader>> actualProvider =
+                resourceProvider != null ? resourceProvider : subResourceProvider;
+
+        // Load the new resource
         loadJsonResource(type, name, jsonData, actualProvider);
         invalidateReferences(type, name);
-        
-        // Notify reload listeners if resource was updated
+
+        // Get the newly loaded resource
         ResourceObject newResource = getResourceExact(type, name).orElse(null);
-        if (newResource != null && !Objects.equals(oldResource, newResource)) {
-            notifyReloadListeners(type, name, newResource);
+
+        // Always notify reload listeners if they exist
+        // This ensures proper update handling during resource reloads
+        if (newResource != null && existingListener != null) {
+            try {
+                for (ResourceReloadListener listener : existingListener) {
+                    listener.onResourceReload(name, newResource);
+                }
+            } catch (Exception e) {
+                System.err.println("Error in resource reload listener for " + type + ":" + name + ": " + e.getMessage());
+                e.printStackTrace();
+            }
         }
     }
 
@@ -202,12 +210,7 @@ public class GraphicsResourceManager {
         return Optional.empty();
     }
 
-    /**
-     * Clear all loaded resources (both direct and JSON-loaded)
-     * This method is typically called before reloading a resource pack
-     */
     public void clearAllResources() {
-        // Dispose all direct resources
         for (Map<Identifier, ResourceObject> typeResources : resources.values()) {
             for (ResourceObject resource : typeResources.values()) {
                 if (resource != null) {
@@ -221,7 +224,6 @@ public class GraphicsResourceManager {
         }
         resources.clear();
 
-        // Invalidate all references
         for (ResourceReference<?> ref : references.values()) {
             ref.invalidate();
         }
@@ -447,74 +449,66 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader());
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
     }
-    
+
     /**
      * Get the current sub-resource provider
      */
     public Function<Identifier, Optional<BufferedReader>> getSubResourceProvider() {
         return subResourceProvider;
     }
-    
-    // Enhanced resource management features
-    private final Map<Identifier, Map<Identifier, ResourceReloadListener>> reloadListeners = new ConcurrentHashMap<>();
-    private Function<Identifier, Optional<BufferedReader>> subResourceProvider;
-    
+
     /**
      * Set the sub-resource provider for loading child resources
      * This allows resource loaders to load additional files they need
      */
     public void setSubResourceProvider(Function<Identifier, Optional<BufferedReader>> subResourceProvider) {
         this.subResourceProvider = subResourceProvider;
-        
+
         // Update shader loader to use preprocessing
         registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader(true));
-        
+
         System.out.println("Sub-resource provider configured");
     }
-    
+
     /**
      * Register a resource reload listener for automatic updates
+     * Uses double buffering - new registrations go to the register buffer
      */
     public void registerReloadListener(Identifier resourceType, Identifier resourceName, ResourceReloadListener listener) {
-        reloadListeners.computeIfAbsent(resourceType, k -> new ConcurrentHashMap<>())
-                      .put(resourceName, listener);
+        reloadListeners
+                .computeIfAbsent(resourceType, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(resourceName, k -> ConcurrentHashMap.newKeySet())
+                .add(listener);
     }
-    
-    /**
-     * Remove a resource reload listener
-     */
-    public void removeReloadListener(Identifier resourceType, Identifier resourceName) {
-        Map<Identifier, ResourceReloadListener> typeListeners = reloadListeners.get(resourceType);
+
+    private void removeReloadListener(Identifier resourceType, Identifier resourceName, ResourceReloadListener listener) {
+        Map<Identifier, Set<ResourceReloadListener>> typeListeners = reloadListeners.get(resourceType);
         if (typeListeners != null) {
-            typeListeners.remove(resourceName);
+            Set<ResourceReloadListener> set = typeListeners.get(resourceName);
+            set.remove(listener);
+            if (set.isEmpty()) {
+                typeListeners.remove(resourceName);
+            }
+
             if (typeListeners.isEmpty()) {
                 reloadListeners.remove(resourceType);
             }
         }
     }
-    
-    /**
-     * Notify reload listeners when a resource is updated
-     */
-    private void notifyReloadListeners(Identifier resourceType, Identifier resourceName, ResourceObject newResource) {
-        Map<Identifier, ResourceReloadListener> typeListeners = reloadListeners.get(resourceType);
-        if (typeListeners != null) {
-            ResourceReloadListener listener = typeListeners.get(resourceName);
-            if (listener != null) {
-                try {
-                    listener.onResourceReload(resourceName, newResource);
-                } catch (Exception e) {
-                    System.err.println("Error in resource reload listener for " + resourceType + ":" + resourceName + ": " + e.getMessage());
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-    
+
     /**
      * Interface for resource reload listeners
      */
     public interface ResourceReloadListener {
         void onResourceReload(Identifier resourceName, ResourceObject newResource);
+    }
+
+    /**
+     * Get the reload listener for a specific resource
+     * Uses double buffering - reads from the active listener buffer
+     */
+    private Set<ResourceReloadListener> getReloadListener(Identifier type, Identifier name) {
+        Map<Identifier, Set<ResourceReloadListener>> typeListeners = reloadListeners.get(type);
+        return typeListeners != null ? typeListeners.get(name) : null;
     }
 }

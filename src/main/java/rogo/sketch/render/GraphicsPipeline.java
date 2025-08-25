@@ -2,8 +2,8 @@ package rogo.sketch.render;
 
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
-import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.event.RegisterStaticGraphicsEvent;
+import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.async.AsyncRenderManager;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.util.Identifier;
@@ -239,24 +239,6 @@ public class GraphicsPipeline<C extends RenderContext> {
         return currentContext;
     }
 
-    /**
-     * Force reload all reloadable render settings in all stages
-     */
-    public void forceReloadAllRenderSettings() {
-        for (GraphicsPassGroup<C> group : passMap.values()) {
-            group.forceReloadRenderSettings();
-        }
-        System.out.println("Forced reload of all reloadable render settings across " + passMap.size() + " stages");
-    }
-    
-    /**
-     * Get statistics about reloadable render settings
-     */
-    public List<GraphicsPassGroup.ReloadableSettingsStats> getReloadableSettingsStats() {
-        return passMap.values().stream()
-                .map(GraphicsPassGroup::getReloadableStats)
-                .toList();
-    }
 
     /**
      * Get pipeline statistics
@@ -269,19 +251,16 @@ public class GraphicsPipeline<C extends RenderContext> {
                         .mapToInt(pass -> pass.getAllInstances().size())
                         .sum())
                 .sum();
-        
-        int totalReloadableSettings = passMap.values().stream()
-                .mapToInt(group -> group.getReloadableStats().reloadableSettings())
-                .sum();
 
-        return new PipelineStats(totalStages, pendingStages, totalInstances, totalReloadableSettings, initialized);
+        return new PipelineStats(totalStages, pendingStages, totalInstances, initialized);
     }
 
-    public record PipelineStats(int totalStages, int pendingStages, int totalInstances, int totalReloadableSettings, boolean initialized) {
+    public record PipelineStats(int totalStages, int pendingStages, int totalInstances,
+                                boolean initialized) {
         @Override
         public String toString() {
-            return String.format("Pipeline[stages=%d, pending=%d, instances=%d, reloadable=%d, init=%s]",
-                    totalStages, pendingStages, totalInstances, totalReloadableSettings, initialized);
+            return String.format("Pipeline[stages=%d, pending=%d, instances=%d, init=%s]",
+                    totalStages, pendingStages, totalInstances, initialized);
         }
     }
 }

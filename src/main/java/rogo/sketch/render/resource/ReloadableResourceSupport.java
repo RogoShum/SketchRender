@@ -13,28 +13,27 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Generic support class for implementing reloadable resources
  * Provides common functionality for dependency tracking, change detection, and listener management
- * 
+ *
  * @param <T> The type of resource this supports
  */
 public abstract class ReloadableResourceSupport<T extends ResourceObject> implements ResourceReloadable<T> {
-    
+
     protected final Identifier resourceIdentifier;
     protected final Function<Identifier, Optional<BufferedReader>> resourceProvider;
-    
+
     protected T currentResource;
     protected ReloadMetadata lastReloadMetadata;
-    
+
     private final Map<Identifier, Long> dependencyTimestamps = new ConcurrentHashMap<>();
     private final Set<Consumer<T>> reloadListeners = ConcurrentHashMap.newKeySet();
     private volatile Set<Identifier> lastKnownDependencies = Collections.emptySet();
 
-    public ReloadableResourceSupport(Identifier resourceIdentifier, 
-                                   Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public ReloadableResourceSupport(Identifier resourceIdentifier,
+                                     Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         this.resourceIdentifier = resourceIdentifier;
         this.resourceProvider = resourceProvider;
     }
@@ -85,35 +84,35 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
     @Override
     public final void forceReload() throws IOException {
         System.out.println("Reloading resource: " + resourceIdentifier);
-        
+
         T oldResource = currentResource;
         Set<Identifier> oldDependencies = lastKnownDependencies;
-        
+
         try {
             // Perform the actual reload
             ResourceLoadResult<T> result = performReload();
-            
+
             // Update state
             this.currentResource = result.resource();
             this.lastKnownDependencies = result.dependencies();
             updateDependencyTimestamps();
-            
+
             // Record success
             this.lastReloadMetadata = ReloadMetadata.success(lastKnownDependencies);
-            
+
             // Notify listeners
             notifyReloadListeners(currentResource);
-            
+
             System.out.println("Resource reloaded successfully: " + resourceIdentifier);
-            
+
         } catch (Exception e) {
             // Record failure and restore dependencies
             this.lastReloadMetadata = ReloadMetadata.failure(e.getMessage(), oldDependencies);
             this.lastKnownDependencies = oldDependencies;
-            
+
             System.err.println("Resource reload failed for " + resourceIdentifier + ": " + e.getMessage());
             throw new IOException("Resource reload failed", e);
-            
+
         } finally {
             // Cleanup old resource if different
             if (oldResource != null && oldResource != currentResource) {
@@ -226,3 +225,4 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
         }
     }
 }
+

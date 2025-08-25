@@ -3,14 +3,10 @@ package rogo.sketch.vanilla.resource;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
-
-import java.util.function.Function;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.Identifier;
@@ -20,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 public class RenderResourceManager implements ResourceManagerReloadListener {
     private static final Gson GSON = new Gson();
@@ -33,8 +30,6 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
         GraphicsResourceManager.getInstance().clearAllResources();
-        
-        // Create general sub-resource provider for all resource types
         Function<Identifier, Optional<BufferedReader>> subResourceProvider = (identifier) -> {
             try {
                 ResourceLocation loc = new ResourceLocation(identifier.toString());
@@ -44,10 +39,8 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
                 return Optional.empty();
             }
         };
-        
-        // Set the sub-resource provider
+
         GraphicsResourceManager.getInstance().setSubResourceProvider(subResourceProvider);
-        
         scanAndLoad(resourceManager);
     }
 
@@ -65,7 +58,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(entry.getValue().open()))) {
                     JsonObject json = GSON.fromJson(reader, JsonObject.class);
                     String identifier = getIdentifierWithoutExtension(id);
-                    handleJsonResource(subDir, Identifier.of(identifier), json, resourceManager);
+                    handleJsonResource(subDir, Identifier.of(identifier), json);
                 } catch (IOException | JsonParseException e) {
                     System.err.println("Failed to load JSON " + id + ": " + e.getMessage());
                 }
@@ -73,9 +66,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
         }
     }
 
-    private void handleJsonResource(Identifier type, Identifier identifier, JsonObject json, ResourceManager resourceManager) {
-        // All resource types now use the same registration method
-        // The resource loaders themselves will handle their specific sub-resource loading needs
+    private void handleJsonResource(Identifier type, Identifier identifier, JsonObject json) {
         GraphicsResourceManager.getInstance().registerJson(type, identifier, json.toString());
     }
 

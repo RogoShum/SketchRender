@@ -1,10 +1,6 @@
 #version 430
 
-#import "culling/common_structs.glsl"
-#import "culling/common_constants.glsl"
-#import "culling/common_uniforms.glsl"
-#import "culling/common_functions.glsl"
-#import "culling/clipping_functions.glsl"
+#import "hiz_culling.glsl"
 
 struct DrawCommand {
     int element_count;
@@ -87,38 +83,7 @@ uniform ivec3 sketch_cameraPos;
 #define MODEL_POS_Y 1
 #define MODEL_POS_X 0
 
-
-
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
-
-
-
-bool cubeInFrustum(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-    for (int i = 0; i < 6; ++i) {
-        vec4 plane = sketch_cullingFrustum[i];
-        if (!(dot(plane, vec4(minX, minY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, minY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, maxY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, maxY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, minY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, minY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, maxY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, maxY, maxZ, 1.0)) > 0.0)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool calculateCube(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-    float f = minX - sketch_frustumPos.x;
-    float f1 = minY - sketch_frustumPos.y;
-    float f2 = minZ - sketch_frustumPos.z;
-    float f3 = maxX - sketch_frustumPos.x;
-    float f4 = maxY - sketch_frustumPos.y;
-    float f5 = maxZ - sketch_frustumPos.z;
-    return cubeInFrustum(f, f1, f2, f3, f4, f5);
-}
 
 bool isVisible(vec3 center) {
     vec3 min = center - vec3(9.0);
@@ -144,8 +109,6 @@ bool isVisible(vec3 center) {
     }
     return true;
 }
-
-
 
 bool _is_chunk_culled(ivec3 sectionPos) {
     vec3 chunkPos = vec3(sectionPos) * 16;

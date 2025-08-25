@@ -34,7 +34,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
                 shouldSwitchRenderState = json.get("shouldSwitchRenderState").getAsBoolean();
             }
 
-            return new PartialRenderSetting(renderState, resourceBinding, shouldSwitchRenderState);
+            return PartialRenderSetting.reloadable(renderState, resourceBinding, shouldSwitchRenderState, identifier);
         } catch (Exception e) {
             System.err.println("Failed to load render setting from JSON: " + e.getMessage());
             e.printStackTrace();
