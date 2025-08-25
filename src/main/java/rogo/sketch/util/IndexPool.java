@@ -9,6 +9,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
 public class IndexPool<T> {
     private final Object2IntMap<T> objectToIndex = new Object2IntOpenHashMap<>();
@@ -73,6 +74,14 @@ public class IndexPool<T> {
 
     public void forEach(BiConsumer<? super T, Integer> action) {
         objectToIndex.forEach(action);
+    }
+
+    public Stream<Object2IntMap.Entry<T>> stream() {
+        return objectToIndex.object2IntEntrySet().stream();
+    }
+
+    public Stream<Object2IntMap.Entry<T>> parallelStream() {
+        return objectToIndex.object2IntEntrySet().parallelStream();
     }
 
     public Collection<T> getAllObjects() {

@@ -108,7 +108,10 @@ public class EntityCullingMask {
         checkAndAdjustCapacity();
 
         long bufferPointer = entityDataShaderStorageBuffer.getMemoryAddress();
-        getEntityMap().indexPool.forEach((obj, index) -> {
+        getEntityMap().indexPool.parallelStream().forEach((entry -> {
+            Object obj = entry.getKey();
+            int index = entry.getIntValue();
+
             AABB aabb = SketchRender.getObjectAABB(obj);
             Vec3 center = aabb.getCenter();
 
@@ -120,7 +123,7 @@ public class EntityCullingMask {
             MemoryUtil.memPutFloat(bufferPointer + offset + 16, (float) aabb.getYsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 20, (float) aabb.getZsize());
             entityDataShaderStorageBuffer.position = Math.max(entityDataShaderStorageBuffer.position, offset + 24);
-        });
+        }));
 
         entityDataShaderStorageBuffer.upload();
         entityDataShaderStorageBuffer.position = 0;
