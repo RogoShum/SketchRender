@@ -25,7 +25,8 @@ public class MinecraftRenderStages {
     public static final GraphicsStage PARTICLE = new GraphicsStage("vanilla_particle", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(TERRAIN_TRIPWIRE).build());
     public static final GraphicsStage CLOUDS = new GraphicsStage("vanilla_clouds", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(PARTICLE).build());
     public static final GraphicsStage WEATHER = new GraphicsStage("vanilla_weather", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(CLOUDS).build());
-    public static final GraphicsStage RENDER_END = new GraphicsStage("vanilla_render_end", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(WEATHER).build());
+    public static final GraphicsStage LEVEL_END = new GraphicsStage("vanilla_level_end", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(WEATHER).build());
+    public static final GraphicsStage RENDER_END = new GraphicsStage("vanilla_render_end", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(LEVEL_END).build());
 
     private static final Set<GraphicsStage> extraStages = new HashSet<>();
 
@@ -45,6 +46,7 @@ public class MinecraftRenderStages {
         pipeline.registerStage(PARTICLE);
         pipeline.registerStage(CLOUDS);
         pipeline.registerStage(WEATHER);
+        pipeline.registerStage(LEVEL_END);
         pipeline.registerStage(RENDER_END);
     }
 

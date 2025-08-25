@@ -371,7 +371,7 @@ public class VanillaPipelineEventHandler {
                 RenderParameter renderParameter = new RenderParameter(DefaultDataFormats.POSITION, GL_QUADS, GL_DYNAMIC_DRAW, false, false);
                 RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
                 CullingTestGraphics cullingTestGraphics = new CullingTestGraphics(Identifier.of(SketchRender.MOD_ID, "culling_test"));
-                registerEvent.register(MinecraftRenderStages.RENDER_END.getIdentifier(), cullingTestGraphics, setting);
+                registerEvent.register(MinecraftRenderStages.LEVEL_END.getIdentifier(), cullingTestGraphics, setting);
             }
         }
     }

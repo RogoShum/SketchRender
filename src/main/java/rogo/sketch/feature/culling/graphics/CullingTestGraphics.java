@@ -20,10 +20,10 @@ public class CullingTestGraphics extends SharedVertexGraphics {
 
     @Override
     public void fillVertexData(VertexFiller filler) {
-        filler.position(-1.0f, -1.0f, 0.0f).nextVertex();
-        filler.position(1.0f, -1.0f, 0.0f).nextVertex();
-        filler.position(1.0f, 1.0f, 0.0f).nextVertex();
-        filler.position(-1.0f, 1.0f, 0.0f).nextVertex();
+        filler.position(-1.0f, -1.0f, 0.0f);
+        filler.position(1.0f, -1.0f, 0.0f);
+        filler.position(1.0f, 1.0f, 0.0f);
+        filler.position(-1.0f, 1.0f, 0.0f);
     }
 
     @Override
