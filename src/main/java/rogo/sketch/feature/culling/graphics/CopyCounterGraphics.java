@@ -1,7 +1,5 @@
-package rogo.sketch.vanilla.graph;
+package rogo.sketch.feature.culling.graphics;
 
-import rogo.sketch.Config;
-import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.instance.ComputeGraphics;
 import rogo.sketch.util.Identifier;
 

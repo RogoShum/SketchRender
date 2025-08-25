@@ -46,7 +46,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
 
     private void scanAndLoad(ResourceManager resourceManager) {
         for (Identifier subDir : SUB_DIRS) {
-            String pathPrefix = "render/" + subDir;
+            String pathPrefix = "render/resource/" + subDir;
 
             Map<ResourceLocation, Resource> found = resourceManager.listResources(
                     pathPrefix,

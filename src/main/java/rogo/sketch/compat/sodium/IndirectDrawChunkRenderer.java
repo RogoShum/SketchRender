@@ -37,8 +37,8 @@ import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.util.GLFeatureChecker;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.PipelineUtil;
-import rogo.sketch.vanilla.graph.ComputeChunkCullingGraphics;
-import rogo.sketch.vanilla.graph.CopyCounterGraphics;
+import rogo.sketch.feature.culling.graphics.ComputeChunkCullingGraphics;
+import rogo.sketch.feature.culling.graphics.CopyCounterGraphics;
 
 import java.util.ArrayList;
 import java.util.Iterator;

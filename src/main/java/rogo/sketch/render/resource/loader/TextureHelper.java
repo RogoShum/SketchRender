@@ -9,9 +9,6 @@ import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.resource.VanillaTexture;
 import rogo.sketch.vanilla.resource.loader.VanillaTextureLoader;
 
-import java.util.Optional;
-import java.util.function.Function;
-
 /**
  * Helper class for smart texture loading and registration
  */

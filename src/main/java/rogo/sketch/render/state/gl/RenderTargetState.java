@@ -2,6 +2,7 @@ package rogo.sketch.render.state.gl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.mojang.blaze3d.platform.GlDebug;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
 import rogo.sketch.api.RenderStateComponent;
@@ -18,8 +19,8 @@ public class RenderTargetState implements RenderStateComponent {
     private Identifier rtId;
 
     public RenderTargetState() {
-        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, Identifier.of("minecraft:main"));
-        this.rtId = Identifier.of("minecraft:main");
+        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, Identifier.of("minecraft:main_target"));
+        this.rtId = Identifier.of("minecraft:main_target");
     }
 
     public RenderTargetState(Identifier identifier) {
@@ -28,7 +29,7 @@ public class RenderTargetState implements RenderStateComponent {
     }
 
     public static RenderTargetState defaultFramebuffer() {
-        return new RenderTargetState(Identifier.of("minecraft:main"));
+        return new RenderTargetState(Identifier.of("minecraft:main_target"));
     }
 
     @Override

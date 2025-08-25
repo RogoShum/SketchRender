@@ -1,158 +1,15 @@
 #version 150
 
-uniform sampler2D Sampler0;
-uniform sampler2D Sampler1;
-uniform sampler2D Sampler2;
-uniform sampler2D Sampler3;
-uniform sampler2D Sampler4;
-uniform sampler2D Sampler5;
-uniform sampler2D Sampler6;
-uniform sampler2D Sampler7;
-
-uniform vec2 ScreenSize;
-uniform mat4 CullingViewMat;
-uniform mat4 CullingProjMat;
-uniform vec3 CullingCameraPos;
-uniform vec3 CullingCameraDir;
-uniform vec4 TestPos;
-uniform vec4 TestEntityPos;
-uniform vec3 TestEntityAABB;
-uniform vec3 FrustumPos;
-uniform float RenderDistance;
-
-flat in int spacePartitionSize;
-flat in vec4[6] frustum;
-flat in vec2[8] DepthScreenSize;
+uniform vec2 windowSize;
+uniform vec4 sketch_testPos;
+uniform vec4 sketch_testEntityPos;
+uniform vec3 sketch_testEntityAABB;
+#import "hiz_culling.glsl"
 
 out vec4 fragColor;
 
-float near = 0.05;
-float far  = 16.0;
 #define CHUNK_SIZE 16.0
 #define CHUNK_RANGE_SIZE 64.0
-
-struct ClipResult {
-    float minDepth;
-    vec2 screenMin;
-    vec2 screenMax;
-};
-
-int getSampler(float xLength, float yLength) {
-    for (int i = 0; i < DepthScreenSize.length(); ++i) {
-        float xStep = 2.10 / DepthScreenSize[i].x;
-        float yStep = 2.10 / DepthScreenSize[i].y;
-        if (xStep > xLength && yStep > yLength) {
-            return i;
-        }
-    }
-
-    return DepthScreenSize.length() - 1;
-}
-
-float LinearizeDepth(float z) {
-    return (near * far) / (far + near - z * (far - near));
-}
-
-float calculateDistance(vec3 P, vec3 Q) {
-    return pow(Q.x - P.x, 2) + pow(Q.y - P.y, 2) + pow(Q.z - P.z, 2);
-}
-
-vec4 computeNearIntersection(vec4 inside, vec4 outside, float clipValue, int axis) {
-    // axis: 0 for X plane, 1 for Y plane
-    float wa = inside.w;
-    float wb = outside.w;
-    float pa = axis == 0 ? inside.x : inside.y;
-    float pb = axis == 0 ? outside.x : outside.y;
-
-    float t = (wa * clipValue - pa) / ((pb - pa) - (wb - wa) * clipValue);
-    return mix(inside, outside, t);
-}
-
-void updateMinDepth(vec4 intersection, inout ClipResult result, inout bool hasValidPoint) {
-    vec2 intersectionNDC = intersection.xy / intersection.w;
-    result.minDepth = min(result.minDepth, intersection.z / intersection.w);
-    hasValidPoint = true;
-}
-
-ClipResult getClippedMinDepth(vec3 center, float extentWidth, float extentHeight) {
-    ClipResult result;
-    result.minDepth = 1.0;
-    result.screenMin = vec2(1.0);
-    result.screenMax = vec2(0.0);
-
-    mat4 mvp = CullingProjMat * CullingViewMat;
-
-    vec4 clipPositions[8];
-    for(int i = 0; i < 8; i++) {
-        vec3 vertex = center + vec3(
-        (i & 1) == 0 ? -extentWidth : extentWidth,
-        (i & 2) == 0 ? -extentHeight : extentHeight,
-        (i & 4) == 0 ? -extentWidth : extentWidth
-        );
-        clipPositions[i] = mvp * vec4(vertex, 1.0);
-    }
-
-    for(int i = 0; i < 8; i++) {
-        vec4 clipPos = clipPositions[i];
-        vec2 ndcXY;
-
-        if (clipPos.w > 0.0) {
-            float maxW = max(abs(clipPos.x), abs(clipPos.y));
-            clipPos.w = max(clipPos.w, maxW);
-            clipPos /= clipPos.w;
-            ndcXY = clipPos.xy;
-            result.minDepth = min(result.minDepth, clipPos.z);
-        } else {
-            clipPos /= -clipPos.w;
-            ndcXY = vec2(
-            clipPos.x >= 0.0 ? 1.0 : -1.0,
-            clipPos.y >= 0.0 ? 1.0 : -1.0
-            );
-            result.minDepth = min(result.minDepth, clipPos.z);
-        }
-
-        vec2 screenPos = ndcXY * 0.5 + 0.5;
-        result.screenMin = min(result.screenMin, screenPos);
-        result.screenMax = max(result.screenMax, screenPos);
-    }
-
-    return result;
-}
-
-vec3 blockToChunk(vec3 blockPos) {
-    vec3 chunkPos;
-    chunkPos.x = floor(blockPos.x / 16.0);
-    chunkPos.y = floor(blockPos.y / 16.0);
-    chunkPos.z = floor(blockPos.z / 16.0);
-    return chunkPos;
-}
-
-bool cubeInFrustum(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-    for (int i = 0; i < 6; ++i) {
-        vec4 plane = frustum[i];
-        if (!(dot(plane, vec4(minX, minY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, minY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, maxY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, maxY, minZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, minY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, minY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(minX, maxY, maxZ, 1.0)) > 0.0) &&
-        !(dot(plane, vec4(maxX, maxY, maxZ, 1.0)) > 0.0)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool calculateCube(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-    float f = minX - FrustumPos.x;
-    float f1 = minY - FrustumPos.y;
-    float f2 = minZ - FrustumPos.z;
-    float f3 = maxX - FrustumPos.x;
-    float f4 = maxY - FrustumPos.y;
-    float f5 = maxZ - FrustumPos.z;
-    return cubeInFrustum(f, f1, f2, f3, f4, f5);
-}
 
 bool isVisible(vec3 center, vec3 min, vec3 max) {
     vec3 corners[8] = vec3[](
@@ -169,46 +26,22 @@ bool isVisible(vec3 center, vec3 min, vec3 max) {
     for(int i = 0; i < 6; i++) {
         bool inside = false;
         for(int j = 0; j < 8 && !inside; j++) {
-            inside = dot(frustum[i], vec4(corners[j] - FrustumPos, 1.0)) > 0.0;
+            inside = dot(sketch_cullingFrustum[i], vec4(corners[j] - sketch_frustumPos, 1.0)) > 0.0;
         }
         if(!inside) return false;
     }
     return true;
 }
 
-float getUVDepth(int idx, ivec2 uv) {
-    if (idx == 0)
-    return texelFetch(Sampler0, uv, 0).r;
-    else if (idx == 1)
-    return texelFetch(Sampler1, uv, 0).r;
-    else if (idx == 2)
-    return texelFetch(Sampler2, uv, 0).r;
-    else if (idx == 3)
-    return texelFetch(Sampler3, uv, 0).r;
-    else if (idx == 4)
-    return texelFetch(Sampler4, uv, 0).r;
-    else if (idx == 5)
-    return texelFetch(Sampler5, uv, 0).r;
-    else if (idx == 6)
-    return texelFetch(Sampler6, uv, 0).r;
-
-    return texelFetch(Sampler7, uv, 0).r;
-}
-
-bool isBehindCamera(vec3 center, vec3 cameraPos, vec3 cameraForward) {
-    vec3 toObject = center - cameraPos;
-    return dot(normalize(toObject), cameraForward) < 0.0;
-}
-
 void main() {
     fragColor = vec4(0.0, 0.0, 0.0, 0.0);
 
     bool hit = false;
-    if (TestPos.w > 0) {
-        far = RenderDistance * CHUNK_RANGE_SIZE;
-        vec2 screenUV = (gl_FragCoord.xy - vec2(0.5)) / ScreenSize.xy;
+    if (sketch_testPos.w > 0) {
+        far = sketch_renderDistance * CHUNK_RANGE_SIZE;
+        vec2 screenUV = (gl_FragCoord.xy - vec2(0.5)) / windowSize.xy;
 
-        vec3 chunkBasePos = TestPos.xyz;
+        vec3 chunkBasePos = sketch_testPos.xyz;
         vec3 chunkPos = chunkBasePos * CHUNK_SIZE + vec3(8.0);
 
         vec3 boxMin = chunkPos - vec3(9.0);
@@ -233,7 +66,7 @@ void main() {
 
         // Project to screen space
         vec2 projected[8];
-        mat4 mvp = CullingProjMat * CullingViewMat;
+        mat4 mvp = sketch_cullingProjMat * sketch_cullingViewMat;
 
         for (int i = 0; i < 8; i++) {
             vec4 clip = mvp * vec4(corners[i], 1.0);
@@ -253,7 +86,7 @@ void main() {
                 );
             }
 
-            projected[i] = (ndc * 0.5 + 0.5) * ScreenSize;
+            projected[i] = (ndc * 0.5 + 0.5) * windowSize;
         }
 
 
@@ -287,7 +120,7 @@ void main() {
         }
         // --------- Wireframe drawing logic end ---------
 
-        ClipResult clip = getClippedMinDepth(chunkPos + CullingCameraDir, 10.0, 10.0);
+        ClipResult clip = getClippedMinDepth(chunkPos + sketch_cullingCameraDir, 10.0, 10.0);
 
         if(any(greaterThan(clip.screenMin, clip.screenMax))) {
             fragColor = vec4(0.0, 0.0, 0.0, 0.0);
@@ -300,13 +133,13 @@ void main() {
         vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
 
         int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
-        vec2 depthSize = DepthScreenSize[idx];
+        vec2 depthSize = sketch_depthSize[idx];
 
         ivec2 coordMin = max(ivec2(floor(mins * depthSize)), ivec2(0));
         ivec2 coordMax = min(ivec2(ceil(maxs * depthSize)), ivec2(depthSize) - 1);
 
-        ivec2 aabbMinScreen = max(ivec2(floor(mins * ScreenSize)), ivec2(0));
-        ivec2 aabbMaxScreen = min(ivec2(ceil(maxs * ScreenSize)), ivec2(ScreenSize) - 1);
+        ivec2 aabbMinScreen = max(ivec2(floor(mins * windowSize)), ivec2(0));
+        ivec2 aabbMaxScreen = min(ivec2(ceil(maxs * windowSize)), ivec2(windowSize) - 1);
 
         ivec2 screenCoords = ivec2(screenUV * depthSize);
 
@@ -328,13 +161,13 @@ void main() {
         }
     }
 
-    if (TestEntityPos.w > 0) {
-        far = RenderDistance * CHUNK_RANGE_SIZE;
-        vec2 screenUV = (gl_FragCoord.xy - vec2(0.5)) / ScreenSize.xy;
+    if (sketch_testEntityPos.w > 0) {
+        far = sketch_renderDistance * CHUNK_RANGE_SIZE;
+        vec2 screenUV = (gl_FragCoord.xy - vec2(0.5)) / windowSize.xy;
 
-        vec3 entityPos = TestEntityPos.xyz;
-        vec3 boxMin = entityPos - vec3(TestEntityAABB.x / 2, 0, TestEntityAABB.z / 2);
-        vec3 boxMax = entityPos + vec3(TestEntityAABB.x / 2, TestEntityAABB.y, TestEntityAABB.z / 2);
+        vec3 entityPos = sketch_testEntityPos.xyz;
+        vec3 boxMin = entityPos - vec3(sketch_testEntityAABB.x / 2, 0, sketch_testEntityAABB.z / 2);
+        vec3 boxMax = entityPos + vec3(sketch_testEntityAABB.x / 2, sketch_testEntityAABB.y, sketch_testEntityAABB.z / 2);
 
         if(!isVisible(entityPos, boxMin, boxMax)) {
             if (!hit) {
@@ -360,7 +193,7 @@ void main() {
 
         // Project to screen space
         vec2 projected[8];
-        mat4 mvp = CullingProjMat * CullingViewMat;
+        mat4 mvp = sketch_cullingProjMat * sketch_cullingViewMat;
 
         for (int i = 0; i < 8; i++) {
             vec4 clip = mvp * vec4(corners[i], 1.0);
@@ -380,7 +213,7 @@ void main() {
                 );
             }
 
-            projected[i] = (ndc * 0.5 + 0.5) * ScreenSize;
+            projected[i] = (ndc * 0.5 + 0.5) * windowSize;
         }
 
 
@@ -414,7 +247,7 @@ void main() {
         }
         // --------- Wireframe drawing logic end ---------
 
-        ClipResult clip = getClippedMinDepth(entityPos + vec3(0, TestEntityAABB.y / 2, 0), TestEntityAABB.x / 2 + 0.15, TestEntityAABB.y / 2 + 0.15);
+        ClipResult clip = getClippedMinDepth(entityPos + vec3(0, sketch_testEntityAABB.y / 2, 0), sketch_testEntityAABB.x / 2 + 0.15, sketch_testEntityAABB.y / 2 + 0.15);
 
         if(any(greaterThan(clip.screenMin, clip.screenMax))) {
             if (!hit) {
@@ -429,13 +262,13 @@ void main() {
         vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
 
         int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
-        vec2 depthSize = DepthScreenSize[idx];
+        vec2 depthSize = sketch_depthSize[idx];
 
         ivec2 coordMin = max(ivec2(floor(mins * depthSize)), ivec2(0));
         ivec2 coordMax = min(ivec2(ceil(maxs * depthSize)), ivec2(depthSize) - 1);
 
-        ivec2 aabbMinScreen = max(ivec2(floor(mins * ScreenSize)), ivec2(0));
-        ivec2 aabbMaxScreen = min(ivec2(ceil(maxs * ScreenSize)), ivec2(ScreenSize) - 1);
+        ivec2 aabbMinScreen = max(ivec2(floor(mins * windowSize)), ivec2(0));
+        ivec2 aabbMaxScreen = min(ivec2(ceil(maxs * windowSize)), ivec2(windowSize) - 1);
 
         ivec2 screenCoords = ivec2(screenUV * depthSize);
 

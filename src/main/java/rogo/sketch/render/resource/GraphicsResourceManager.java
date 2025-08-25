@@ -76,8 +76,7 @@ public class GraphicsResourceManager {
         Set<ResourceReloadListener> existingListener = getReloadListener(type, name);
 
         // Use the provided resource provider or fall back to the global sub-resource provider
-        Function<Identifier, Optional<BufferedReader>> actualProvider =
-                resourceProvider != null ? resourceProvider : subResourceProvider;
+        Function<Identifier, Optional<BufferedReader>> actualProvider = resourceProvider != null ? resourceProvider : subResourceProvider;
 
         // Load the new resource
         loadJsonResource(type, name, jsonData, actualProvider);
@@ -463,11 +462,6 @@ public class GraphicsResourceManager {
      */
     public void setSubResourceProvider(Function<Identifier, Optional<BufferedReader>> subResourceProvider) {
         this.subResourceProvider = subResourceProvider;
-
-        // Update shader loader to use preprocessing
-        registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader(true));
-
-        System.out.println("Sub-resource provider configured");
     }
 
     /**

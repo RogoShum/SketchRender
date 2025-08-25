@@ -1,4 +1,4 @@
-package rogo.sketch.vanilla.graph;
+package rogo.sketch.feature.culling.graphics;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import org.lwjgl.opengl.GL13;

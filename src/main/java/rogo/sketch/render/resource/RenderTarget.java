@@ -14,6 +14,7 @@ public class RenderTarget implements ResourceObject {
     private final int handle;
     private final Identifier identifier;
     private final List<Identifier> colorAttachmentIds = new ArrayList<>();
+    private final List<Identifier> keepSizeAttachmentIds = new ArrayList<>();
     private Identifier depthAttachmentId;
     private Identifier stencilAttachmentId;
     private int clearColor; // ARGB format
@@ -123,8 +124,10 @@ public class RenderTarget implements ResourceObject {
     /**
      * Intelligently resize texture, avoiding conflicts and duplicates
      */
-    private void resizeTextureIfNeeded(GraphicsResourceManager resourceManager, Identifier textureId,
-                                       int targetWidth, int targetHeight) {
+    private void resizeTextureIfNeeded(GraphicsResourceManager resourceManager, Identifier textureId, int targetWidth, int targetHeight) {
+        if (keepSizeAttachmentIds.contains(textureId)) {
+            return;
+        }
 
         ResizeInfo resizeInfo = globalTextureResizeTracker.get(textureId);
 
@@ -206,6 +209,10 @@ public class RenderTarget implements ResourceObject {
             resizeTextureIfNeeded(GraphicsResourceManager.getInstance(), textureId, currentWidth, currentHeight);
             attachTextureToFramebuffer(textureId, GL30.GL_STENCIL_ATTACHMENT);
         }
+    }
+
+    public void keepTextureSize(Identifier identifier) {
+        keepSizeAttachmentIds.add(identifier);
     }
 
     /**

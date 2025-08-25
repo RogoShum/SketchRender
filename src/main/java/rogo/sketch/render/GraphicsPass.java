@@ -11,16 +11,11 @@ import rogo.sketch.util.Identifier;
 import java.util.*;
 
 public class GraphicsPass<C extends RenderContext> {
-    private final Set<GraphicsInstance> activatedGraphics = new HashSet<>();
     private final Map<Identifier, SharedVertexGraphics> sharedGraphics = new LinkedHashMap<>();
     private final Map<Identifier, IndependentVertexProvider> independentGraphics = new LinkedHashMap<>();
     private final Map<Identifier, GraphicsInstance> customGraphics = new LinkedHashMap<>();
 
     public GraphicsPass() {
-    }
-
-    public void refresh() {
-        activatedGraphics.clear();
     }
 
     public void addGraphInstance(GraphicsInstance graph) {
@@ -62,7 +57,6 @@ public class GraphicsPass<C extends RenderContext> {
         for (GraphicsInstance instance : batchInstances) {
             if (instance instanceof SharedVertexGraphics sharedInstance && instance.shouldRender()) {
                 sharedInstance.fillVertexData(filler);
-                activatedGraphics.add(instance);
                 result = true;
             }
         }
@@ -97,35 +91,20 @@ public class GraphicsPass<C extends RenderContext> {
             if (instance instanceof IndependentVertexProvider independentInstance && instance.shouldRender()) {
                 independentInstance.fillVertexData();
                 result.addAll(independentInstance.getVertexResources());
-                activatedGraphics.add(instance);
             }
         }
 
         return result;
     }
-//
-//    public void endCustom() {
-//        for (GraphicsInstance instance : customGraphics.values()) {
-//            instance.endDraw();
-//        }
-//    }
+
 
     public void executeCustomBatch(List<GraphicsInstance> batchInstances, C context) {
         for (GraphicsInstance instance : batchInstances) {
             if (customGraphics.containsValue(instance) && instance.shouldRender()) {
                 instance.afterDraw(context);
-                activatedGraphics.add(instance);
             }
         }
     }
-
-//    public void endDraw() {
-//        for (GraphicsInstance instance : activatedGraphics) {
-//            instance.endDraw();
-//        }
-//
-//        activatedGraphics.clear();
-//    }
 
     public boolean containsShared() {
         return !sharedGraphics.isEmpty();
@@ -138,7 +117,7 @@ public class GraphicsPass<C extends RenderContext> {
     public boolean containsCustom() {
         return !customGraphics.isEmpty();
     }
-    
+
     /**
      * Cleanup discarded instances and return them to the pool
      */
@@ -152,7 +131,7 @@ public class GraphicsPass<C extends RenderContext> {
             }
             return false;
         });
-        
+
         // Check independent graphics
         independentGraphics.entrySet().removeIf(entry -> {
             GraphicsInstance instance = entry.getValue();
@@ -162,7 +141,7 @@ public class GraphicsPass<C extends RenderContext> {
             }
             return false;
         });
-        
+
         // Check custom graphics
         customGraphics.entrySet().removeIf(entry -> {
             GraphicsInstance instance = entry.getValue();

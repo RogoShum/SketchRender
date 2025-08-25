@@ -17,7 +17,7 @@ import java.util.function.Function;
  */
 public class ComputeShader extends Shader implements ResourceReloadable<Shader> {
     
-    private ReloadableShader reloadableSupport;
+    private final ReloadableShader reloadableSupport;
 
     /**
      * Create a compute shader from GLSL source code

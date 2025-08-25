@@ -1,12 +1,10 @@
-package rogo.sketch.vanilla.graph;
+package rogo.sketch.vanilla.graphics;
 
 import net.minecraft.world.entity.Entity;
 import rogo.sketch.render.DrawCommand;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.instance.SharedVertexGraphics;
-import rogo.sketch.vanilla.McRenderContext;
-import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.util.Identifier;
 
 public class EntityGraphicsInstance extends SharedVertexGraphics {

@@ -120,6 +120,11 @@ public class Texture implements ResourceObject, BindingResource {
         return disposed;
     }
 
+    public void updateCurrentSize(int width, int height) {
+        currentWidth = width;
+        currentHeight = height;
+    }
+
     @Override
     public void dispose() {
         if (!disposed) {

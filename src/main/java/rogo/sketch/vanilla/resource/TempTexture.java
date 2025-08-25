@@ -54,6 +54,9 @@ public class TempTexture {
                     minFilter[0],
                     wrapS[0]
             );
+
+            texture.updateCurrentSize(renderTarget.get().width, renderTarget.get().height);
+
             return texture;
         } else {
             return texture;

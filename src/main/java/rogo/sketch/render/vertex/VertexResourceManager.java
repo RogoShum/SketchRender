@@ -1,5 +1,6 @@
 package rogo.sketch.render.vertex;
 
+import com.mojang.blaze3d.platform.GlDebug;
 import rogo.sketch.render.RenderParameter;
 import rogo.sketch.render.RenderSetting;
 
@@ -37,7 +38,7 @@ public class VertexResourceManager {
         }
         
         RenderParameterKey key = new RenderParameterKey(setting.renderParameter());
-        
+
         return resourceCache.computeIfAbsent(key, k -> createVertexResource(setting.renderParameter()));
     }
     

@@ -108,6 +108,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
     private void setupAttributes(DataFormat format, boolean isInstance) {
         for (DataElement element : format.getElements()) {
+            GL20.glEnableVertexAttribArray(element.getIndex());
             GL20.glVertexAttribPointer(
                     element.getIndex(),
                     element.getComponentCount(),
@@ -116,7 +117,6 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
                     format.getStride(),
                     element.getOffset()
             );
-            GL20.glEnableVertexAttribArray(element.getIndex());
 
             // Set divisor for instanced attributes
             if (isInstance) {

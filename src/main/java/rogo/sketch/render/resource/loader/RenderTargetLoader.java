@@ -104,6 +104,19 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                 }
             }
 
+            if (json.has("keepSizeAttachments")) {
+                JsonArray keepSizeAttachments = json.getAsJsonArray("keepSizeAttachments");
+
+                for (int i = 0; i < keepSizeAttachments.size(); i++) {
+                    JsonElement element = keepSizeAttachments.get(i);
+
+                    Identifier textureId = TextureHelper.loadTextureFromElement(element, resourceManager);
+                    if (textureId != null) {
+                        renderTarget.keepTextureSize(textureId);
+                    }
+                }
+            }
+
             // Parse clear settings
             boolean shouldClearColor = true;
             boolean clearDepth = true;

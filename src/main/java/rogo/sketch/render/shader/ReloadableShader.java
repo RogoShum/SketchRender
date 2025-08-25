@@ -6,6 +6,7 @@ import rogo.sketch.render.shader.config.ShaderConfigurationManager;
 import rogo.sketch.render.shader.preprocessor.PreprocessorResult;
 import rogo.sketch.render.shader.preprocessor.ShaderPreprocessor;
 import rogo.sketch.render.shader.preprocessor.ShaderPreprocessorException;
+import rogo.sketch.render.shader.preprocessor.ShaderResourceProvider;
 import rogo.sketch.util.Identifier;
 
 import java.io.BufferedReader;
@@ -61,8 +62,7 @@ public abstract class ReloadableShader extends ReloadableResourceSupport<Shader>
             // Set up the resource provider for the preprocessor
             if (preprocessor != null && resourceProvider != null) {
                 // Create a ShaderResourceProvider adapter
-                rogo.sketch.render.shader.preprocessor.ShaderResourceProvider adapter =
-                        rogo.sketch.render.shader.preprocessor.ShaderResourceProvider.fromGenericProvider(resourceProvider);
+                ShaderResourceProvider adapter = ShaderResourceProvider.fromGenericProvider(resourceProvider);
                 preprocessor.setResourceProvider(adapter);
             }
 
