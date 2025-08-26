@@ -26,7 +26,7 @@ public class RenderSetting implements ResourceObject {
     public RenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, RenderParameter renderParameter, boolean shouldSwitchRenderState, @Nullable Identifier sourcePartialSetting) {
         this.renderState = renderState;
         this.resourceBinding = resourceBinding;
-        this.renderParameter = renderParameter == null ? RenderParameter.EMPTY : renderParameter;
+        this.renderParameter = renderParameter == null ? RenderParameter.INVALID : renderParameter;
         this.shouldSwitchRenderState = shouldSwitchRenderState;
         this.sourceIdentifier = sourcePartialSetting;
 

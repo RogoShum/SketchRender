@@ -18,8 +18,15 @@ public record RenderParameter(
             false
     );
 
+    public static final RenderParameter INVALID = new RenderParameter(
+            DataFormat.builder("INVALID").build(),
+            PrimitiveType.QUADS,
+            Usage.STATIC_DRAW,
+            false
+    );
+
     public boolean isInvalid() {
-        return this == RenderParameter.EMPTY;
+        return this == RenderParameter.INVALID;
     }
 
     /**
