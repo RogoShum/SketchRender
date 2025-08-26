@@ -6,6 +6,7 @@ import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.async.AsyncRenderManager;
 import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.data.filler.VertexFillerManager;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
@@ -24,10 +25,9 @@ public class GraphicsPassGroup<C extends RenderContext> {
     private final Identifier stageIdentifier;
     private final Map<RenderSetting, GraphicsPass<C>> groups = new LinkedHashMap<>();
     private final VertexResourceManager vertexResourceManager = VertexResourceManager.getInstance();
+    private final VertexFillerManager vertexFillerManager = VertexFillerManager.getInstance();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
-
-    // Note: AsyncRenderExecutor is deprecated, using AsyncRenderManager instead
 
     public GraphicsPassGroup(GraphicsPipeline<C> graphicsPipeline, Identifier stageIdentifier) {
         this.graphicsPipeline = graphicsPipeline;
@@ -40,7 +40,6 @@ public class GraphicsPassGroup<C extends RenderContext> {
     }
 
     public void tick(C context) {
-        // Use the global async manager to determine execution mode
         Collection<GraphicsInstance> allInstances = groups.values().stream()
                 .flatMap(pass -> pass.getAllInstances().stream())
                 .toList();
@@ -75,11 +74,9 @@ public class GraphicsPassGroup<C extends RenderContext> {
             RenderSetting setting = entry.getKey();
             GraphicsPass<C> pass = entry.getValue();
 
-            if (setting.renderParameter() == RenderParameter.EMPTY || !pass.containsShared()) {
+            if (setting.renderParameter().isInvalid() || !pass.containsShared()) {
                 continue;
             }
-
-            VertexResource resource = vertexResourceManager.getOrCreateVertexResource(setting);
 
             ShaderProvider shaderProvider = null;
             ResourceReference<ShaderProvider> reference = ((ShaderState) setting.renderState().get(ResourceTypes.SHADER_PROGRAM)).shader();
@@ -95,6 +92,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
             if (setting.shouldSwitchRenderState() && !uniformBatches.isEmpty()) {
                 applyRenderSetting(manager, context, setting);
             }
+            VertexResource resource = vertexResourceManager.getOrCreateVertexResource(setting.renderParameter());
 
             for (UniformBatchGroup batch : uniformBatches) {
                 renderUniformBatch(batch, resource, setting, pass, context);
@@ -168,24 +166,21 @@ public class GraphicsPassGroup<C extends RenderContext> {
         ShaderProvider shader = context.shaderProvider();
         batch.getUniformSnapshot().applyTo(shader.getUniformHookGroup());
 
-        VertexFiller filler = resource.beginFill();
-
-        if (setting.renderParameter().enableIndexBuffer()) {
-            filler.enableIndexBuffer();
-        }
-        if (setting.renderParameter().enableSorting()) {
-            filler.enableSorting();
-        }
+        VertexFiller filler = vertexFillerManager.getOrCreateVertexFiller(setting.renderParameter());
 
         boolean hasData = pass.fillSharedVertexForBatch(filler, batch.getInstances());
 
         if (hasData) {
+            resource.uploadFromVertexFiller(filler);
+
             context.set(Identifier.of("rendered"), true);
-            resource.endFill();
             VertexRenderer.render(resource);
+
             for (GraphicsInstance instance : batch.getInstances()) {
                 instance.afterDraw(context);
             }
+
+            vertexFillerManager.resetFiller(setting.renderParameter());
         }
     }
 
@@ -194,7 +189,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
             RenderSetting setting = entry.getKey();
             GraphicsPass<C> pass = entry.getValue();
 
-            if (setting.renderParameter() == RenderParameter.EMPTY || !pass.containsIndependent()) {
+            if (setting.renderParameter().isInvalid() || !pass.containsIndependent()) {
                 continue;
             }
 
@@ -245,7 +240,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
             RenderSetting setting = entry.getKey();
             GraphicsPass<C> pass = entry.getValue();
 
-            if (setting.renderParameter() == RenderParameter.EMPTY || !pass.containsCustom()) {
+            if (setting.renderParameter().isInvalid() || !pass.containsCustom()) {
                 continue;
             }
 

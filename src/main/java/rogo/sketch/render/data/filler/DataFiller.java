@@ -18,11 +18,31 @@ public abstract class DataFiller {
     protected final DataFormat format;
     protected long currentVertex;
     protected int currentElementIndex;
+    
+    // Validation state
+    protected boolean strictValidation = true;
+    protected boolean autoAdvanceElements = true;
 
     public DataFiller(DataFormat format) {
         this.format = format;
         this.currentVertex = 0;
         this.currentElementIndex = 0;
+    }
+    
+    /**
+     * Enable or disable strict data format validation
+     */
+    public DataFiller setStrictValidation(boolean enabled) {
+        this.strictValidation = enabled;
+        return this;
+    }
+    
+    /**
+     * Enable or disable automatic element advancement
+     */
+    public DataFiller setAutoAdvanceElements(boolean enabled) {
+        this.autoAdvanceElements = enabled;
+        return this;
     }
 
     /**
@@ -53,12 +73,14 @@ public abstract class DataFiller {
 
     // Float operations
     public DataFiller floatValue(float value) {
+        validateCurrentElement(rogo.sketch.render.data.DataType.FLOAT);
         writeFloat(value);
         advanceElement();
         return this;
     }
 
     public DataFiller vec2f(float x, float y) {
+        validateCurrentElement(rogo.sketch.render.data.DataType.VEC2);
         writeFloat(x);
         writeFloat(y);
         advanceElement();
@@ -70,6 +92,7 @@ public abstract class DataFiller {
     }
 
     public DataFiller vec3f(float x, float y, float z) {
+        validateCurrentElement(rogo.sketch.render.data.DataType.VEC3);
         writeFloat(x);
         writeFloat(y);
         writeFloat(z);
@@ -82,6 +105,7 @@ public abstract class DataFiller {
     }
 
     public DataFiller vec4f(float x, float y, float z, float w) {
+        validateCurrentElement(rogo.sketch.render.data.DataType.VEC4);
         writeFloat(x);
         writeFloat(y);
         writeFloat(z);
@@ -96,6 +120,7 @@ public abstract class DataFiller {
 
     // Integer operations
     public DataFiller intValue(int value) {
+        validateCurrentElement(rogo.sketch.render.data.DataType.INT);
         writeInt(value);
         advanceElement();
         return this;
@@ -348,6 +373,7 @@ public abstract class DataFiller {
     }
 
     public DataFiller mat4(Matrix4f matrix) {
+        validateCurrentElement(rogo.sketch.render.data.DataType.MAT4);
         writeFloat(matrix.m00());
         writeFloat(matrix.m01());
         writeFloat(matrix.m02());
@@ -414,12 +440,74 @@ public abstract class DataFiller {
     public abstract void writeShort(short value);
     public abstract void writeUShort(short value);
     public abstract void writeDouble(double value);
+    
+    /**
+     * Complete the data filling process
+     * Subclasses should implement their specific finalization logic
+     */
+    public abstract void end();
 
     protected void advanceElement() {
-        currentElementIndex++;
-        if (currentElementIndex >= format.getElementCount()) {
-            nextVertex();
+        if (autoAdvanceElements) {
+            currentElementIndex++;
+            if (currentElementIndex >= format.getElementCount()) {
+                nextVertex();
+            }
         }
+    }
+    
+    /**
+     * Validate that the current element matches the expected data type
+     */
+    protected void validateCurrentElement(rogo.sketch.render.data.DataType expectedType) {
+        if (!strictValidation) return;
+        
+        if (currentElementIndex >= format.getElementCount()) {
+            throw new IllegalStateException("Attempting to write beyond format element count. " +
+                "Current element index: " + currentElementIndex + 
+                ", Format element count: " + format.getElementCount());
+        }
+        
+        var currentElement = format.getElements().get(currentElementIndex);
+        if (currentElement.getDataType() != expectedType) {
+            throw new IllegalArgumentException("Data type mismatch for element '" + 
+                currentElement.getName() + "' at index " + currentElementIndex + 
+                ". Expected: " + expectedType + ", Format expects: " + currentElement.getDataType());
+        }
+    }
+    
+    /**
+     * Validate that we have enough components for the data type
+     */
+    protected void validateDataTypeComponents(rogo.sketch.render.data.DataType dataType, int providedComponents) {
+        if (!strictValidation) return;
+        
+        int expectedComponents = dataType.getComponentCount();
+        if (providedComponents != expectedComponents) {
+            throw new IllegalArgumentException("Component count mismatch for data type " + dataType + 
+                ". Expected: " + expectedComponents + ", Provided: " + providedComponents);
+        }
+    }
+    
+    /**
+     * Check if the current vertex is complete
+     * Note: When advanceElement() auto-calls nextVertex(), currentElementIndex resets to 0
+     * but the previous vertex was actually complete. We need to handle this case.
+     */
+    public boolean isCurrentVertexComplete() {
+        // If currentElementIndex is 0 and we have filled at least one vertex,
+        // it means the previous vertex was completed by advanceElement()
+        if (currentElementIndex == 0 && currentVertex > 0) {
+            return true;
+        }
+        return currentElementIndex >= format.getElementCount();
+    }
+    
+    /**
+     * Get the remaining elements needed to complete current vertex
+     */
+    public int getRemainingElementsInVertex() {
+        return Math.max(0, format.getElementCount() - currentElementIndex);
     }
 
     public DataFormat getFormat() {

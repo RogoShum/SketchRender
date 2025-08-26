@@ -192,4 +192,10 @@ public class SSBOFiller extends DataFiller {
     public static SSBOFiller wrap(DataFormat format, ShaderStorageBuffer ssbo) {
         return new SSBOFiller(format, ssbo);
     }
+    
+    @Override
+    public void end() {
+        // For SSBOFiller, upload data to GPU
+        ssbo.upload();
+    }
 }

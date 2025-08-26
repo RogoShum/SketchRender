@@ -3,7 +3,10 @@ package rogo.sketch.render.vertex;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.BufferResourceObject;
-import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.data.filler.VertexSorting;
+import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.render.data.sorting.PrimitiveSorter;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
@@ -13,19 +16,24 @@ import java.util.List;
 
 /**
  * Enhanced index buffer with support for different index types and sorting
+ * Now maintains a persistent ByteBuffer to avoid frequent allocations
  */
 public class IndexBufferResource implements BufferResourceObject {
     private int id;
     private final List<Integer> indices;
     private boolean disposed = false;
     private boolean isDirty;
-    
+
+    private ByteBuffer persistentBuffer;
+    private IndexType currentIndexType = IndexType.UINT;
+    private int bufferCapacity = 0;
+
     public IndexBufferResource() {
         this.indices = new ArrayList<>();
         this.isDirty = false;
         this.id = GL15.glGenBuffers();
     }
-    
+
     /**
      * Add a single index
      */
@@ -33,37 +41,14 @@ public class IndexBufferResource implements BufferResourceObject {
         indices.add(index);
         isDirty = true;
     }
-    
-    /**
-     * Add multiple indices
-     */
-    public void addIndices(int... indices) {
-        for (int index : indices) {
-            addIndex(index);
-        }
-    }
-    
-    /**
-     * Add indices for a triangle
-     */
-    public void addTriangle(int v0, int v1, int v2) {
-        addIndices(v0, v1, v2);
-    }
-    
-    /**
-     * Add indices for a quad (as two triangles)
-     */
-    public void addQuad(int v0, int v1, int v2, int v3) {
-        addIndices(v0, v1, v2, v2, v3, v0);
-    }
-    
+
     /**
      * Get the current number of indices
      */
     public int getIndexCount() {
         return indices.size();
     }
-    
+
     /**
      * Clear all indices
      */
@@ -71,37 +56,125 @@ public class IndexBufferResource implements BufferResourceObject {
         indices.clear();
         isDirty = true;
     }
-    
+
     /**
-     * Apply sorting to the indices based on sorted primitive order
+     * Ensure the persistent buffer has enough capacity
      */
-    public void applySorting(int[] sortedOrder) {
-        if (sortedOrder.length == 0) {
-            return;
+    private void ensureBufferCapacity(int requiredIndices, IndexType indexType) {
+        int requiredBytes = requiredIndices * indexType.bytes;
+
+        if (persistentBuffer == null || bufferCapacity < requiredBytes || currentIndexType != indexType) {
+
+            if (persistentBuffer != null) {
+                MemoryUtil.memFree(persistentBuffer);
+            }
+
+            int newCapacity = Math.max(requiredBytes, requiredBytes * 2);
+            persistentBuffer = MemoryUtil.memAlloc(newCapacity);
+            bufferCapacity = newCapacity;
+            currentIndexType = indexType;
         }
-        
-        // Determine primitive type based on index count
+
+        persistentBuffer.clear();
+    }
+
+    /**
+     * Apply sorting to indices for transparent rendering
+     * This is the main entry point for transparency sorting
+     *
+     * @param vertexData    Combined vertex data buffer
+     * @param format        Vertex data format
+     * @param primitiveType Type of primitives
+     * @param vertexCount   Total number of vertices
+     * @param sorting       Sorting algorithm to use
+     */
+    public void applySorting(ByteBuffer vertexData, DataFormat format,
+                             PrimitiveType primitiveType, int vertexCount,
+                             VertexSorting sorting) {
+        if (!PrimitiveSorter.canSort(primitiveType) || sorting == null) {
+            return; // Cannot sort this primitive type
+        }
+
+        // Calculate sorted primitive order
+        int[] sortedOrder = PrimitiveSorter.calculateSortedOrder(
+                vertexData, format, primitiveType, vertexCount, sorting
+        );
+
+        // Apply the sorting to indices
+        applySortingByOrder(sortedOrder, primitiveType);
+    }
+
+    /**
+     * Apply sorting based on pre-calculated primitive order
+     *
+     * @deprecated Use applySorting(ByteBuffer, DataFormat, PrimitiveType, int, VertexSorting) instead
+     */
+    @Deprecated
+    public void applySorting(int[] sortedOrder) {
+        // Determine primitive type based on index count (fallback)
         int primitiveSize = determinePrimitiveSize();
         if (primitiveSize == 0) {
             return;
         }
-        
+
+        applySortingByOrder(sortedOrder, null);
+    }
+
+    /**
+     * Internal method to reorder indices based on sorted primitive order
+     */
+    private void applySortingByOrder(int[] sortedOrder, PrimitiveType primitiveType) {
+        if (sortedOrder.length == 0) {
+            return;
+        }
+
+        int indicesPerPrimitive;
+        if (primitiveType != null) {
+            // Use accurate calculation based on primitive type
+            indicesPerPrimitive = calculateIndicesPerPrimitive(primitiveType);
+        } else {
+            // Fallback to heuristic method
+            indicesPerPrimitive = determinePrimitiveSize();
+        }
+
+        if (indicesPerPrimitive == 0) {
+            return;
+        }
+
         List<Integer> sortedIndices = new ArrayList<>();
-        
+
         for (int primitiveIndex : sortedOrder) {
-            int baseIndex = primitiveIndex * primitiveSize;
-            for (int i = 0; i < primitiveSize; i++) {
+            int baseIndex = primitiveIndex * indicesPerPrimitive;
+            for (int i = 0; i < indicesPerPrimitive; i++) {
                 if (baseIndex + i < indices.size()) {
                     sortedIndices.add(indices.get(baseIndex + i));
                 }
             }
         }
-        
+
         indices.clear();
         indices.addAll(sortedIndices);
         isDirty = true;
     }
-    
+
+    /**
+     * Calculate indices per primitive based on primitive type
+     */
+    private int calculateIndicesPerPrimitive(PrimitiveType primitiveType) {
+        switch (primitiveType) {
+            case QUADS:
+                return 6; // 2 triangles
+            case LINES:
+                return 6; // Expanded to quad (2 triangles)
+            case TRIANGLES:
+                return 3; // 1 triangle
+            case POINTS:
+                return 1; // 1 point
+            default:
+                return primitiveType.getVerticesPerPrimitive();
+        }
+    }
+
     private int determinePrimitiveSize() {
         // Try to determine if we're dealing with triangles (3) or quads as triangles (6)
         int count = indices.size();
@@ -115,92 +188,131 @@ public class IndexBufferResource implements BufferResourceObject {
             return 1; // Points
         }
     }
-    
+
     /**
-     * Create a ByteBuffer with the indices in the specified format
+     * Fill the persistent buffer with indices in the specified format
+     * Returns the buffer ready for upload (flipped)
      */
-    public ByteBuffer createBuffer(VertexFiller.IndexType indexType) {
+    private ByteBuffer fillPersistentBuffer(IndexType indexType) {
         int indexCount = indices.size();
-        ByteBuffer buffer = MemoryUtil.memAlloc(indexCount * indexType.bytes);
-        
+        ensureBufferCapacity(indexCount, indexType);
+
         switch (indexType) {
             case UBYTE -> {
                 for (int index : indices) {
-                    buffer.put((byte) (index & 0xFF));
+                    persistentBuffer.put((byte) (index & 0xFF));
                 }
             }
             case USHORT -> {
-                ShortBuffer shortBuffer = buffer.asShortBuffer();
+                ShortBuffer shortBuffer = persistentBuffer.asShortBuffer();
                 for (int index : indices) {
                     shortBuffer.put((short) (index & 0xFFFF));
                 }
-                buffer.position(buffer.position() + indexCount * 2);
+                persistentBuffer.position(persistentBuffer.position() + indexCount * 2);
             }
             case UINT -> {
-                IntBuffer intBuffer = buffer.asIntBuffer();
+                IntBuffer intBuffer = persistentBuffer.asIntBuffer();
                 for (int index : indices) {
                     intBuffer.put(index);
                 }
-                buffer.position(buffer.position() + indexCount * 4);
+                persistentBuffer.position(persistentBuffer.position() + indexCount * 4);
             }
         }
-        
-        buffer.flip();
-        return buffer;
+
+        persistentBuffer.flip();
+        return persistentBuffer;
     }
-    
+
     /**
-     * Upload indices to GPU buffer
+     * Upload indices to GPU buffer using persistent buffer
      */
-    public void upload(VertexFiller.IndexType indexType) {
+    public void upload(IndexType indexType) {
         if (!isDirty && id > 0) {
             return; // Already uploaded and not dirty
         }
-        
-        ByteBuffer buffer = createBuffer(indexType);
-        
+
+        if (indices.isEmpty()) {
+            return; // Nothing to upload
+        }
+
+        ByteBuffer buffer = fillPersistentBuffer(indexType);
         bind();
         GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, buffer, GL15.GL_STATIC_DRAW);
         unbind();
-        
-        MemoryUtil.memFree(buffer);
+
         isDirty = false;
     }
-    
+
+    /**
+     * Upload indices to GPU buffer with automatic index type selection
+     */
+    public void upload() {
+        upload(determineOptimalIndexType());
+    }
+
+    /**
+     * Determine the optimal index type based on the maximum index value
+     */
+    public IndexType determineOptimalIndexType() {
+        if (indices.isEmpty()) {
+            return IndexType.UINT;
+        }
+
+        int maxIndex = indices.stream().mapToInt(Integer::intValue).max().orElse(0);
+
+        if (maxIndex <= 255) {
+            return IndexType.UBYTE;
+        } else if (maxIndex <= 65535) {
+            return IndexType.USHORT;
+        } else {
+            return IndexType.UINT;
+        }
+    }
+
     /**
      * Get a copy of all indices
      */
     public int[] getIndices() {
         return indices.stream().mapToInt(Integer::intValue).toArray();
     }
-    
+
+    public IndexType currentIndexType() {
+        return currentIndexType;
+    }
+
     /**
      * Check if the buffer needs to be reuploaded
      */
     public boolean isDirty() {
         return isDirty;
     }
-    
+
     @Override
     public int getHandle() {
         return id;
     }
-    
+
     @Override
     public void bind() {
         GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, id);
     }
-    
+
     @Override
     public void unbind() {
         GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);
     }
-    
+
     @Override
     public void dispose() {
         if (id > 0) {
             GL15.glDeleteBuffers(id);
             id = 0;
+        }
+
+        // Free persistent buffer
+        if (persistentBuffer != null) {
+            MemoryUtil.memFree(persistentBuffer);
+            persistentBuffer = null;
         }
 
         indices.clear();
@@ -210,5 +322,29 @@ public class IndexBufferResource implements BufferResourceObject {
     @Override
     public boolean isDisposed() {
         return disposed;
+    }
+
+    public enum IndexType {
+        UBYTE(GL15.GL_UNSIGNED_BYTE, 1),
+        USHORT(GL15.GL_UNSIGNED_SHORT, 2),
+        UINT(GL15.GL_UNSIGNED_INT, 4);
+
+        public final int glType;
+        public final int bytes;
+
+        IndexType(int glType, int bytes) {
+            this.glType = glType;
+            this.bytes = bytes;
+        }
+
+        public static IndexType getOptimalType(int maxIndex) {
+            if (maxIndex < 256) {
+                return UBYTE;
+            } else if (maxIndex < 65536) {
+                return USHORT;
+            } else {
+                return UINT;
+            }
+        }
     }
 }

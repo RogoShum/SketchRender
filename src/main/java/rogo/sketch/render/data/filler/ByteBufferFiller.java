@@ -113,4 +113,10 @@ public class ByteBufferFiller extends DataFiller {
     public static ByteBufferFiller wrap(DataFormat format, ByteBuffer buffer) {
         return new ByteBufferFiller(format, buffer);
     }
+    
+    @Override
+    public void end() {
+        // For ByteBufferFiller, just prepare the buffer for reading
+        buffer.flip();
+    }
 }

@@ -26,7 +26,7 @@ public class RenderSetting implements ResourceObject {
     public RenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, RenderParameter renderParameter, boolean shouldSwitchRenderState, @Nullable Identifier sourcePartialSetting) {
         this.renderState = renderState;
         this.resourceBinding = resourceBinding;
-        this.renderParameter = renderParameter;
+        this.renderParameter = renderParameter == null ? RenderParameter.EMPTY : renderParameter;
         this.shouldSwitchRenderState = shouldSwitchRenderState;
         this.sourceIdentifier = sourcePartialSetting;
 
@@ -129,7 +129,7 @@ public class RenderSetting implements ResourceObject {
         return new RenderSetting(
                 partial.renderState(),
                 partial.resourceBinding(),
-                null,
+                RenderParameter.EMPTY,
                 partial.shouldSwitchRenderState(),
                 partial.getSourceIdentifier()
         );

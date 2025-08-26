@@ -8,7 +8,7 @@ import rogo.sketch.render.RenderContext;
 import rogo.sketch.util.Identifier;
 
 public class DepthState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("depth_test");
+    public static final Identifier TYPE = Identifier.of("depth_state");
     
     private boolean enabled;
     private int func;
@@ -60,8 +60,8 @@ public class DepthState implements RenderStateComponent {
 
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
-        this.enabled = json.has("enabled") ? json.get("enabled").getAsBoolean() : true;
-        this.write = json.has("write") ? json.get("write").getAsBoolean() : true;
+        this.enabled = !json.has("enabled") || json.get("enabled").getAsBoolean();
+        this.write = !json.has("write") || json.get("write").getAsBoolean();
         
         if (json.has("function")) {
             this.func = parseDepthFunction(json.get("function").getAsString());

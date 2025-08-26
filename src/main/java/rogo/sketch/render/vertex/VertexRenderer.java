@@ -2,7 +2,7 @@ package rogo.sketch.render.vertex;
 
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL31;
-import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.data.PrimitiveType;
 
 /**
  * External renderer that uses VertexResource for rendering operations.
@@ -13,7 +13,7 @@ public class VertexRenderer {
     /**
      * Render a vertex resource with the specified primitive mode
      *
-     * @param resource      The vertex resource to render
+     * @param resource The vertex resource to render
      */
     public static void render(VertexResource resource) {
         if (resource.getStaticVertexCount() == 0) {
@@ -28,22 +28,23 @@ public class VertexRenderer {
                 // Render with index buffer
                 IndexBufferResource indexBuffer = resource.getIndexBuffer();
                 int indexCount = indexBuffer.getIndexCount();
+                int indexType = indexBuffer.currentIndexType().glType;
 
                 if (resource.hasInstances()) {
                     // Instanced indexed rendering
                     GL31.glDrawElementsInstanced(
-                            resource.getPrimitiveType(),
+                            resource.getPrimitiveType().getGLType(),
                             indexCount,
-                            GL15.GL_UNSIGNED_INT,
+                            indexType,
                             0,
                             resource.getInstanceCount()
                     );
                 } else {
                     // Regular indexed rendering
                     GL15.glDrawElements(
-                            resource.getPrimitiveType(),
+                            resource.getPrimitiveType().getGLType(),
                             indexCount,
-                            GL15.GL_UNSIGNED_INT,
+                            indexType,
                             0
                     );
                 }
@@ -52,7 +53,7 @@ public class VertexRenderer {
                 if (resource.hasInstances()) {
                     // Instanced array rendering
                     GL31.glDrawArraysInstanced(
-                            resource.getPrimitiveType(),
+                            resource.getPrimitiveType().getGLType(),
                             0,
                             resource.getStaticVertexCount(),
                             resource.getInstanceCount()
@@ -60,7 +61,7 @@ public class VertexRenderer {
                 } else {
                     // Regular array rendering
                     GL15.glDrawArrays(
-                            resource.getPrimitiveType(),
+                            resource.getPrimitiveType().getGLType(),
                             0,
                             resource.getStaticVertexCount()
                     );
@@ -75,18 +76,18 @@ public class VertexRenderer {
     /**
      * Render with custom parameters
      *
-     * @param resource      The vertex resource to render
-     * @param first         First vertex/index to render
-     * @param count         Number of vertices/indices to render
+     * @param resource The vertex resource to render
+     * @param first    First vertex/index to render
+     * @param count    Number of vertices/indices to render
      */
     public static void render(VertexResource resource, int first, int count) {
         resource.bind();
 
         try {
             if (resource.hasIndices()) {
-                GL15.glDrawElements(resource.getPrimitiveType(), count, GL15.GL_UNSIGNED_INT, first * 4L); // 4 bytes per int
+                GL15.glDrawElements(resource.getPrimitiveType().getGLType(), count, resource.getIndexBuffer().currentIndexType().glType, first * 4L); // 4 bytes per int
             } else {
-                GL15.glDrawArrays(resource.getPrimitiveType(), first, count);
+                GL15.glDrawArrays(resource.getPrimitiveType().getGLType(), first, count);
             }
         } finally {
             resource.unbind();
@@ -102,15 +103,15 @@ public class VertexRenderer {
      * @param count         Number of vertices/indices to render
      * @param instanceCount Number of instances to render
      */
-    public static void renderInstanced(VertexResource resource, int primitiveMode,
+    public static void renderInstanced(VertexResource resource, PrimitiveType primitiveMode,
                                        int first, int count, int instanceCount) {
         resource.bind();
 
         try {
             if (resource.hasIndices()) {
-                GL31.glDrawElementsInstanced(primitiveMode, count, GL15.GL_UNSIGNED_INT, first * 4, instanceCount);
+                GL31.glDrawElementsInstanced(primitiveMode.getGLType(), count, resource.getIndexBuffer().currentIndexType().glType, first * 4L, instanceCount);
             } else {
-                GL31.glDrawArraysInstanced(primitiveMode, first, count, instanceCount);
+                GL31.glDrawArraysInstanced(primitiveMode.getGLType(), first, count, instanceCount);
             }
         } finally {
             resource.unbind();
@@ -142,8 +143,8 @@ public class VertexRenderer {
      * Get the appropriate index type for the given vertex count
      * This is a utility method for external use
      */
-    public static VertexFiller.IndexType getOptimalIndexType(int maxVertexIndex) {
-        return VertexFiller.IndexType.getOptimalType(maxVertexIndex);
+    public static IndexBufferResource.IndexType getOptimalIndexType(int maxVertexIndex) {
+        return IndexBufferResource.IndexType.getOptimalType(maxVertexIndex);
     }
 
     /**

@@ -6,7 +6,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.joml.*;
-import org.lwjgl.opengl.GL11;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.api.GraphicsInstance;
@@ -26,6 +25,8 @@ import rogo.sketch.render.PartialRenderSetting;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.RenderParameter;
 import rogo.sketch.render.RenderSetting;
+import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.ValueGetter;
@@ -38,10 +39,6 @@ import rogo.sketch.vanilla.resource.TempTexture;
 
 import java.util.Optional;
 import java.util.function.Supplier;
-
-import static org.lwjgl.opengl.GL11.GL_QUADS;
-import static org.lwjgl.opengl.GL11.GL_TRIANGLES;
-import static org.lwjgl.opengl.GL15.GL_DYNAMIC_DRAW;
 
 public class VanillaPipelineEventHandler {
     public static final TempTexture mainColor = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(), false);
@@ -366,13 +363,13 @@ public class VanillaPipelineEventHandler {
             Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                     .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
 
-//            if (renderSetting.isPresent()) {
-//                PartialRenderSetting partialRenderSetting = renderSetting.get();
-//                RenderParameter renderParameter = new RenderParameter(DefaultDataFormats.POSITION, GL_QUADS, GL_DYNAMIC_DRAW, false, false);
-//                RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
-//                CullingTestGraphics cullingTestGraphics = new CullingTestGraphics(Identifier.of(SketchRender.MOD_ID, "culling_test"));
-//                registerEvent.register(MinecraftRenderStages.LEVEL_END.getIdentifier(), cullingTestGraphics, setting);
-//            }
+            if (renderSetting.isPresent()) {
+                PartialRenderSetting partialRenderSetting = renderSetting.get();
+                RenderParameter renderParameter = new RenderParameter(DefaultDataFormats.POSITION, PrimitiveType.QUADS, Usage.DYNAMIC_DRAW, false);
+                RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
+                CullingTestGraphics cullingTestGraphics = new CullingTestGraphics(Identifier.of(SketchRender.MOD_ID, "culling_test"));
+                registerEvent.register(MinecraftRenderStages.LEVEL_END.getIdentifier(), cullingTestGraphics, setting);
+            }
         }
     }
 

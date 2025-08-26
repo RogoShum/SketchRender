@@ -38,22 +38,30 @@ public interface VertexSorting {
      * Create sorting using a custom distance function
      */
     static VertexSorting byDistance(DistanceFunction distanceFunction) {
-        return (points) -> {
-            float[] distances = new float[points.length];
-            int[] indices = new int[points.length];
-            
-            // Compute distances and initialize indices
-            for (int i = 0; i < points.length; i++) {
-                distances[i] = distanceFunction.apply(points[i]);
-                indices[i] = i;
+        return new VertexSorting() {
+            @Override
+            public int[] sort(Vector3f[] points) {
+                float[] distances = new float[points.length];
+                int[] indices = new int[points.length];
+                
+                // Compute distances and initialize indices
+                for (int i = 0; i < points.length; i++) {
+                    distances[i] = distanceFunction.apply(points[i]);
+                    indices[i] = i;
+                }
+                
+                // Sort indices by distance (far to near for transparency)
+                IntArrays.mergeSort(indices, (a, b) -> 
+                    Floats.compare(distances[b], distances[a])
+                );
+                
+                return indices;
             }
             
-            // Sort indices by distance (far to near for transparency)
-            IntArrays.mergeSort(indices, (a, b) -> 
-                Floats.compare(distances[b], distances[a])
-            );
-            
-            return indices;
+            @Override
+            public float calculateDistance(Vector3f point) {
+                return distanceFunction.apply(point);
+            }
         };
     }
     
@@ -64,6 +72,28 @@ public interface VertexSorting {
      * @return Array of indices representing the sorted order
      */
     int[] sort(Vector3f[] points);
+    
+    /**
+     * Calculate distance for a single point (used for primitive sorting)
+     * 
+     * @param point Point to calculate distance for
+     * @return Distance value for sorting
+     */
+    default float calculateDistance(Vector3f point) {
+        // Default implementation: try to extract distance function from sort implementation
+        Vector3f[] singlePoint = {point};
+        int[] result = sort(singlePoint);
+        
+        // For more efficient implementation, override this method in specific sorting instances
+        if (this == DISTANCE_TO_ORIGIN) {
+            return point.lengthSquared();
+        } else if (this == ORTHOGRAPHIC_Z) {
+            return -point.z;
+        }
+        
+        // Fallback: assume distance to origin
+        return point.lengthSquared();
+    }
     
     /**
      * Function interface for computing distance from a point

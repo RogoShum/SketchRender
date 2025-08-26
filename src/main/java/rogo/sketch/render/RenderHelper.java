@@ -5,6 +5,7 @@ import rogo.sketch.api.IndependentVertexProvider;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.SharedVertexProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.data.filler.VertexFillerManager;
 import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.render.vertex.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
@@ -30,20 +31,15 @@ public class RenderHelper {
         }
 
         if (instance instanceof SharedVertexProvider sharedInstance) {
-            VertexResource resource = VertexResourceManager.getInstance().getOrCreateVertexResource(setting);
-            VertexFiller filler = resource.beginFill();
-
-            if (setting.renderParameter().enableIndexBuffer()) {
-                filler.enableIndexBuffer();
-            }
-            if (setting.renderParameter().enableSorting()) {
-                filler.enableSorting();
-            }
+            VertexResource resource = VertexResourceManager.getInstance().getOrCreateVertexResource(setting.renderParameter());
+            VertexFiller filler = VertexFillerManager.getInstance().getOrCreateVertexFiller(setting.renderParameter());
 
             sharedInstance.fillVertexData(filler);
-            resource.endFill();
+            resource.uploadFromVertexFiller(filler);
+
             VertexRenderer.render(resource);
             instance.afterDraw(context);
+            VertexFillerManager.getInstance().resetFiller(setting.renderParameter());
         } else if (instance instanceof IndependentVertexProvider independentInstance) {
             independentInstance.fillVertexData();
             List<VertexResourcePair> pairs = independentInstance.getVertexResources();

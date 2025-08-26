@@ -115,7 +115,7 @@ void main() {
         }
 
         if (nearEdge) {
-            fragColor = vec4(1.0); // white outline
+            fragColor = vec4(1.0, 1.0, 1.0, 0.35); // white outline
             return;
         }
         // --------- Wireframe drawing logic end ---------
@@ -147,7 +147,7 @@ void main() {
 
         if(all(greaterThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMinScreen))) &&
         all(lessThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMaxScreen)))) {
-            fragColor = vec4(1.0, 1.0, 0.0, 1.0);
+            fragColor = vec4(1.0, 1.0, 0.0, 0.35);
 
             if(all(greaterThanEqual(screenCoords, coordMin)) &&
             all(lessThanEqual(screenCoords, coordMax))) {
@@ -242,7 +242,7 @@ void main() {
         }
 
         if (nearEdge) {
-            fragColor = vec4(1.0); // white outline
+            fragColor = vec4(1.0, 1.0, 1.0, 0.35); // white outline
             return;
         }
         // --------- Wireframe drawing logic end ---------
@@ -278,7 +278,7 @@ void main() {
 
         if(all(greaterThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMinScreen))) &&
         all(lessThanEqual(gl_FragCoord.xy - vec2(0.5), vec2(aabbMaxScreen)))) {
-            fragColor = vec4(1.0, 1.0, 0.0, 1.0);
+            fragColor = vec4(1.0, 1.0, 0.0, 0.35);
 
             if(all(greaterThanEqual(screenCoords, coordMin)) &&
             all(lessThanEqual(screenCoords, coordMax))) {

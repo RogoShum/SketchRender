@@ -54,7 +54,7 @@ public class BlendState implements RenderStateComponent {
 
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
-        this.enabled = json.has("enabled") ? json.get("enabled").getAsBoolean() : true;
+        this.enabled = !json.has("enabled") || json.get("enabled").getAsBoolean();
 
         if (json.has("srcFactor")) {
             this.srcFactor = parseBlendFactor(json.get("srcFactor").getAsString());

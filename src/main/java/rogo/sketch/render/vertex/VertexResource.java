@@ -7,6 +7,8 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.BufferResourceObject;
+import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.data.filler.ByteBufferFiller;
 import rogo.sketch.render.data.filler.DataFiller;
 import rogo.sketch.render.data.filler.VertexFiller;
@@ -34,16 +36,12 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
     private final int vao;
     private final DrawMode drawMode;
-    private final int primitiveType;
-    private final int staticUsage;
+    private final PrimitiveType primitiveType;
+    private final Usage staticUsage;
 
-    // Reusable fillers for performance
-    private VertexFiller reusableVertexFiller;
-    private ByteBufferFiller reusableByteBufferFiller;
-    private boolean useReusableFillers;
     private boolean disposed = false;
 
-    public VertexResource(DataFormat staticFormat, DataFormat dynamicFormat, DrawMode drawMode, int primitiveType, int staticUsage) {
+    public VertexResource(DataFormat staticFormat, DataFormat dynamicFormat, DrawMode drawMode, PrimitiveType primitiveType, Usage staticUsage) {
         this.staticFormat = staticFormat;
         this.dynamicFormat = dynamicFormat;
         this.drawMode = drawMode;
@@ -51,15 +49,18 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         this.staticBufferInitialSize = 1024; // Initial capacity for ~1024 vertices
         this.primitiveType = primitiveType;
         this.staticUsage = staticUsage;
-        this.useReusableFillers = true; // Enable by default for better performance
 
         // Create OpenGL objects
         this.vao = GL30.glGenVertexArrays();
         this.staticVBO = GL15.glGenBuffers();
         this.dynamicVBO = dynamicFormat != null ? GL15.glGenBuffers() : 0;
 
-        // Index buffer is enabled by default
-        this.indexBuffer = new IndexBufferResource();
+        // Always create index buffer - it will be used based on primitive type
+        if (primitiveType.requiresIndexBuffer()) {
+            this.indexBuffer = new IndexBufferResource();
+        } else {
+            this.indexBuffer = null;
+        }
 
         // Initialize static buffer if needed
         if (staticFormat != null) {
@@ -126,147 +127,100 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     }
 
     /**
-     * Start filling static vertex data with automatic vertex counting
-     */
-    public VertexFiller beginFill() {
-        if (useReusableFillers) {
-            return beginFillReuse();
-        } else {
-            return beginFillNew();
-        }
-    }
-
-    /**
-     * Start filling using reusable buffers for better performance
-     */
-    public VertexFiller beginFillReuse() {
-        if (staticFormat == null) {
-            throw new IllegalStateException("No static format defined");
-        }
-
-        if (reusableVertexFiller == null) {
-            // Create reusable filler with our static buffer
-            reusableVertexFiller = new VertexFiller(staticFormat, staticBufferInitialSize);
-            reusableVertexFiller.enableIndexBuffer();
-        } else {
-            // Clear existing data for reuse
-            reusableVertexFiller.clear();
-            reusableVertexFiller.enableIndexBuffer();
-        }
-
-        return reusableVertexFiller;
-    }
-
-    /**
-     * Start filling with new buffers (legacy behavior)
-     */
-    public VertexFiller beginFillNew() {
-        if (staticFormat == null) {
-            throw new IllegalStateException("No static format defined");
-        }
-
-        VertexFiller newFiller = new VertexFiller(staticFormat);
-        newFiller.enableIndexBuffer();
-        return newFiller;
-    }
-
-    /**
-     * Start filling using a ByteBuffer approach for direct control
-     */
-    public ByteBufferFiller beginFillDirect() {
-        if (staticFormat == null) {
-            throw new IllegalStateException("No static format defined");
-        }
-
-        ensureStaticCapacity(staticBufferInitialSize);
-
-        if (reusableByteBufferFiller == null) {
-            reusableByteBufferFiller = ByteBufferFiller.wrap(staticFormat, staticBuffer);
-        } else {
-            reusableByteBufferFiller.reset();
-        }
-
-        return reusableByteBufferFiller;
-    }
-
-    /**
      * Ensure static buffer has enough capacity
      */
     private void ensureStaticCapacity(int requiredVertexCount) {
         int requiredBytes = requiredVertexCount * staticFormat.getStride();
-        
+
         if (staticBuffer == null || staticBuffer.capacity() < requiredBytes) {
             // Need to expand buffer
             int newCapacity = Math.max(
-                staticBuffer != null ? staticBuffer.capacity() * 2 : requiredBytes,
-                requiredBytes
+                    staticBuffer != null ? staticBuffer.capacity() * 2 : requiredBytes,
+                    requiredBytes
             );
 
             ByteBuffer newBuffer = MemoryUtil.memAlloc(newCapacity);
-            
+
             if (staticBuffer != null) {
                 MemoryUtil.memFree(staticBuffer);
             }
-            
+
             staticBuffer = newBuffer;
             staticBuffer.clear();
         }
     }
 
     /**
-     * Finish filling and upload data to GPU
+     * Upload vertex data from a VertexFiller to GPU
+     * This is the main method for uploading filled vertex data
      */
-    public void endFill() {
-        endFill(reusableVertexFiller);
-    }
-
-    /**
-     * Finish filling with a specific filler and upload data to GPU
-     */
-    public void endFill(VertexFiller filler) {
+    public void uploadFromVertexFiller(VertexFiller filler) {
         if (filler == null) {
-            throw new IllegalStateException("No active filler provided");
+            throw new IllegalArgumentException("VertexFiller cannot be null");
         }
 
-        VertexFiller.VertexFillerResult result = filler.finish();
+        filler.end();
 
-        // Upload vertex data
-        this.staticVertexCount = result.getVertexCount();
-
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, staticVBO);
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, result.getVertexBuffer(), this.staticUsage);
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
-
-        // Upload index data
-        if (result.hasIndices()) {
-            indexBuffer.upload(result.getIndexType());
+        // Get vertex data
+        ByteBuffer vertexData = filler.getVertexData();
+        if (vertexData != null) {
+            uploadStaticData(vertexData, filler.getVertexCount());
         }
 
-        // Clean up only if not using reusable filler
-        result.dispose();
-        if (filler != reusableVertexFiller) {
-            filler.dispose();
+        // Generate and upload index data if needed
+        if (filler.isUsingIndexBuffer() && indexBuffer != null) {
+            generateAndUploadIndices(filler);
         }
     }
 
     /**
-     * Finish filling with ByteBufferFiller and upload data to GPU
+     * Upload static vertex data directly
      */
-    public void endFillDirect(ByteBufferFiller filler, int vertexCount) {
-        if (filler == null) {
-            throw new IllegalStateException("No filler provided");
+    public void uploadStaticData(ByteBuffer vertexData, int vertexCount) {
+        if (vertexData == null) {
+            return;
         }
 
         this.staticVertexCount = vertexCount;
-        
-        ByteBuffer buffer = filler.prepareForReading();
-        
+
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, staticVBO);
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, buffer, this.staticUsage);
+        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, vertexData, this.staticUsage.getGLConstant());
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
-        
-        // Reset buffer for next use
-        buffer.clear();
+    }
+
+    /**
+     * Generate indices based on primitive type and upload to index buffer
+     * Applies sorting if enabled in the VertexFiller
+     */
+    private void generateAndUploadIndices(VertexFiller filler) {
+        if (!filler.getPrimitiveType().equals(this.primitiveType)) {
+            throw new IllegalStateException("primitiveType does not match");
+        }
+
+        int[] indices = primitiveType.generateIndices(filler.getVertexCount());
+
+        // Clear existing indices
+        indexBuffer.clear();
+
+        // Add indices in natural order
+        for (int index : indices) {
+            indexBuffer.addIndex(index);
+        }
+
+        // Apply sorting if enabled (IndexBufferResource handles the sorting)
+        if (filler.isSortingEnabled() && filler.getSorting() != null && this.primitiveType.supportsSorting()) {
+            ByteBuffer vertexData = filler.getVertexData();
+            indexBuffer.applySorting(
+                    vertexData,
+                    filler.getFormat(),
+                    primitiveType,
+                    filler.getVertexCount(),
+                    filler.getSorting()
+            );
+        }
+
+        // Actually upload to GPU
+        indexBuffer.upload();
     }
 
     /**
@@ -430,22 +384,8 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         return dynamicFormat != null && dynamicFormat.isCompatibleWith(otherFormat);
     }
 
-    public int getPrimitiveType() {
+    public PrimitiveType getPrimitiveType() {
         return primitiveType;
-    }
-
-    /**
-     * Enable or disable buffer reuse optimization
-     */
-    public void setBufferReuseEnabled(boolean enabled) {
-        this.useReusableFillers = enabled;
-    }
-
-    /**
-     * Check if buffer reuse is enabled
-     */
-    public boolean isBufferReuseEnabled() {
-        return useReusableFillers;
     }
 
     /**
@@ -516,21 +456,21 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     /**
      * Create a never changed static vertex resource
      */
-    public static VertexResource createStatic(DataFormat format, int primitiveType) {
-        return new VertexResource(format, null, DrawMode.NORMAL, primitiveType, GL15.GL_STATIC_DRAW);
+    public static VertexResource createStatic(DataFormat format, PrimitiveType primitiveType) {
+        return new VertexResource(format, null, DrawMode.NORMAL, primitiveType, Usage.STATIC_DRAW);
     }
 
     /**
      * Create an often changed dynamic vertex resource
      */
-    public static VertexResource createDynamic(DataFormat format, int primitiveType) {
-        return new VertexResource(format, null, DrawMode.NORMAL, primitiveType, GL15.GL_DYNAMIC_DRAW);
+    public static VertexResource createDynamic(DataFormat format, PrimitiveType primitiveType) {
+        return new VertexResource(format, null, DrawMode.NORMAL, primitiveType, Usage.DYNAMIC_DRAW);
     }
 
     /**
      * Create a vertex resource with both static and dynamic attributes for instanced rendering
      */
-    public static VertexResource createInstanced(DataFormat staticFormat, DataFormat dynamicFormat, int primitiveType) {
-        return new VertexResource(staticFormat, dynamicFormat, DrawMode.INSTANCED, primitiveType, GL15.GL_STATIC_DRAW);
+    public static VertexResource createInstanced(DataFormat staticFormat, DataFormat dynamicFormat, PrimitiveType primitiveType) {
+        return new VertexResource(staticFormat, dynamicFormat, DrawMode.INSTANCED, primitiveType, Usage.STATIC_DRAW);
     }
 }

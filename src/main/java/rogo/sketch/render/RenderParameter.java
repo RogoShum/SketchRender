@@ -1,14 +1,46 @@
 package rogo.sketch.render;
 
+import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.data.format.DataFormat;
 
 public record RenderParameter(
-        DataFormat dataFormat,          // Vertex data format
-        int primitiveType,              // OpenGL primitive type (GL_TRIANGLES, etc.)
-        int usage,                      // Buffer usage hint (GL_STATIC_DRAW, etc.)
-        boolean enableIndexBuffer,      // Whether to enable index buffer
-        boolean enableSorting          // Whether to enable vertex sorting
+        DataFormat dataFormat,
+        PrimitiveType primitiveType,
+        Usage usage,
+        boolean enableSorting
 ) {
 
-    public static final RenderParameter EMPTY = new RenderParameter(DataFormat.builder("EMPTY").build(), -1, -1, false, false);
+    public static final RenderParameter EMPTY = new RenderParameter(
+            DataFormat.builder("EMPTY").build(),
+            PrimitiveType.QUADS,
+            Usage.STATIC_DRAW,
+            false
+    );
+
+    public boolean isInvalid() {
+        return this == RenderParameter.EMPTY;
+    }
+
+    /**
+     * Create a RenderParameter with default usage (STATIC_DRAW)
+     */
+    public static RenderParameter create(DataFormat dataFormat, PrimitiveType primitiveType) {
+        return new RenderParameter(dataFormat, primitiveType, Usage.STATIC_DRAW, false);
+    }
+
+    /**
+     * Create a RenderParameter with specified usage
+     */
+    public static RenderParameter create(DataFormat dataFormat, PrimitiveType primitiveType, Usage usage) {
+        return new RenderParameter(dataFormat, primitiveType, usage, false);
+    }
+
+    /**
+     * Create a RenderParameter with all options specified
+     */
+    public static RenderParameter create(DataFormat dataFormat, PrimitiveType primitiveType,
+                                         Usage usage, boolean enableSorting) {
+        return new RenderParameter(dataFormat, primitiveType, usage, enableSorting);
+    }
 }

@@ -171,4 +171,10 @@ public class MemoryFiller extends DataFiller {
         long capacity = (long) format.getStride() * vertexCount;
         return new MemoryFiller(format, memoryAddress, capacity);
     }
+    
+    @Override
+    public void end() {
+        // For MemoryFiller, no special finalization needed
+        // Data is already written to memory
+    }
 }
