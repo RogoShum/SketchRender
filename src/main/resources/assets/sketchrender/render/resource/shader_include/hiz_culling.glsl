@@ -31,8 +31,8 @@ struct ClipResult {
 // utility functions used in culling shaders
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < sketch_depthSize.length(); ++i) {
-        float xStep = 2.0 / sketch_depthSize[i].x;
-        float yStep = 2.0 / sketch_depthSize[i].y;
+        float xStep = 4.0 / sketch_depthSize[i].x;
+        float yStep = 4.0 / sketch_depthSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }

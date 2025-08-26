@@ -179,6 +179,11 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         long passOffset = LAYER_MESH_STRIDE * passIndex;
 
         List<RenderRegion> regions = orderedRegions;
+        if (!regions.isEmpty()) {
+            IndirectCommandBuffer.INSTANCE.bind();
+            MeshResource.cullingCounter.bind();
+        }
+
         for (int i = 0; i < regions.size(); ++i) {
             int index = pass.isReverseOrder() ? (regions.size() - 1 - i) : i;
             RenderRegion region = regions.get(index);
@@ -188,9 +193,6 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             }
 
             int meshCount = regionMeshDataStorage.getTotalFacingCount();
-
-            IndirectCommandBuffer.INSTANCE.bind();
-            MeshResource.cullingCounter.bind();
             GlTessellation tessellation = renderer.sodiumTessellation(commandList, region);
             renderer.sodiumModelMatrixUniforms(shader, region, camera);
             DrawCommandList drawCommandList = commandList.beginTessellating(tessellation);

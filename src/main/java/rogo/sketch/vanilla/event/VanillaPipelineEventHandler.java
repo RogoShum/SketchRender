@@ -366,13 +366,13 @@ public class VanillaPipelineEventHandler {
             Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                     .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
 
-            if (renderSetting.isPresent()) {
-                PartialRenderSetting partialRenderSetting = renderSetting.get();
-                RenderParameter renderParameter = new RenderParameter(DefaultDataFormats.POSITION, GL_QUADS, GL_DYNAMIC_DRAW, false, false);
-                RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
-                CullingTestGraphics cullingTestGraphics = new CullingTestGraphics(Identifier.of(SketchRender.MOD_ID, "culling_test"));
-                registerEvent.register(MinecraftRenderStages.LEVEL_END.getIdentifier(), cullingTestGraphics, setting);
-            }
+//            if (renderSetting.isPresent()) {
+//                PartialRenderSetting partialRenderSetting = renderSetting.get();
+//                RenderParameter renderParameter = new RenderParameter(DefaultDataFormats.POSITION, GL_QUADS, GL_DYNAMIC_DRAW, false, false);
+//                RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
+//                CullingTestGraphics cullingTestGraphics = new CullingTestGraphics(Identifier.of(SketchRender.MOD_ID, "culling_test"));
+//                registerEvent.register(MinecraftRenderStages.LEVEL_END.getIdentifier(), cullingTestGraphics, setting);
+//            }
         }
     }
 
