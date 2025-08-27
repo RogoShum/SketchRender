@@ -17,7 +17,7 @@ public class Config {
     private static ForgeConfigSpec.BooleanValue COMPUTE_SHADER;
     private static ForgeConfigSpec.BooleanValue ASYNC;
     private static ForgeConfigSpec.BooleanValue AUTO_DISABLE_ASYNC;
-    private static ForgeConfigSpec.IntValue UPDATE_DELAY;
+    private static ForgeConfigSpec.DoubleValue UPDATE_DELAY;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> ENTITY_SKIP;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_ENTITY_SKIP;
 
@@ -122,18 +122,15 @@ public class Config {
         AUTO_DISABLE_ASYNC.save();
     }
 
-    public static int getShaderDynamicDelay() {
-        return CullingStateManager.enabledShader() ? 1 : 0;
-    }
-
-    public static int getDepthUpdateDelay() {
+    public static double getDepthUpdateDelay() {
         if (unload())
             return 1;
-        return UPDATE_DELAY.get() <= 9 ? UPDATE_DELAY.get() + getShaderDynamicDelay() : UPDATE_DELAY.get();
+
+        return Math.max(UPDATE_DELAY.get(), 1.0f);
     }
 
-    public static void setDepthUpdateDelay(int value) {
-        UPDATE_DELAY.set(value);
+    public static void setDepthUpdateDelay(double value) {
+        UPDATE_DELAY.set(Math.max(1.0f, value));
         UPDATE_DELAY.save();
     }
 
@@ -163,7 +160,7 @@ public class Config {
         ForgeConfigSpec.Builder CLIENT_BUILDER = new ForgeConfigSpec.Builder();
 
         CLIENT_BUILDER.push("Culling Map update delay");
-        UPDATE_DELAY = CLIENT_BUILDER.defineInRange("delay frame", 1, 0, 10);
+        UPDATE_DELAY = CLIENT_BUILDER.defineInRange("delay frame", 4d, 0d, 10d);
         CLIENT_BUILDER.pop();
 
         CLIENT_BUILDER.push("Cull entity");

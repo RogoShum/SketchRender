@@ -1,6 +1,5 @@
 package rogo.sketch.render.resource.buffer;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import io.netty.channel.unix.Buffer;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
@@ -42,7 +41,7 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
             throw new RuntimeException("Failed to create a new buffer");
         }
 
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL45.nglBufferStorage(GL43.GL_SHADER_STORAGE_BUFFER, capacity, bufferPointer,
                 GL45.GL_MAP_PERSISTENT_BIT | GL45.GL_MAP_READ_BIT);
 
@@ -56,7 +55,7 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
         MemoryUtil.nmemFree(bufferPointer);
         this.bufferPointer = Buffer.memoryAddress(mappedBuffer);
 
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public int getHandle() {
@@ -89,9 +88,9 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
             return;
         }
 
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL45.glUnmapBuffer(GL43.GL_SHADER_STORAGE_BUFFER);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
         GL15.glDeleteBuffers(id);
 
         long newCapacity = requiredCount * stride;
@@ -104,7 +103,7 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
             throw new RuntimeException("Failed to create a new buffer");
         }
 
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL45.nglBufferStorage(GL43.GL_SHADER_STORAGE_BUFFER, newCapacity, newBufferPointer,
                 GL45.GL_MAP_PERSISTENT_BIT | GL45.GL_MAP_READ_BIT);
 
@@ -117,7 +116,7 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
 
         MemoryUtil.nmemFree(newBufferPointer);
         this.bufferPointer = Buffer.memoryAddress(mappedBuffer);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public void ensureCapacity(int requiredCount) {
@@ -128,9 +127,9 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
         if (disposed) return;
 
         if (mappedBuffer != null) {
-            GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+            GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
             GL45.glUnmapBuffer(GL43.GL_SHADER_STORAGE_BUFFER);
-            GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+            GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
             mappedBuffer = null;
         }
 

@@ -17,10 +17,10 @@ uniform int sketch_renderDistance;
 #define TILE_EDGE_X TILE_SIZE_X * 2
 #define TILE_EDGE_Y TILE_SIZE_Y * 2
 
-layout(local_size_x = 16, local_size_y = 16) in;
+layout(local_size_x = TILE_SIZE_X, local_size_y = TILE_SIZE_Y) in;
 
-shared float depthCache[TILE_SIZE_Y * 2][TILE_SIZE_X * 2];
-shared float depthCache_[TILE_SIZE_Y * 2][TILE_SIZE_X * 2];
+shared float depthCache[TILE_SIZE_X * 2][TILE_SIZE_Y * 2];
+shared float depthCache_[TILE_SIZE_X][TILE_SIZE_Y];
 
 float near = 0.05;
 float far  = 16.0;
@@ -33,12 +33,13 @@ float LinearizeDepth(float depth) {
 void main() {
     ivec2 groupStart = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);
     ivec2 localID = ivec2(gl_LocalInvocationID.xy);
+    ivec2 minScreenCoords = sketch_screenSize - ivec2(1);
     far = sketch_renderDistance * 64.0;
 
     for (int dy = 0; dy < 2; ++dy) {
         for (int dx = 0; dx < 2; ++dx) {
             ivec2 cachePos = localID * 2 + ivec2(dx, dy);
-            ivec2 texPos = min(groupStart * 2 + cachePos, sketch_screenSize);
+            ivec2 texPos = min(groupStart * 2 + cachePos, minScreenCoords);
             float depth = sketch_linerDepth > 0 ? LinearizeDepth(texelFetch(sketch_SamplerTexture, texPos, 0).r) : texelFetch(sketch_SamplerTexture, texPos, 0).r;
             depthCache[cachePos.y][cachePos.x] = depth;
         }
@@ -48,8 +49,8 @@ void main() {
     int mipWidth = TILE_SIZE_X * 2;
     int mipHeight = TILE_SIZE_Y * 2;
     for (int level = 0; level < 4; ++level) {
-        int nextWidth = (mipWidth + 1) / 2;
-        int nextHeight = (mipHeight + 1) / 2;
+        int nextWidth = mipWidth / 2;
+        int nextHeight = mipHeight / 2;
 
         if (level % 2 == 0) {
             if (localID.x < nextWidth && localID.y < nextHeight) {
@@ -78,7 +79,7 @@ void main() {
         }
         barrier();
 
-        ivec2 mipGroupStart = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);
+        ivec2 mipGroupStart = groupStart;
         mipGroupStart >>= level;
 
         ivec2 outPos = mipGroupStart + localID;
@@ -100,7 +101,6 @@ void main() {
                 case 3: imageStore(output_texture_3, outPos, vec4(depthCache[localID.y][localID.x])); break;
             }
         }
-        barrier();
 
         mipWidth = nextWidth;
         mipHeight = nextHeight;

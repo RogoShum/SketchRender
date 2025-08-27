@@ -282,6 +282,10 @@ public class VanillaPipelineEventHandler {
                 return hizGraphics.first() ? 1 : 0;
             }, Integer.class, ComputeHIZGraphics.class));
 
+            uniformEvent.register(Identifier.of("sketch_cullingFineness"), ValueGetter.create(() -> {
+                return (float)Config.getDepthUpdateDelay();
+            }, Float.class));
+
             uniformEvent.register(Identifier.of("sketch_screenSize"), ValueGetter.create((instance) -> {
                 ComputeHIZGraphics hizGraphics = (ComputeHIZGraphics) instance;
                 RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();

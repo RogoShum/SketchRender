@@ -1,6 +1,5 @@
 package rogo.sketch.render.resource;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.core.Vec3i;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
@@ -30,9 +29,9 @@ public class UniformBlock implements DataResourceObject, BindingResource {
 
     private int createUBO() {
         int id = GL15.glGenBuffers();
-        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, id);
+        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, id);
         GL15.glBufferData(GL31.GL_UNIFORM_BUFFER, stride, GL15.GL_DYNAMIC_DRAW);
-        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
+        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
         return id;
     }
 
@@ -65,9 +64,9 @@ public class UniformBlock implements DataResourceObject, BindingResource {
     }
 
     public void updateData(FloatBuffer buffer) {
-        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, handle);
+        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, handle);
         GL15.glBufferData(GL31.GL_UNIFORM_BUFFER, buffer, GL15.GL_DYNAMIC_DRAW);
-        GlStateManager._glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
+        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
     }
 
     @Override

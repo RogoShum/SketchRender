@@ -1,7 +1,5 @@
 package rogo.sketch;
 
-import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
@@ -125,13 +123,6 @@ public class SketchRender {
         event.register(CONFIG_KEY);
         event.register(DEBUG_KEY);
         event.register(TEST_CULL_KEY);
-    }
-
-    public static RenderTarget CULL_TEST_TARGET;
-
-    static {
-        CULL_TEST_TARGET = new TextureTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), false, Minecraft.ON_OSX);
-        CULL_TEST_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
     }
 
     @SubscribeEvent

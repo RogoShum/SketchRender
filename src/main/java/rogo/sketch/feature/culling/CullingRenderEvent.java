@@ -3,30 +3,18 @@ package rogo.sketch.feature.culling;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
-import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.ShaderInstance;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import org.joml.Vector3f;
-import org.joml.Vector4f;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
-import rogo.sketch.event.ProgramEvent;
-import rogo.sketch.mixin.AccessorFrustum;
 import rogo.sketch.render.shader.ShaderManager;
-import rogo.sketch.render.shader.uniform.UnsafeUniformMap;
-import rogo.sketch.vanilla.CullingShader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,34 +23,7 @@ import static rogo.sketch.gui.ConfigScreen.u;
 import static rogo.sketch.gui.ConfigScreen.v;
 
 public class CullingRenderEvent {
-    float partialTick;
     int textWidth;
-
-    protected static void updateEntityCullingMap() {
-        if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
-            return;
-
-        if (SketchRender.CULL_TEST_TARGET.width != Minecraft.getInstance().getWindow().getWidth() || SketchRender.CULL_TEST_TARGET.height != Minecraft.getInstance().getWindow().getHeight()) {
-            SketchRender.CULL_TEST_TARGET.resize(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), Minecraft.ON_OSX);
-        }
-
-        if (CullingStateManager.DEBUG > 0) {
-            Tesselator tessellator = Tesselator.getInstance();
-            BufferBuilder bufferbuilder = tessellator.getBuilder();
-            CullingStateManager.useShader(ShaderManager.CULL_TEST_SHADER);
-            SketchRender.CULL_TEST_TARGET.clear(Minecraft.ON_OSX);
-            SketchRender.CULL_TEST_TARGET.bindWrite(false);
-            bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
-            bufferbuilder.vertex(-1.0f, -1.0f, 0.0f).endVertex();
-            bufferbuilder.vertex(1.0f, -1.0f, 0.0f).endVertex();
-            bufferbuilder.vertex(1.0f, 1.0f, 0.0f).endVertex();
-            bufferbuilder.vertex(-1.0f, 1.0f, 0.0f).endVertex();
-            CullingStateManager.callDepthTexture();
-            tessellator.end();
-        }
-
-        CullingStateManager.bindMainFrameTarget();
-    }
 
     public void addString(List<String> list, String text) {
         list.add(text);
@@ -78,286 +39,17 @@ public class CullingRenderEvent {
         }
     }
 
-    public static void setUniform(ShaderInstance shader) {
-        if (!(shader instanceof CullingShader)) {
-            return;
-        }
-        CullingShader shaderInstance = (CullingShader) shader;
-        if (shaderInstance.getCullingCameraPos() != null) {
-            Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-            float[] array = new float[]{(float) pos.x, (float) pos.y, (float) pos.z};
-            shaderInstance.getCullingCameraPos().set(array);
-        }
-        if (shaderInstance.getCullingCameraDir() != null) {
-            Vector3f pos = Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
-            float[] array = new float[]{pos.x, pos.y, pos.z};
-            shaderInstance.getCullingCameraDir().set(array);
-        }
-        if (shaderInstance.getBoxScale() != null) {
-            shaderInstance.getBoxScale().set(4.0f);
-        }
-        if (shaderInstance.getTestPos() != null) {
-            float[] array = new float[]{0, 0, 0, 0};
-            if (SketchRender.testPos != null) {
-                array = new float[]{SketchRender.testPos.getX(), SketchRender.testPos.getY(), SketchRender.testPos.getZ(), 1};
-            }
-
-            shaderInstance.getTestPos().set(array);
-        }
-        if (shaderInstance.getTestEntityPos() != null) {
-            float[] array;
-            if (SketchRender.testBlockEntity != null) {
-                array = new float[]{(float) SketchRender.testBlockEntity.getBlockPos().getX() + 0.5f, (float) SketchRender.testBlockEntity.getBlockPos().getY(), (float) SketchRender.testBlockEntity.getBlockPos().getZ() + 0.5f, 1};
-            } else if (SketchRender.testEntity != null) {
-                array = new float[]{(float) SketchRender.testEntity.position().x, (float) SketchRender.testEntity.position().y, (float) SketchRender.testEntity.position().z, 1};
-            } else {
-                array = new float[]{0, 0, 0, 0};
-            }
-
-            shaderInstance.getTestEntityPos().set(array);
-        }
-        if (shaderInstance.getTestEntityAABB() != null) {
-            float[] array = new float[]{0, 0, 0};
-            if (SketchRender.testBlockEntity != null) {
-                array = new float[]{(float) SketchRender.testBlockEntity.getRenderBoundingBox().getXsize()
-                        , (float) SketchRender.testBlockEntity.getRenderBoundingBox().getYsize()
-                        , (float) SketchRender.testBlockEntity.getRenderBoundingBox().getZsize()};
-            } else if (SketchRender.testEntity != null) {
-                array = new float[]{(float) SketchRender.testEntity.getBoundingBoxForCulling().getXsize()
-                        , (float) SketchRender.testEntity.getBoundingBoxForCulling().getYsize()
-                        , (float) SketchRender.testEntity.getBoundingBoxForCulling().getZsize()};
-            }
-
-            shaderInstance.getTestEntityAABB().set(array);
-        }
-        if (shaderInstance.getFrustumPos() != null && CullingStateManager.FRUSTUM != null) {
-            Vec3 pos = new Vec3(
-                    ((AccessorFrustum) CullingStateManager.FRUSTUM).camX(),
-                    ((AccessorFrustum) CullingStateManager.FRUSTUM).camY(),
-                    ((AccessorFrustum) CullingStateManager.FRUSTUM).camZ());
-
-            float[] array = new float[]{(float) pos.x, (float) pos.y, (float) pos.z};
-            shaderInstance.getFrustumPos().set(array);
-        }
-        if (shaderInstance.getCullingViewMat() != null) {
-            shaderInstance.getCullingViewMat().set(CullingStateManager.VIEW_MATRIX);
-        }
-        if (shaderInstance.getCullingProjMat() != null) {
-            shaderInstance.getCullingProjMat().set(CullingStateManager.PROJECTION_MATRIX);
-        }
-        if (shaderInstance.getCullingFrustum() != null) {
-            Vector4f[] frustumData = SketchRender.getFrustumPlanes(((AccessorFrustum) CullingStateManager.FRUSTUM).frustumIntersection());
-            List<Float> data = new ArrayList<>();
-            for (Vector4f frustumDatum : frustumData) {
-                data.add(frustumDatum.x());
-                data.add(frustumDatum.y());
-                data.add(frustumDatum.z());
-                data.add(frustumDatum.w());
-            }
-            float[] array = new float[data.size()];
-            for (int i = 0; i < data.size(); i++) {
-                array[i] = data.get(i);
-            }
-            shaderInstance.getCullingFrustum().set(array);
-        }
-        if (shaderInstance.getRenderDistance() != null) {
-            float distance = Minecraft.getInstance().options.getEffectiveRenderDistance();
-            shaderInstance.getRenderDistance().set(distance);
-        }
-
-        if (shaderInstance.getDepthSize() != null) {
-            float[] array = new float[CullingStateManager.DEPTH_SIZE * 2];
-            for (int i = 0; i < CullingStateManager.DEPTH_SIZE; ++i) {
-                int arrayIdx = i * 2;
-                array[arrayIdx] = (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].width;
-                array[arrayIdx + 1] = (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].height;
-            }
-            shaderInstance.getDepthSize().set(array);
-        }
-
-        if (shaderInstance.getLevelHeightOffset() != null) {
-            shaderInstance.getLevelHeightOffset().set(CullingStateManager.LEVEL_SECTION_RANGE);
-        }
-
-        if (shaderInstance.getLevelMinSection() != null && Minecraft.getInstance().level != null) {
-            int min = Minecraft.getInstance().level.getMinSection();
-            shaderInstance.getLevelMinSection().set(min);
-        }
-    }
-
-    public static final ResourceLocation culling_terrain = new ResourceLocation(SketchRender.MOD_ID, "terrain");
-    public static final ResourceLocation collect_chunk = new ResourceLocation(SketchRender.MOD_ID, "collect_chunk");
-    public static final ResourceLocation copy_depth = new ResourceLocation(SketchRender.MOD_ID, "copy_depth");
-    public static final ResourceLocation culling_chunk = new ResourceLocation(SketchRender.MOD_ID, "culling_chunk");
-
     @SubscribeEvent
-    public void onBind(ProgramEvent.Init event) {
-        GlStateManager._glUseProgram(event.getProgramId());
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_render_distance", () -> {
-            event.getExtraUniform().getUniforms().createUniforms(culling_terrain
-                    , new String[]{
-                            "sketch_culling_texture",
-                            "sketch_level_min_pos",
-                            "sketch_level_pos_range",
-                            "sketch_level_section_range",
-                            "sketch_render_distance",
-                            "sketch_space_partition_size",
-                            "sketch_culling_size",
-                            "sketch_camera_offset",
-                            "sketch_check_culling",
-                            "sketch_camera_pos",
-                            "sketch_entity_count"
-                    });
-        });
-
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_cull_facing", () -> {
-            event.getExtraUniform().getUniforms().createUniforms(collect_chunk
-                    , new String[]{
-                            "sketch_cull_facing",
-                            "sketch_translucent_sort"
-                    });
-        });
-
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_screen_size", () -> {
-            event.getExtraUniform().getUniforms().createUniforms(copy_depth
-                    , new String[]{
-                            "sketch_depth_size",
-                            "sketch_liner_depth",
-                            "sketch_sampler_texture_0",
-                            "sketch_sampler_texture_1",
-                            "sketch_sampler_texture_2",
-                            "sketch_sampler_texture_3",
-                            "sketch_sampler_texture_4",
-                            "sketch_sampler_texture_5",
-                            "sketch_screen_size",
-                            "sketch_render_distance",
-                            "sketch_depth_level"
-                    });
-        });
-
-        event.getExtraUniform().getUniforms().tryInsertUniform("sketch_culling_view_mat", () -> {
-            event.getExtraUniform().getUniforms().createUniforms(culling_chunk
-                    , new String[]{
-                            "sketch_culling_view_mat",
-                            "sketch_culling_proj_mat",
-                            "sketch_culling_camera_pos",
-                            "sketch_culling_camera_dir",
-                            "sketch_frustum_pos",
-                            "sketch_culling_frustum",
-                            "sketch_depth_size",
-
-                            "Sampler0",
-                            "Sampler1",
-                            "Sampler2",
-                            "Sampler3",
-                            "Sampler4",
-                            "Sampler5",
-                            "Sampler6",
-                            "Sampler7"
-                    });
-        });
-        GlStateManager._glUseProgram(0);
-    }
-
-    @SubscribeEvent
-    public void onBind(ProgramEvent.Bind event) {
-        UnsafeUniformMap uniformMap = event.getExtraUniform().getUniforms();
-        if (uniformMap.containsOperate(collect_chunk)) {
-            boolean useBlockFaceCulling = SodiumClientMod.options().performance.useBlockFaceCulling;
-            boolean useTranslucentFaceSorting = SodiumClientMod.canApplyTranslucencySorting();
-
-            uniformMap.setUniform("sketch_cull_facing", useBlockFaceCulling ? 1 : 0);
-            uniformMap.setUniform("sketch_translucent_sort", useTranslucentFaceSorting ? 1 : 0);
-        }
-
-        if (uniformMap.containsOperate(culling_terrain)) {
-            if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                uniformMap.setUniform("sketch_entity_count", CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size());
-            }
-
-            if (!Config.getCullChunk() || CullingStateManager.SHADER_LOADER.renderingShadowPass()) {
-                uniformMap.setUniform("sketch_culling_terrain", 0);
-            } else {
-                uniformMap.setUniform("sketch_culling_terrain", 1);
-            }
-
-            uniformMap.setUniform("sketch_check_culling", CullingStateManager.checkCulling ? 1 : 0);
-            uniformMap.setUniform("sketch_level_min_pos", CullingStateManager.LEVEL_MIN_POS);
-            uniformMap.setUniform("sketch_level_pos_range", CullingStateManager.LEVEL_POS_RANGE);
-            uniformMap.setUniform("sketch_level_section_range", CullingStateManager.LEVEL_SECTION_RANGE);
-            Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-            BlockPos cameraPos = new BlockPos((int) pos.x >> 4, CullingStateManager.LEVEL_MIN_POS >> 4, (int) pos.z >> 4);
-            uniformMap.setUniform("sketch_camera_offset", cameraPos);
-            cameraPos = new BlockPos((int) pos.x, (int) pos.y, (int) pos.z);
-            uniformMap.setUniform("sketch_camera_pos", cameraPos);
-            uniformMap.setUniform("sketch_render_distance", MeshResource.getRenderDistance());
-            uniformMap.setUniform("sketch_space_partition_size", MeshResource.getSpacePartitionSize());
-        }
-
-        if (uniformMap.containsOperate(culling_chunk)) {
-            uniformMap.setUniform("sketch_culling_view_mat", CullingStateManager.VIEW_MATRIX);
-            uniformMap.setUniform("sketch_culling_proj_mat", CullingStateManager.PROJECTION_MATRIX);
-            Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-            Vector3f dir = Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
-            uniformMap.setUniform("sketch_culling_camera_pos", pos);
-            uniformMap.setUniform("sketch_culling_camera_dir", dir);
-            pos = new Vec3(
-                    ((AccessorFrustum) CullingStateManager.FRUSTUM).camX(),
-                    ((AccessorFrustum) CullingStateManager.FRUSTUM).camY(),
-                    ((AccessorFrustum) CullingStateManager.FRUSTUM).camZ());
-
-            uniformMap.setUniform("sketch_frustum_pos", pos);
-            Vector4f[] frustumData = SketchRender.getFrustumPlanes(((AccessorFrustum) CullingStateManager.FRUSTUM).frustumIntersection());
-            List<Float> data = new ArrayList<>();
-            for (Vector4f frustumDatum : frustumData) {
-                data.add(frustumDatum.x());
-                data.add(frustumDatum.y());
-                data.add(frustumDatum.z());
-                data.add(frustumDatum.w());
-            }
-            float[] array = new float[data.size()];
-            for (int i = 0; i < data.size(); i++) {
-                array[i] = data.get(i);
-            }
-            uniformMap.setUniform("sketch_culling_frustum", array);
-
-            array = new float[CullingStateManager.DEPTH_SIZE * 2];
-            for (int i = 0; i < CullingStateManager.DEPTH_SIZE; ++i) {
-                int arrayIdx = i * 2;
-                array[arrayIdx] = (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].width;
-                array[arrayIdx + 1] = (float) CullingStateManager.DEPTH_BUFFER_TARGET[i].height;
-            }
-            uniformMap.setUniform("sketch_depth_size", array);
-
-            uniformMap.setUniform("Sampler0", 0);
-            uniformMap.setUniform("Sampler1", 1);
-            uniformMap.setUniform("Sampler2", 2);
-            uniformMap.setUniform("Sampler3", 3);
-            uniformMap.setUniform("Sampler4", 4);
-            uniformMap.setUniform("Sampler5", 5);
-            uniformMap.setUniform("Sampler6", 6);
-            uniformMap.setUniform("Sampler7", 7);
-        }
-    }
-
-    @SubscribeEvent
-    public void onLevelStage(RenderLevelStageEvent event) {
-
-    }
-
-    @SubscribeEvent
-    public void onOverlayRender(RenderGuiOverlayEvent event) {
+    public void onOverlayRender(RenderGuiOverlayEvent.Post event) {
         if (Minecraft.getInstance().player == null) {
             return;
         }
 
-        if (event.getOverlay().id().equals(VanillaGuiOverlay.HELMET.id()) && partialTick != event.getPartialTick()) {
-            partialTick = event.getPartialTick();
-        } else {
+        if (!event.getOverlay().id().equals(VanillaGuiOverlay.HELMET.id())) {
             return;
         }
 
-        if (CullingStateManager.DEBUG > 0 && event.getOverlay().id().equals(VanillaGuiOverlay.HELMET.id())) {
+        if (CullingStateManager.DEBUG > 0) {
             GuiGraphics guiGraphics = event.getGuiGraphics();
             Minecraft minecraft = Minecraft.getInstance();
             int width = minecraft.getWindow().getGuiScaledWidth() / 2;
@@ -462,26 +154,8 @@ public class CullingRenderEvent {
             RenderSystem.defaultBlendFunc();
             RenderSystem.disableBlend();
             renderText(guiGraphics, monitorTexts, width, top);
-
+            RenderSystem.enableDepthTest();
             Tesselator tessellator = Tesselator.getInstance();
-
-
-            RenderSystem.enableBlend();
-            RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-            RenderSystem.defaultBlendFunc();
-            RenderSystem.depthMask(false);
-
-            if (true) {
-                height = (int) (minecraft.getWindow().getGuiScaledHeight());
-                width = (int) (minecraft.getWindow().getGuiScaledWidth());
-                bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
-                bufferbuilder.vertex(0.0, height, 0.0D).uv(0.0F, 0.0F).color(255, 255, 255, 90).endVertex();
-                bufferbuilder.vertex(width, height, 0.0D).uv(1, 0.0F).color(255, 255, 255, 90).endVertex();
-                bufferbuilder.vertex(width, 0, 0.0D).uv(1, 1).color(255, 255, 255, 90).endVertex();
-                bufferbuilder.vertex(0, 0, 0.0D).uv(0.0F, 1).color(255, 255, 255, 90).endVertex();
-                RenderSystem.setShaderTexture(0, SketchRender.CULL_TEST_TARGET.getColorTextureId());
-                tessellator.end();
-            }
 
             if (!CullingStateManager.checkTexture)
                 return;

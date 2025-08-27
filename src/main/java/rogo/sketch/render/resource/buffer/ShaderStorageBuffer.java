@@ -1,6 +1,5 @@
 package rogo.sketch.render.resource.buffer;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
@@ -34,9 +33,9 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource 
         if (id < 0) {
             throw new RuntimeException("Failed to create a new buffer");
         }
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, this.capacity, bufferPointer, usage);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public ShaderStorageBuffer(DataResourceObject buffer) {
@@ -44,9 +43,9 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource 
         this.bufferPointer = buffer.getMemoryAddress();
         this.id = buffer.getHandle();
         this.stride = buffer.getStride();
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public int getHandle() {
@@ -74,32 +73,32 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource 
 
     public void upload() {
         checkDisposed();
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, 0, position, bufferPointer);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public void upload(long index) {
         checkDisposed();
         long indexOffset = index * getStride();
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, indexOffset, getStride(), bufferPointer + indexOffset);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public void upload(long index, int stride) {
         checkDisposed();
         long indexOffset = index * stride;
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, indexOffset, stride, bufferPointer + indexOffset);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public void resetUpload(int usage) {
         checkDisposed();
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
         GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, capacity, bufferPointer, usage);
-        GlStateManager._glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public void ensureCapacity(int requiredCount, boolean copy, boolean force) {

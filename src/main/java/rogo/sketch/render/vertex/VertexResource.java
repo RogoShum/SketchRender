@@ -1,6 +1,5 @@
 package rogo.sketch.render.vertex;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
@@ -83,27 +82,31 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     private void initializeDynamicBuffer() {
         dynamicBuffer = MemoryUtil.memAlloc(dynamicBufferInitialSize);
 
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, dynamicBuffer.capacity(), GL15.GL_DYNAMIC_DRAW);
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 
     private void setupVertexArray() {
         GL30.glBindVertexArray(vao);
 
+        if (indexBuffer != null) {
+            indexBuffer.bind();
+        }
+
         // Setup static attributes
         if (staticFormat != null) {
-            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, staticVBO);
+            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, staticVBO);
             setupAttributes(staticFormat, false);
         }
 
         // Setup dynamic (instance) attributes
         if (dynamicFormat != null) {
-            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
+            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
             setupAttributes(dynamicFormat, true);
         }
 
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
         GL30.glBindVertexArray(0);
     }
 
@@ -169,7 +172,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
         // Generate and upload index data if needed
         if (filler.isUsingIndexBuffer() && indexBuffer != null) {
-            generateAndUploadIndices(filler);
+            generateIndices(filler);
         }
     }
 
@@ -183,16 +186,16 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
         this.staticVertexCount = vertexCount;
 
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, staticVBO);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, staticVBO);
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, vertexData, this.staticUsage.getGLConstant());
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 
     /**
      * Generate indices based on primitive type and upload to index buffer
      * Applies sorting if enabled in the VertexFiller
      */
-    private void generateAndUploadIndices(VertexFiller filler) {
+    private void generateIndices(VertexFiller filler) {
         if (!filler.getPrimitiveType().equals(this.primitiveType)) {
             throw new IllegalStateException("primitiveType does not match");
         }
@@ -218,9 +221,6 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
                     filler.getSorting()
             );
         }
-
-        // Actually upload to GPU
-        indexBuffer.upload();
     }
 
     /**
@@ -266,9 +266,9 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
             dynamicBuffer = newBuffer;
 
             // Update GPU buffer
-            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
+            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
             GL15.glBufferData(GL15.GL_ARRAY_BUFFER, newBuffer.capacity(), GL15.GL_DYNAMIC_DRAW);
-            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
         }
     }
 
@@ -279,9 +279,9 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         instanceCount = dynamicBuffer.position() / dynamicFormat.getStride();
 
         dynamicBuffer.flip();
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
         GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, 0, dynamicBuffer);
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
 
         dynamicBuffer.clear();
     }
@@ -302,11 +302,6 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     @Override
     public void bind() {
         GL30.glBindVertexArray(vao);
-
-        // Bind index buffer if it has data
-        if (indexBuffer != null && indexBuffer.getIndexCount() > 0) {
-            indexBuffer.bind();
-        }
     }
 
     /**
@@ -315,7 +310,6 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     @Override
     public void unbind() {
         GL30.glBindVertexArray(0);
-        GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
     public DataFormat getStaticFormat() {

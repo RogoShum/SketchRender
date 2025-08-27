@@ -238,7 +238,7 @@ public class IndexBufferResource implements BufferResourceObject {
         ByteBuffer buffer = fillPersistentBuffer(indexType);
         bind();
         GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, buffer, GL15.GL_STATIC_DRAW);
-        unbind();
+        //unbind();
 
         isDirty = false;
     }

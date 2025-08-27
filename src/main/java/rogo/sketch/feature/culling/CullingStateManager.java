@@ -249,7 +249,6 @@ public class CullingStateManager {
             } else if (event.getStage() == MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier()) {
                 updatingDepth = true;
                 updateDepthMap();
-                CullingRenderEvent.updateEntityCullingMap();
                 updatingDepth = false;
             } else if (event.getStage() == MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier()) {
                 AccessorLevelRender levelFrustum = (AccessorLevelRender) Minecraft.getInstance().levelRenderer;

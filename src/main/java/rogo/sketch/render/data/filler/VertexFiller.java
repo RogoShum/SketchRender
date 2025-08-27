@@ -232,8 +232,6 @@ public class VertexFiller extends DataFiller {
         if (currentBuffer.position() > 0) {
             finalizeCurrentBuffer();
         }
-
-        // Sorting is now handled by IndexBufferResource
     }
 
     /**

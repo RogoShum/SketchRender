@@ -27,6 +27,10 @@ public class VertexRenderer {
             if (resource.hasIndices()) {
                 // Render with index buffer
                 IndexBufferResource indexBuffer = resource.getIndexBuffer();
+                if (indexBuffer.isDirty()) {
+                    indexBuffer.upload();
+                }
+
                 int indexCount = indexBuffer.getIndexCount();
                 int indexType = indexBuffer.currentIndexType().glType;
 
@@ -85,7 +89,11 @@ public class VertexRenderer {
 
         try {
             if (resource.hasIndices()) {
-                GL15.glDrawElements(resource.getPrimitiveType().getGLType(), count, resource.getIndexBuffer().currentIndexType().glType, first * 4L); // 4 bytes per int
+                IndexBufferResource indexBuffer = resource.getIndexBuffer();
+                if (indexBuffer.isDirty()) {
+                    indexBuffer.upload();
+                }
+                GL15.glDrawElements(resource.getPrimitiveType().getGLType(), count, indexBuffer.currentIndexType().glType, first * 4L); // 4 bytes per int
             } else {
                 GL15.glDrawArrays(resource.getPrimitiveType().getGLType(), first, count);
             }
@@ -109,7 +117,11 @@ public class VertexRenderer {
 
         try {
             if (resource.hasIndices()) {
-                GL31.glDrawElementsInstanced(primitiveMode.getGLType(), count, resource.getIndexBuffer().currentIndexType().glType, first * 4L, instanceCount);
+                IndexBufferResource indexBuffer = resource.getIndexBuffer();
+                if (indexBuffer.isDirty()) {
+                    indexBuffer.upload();
+                }
+                GL31.glDrawElementsInstanced(primitiveMode.getGLType(), count, indexBuffer.currentIndexType().glType, first * 4L, instanceCount);
             } else {
                 GL31.glDrawArraysInstanced(primitiveMode.getGLType(), first, count, instanceCount);
             }

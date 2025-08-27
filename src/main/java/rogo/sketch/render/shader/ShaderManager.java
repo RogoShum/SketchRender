@@ -8,7 +8,6 @@ import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import org.apache.commons.compress.utils.Lists;
 import rogo.sketch.SketchRender;
 import rogo.sketch.api.ShaderCollector;
-import rogo.sketch.feature.culling.CullingShaderInstance;
 
 import java.io.IOException;
 import java.util.List;
@@ -16,7 +15,6 @@ import java.util.List;
 public class ShaderManager implements ResourceManagerReloadListener {
     private final List<ShaderCollector> shaders = Lists.newArrayList();
     public static ShaderInstance REMOVE_COLOR_SHADER;
-    public static ShaderInstance CULL_TEST_SHADER;
 
     public void onShaderLoad(ShaderCollector a) {
         shaders.add(a);
@@ -39,8 +37,7 @@ public class ShaderManager implements ResourceManagerReloadListener {
         shaders.clear();
 
         try {
-            REMOVE_COLOR_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "remove_color"), DefaultVertexFormat.POSITION_COLOR_TEX);
-            CULL_TEST_SHADER = new CullingShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "culling_test"), DefaultVertexFormat.POSITION);
+            REMOVE_COLOR_SHADER = new ShaderInstance(resourceManager, new ResourceLocation(SketchRender.MOD_ID, "remove_color"), DefaultVertexFormat.POSITION_COLOR_TEX);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

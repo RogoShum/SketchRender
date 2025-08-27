@@ -144,16 +144,14 @@ public class ConfigScreen extends Screen {
                 .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.compute_shader"));
 
         addConfigButton(() -> Config.getDepthUpdateDelay() / 10d, (value) -> {
-            int format = Mth.floor(value * 10);
-            if (format > 0) {
-                format -= Config.getShaderDynamicDelay();
-            }
-            Config.setDepthUpdateDelay(format);
-            format += Config.getShaderDynamicDelay();
-            return format * 0.1;
+            double step = 0.5;
+            double formatted = Math.round(value * 10 / step) * step;
+            Config.setDepthUpdateDelay(formatted);
+            return Math.max(formatted * 0.1, 0.1f);
         }, (value) -> {
-            int format = Mth.floor(value * 10);
-            return String.valueOf(format);
+            double step = 0.5;
+            double formatted = Math.round(value * 10 / step) * step;
+            return String.valueOf(formatted);
         }, () -> Component.translatable(SketchRender.MOD_ID + ".culling_map_update_delay"))
                 .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.culling_map_update_delay"));
 

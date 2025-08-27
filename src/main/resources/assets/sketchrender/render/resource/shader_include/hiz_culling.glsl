@@ -16,6 +16,7 @@ uniform vec3 sketch_frustumPos;
 uniform vec4[6] sketch_cullingFrustum;
 uniform vec2[8] sketch_depthSize;
 uniform int sketch_renderDistance;
+uniform float sketch_cullingFineness;
 
 // constants used in culling shaders
 const float near = 0.05;
@@ -31,8 +32,8 @@ struct ClipResult {
 // utility functions used in culling shaders
 int getSampler(float xLength, float yLength) {
     for (int i = 0; i < sketch_depthSize.length(); ++i) {
-        float xStep = 4.0 / sketch_depthSize[i].x;
-        float yStep = 4.0 / sketch_depthSize[i].y;
+        float xStep = sketch_cullingFineness / sketch_depthSize[i].x;
+        float yStep = sketch_cullingFineness / sketch_depthSize[i].y;
         if (xStep > xLength && yStep > yLength) {
             return i;
         }
