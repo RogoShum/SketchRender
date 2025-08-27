@@ -68,7 +68,7 @@ public class RenderContext {
     }
 
     public void postStage(Identifier stage) {
-
+        this.set(Identifier.of("rendered"), false);
     }
 
     public void set(Identifier key, Object value) {

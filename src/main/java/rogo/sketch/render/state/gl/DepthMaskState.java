@@ -44,7 +44,7 @@ public class DepthMaskState implements RenderStateComponent {
 
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
-        this.writable = json.has("writable") ? json.get("writable").getAsBoolean() : true;
+        this.writable = !json.has("writable") || json.get("writable").getAsBoolean();
     }
 
     @Override

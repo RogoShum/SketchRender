@@ -26,7 +26,10 @@ public class MinecraftRenderStages {
     public static final GraphicsStage CLOUDS = new GraphicsStage("vanilla_clouds", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(PARTICLE).build());
     public static final GraphicsStage WEATHER = new GraphicsStage("vanilla_weather", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(CLOUDS).build());
     public static final GraphicsStage LEVEL_END = new GraphicsStage("vanilla_level_end", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(WEATHER).build());
-    public static final GraphicsStage RENDER_END = new GraphicsStage("vanilla_render_end", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(LEVEL_END).build());
+    public static final GraphicsStage HAND = new GraphicsStage("vanilla_hand", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(LEVEL_END).build());
+    public static final GraphicsStage POST_PROGRESS = new GraphicsStage("vanilla_post_progress", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(HAND).build());
+    public static final GraphicsStage GUI = new GraphicsStage("vanilla_gui", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(POST_PROGRESS).build());
+    public static final GraphicsStage RENDER_END = new GraphicsStage("vanilla_render_end", OrderRequirement.Builder.<GraphicsStage>create().mustFollow(GUI).build());
 
     private static final Set<GraphicsStage> extraStages = new HashSet<>();
 
@@ -47,6 +50,9 @@ public class MinecraftRenderStages {
         pipeline.registerStage(CLOUDS);
         pipeline.registerStage(WEATHER);
         pipeline.registerStage(LEVEL_END);
+        pipeline.registerStage(HAND);
+        pipeline.registerStage(POST_PROGRESS);
+        pipeline.registerStage(GUI);
         pipeline.registerStage(RENDER_END);
     }
 

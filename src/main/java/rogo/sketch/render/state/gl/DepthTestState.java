@@ -7,27 +7,20 @@ import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.util.Identifier;
 
-public class DepthState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("depth_state");
-    
+public class DepthTestState implements RenderStateComponent {
+    public static final Identifier TYPE = Identifier.of("depth_test");
+
     private boolean enabled;
     private int func;
-    private boolean write;
 
-    public DepthState() {
+    public DepthTestState() {
         this.enabled = true;
         this.func = GL11.GL_LESS;
-        this.write = true;
     }
 
-    public DepthState(boolean enabled, int func, boolean write) {
+    public DepthTestState(boolean enabled, int func) {
         this.enabled = enabled;
         this.func = func;
-        this.write = write;
-    }
-
-    public DepthState(boolean enabled, int func) {
-        this(enabled, func, true);
     }
 
     @Override
@@ -37,9 +30,9 @@ public class DepthState implements RenderStateComponent {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof DepthState)) return false;
-        DepthState d = (DepthState) o;
-        return enabled == d.enabled && func == d.func && write == d.write;
+        if (!(o instanceof DepthTestState)) return false;
+        DepthTestState d = (DepthTestState) o;
+        return enabled == d.enabled && func == d.func;
     }
 
     @Override
@@ -50,19 +43,17 @@ public class DepthState implements RenderStateComponent {
         } else {
             GL11.glDisable(GL11.GL_DEPTH_TEST);
         }
-        GL11.glDepthMask(write);
     }
 
     @Override
     public int hashCode() {
-        return Boolean.hashCode(enabled) ^ func ^ Boolean.hashCode(write);
+        return Boolean.hashCode(enabled) ^ func;
     }
 
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
         this.enabled = !json.has("enabled") || json.get("enabled").getAsBoolean();
-        this.write = !json.has("write") || json.get("write").getAsBoolean();
-        
+
         if (json.has("function")) {
             this.func = parseDepthFunction(json.get("function").getAsString());
         }
@@ -70,9 +61,9 @@ public class DepthState implements RenderStateComponent {
 
     @Override
     public RenderStateComponent createInstance() {
-        return new DepthState();
+        return new DepthTestState();
     }
-    
+
     private static int parseDepthFunction(String function) {
         return switch (function.toUpperCase()) {
             case "NEVER" -> GL11.GL_NEVER;

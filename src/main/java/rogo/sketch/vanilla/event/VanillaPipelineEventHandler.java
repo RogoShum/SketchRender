@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.*;
 import rogo.sketch.Config;
@@ -283,7 +284,7 @@ public class VanillaPipelineEventHandler {
             }, Integer.class, ComputeHIZGraphics.class));
 
             uniformEvent.register(Identifier.of("sketch_cullingFineness"), ValueGetter.create(() -> {
-                return (float)Config.getDepthUpdateDelay();
+                return (float) Config.getDepthUpdateDelay();
             }, Float.class));
 
             uniformEvent.register(Identifier.of("sketch_screenSize"), ValueGetter.create((instance) -> {
@@ -314,13 +315,15 @@ public class VanillaPipelineEventHandler {
 
             uniformEvent.register(Identifier.of("sketch_testEntityAABB"), ValueGetter.create(() -> {
                 if (SketchRender.testBlockEntity != null) {
-                    return new Vector3f((float) SketchRender.testBlockEntity.getRenderBoundingBox().getXsize()
-                            , (float) SketchRender.testBlockEntity.getRenderBoundingBox().getYsize()
-                            , (float) SketchRender.testBlockEntity.getRenderBoundingBox().getZsize());
+                    AABB aabb = SketchRender.getObjectAABB(SketchRender.testBlockEntity);
+                    return new Vector3f((float) aabb.getXsize()
+                            , (float) aabb.getYsize()
+                            , (float) aabb.getZsize());
                 } else if (SketchRender.testEntity != null) {
-                    return new Vector3f((float) SketchRender.testEntity.getBoundingBoxForCulling().getXsize()
-                            , (float) SketchRender.testEntity.getBoundingBoxForCulling().getYsize()
-                            , (float) SketchRender.testEntity.getBoundingBoxForCulling().getZsize());
+                    AABB aabb = SketchRender.getObjectAABB(SketchRender.testEntity);
+                    return new Vector3f((float) aabb.getXsize()
+                            , (float) aabb.getYsize()
+                            , (float) aabb.getZsize());
                 }
 
                 return new Vector3f(0, 0, 0);
@@ -372,7 +375,7 @@ public class VanillaPipelineEventHandler {
                 RenderParameter renderParameter = new RenderParameter(DefaultDataFormats.POSITION, PrimitiveType.QUADS, Usage.DYNAMIC_DRAW, false);
                 RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
                 CullingTestGraphics cullingTestGraphics = new CullingTestGraphics(Identifier.of(SketchRender.MOD_ID, "culling_test"));
-                registerEvent.register(MinecraftRenderStages.LEVEL_END.getIdentifier(), cullingTestGraphics, setting);
+                registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), cullingTestGraphics, setting);
             }
         }
     }

@@ -9,11 +9,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -175,19 +172,12 @@ public class SketchRender {
         if (event.phase == TickEvent.Phase.START) {
             if (Minecraft.getInstance().player != null && Minecraft.getInstance().level != null) {
                 clientTickCount++;
-                if (Minecraft.getInstance().player.tickCount > 60 && clientTickCount > 60) {
-                    LEVEL_SECTION_RANGE = Minecraft.getInstance().level.getMaxSection() - Minecraft.getInstance().level.getMinSection();
-                    LEVEL_MIN_SECTION_ABS = Math.abs(Minecraft.getInstance().level.getMinSection());
-                    LEVEL_MIN_POS = Minecraft.getInstance().level.getMinBuildHeight();
-                    LEVEL_POS_RANGE = Minecraft.getInstance().level.getMaxBuildHeight() - Minecraft.getInstance().level.getMinBuildHeight();
-
-                    if (OcclusionCullerThread.INSTANCE == null || !OcclusionCullerThread.INSTANCE.isAlive()) {
-                        OcclusionCullerThread occlusionCullerThread = new OcclusionCullerThread();
-                        OcclusionCullerThread.INSTANCE = occlusionCullerThread;
-                        occlusionCullerThread.setName("Chunk Depth Occlusion Cull thread");
-                        occlusionCullerThread.setPriority(MAX_PRIORITY);
-                        occlusionCullerThread.start();
-                    }
+                if (OcclusionCullerThread.INSTANCE == null || !OcclusionCullerThread.INSTANCE.isAlive()) {
+                    OcclusionCullerThread occlusionCullerThread = new OcclusionCullerThread();
+                    OcclusionCullerThread.INSTANCE = occlusionCullerThread;
+                    occlusionCullerThread.setName("Chunk Depth Occlusion Cull thread");
+                    occlusionCullerThread.setPriority(MAX_PRIORITY);
+                    occlusionCullerThread.start();
                 }
                 Config.setLoaded();
             } else {
@@ -221,16 +211,9 @@ public class SketchRender {
     }
 
     public static AABB getObjectAABB(Object o) {
-        if (o instanceof ChestBlockEntity chestBlockEntity && ChestBlockEntity.getOpenCount(chestBlockEntity.getLevel(), chestBlockEntity.getBlockPos()) <= 0) {
+        if (o instanceof ChestBlockEntity chestBlockEntity && chestBlockEntity.getOpenNess(0) <= 0) {
             return new AABB(chestBlockEntity.getBlockPos(), chestBlockEntity.getBlockPos().offset(1, 1, 1));
-        } else if (o instanceof BlockEntity blockEntity) {
-            BlockState state = blockEntity.getBlockState();
-            Block block = state.getBlock();
-            BlockPos pos = blockEntity.getBlockPos();
-
-            if (block == Blocks.CHEST || block == Blocks.TRAPPED_CHEST) {
-                return new AABB(pos.offset(-1, 0, -1), pos.offset(2, 2, 2));
-            }
+        } else if (o instanceof BlockEntity) {
             return ((BlockEntity) o).getRenderBoundingBox();
         } else if (o instanceof Entity) {
             return ((Entity) o).getBoundingBox();

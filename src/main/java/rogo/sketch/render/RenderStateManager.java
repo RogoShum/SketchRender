@@ -2,14 +2,14 @@ package rogo.sketch.render;
 
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.resource.ResourceBinding;
-import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.state.FullRenderState;
-import rogo.sketch.render.state.gl.ShaderState;
+import rogo.sketch.render.state.RenderStateRegistry;
 import rogo.sketch.util.Identifier;
 
 import java.util.Objects;
 
 public class RenderStateManager {
+    private FullRenderState defaultState;
     private FullRenderState currentState;
     private ResourceBinding currentResourceBinding;
 
@@ -17,23 +17,7 @@ public class RenderStateManager {
         // Only switch render state if requested (compute shaders don't need it)
         if (setting.shouldSwitchRenderState() && setting.renderState() != null) {
             FullRenderState newState = setting.renderState();
-
-            if (currentState == null) {
-                // First time, apply all components
-                for (RenderStateComponent comp : newState.getComponentTypes().stream().map(newState::get).toList()) {
-                    comp.apply(context);
-                }
-            } else {
-                // Only apply changed components
-                for (Identifier type : newState.getComponentTypes()) {
-                    RenderStateComponent newComp = newState.get(type);
-                    RenderStateComponent oldComp = currentState.get(type);
-                    if (!newComp.equals(oldComp)) {
-                        newComp.apply(context);
-                    }
-                }
-            }
-            currentState = newState;
+            changeState(newState, context);
         }
 
         // Always bind resource bindings (needed for both graphics and compute)
@@ -79,5 +63,32 @@ public class RenderStateManager {
     public void reset() {
         currentState = null;
         currentResourceBinding = null;
+    }
+
+    public void resetDefault(RenderContext context) {
+        if (defaultState == null) {
+            defaultState = RenderStateRegistry.createDefaultFullRenderState();
+        }
+        changeState(defaultState, context);
+    }
+
+    private void changeState(FullRenderState newState, RenderContext context) {
+        if (currentState == null) {
+            // First time, apply all components
+            for (RenderStateComponent comp : newState.getComponentTypes().stream().map(newState::get).toList()) {
+                comp.apply(context);
+            }
+        } else {
+            // Only apply changed components
+            for (Identifier type : newState.getComponentTypes()) {
+                RenderStateComponent newComp = newState.get(type);
+                RenderStateComponent oldComp = currentState.get(type);
+                if (!newComp.equals(oldComp)) {
+                    newComp.apply(context);
+                }
+            }
+        }
+
+        currentState = newState;
     }
 }

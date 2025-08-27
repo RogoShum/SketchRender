@@ -8,7 +8,6 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
-import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -53,7 +52,6 @@ public class CullingStateManager {
     public static int DEPTH_INDEX;
     public static int MAIN_DEPTH_TEXTURE = 0;
     public static HizTarget[] DEPTH_BUFFER_TARGET = new HizTarget[DEPTH_SIZE];
-    public static Frustum FRUSTUM;
     public static boolean updatingDepth;
     public static boolean applyFrustum;
     public static int DEBUG = 0;
@@ -86,10 +84,6 @@ public class CullingStateManager {
     public static Identifier LEVEL_POS_RANGE_ID = Identifier.of("level_pos_range");
     public static Identifier LEVEL_MIN_SECTION_ABS_ID = Identifier.of("level_min_section_abs");
     public static Identifier LEVEL_MIN_POS_ID = Identifier.of("level_min_section_abs");
-    public static int LEVEL_SECTION_RANGE;
-    public static int LEVEL_POS_RANGE;
-    public static int LEVEL_MIN_SECTION_ABS;
-    public static int LEVEL_MIN_POS;
     public static Camera CAMERA;
     private static final HashMap<Integer, Integer> SHADER_DEPTH_BUFFER_ID = new HashMap<>();
     public static volatile boolean useOcclusionCulling = true;
@@ -237,11 +231,6 @@ public class CullingStateManager {
                     context.set(LEVEL_POS_RANGE_ID, Minecraft.getInstance().level.getMaxBuildHeight() - Minecraft.getInstance().level.getMinBuildHeight());
                     context.set(LEVEL_MIN_SECTION_ABS_ID, Math.abs(Minecraft.getInstance().level.getMinSection()));
                     context.set(LEVEL_MIN_POS_ID, Minecraft.getInstance().level.getMinBuildHeight());
-
-                    LEVEL_SECTION_RANGE = Minecraft.getInstance().level.getMaxSection() - Minecraft.getInstance().level.getMinSection();
-                    LEVEL_MIN_SECTION_ABS = Math.abs(Minecraft.getInstance().level.getMinSection());
-                    LEVEL_MIN_POS = Minecraft.getInstance().level.getMinBuildHeight();
-                    LEVEL_POS_RANGE = Minecraft.getInstance().level.getMaxBuildHeight() - Minecraft.getInstance().level.getMinBuildHeight();
                 }
             } else if (event.getStage() == MinecraftRenderStages.RENDER_END.getIdentifier()) {
                 updateMapData();
@@ -251,14 +240,6 @@ public class CullingStateManager {
                 updateDepthMap();
                 updatingDepth = false;
             } else if (event.getStage() == MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier()) {
-                AccessorLevelRender levelFrustum = (AccessorLevelRender) Minecraft.getInstance().levelRenderer;
-                Frustum frustum;
-                if (levelFrustum.getCapturedFrustum() != null) {
-                    frustum = levelFrustum.getCapturedFrustum();
-                } else {
-                    frustum = levelFrustum.getCullingFrustum();
-                }
-                CullingStateManager.FRUSTUM = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
                 checkShader();
             }
         }

@@ -2,6 +2,7 @@ package rogo.sketch.render.state;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.state.gl.*;
 import rogo.sketch.util.Identifier;
@@ -17,14 +18,14 @@ public class RenderStateRegistry {
         if (initialized) return;
 
         // Register GL default states with OpenGL default values
-        registerDefault(new BlendState(false, org.lwjgl.opengl.GL11.GL_SRC_ALPHA, org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA));
-        registerDefault(new DepthState(true, org.lwjgl.opengl.GL11.GL_LESS, true));
+        registerDefault(new BlendState(false, GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA));
+        registerDefault(new DepthTestState(true, GL11.GL_LESS));
         registerDefault(new DepthMaskState(true));
-        registerDefault(new CullState(true, org.lwjgl.opengl.GL11.GL_BACK, org.lwjgl.opengl.GL11.GL_CCW));
-        registerDefault(new PolygonModeState(org.lwjgl.opengl.GL11.GL_FRONT_AND_BACK, org.lwjgl.opengl.GL11.GL_FILL));
+        registerDefault(new CullState(true, GL11.GL_BACK, GL11.GL_CCW));
+        registerDefault(new PolygonModeState(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL));
         registerDefault(new ScissorState(false, 0, 0, 0, 0));
-        registerDefault(new StencilState(false, org.lwjgl.opengl.GL11.GL_ALWAYS, 0, 0xFF,
-                org.lwjgl.opengl.GL11.GL_KEEP, org.lwjgl.opengl.GL11.GL_KEEP, org.lwjgl.opengl.GL11.GL_KEEP));
+        registerDefault(new StencilState(false, GL11.GL_ALWAYS, 0, 0xFF,
+                GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_KEEP));
         registerDefault(new ViewportState(0, 0, 1920, 1080));
         registerDefault(new ShaderState()); // No default shader
         registerDefault(RenderTargetState.defaultFramebuffer()); // Default framebuffer

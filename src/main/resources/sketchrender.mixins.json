@@ -23,6 +23,7 @@
     "MixinProgram",
     "MixinRenderChunkInfo",
     "MixinWindow",
+    "render.MixinGameRender",
     "render.MixinLevelRendererProvider",
     "render.ShaderInstanceMixin",
     "sodium.AccessorRenderSectionManager",
