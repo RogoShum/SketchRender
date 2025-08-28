@@ -1,4 +1,4 @@
-package rogo.sketch.compat.sodium;
+package rogo.sketch.compat.sodium.api;
 
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
 import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderList;

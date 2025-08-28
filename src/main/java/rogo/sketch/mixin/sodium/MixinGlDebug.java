@@ -1,4 +1,4 @@
-package rogo.sketch.mixin;
+package rogo.sketch.mixin.sodium;
 
 import com.mojang.blaze3d.platform.GlDebug;
 import me.jellysquid.mods.sodium.client.SodiumClientMod;

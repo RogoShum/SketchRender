@@ -7,7 +7,7 @@ import rogo.sketch.api.SharedVertexProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.filler.VertexFillerManager;
 import rogo.sketch.render.vertex.VertexRenderer;
-import rogo.sketch.render.vertex.VertexResource;
+import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.render.vertex.VertexResourcePair;
 

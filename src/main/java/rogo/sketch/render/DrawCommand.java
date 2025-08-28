@@ -1,7 +1,7 @@
 package rogo.sketch.render;
 
 import rogo.sketch.render.vertex.VertexRenderer;
-import rogo.sketch.render.vertex.VertexResource;
+import rogo.sketch.render.resource.buffer.VertexResource;
 
 /**
  * Render command that pairs with vertex resources

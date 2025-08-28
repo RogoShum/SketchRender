@@ -1,4 +1,4 @@
-package rogo.sketch.render.vertex;
+package rogo.sketch.render.resource.buffer;
 
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
@@ -13,6 +13,7 @@ import rogo.sketch.render.data.filler.DataFiller;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.format.DataElement;
 import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.render.vertex.DrawMode;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;

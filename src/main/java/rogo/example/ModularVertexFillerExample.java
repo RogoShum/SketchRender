@@ -1,16 +1,14 @@
 package rogo.example;
 
-import org.lwjgl.opengl.GL15;
 import rogo.sketch.render.RenderParameter;
 import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.filler.VertexFillerManager;
-import rogo.sketch.render.data.format.DataElement;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.vertex.DrawMode;
-import rogo.sketch.render.vertex.VertexResource;
+import rogo.sketch.render.resource.buffer.VertexResource;
 
 /**
  * Example demonstrating the new modular design where VertexFiller and VertexResource

@@ -7,6 +7,8 @@ import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.instance.ComputeGraphics;
 import rogo.sketch.util.Identifier;
 
+import static org.lwjgl.opengl.GL44.GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT;
+
 public class ComputeEntityCullingGraphics extends ComputeGraphics {
 
     public ComputeEntityCullingGraphics(Identifier identifier) {

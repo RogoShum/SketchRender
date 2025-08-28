@@ -13,12 +13,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.FastColor;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import rogo.sketch.SketchRender;
 import rogo.sketch.Config;
 import rogo.sketch.feature.culling.CullingStateManager;
-import rogo.sketch.render.shader.ShaderManager;
+import rogo.sketch.vanilla.ShaderManager;
 import rogo.sketch.util.GLFeatureChecker;
 
 import java.util.List;

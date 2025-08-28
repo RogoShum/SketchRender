@@ -15,7 +15,7 @@ public class ComputeChunkCullingGraphics extends ComputeGraphics {
     public ComputeChunkCullingGraphics(Identifier identifier) {
         super(identifier, (c) -> {
         }, (c, shader) -> {
-            shader.dispatch(MeshResource.orderedRegionSize, 3, 1);
+            shader.dispatch(MeshResource.ORDERED_REGION_SIZE, 3, 1);
             shader.memoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                     GL_ATOMIC_COUNTER_BARRIER_BIT |
                     GL_COMMAND_BARRIER_BIT);

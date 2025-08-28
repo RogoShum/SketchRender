@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketch.Config;
-import rogo.sketch.compat.sodium.ExtraChunkRenderer;
+import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
 import rogo.sketch.compat.sodium.IndirectDrawChunkRenderer;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.compat.sodium.SodiumSectionAsyncUtil;
@@ -85,7 +85,7 @@ public abstract class MixinRenderSectionManager {
     @Inject(method = "update", at = @At(value = "HEAD"), remap = false)
     private void onUpdate(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
         CullingStateManager.updating();
-        MeshResource.currentFrame = frame;
+        MeshResource.CURRENT_FRAME = frame;
     }
 
     @Inject(method = "isSectionVisible", at = @At(value = "HEAD"), remap = false, cancellable = true)

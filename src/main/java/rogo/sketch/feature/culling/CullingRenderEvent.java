@@ -14,7 +14,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
-import rogo.sketch.render.shader.ShaderManager;
+import rogo.sketch.vanilla.ShaderManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -104,7 +104,7 @@ public class CullingRenderEvent {
                 }
 
                 if (Config.getCullChunk()) {
-                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + MeshResource.lastQueueUpdateCount;
+                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + MeshResource.LAST_QUEUE_UPDATE_COUNT;
                     addString(monitorTexts, chunkCullingCount);
                 }
             }

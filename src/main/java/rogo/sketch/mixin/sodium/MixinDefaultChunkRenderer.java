@@ -14,7 +14,7 @@ import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import rogo.sketch.compat.sodium.ExtraChunkRenderer;
+import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
 
 @Mixin(value = DefaultChunkRenderer.class, remap = false)
 public abstract class MixinDefaultChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {

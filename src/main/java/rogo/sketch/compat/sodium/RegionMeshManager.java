@@ -3,6 +3,7 @@ package rogo.sketch.compat.sodium;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketch.compat.sodium.api.ExtraRenderRegion;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.MemoryLayout;
 import rogo.sketch.render.data.format.Std430DataFormat;

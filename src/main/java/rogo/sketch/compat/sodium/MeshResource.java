@@ -11,34 +11,34 @@ import rogo.sketch.render.resource.buffer.PersistentReadSSBO;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 
 public class MeshResource {
-    private static int renderDistance = -1;
-    private static int spacePartitionSize = 0;
-    public static int queueUpdateCount = 0;
-    public static int lastQueueUpdateCount = 0;
-    public static int theoreticalRegionQuantity = 0;
+    private static int RENDER_DISTANCE = -1;
+    private static int SPACE_PARTITION_SIZE = 0;
+    public static int QUEUE_UPDATE_COUNT = 0;
+    public static int LAST_QUEUE_UPDATE_COUNT = 0;
+    public static int THEORETICAL_REGION_QUANTITY = 0;
 
-    public static int currentFrame = 0;
-    public static int orderedRegionSize = 0;
+    public static int CURRENT_FRAME = 0;
+    public static int ORDERED_REGION_SIZE = 0;
 
-    public static ShaderStorageBuffer batchCommand;
-    public static ShaderStorageBuffer batchCounter;
-    public static ShaderStorageBuffer batchRegionIndex;
-    public static ShaderStorageBuffer batchMaxElement;
-    public static PersistentReadSSBO maxElementPersistent;
-    public static CounterBuffer cullingCounter;
-    public static CounterBuffer elementCounter;
+    public static ShaderStorageBuffer COMMAND_BUFFER;
+    public static ShaderStorageBuffer BATCH_COUNTER;
+    public static ShaderStorageBuffer REGION_INDEX_BUFFER;
+    public static ShaderStorageBuffer MAX_ELEMENT_BUFFER;
+    public static PersistentReadSSBO PERSISTENT_MAX_ELEMENT_BUFFER;
+    public static CounterBuffer CULLING_COUNTER;
+    public static CounterBuffer ELEMENT_COUNTER;
 
     public static final RegionMeshManager MESH_MANAGER = new RegionMeshManager();
 
     static {
-        batchCommand = new ShaderStorageBuffer(IndirectCommandBuffer.INSTANCE);
-        cullingCounter = new CounterBuffer(VertexFormatElement.Type.INT);
-        batchCounter = new ShaderStorageBuffer(cullingCounter);
-        elementCounter = new CounterBuffer(VertexFormatElement.Type.INT);
-        batchMaxElement = new ShaderStorageBuffer(elementCounter);
-        batchRegionIndex = new ShaderStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);
+        COMMAND_BUFFER = new ShaderStorageBuffer(IndirectCommandBuffer.INSTANCE);
+        CULLING_COUNTER = new CounterBuffer(VertexFormatElement.Type.INT);
+        BATCH_COUNTER = new ShaderStorageBuffer(CULLING_COUNTER);
+        ELEMENT_COUNTER = new CounterBuffer(VertexFormatElement.Type.INT);
+        MAX_ELEMENT_BUFFER = new ShaderStorageBuffer(ELEMENT_COUNTER);
+        REGION_INDEX_BUFFER = new ShaderStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);
 
-        maxElementPersistent = new PersistentReadSSBO(1, Integer.BYTES);
+        PERSISTENT_MAX_ELEMENT_BUFFER = new PersistentReadSSBO(1, Integer.BYTES);
     }
 
     public static void addIndexedRegion(RenderRegion region) {
@@ -50,19 +50,19 @@ public class MeshResource {
 
             if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getCapacity()) {
                 IndirectCommandBuffer.INSTANCE.resize(MESH_MANAGER.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
-                batchCommand.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
-                batchCommand.setCapacity(IndirectCommandBuffer.INSTANCE.getCapacity());
-                batchCommand.resetUpload(GL15.GL_STATIC_DRAW);
+                COMMAND_BUFFER.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
+                COMMAND_BUFFER.setCapacity(IndirectCommandBuffer.INSTANCE.getCapacity());
+                COMMAND_BUFFER.resetUpload(GL15.GL_STATIC_DRAW);
             }
 
-            if (passSize * cullingCounter.getStride() > cullingCounter.getCapacity()) {
-                cullingCounter.resize(passSize);
-                batchCounter.setBufferPointer(cullingCounter.getMemoryAddress());
-                batchCounter.setCapacity(cullingCounter.getCapacity());
-                batchCounter.resetUpload(GL15.GL_STATIC_DRAW);
+            if (passSize * CULLING_COUNTER.getStride() > CULLING_COUNTER.getCapacity()) {
+                CULLING_COUNTER.resize(passSize);
+                BATCH_COUNTER.setBufferPointer(CULLING_COUNTER.getMemoryAddress());
+                BATCH_COUNTER.setCapacity(CULLING_COUNTER.getCapacity());
+                BATCH_COUNTER.resetUpload(GL15.GL_STATIC_DRAW);
             }
 
-            batchRegionIndex.ensureCapacity(regionSize, true);
+            REGION_INDEX_BUFFER.ensureCapacity(regionSize, true);
         }
     }
 
@@ -73,29 +73,29 @@ public class MeshResource {
     public static void clearRegions() {
         MESH_MANAGER.refresh();
         IndirectCommandBuffer.INSTANCE.resize(IndirectCommandBuffer.REGION_COMMAND_SIZE);
-        cullingCounter.resize(1);
-        batchRegionIndex.dispose();
-        batchRegionIndex = new ShaderStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);
+        CULLING_COUNTER.resize(1);
+        REGION_INDEX_BUFFER.dispose();
+        REGION_INDEX_BUFFER = new ShaderStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);
     }
 
     //TODO need fix
     public static void updateDistance(int renderDistance) {
-        if (MeshResource.renderDistance != renderDistance) {
-            MeshResource.renderDistance = renderDistance;
-            spacePartitionSize = 2 * renderDistance + 1;
+        if (MeshResource.RENDER_DISTANCE != renderDistance) {
+            MeshResource.RENDER_DISTANCE = renderDistance;
+            SPACE_PARTITION_SIZE = 2 * renderDistance + 1;
 
             if (Minecraft.getInstance().level != null && Config.getCullChunk()) {
-                theoreticalRegionQuantity = (int) (spacePartitionSize * spacePartitionSize * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
-                MESH_MANAGER.initCapacity(theoreticalRegionQuantity);
+                THEORETICAL_REGION_QUANTITY = (int) (SPACE_PARTITION_SIZE * SPACE_PARTITION_SIZE * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
+                MESH_MANAGER.initCapacity(THEORETICAL_REGION_QUANTITY);
             }
         }
     }
 
     public static int getRenderDistance() {
-        return renderDistance;
+        return RENDER_DISTANCE;
     }
 
     public static int getSpacePartitionSize() {
-        return spacePartitionSize;
+        return SPACE_PARTITION_SIZE;
     }
 }

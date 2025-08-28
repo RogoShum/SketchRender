@@ -5,7 +5,7 @@ import me.jellysquid.mods.sodium.client.gl.buffer.GlBufferMapping;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import rogo.sketch.compat.sodium.ResourceChecker;
+import rogo.sketch.compat.sodium.api.ResourceChecker;
 
 import java.lang.reflect.Field;
 

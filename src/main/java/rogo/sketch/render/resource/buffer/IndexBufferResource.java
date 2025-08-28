@@ -1,4 +1,4 @@
-package rogo.sketch.render.vertex;
+package rogo.sketch.render.resource.buffer;
 
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;

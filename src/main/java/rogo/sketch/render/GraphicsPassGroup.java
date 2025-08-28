@@ -13,7 +13,7 @@ import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.render.state.gl.ShaderState;
 import rogo.sketch.render.vertex.VertexRenderer;
-import rogo.sketch.render.vertex.VertexResource;
+import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.render.vertex.VertexResourcePair;
 import rogo.sketch.util.Identifier;

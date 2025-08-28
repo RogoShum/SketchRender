@@ -24,10 +24,6 @@ public class MixinMinecraft {
         PipelineUtil.pipeline().renderStagesBefore(MinecraftRenderStages.RENDER_START.getIdentifier());
     }
 
-    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/Window;updateDisplay()V"))
-    public void timerUpdateDisplay(boolean p_91384_, CallbackInfo ci) {
-    }
-
     @Inject(method = "setLevel", at = @At(value = "HEAD"))
     public void onJoinWorld(ClientLevel world, CallbackInfo ci) {
         CullingStateManager.onWorldUnload(world);

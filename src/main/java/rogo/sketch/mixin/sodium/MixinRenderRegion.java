@@ -16,6 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketch.Config;
 import rogo.sketch.compat.sodium.*;
+import rogo.sketch.compat.sodium.api.ExtraRenderRegion;
+import rogo.sketch.compat.sodium.api.ResourceChecker;
 
 import java.util.Map;
 

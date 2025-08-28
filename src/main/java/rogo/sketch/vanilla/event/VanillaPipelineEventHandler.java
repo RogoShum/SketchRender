@@ -92,8 +92,8 @@ public class VanillaPipelineEventHandler {
 
         GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_draw_command"),
                 () -> {
-                    if (MeshResource.batchCommand != null) {
-                        return Optional.of(MeshResource.batchCommand);
+                    if (MeshResource.COMMAND_BUFFER != null) {
+                        return Optional.of(MeshResource.COMMAND_BUFFER);
                     } else {
                         return Optional.empty();
                     }
@@ -101,16 +101,16 @@ public class VanillaPipelineEventHandler {
 
         GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "mesh_counter"),
                 () -> {
-                    if (MeshResource.batchCounter != null) {
-                        return Optional.of(MeshResource.batchCounter);
+                    if (MeshResource.BATCH_COUNTER != null) {
+                        return Optional.of(MeshResource.BATCH_COUNTER);
                     } else {
                         return Optional.empty();
                     }
                 });
         GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "region_pos"),
                 () -> {
-                    if (MeshResource.batchRegionIndex != null) {
-                        return Optional.of(MeshResource.batchRegionIndex);
+                    if (MeshResource.REGION_INDEX_BUFFER != null) {
+                        return Optional.of(MeshResource.REGION_INDEX_BUFFER);
                     } else {
                         return Optional.empty();
                     }
@@ -118,8 +118,8 @@ public class VanillaPipelineEventHandler {
 
         GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "max_element_count"),
                 () -> {
-                    if (MeshResource.batchMaxElement != null) {
-                        return Optional.of(MeshResource.batchMaxElement);
+                    if (MeshResource.MAX_ELEMENT_BUFFER != null) {
+                        return Optional.of(MeshResource.MAX_ELEMENT_BUFFER);
                     } else {
                         return Optional.empty();
                     }
@@ -127,8 +127,8 @@ public class VanillaPipelineEventHandler {
 
         GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "persistent_max_element_count"),
                 () -> {
-                    if (MeshResource.maxElementPersistent != null) {
-                        return Optional.of(MeshResource.maxElementPersistent);
+                    if (MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER != null) {
+                        return Optional.of(MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER);
                     } else {
                         return Optional.empty();
                     }

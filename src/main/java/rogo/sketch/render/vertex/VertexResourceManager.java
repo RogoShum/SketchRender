@@ -1,6 +1,7 @@
 package rogo.sketch.render.vertex;
 
 import rogo.sketch.render.RenderParameter;
+import rogo.sketch.render.resource.buffer.VertexResource;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

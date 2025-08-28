@@ -3,6 +3,8 @@ package rogo.sketch.render.vertex;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL31;
 import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.resource.buffer.IndexBufferResource;
+import rogo.sketch.render.resource.buffer.VertexResource;
 
 /**
  * External renderer that uses VertexResource for rendering operations.

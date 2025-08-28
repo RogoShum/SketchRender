@@ -11,6 +11,8 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.Level;
+import rogo.sketch.compat.sodium.api.CollectorAccessor;
+import rogo.sketch.compat.sodium.api.ResourceChecker;
 import rogo.sketch.feature.culling.CullingStateManager;
 
 import java.util.*;
@@ -56,7 +58,7 @@ public class SodiumSectionAsyncUtil {
             SodiumSectionAsyncUtil.collector = collector;
             SodiumSectionAsyncUtil.visibleSections = swapVisibleSections;
 
-            MeshResource.queueUpdateCount++;
+            MeshResource.QUEUE_UPDATE_COUNT++;
             Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildList = SodiumSectionAsyncUtil.collector.getRebuildLists();
             for (ArrayDeque<RenderSection> arrayDeque : rebuildList.values()) {
                 if (!arrayDeque.isEmpty()) {
@@ -157,9 +159,7 @@ public class SodiumSectionAsyncUtil {
             } else {
                 return EMPTY_LIST;
             }
-//            if (CullingStateManager.needPauseRebuild()) {
-//                return syncRebuildLists;
-//            }
+
             super.getRebuildLists().forEach(((chunkUpdateType, renderSections) -> {
                 for (RenderSection section : renderSections) {
                     if (!section.isDisposed() && !((ResourceChecker) section.getRegion()).disposed() && section.getBuildCancellationToken() == null) {

@@ -217,8 +217,8 @@ public class CullingStateManager {
                     entityCullingInitTime = preEntityCullingInitTime;
                     preEntityCullingInitTime = 0;
 
-                    MeshResource.lastQueueUpdateCount = MeshResource.queueUpdateCount;
-                    MeshResource.queueUpdateCount = 0;
+                    MeshResource.LAST_QUEUE_UPDATE_COUNT = MeshResource.QUEUE_UPDATE_COUNT;
+                    MeshResource.QUEUE_UPDATE_COUNT = 0;
 
                     if (preChunkCullingTime != 0) {
                         chunkCullingTime = preChunkCullingTime;

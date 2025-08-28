@@ -3,7 +3,7 @@ package rogo.example;
 import rogo.sketch.render.RenderParameter;
 import rogo.sketch.render.RenderSetting;
 import rogo.sketch.render.resource.ResourceBinding;
-import rogo.sketch.render.vertex.VertexResource;
+import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.util.Identifier;
 

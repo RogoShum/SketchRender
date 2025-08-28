@@ -42,47 +42,46 @@ bool isVisible(vec3 center, vec3 min, vec3 max) {
 void main() {
     uint localIndex = gl_LocalInvocationID.x; // 0~63
     uint globalIndex = gl_GlobalInvocationID.x;
-
-    if(globalIndex >= sketch_entityCount) {
-        return;
-    }
-
-    int dataOffset = int(globalIndex) * 6;
-
-    vec3 center = vec3(entityData[dataOffset], entityData[dataOffset + 1], entityData[dataOffset + 2]);
-    float sizeX = entityData[dataOffset + 3];
-    float sizeY = entityData[dataOffset + 4];
-    float sizeZ = entityData[dataOffset + 5];
-    float halfWidth = sizeX * 0.5 + 0.15;
-    float halfHeight = sizeY * 0.5 + 0.15;
-
-    bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
     uint visibleByte = 0u;
 
-    if (visible) {
-        far = sketch_renderDistance * 64.0;
-        ClipResult clip = getClippedMinDepth(center, halfWidth, halfHeight);
-        float sectionDepth = LinearizeDepth(clip.minDepth);
+    if(globalIndex < sketch_entityCount) {
+        int dataOffset = int(globalIndex) * 6;
 
-        int idx = getSampler(clip.screenMax.x - clip.screenMin.x, clip.screenMax.y - clip.screenMin.y);
+        vec3 center = vec3(entityData[dataOffset], entityData[dataOffset + 1], entityData[dataOffset + 2]);
+        float sizeX = entityData[dataOffset + 3];
+        float sizeY = entityData[dataOffset + 4];
+        float sizeZ = entityData[dataOffset + 5];
+        float halfWidth = sizeX * 0.5 + 0.15;
+        float halfHeight = sizeY * 0.5 + 0.15;
 
-        int depthX = int(sketch_depthSize[idx].x);
-        int depthY = int(sketch_depthSize[idx].y);
+        bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
 
-        int coordMinX = max(int(floor(clip.screenMin.x * depthX)), 0);
-        int coordMaxX = min(int(ceil(clip.screenMax.x * depthX)), depthX - 1);
-        int coordMinY = max(int(floor(clip.screenMin.y * depthY)), 0);
-        int coordMaxY = min(int(ceil(clip.screenMax.y * depthY)), depthY - 1);
 
-        for (int x = coordMinX; x <= coordMaxX; x++) {
-            for (int y = coordMinY; y <= coordMaxY; y++) {
-                float pixelDepth = getUVDepth(idx, ivec2(x, y));
-                if (sectionDepth < pixelDepth) {
-                    visibleByte = 1u;
-                    break;
+        if (visible) {
+            far = sketch_renderDistance * 64.0;
+            ClipResult clip = getClippedMinDepth(center, halfWidth, halfHeight);
+            float sectionDepth = LinearizeDepth(clip.minDepth);
+
+            int idx = getSampler(clip.screenMax.x - clip.screenMin.x, clip.screenMax.y - clip.screenMin.y);
+
+            int depthX = int(sketch_depthSize[idx].x);
+            int depthY = int(sketch_depthSize[idx].y);
+
+            int coordMinX = max(int(floor(clip.screenMin.x * depthX)), 0);
+            int coordMaxX = min(int(ceil(clip.screenMax.x * depthX)), depthX - 1);
+            int coordMinY = max(int(floor(clip.screenMin.y * depthY)), 0);
+            int coordMaxY = min(int(ceil(clip.screenMax.y * depthY)), depthY - 1);
+
+            for (int x = coordMinX; x <= coordMaxX; x++) {
+                for (int y = coordMinY; y <= coordMaxY; y++) {
+                    float pixelDepth = getUVDepth(idx, ivec2(x, y));
+                    if (sectionDepth < pixelDepth) {
+                        visibleByte = 1u;
+                        break;
+                    }
                 }
+                if (visibleByte == 1u) break;
             }
-            if (visibleByte == 1u) break;
         }
     }
 

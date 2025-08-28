@@ -1,4 +1,4 @@
-package rogo.sketch.vanilla.instance;
+package rogo.sketch.feature.culling.aabb;
 
 import net.minecraft.world.phys.AABB;
 
