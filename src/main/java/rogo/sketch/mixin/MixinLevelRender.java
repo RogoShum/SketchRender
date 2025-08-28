@@ -17,13 +17,7 @@ public abstract class MixinLevelRender {
 
     @Inject(method = "applyFrustum", at = @At(value = "HEAD"))
     public void onApplyFrustumHead(Frustum p_194355_, CallbackInfo ci) {
-        CullingStateManager.applyFrustum = true;
         CullingStateManager.updating();
-    }
-
-    @Inject(method = "applyFrustum", at = @At(value = "RETURN"))
-    public void onApplyFrustumReturn(Frustum p_194355_, CallbackInfo ci) {
-        CullingStateManager.applyFrustum = false;
     }
 
     @Inject(method = "prepareCullFrustum", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/culling/Frustum;<init>(Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;)V"))

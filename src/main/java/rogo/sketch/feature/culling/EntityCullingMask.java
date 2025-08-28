@@ -1,6 +1,5 @@
 package rogo.sketch.feature.culling;
 
-import com.mojang.blaze3d.platform.GlDebug;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
@@ -9,7 +8,6 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.SketchRender;
 import rogo.sketch.api.ResourceObject;
-import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.PersistentReadSSBO;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.util.IndexPool;
@@ -46,7 +44,7 @@ public class EntityCullingMask {
         int idx = getEntityMap().getIndex(o);
 
         if (getEntityMap().objectTimer.contains(o)) {
-            getEntityMap().add(o, CullingStateManager.clientTickCount);
+            getEntityMap().add(o, CullingStateManager.CLIENT_TICK_COUNT);
         }
 
         if (idx > -1 && idx < cullingResultSSBO.getDataCount()) {
@@ -63,7 +61,7 @@ public class EntityCullingMask {
 
             return false;
         } else {
-            getEntityMap().add(o, CullingStateManager.clientTickCount);
+            getEntityMap().add(o, CullingStateManager.CLIENT_TICK_COUNT);
         }
 
         return true;

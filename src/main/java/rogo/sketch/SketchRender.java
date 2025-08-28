@@ -37,6 +37,8 @@ import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
+import rogo.sketch.event.GraphicsPipelineInitEvent;
+import rogo.sketch.event.UniformHookRegisterEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.event.bridge.ForgeEventBusImplementation;
 import rogo.sketch.feature.culling.CullingRenderEvent;
@@ -44,7 +46,6 @@ import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.feature.culling.aabb.AABBObject;
 import rogo.sketch.gui.ConfigScreen;
-import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.shader.uniform.UniformHookRegistry;
 import rogo.sketch.render.state.RenderStateRegistry;
 import rogo.sketch.util.CommandCallTimer;
@@ -77,9 +78,9 @@ public class SketchRender {
         EventBusBridge.setImplementation(new ForgeEventBusImplementation());
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             MinecraftRenderStages.addStage(CullingStages.HIZ_STAGE);
-            FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onPipelineInit);
-            FMLJavaModLoadingContext.get().getModEventBus().addListener(VanillaPipelineEventHandler::onUniformInit);
-            MinecraftForge.EVENT_BUS.addListener(VanillaPipelineEventHandler::onStaticGraphicsRegister);
+            FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(GraphicsPipelineInitEvent.class, VanillaPipelineEventHandler::onPipelineInit);
+            FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(UniformHookRegisterEvent.class, VanillaPipelineEventHandler::onUniformInit);
+            MinecraftForge.EVENT_BUS.register(new VanillaPipelineEventHandler());
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
             MinecraftForge.EVENT_BUS.register(new CullingStateManager());
@@ -171,7 +172,7 @@ public class SketchRender {
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
             if (Minecraft.getInstance().player != null && Minecraft.getInstance().level != null) {
-                clientTickCount++;
+                CLIENT_TICK_COUNT++;
                 if (OcclusionCullerThread.INSTANCE == null || !OcclusionCullerThread.INSTANCE.isAlive()) {
                     OcclusionCullerThread occlusionCullerThread = new OcclusionCullerThread();
                     OcclusionCullerThread.INSTANCE = occlusionCullerThread;
@@ -229,10 +230,10 @@ public class SketchRender {
         if (event.getOverlay() == VanillaGuiOverlay.HELMET.type()) {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
-            debugText.put("帧数", fps);
-            long capacityInBytes = IndirectCommandBuffer.INSTANCE.getCapacity();
-            double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
-            debugText.put("IndirectCommandBuffer", String.format("%.2f MB", capacityInMB));
+//            debugText.put("帧数", fps);
+//            long capacityInBytes = IndirectCommandBuffer.INSTANCE.getCapacity();
+//            double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
+//            debugText.put("IndirectCommandBuffer", String.format("%.2f MB", capacityInMB));
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
             debugText.putAll(commandTimer.getResults());
@@ -276,8 +277,8 @@ public class SketchRender {
         long SWITCH_INTERVAL = 1000000000L;
         if (currentTime - lastSwitchTime >= SWITCH_INTERVAL) {
             lastSwitchTime = currentTime;
-            COMMAND_TIMER.calculateAverageTimes(CullingStateManager.fps);
-            RENDER_TIMER.calculateAverageTimes(CullingStateManager.fps);
+            COMMAND_TIMER.calculateAverageTimes(CullingStateManager.FPS);
+            RENDER_TIMER.calculateAverageTimes(CullingStateManager.FPS);
         }
     }
 

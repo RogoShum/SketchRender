@@ -1,5 +1,6 @@
 package rogo.sketch.gui;
 
+import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
@@ -10,15 +11,17 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.FastColor;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.util.GsonHelper;
 import net.minecraft.world.entity.player.Player;
-import rogo.sketch.SketchRender;
 import rogo.sketch.Config;
+import rogo.sketch.SketchRender;
 import rogo.sketch.feature.culling.CullingStateManager;
-import rogo.sketch.vanilla.ShaderManager;
 import rogo.sketch.util.GLFeatureChecker;
+import rogo.sketch.vanilla.ShaderManager;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -132,15 +135,15 @@ public class ConfigScreen extends Screen {
         }
 
         if (player.getName().getString().equals("Dev")) {
-            addConfigButton(() -> CullingStateManager.checkCulling, (b) -> CullingStateManager.checkCulling = b, () -> Component.literal("Debug"))
+            addConfigButton(() -> CullingStateManager.CHECKING_CULL, (b) -> CullingStateManager.CHECKING_CULL = b, () -> Component.literal("Debug"))
                     .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.debug"));
 
-            addConfigButton(() -> CullingStateManager.checkTexture, (b) -> CullingStateManager.checkTexture = b, () -> Component.literal("Check Texture"))
+            addConfigButton(() -> CullingStateManager.CHECKING_TEXTURE, (b) -> CullingStateManager.CHECKING_TEXTURE = b, () -> Component.literal("Check Texture"))
                     .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.check_texture"));
         }
 
-        addConfigButton(Config::shouldComputeShader, Config::setComputeShader, () -> Component.translatable(SketchRender.MOD_ID + ".compute_shader"))
-                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.compute_shader"));
+        addConfigButton(Config::shouldComputeShader, Config::setComputeShader, () -> Component.translatable(SketchRender.MOD_ID + ".test_feature"))
+                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.test_feature"));
 
         addConfigButton(() -> Config.getDepthUpdateDelay() / 10d, (value) -> {
             double step = 0.5;
@@ -151,18 +154,18 @@ public class ConfigScreen extends Screen {
             double step = 0.5;
             double formatted = Math.round(value * 10 / step) * step;
             return String.valueOf(formatted);
-        }, () -> Component.translatable(SketchRender.MOD_ID + ".culling_map_update_delay"))
-                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.culling_map_update_delay"));
+        }, () -> Component.translatable(SketchRender.MOD_ID + ".culling_precision"))
+                .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.culling_precision"));
 
         addConfigButton(Config::getAutoDisableAsync, Config::setAutoDisableAsync, () -> Component.translatable(SketchRender.MOD_ID + ".auto_shader_async"))
                 .setDetailMessage(() -> Component.translatable(SketchRender.MOD_ID + ".detail.auto_shader_async"));
 
-        addConfigButton(() -> Config.getCullChunk() && SketchRender.hasSodium(), Config::getAsyncChunkRebuild, Config::setAsyncChunkRebuild, () -> Component.translatable(SketchRender.MOD_ID + ".async"))
+        addConfigButton(() -> Config.getCullChunk() && SketchRender.hasSodium(), Config::getAsyncChunkRebuild, Config::setAsyncChunkRebuild, () -> Component.translatable(SketchRender.MOD_ID + ".async_chunk_build"))
                 .setDetailMessage(() -> {
                     if (!SketchRender.hasSodium()) {
                         return Component.translatable(SketchRender.MOD_ID + ".detail.sodium");
                     } else
-                        return Component.translatable(SketchRender.MOD_ID + ".detail.async");
+                        return Component.translatable(SketchRender.MOD_ID + ".detail.async_chunk_build");
                 });
         addConfigButton(Config::getCullChunk, Config::setCullChunk, () -> Component.translatable(SketchRender.MOD_ID + ".cull_chunk"))
                 .setDetailMessage(() -> {
@@ -255,32 +258,36 @@ public class ConfigScreen extends Screen {
     }
 
     private void renderButtonDetails(GuiGraphics guiGraphics, Component details) {
-        String[] parts = details.getString().split("\\n");
-        int partHeight = 0;
-        int textWidth = Math.min(minecraft.getWindow().getScreenWidth(), 202);
-        int x = minecraft.getWindow().getGuiScaledWidth() / 2 - (textWidth) / 2 + 2;
-        for (String part : parts) {
-            part = part.replace("warn:", "");
-            List<FormattedCharSequence> text = Minecraft.getInstance().font.split(Component.literal(part), textWidth);
-            partHeight += text.isEmpty() ? minecraft.font.lineHeight / 2 : text.size() * minecraft.font.lineHeight + minecraft.font.lineHeight / 4;
+        String detailsText = details.getString();
+        JsonObject detailsJson = null;
+
+        try {
+            detailsJson = GsonHelper.parse(detailsText);
+        } catch (Exception ignore) {
+            try {
+                detailsText = "{\"text\":\"" + detailsText + "\"}";
+                detailsJson = GsonHelper.parse(detailsText);
+            } catch (Exception ignore1) {
+
+            }
         }
 
-        partHeight = 0;
+        if (detailsJson == null) {
+            return;
+        }
+
+        MutableComponent detailsComponent = Component.Serializer.fromJson(detailsJson);
+        if (detailsComponent == null) {
+            return;
+        }
+
         RenderSystem.getModelViewStack().pushPose();
         RenderSystem.getModelViewStack().translate(0, 0, 1);
         RenderSystem.applyModelViewMatrix();
-        for (String part : parts) {
-            boolean red = part.contains("warn:");
-            if (red)
-                part = part.replace("warn:", "");
-            List<FormattedCharSequence> text = Minecraft.getInstance().font.split(Component.literal(part), textWidth);
-            for (int row = 0; row < text.size(); ++row) {
-                guiGraphics.drawString(minecraft.font, text.get(row), x, 4 + partHeight + row * minecraft.font.lineHeight,
-                        red ? FastColor.ARGB32.color(255, 170, 0, 0) : FastColor.ARGB32.color(255, 255, 255, 255));
-            }
-            partHeight += text.isEmpty() ? minecraft.font.lineHeight / 2 : text.size() * minecraft.font.lineHeight + minecraft.font.lineHeight / 4;
-        }
 
+        int partHeight = renderMultiComponent(guiGraphics, detailsComponent, 0);
+
+        int textWidth = Math.min(minecraft.getWindow().getScreenWidth(), 202);
         int width = minecraft.getWindow().getGuiScaledWidth() / 2;
         int widthScale = textWidth / 2 + 4;
         int right = width - widthScale;
@@ -308,5 +315,36 @@ public class ConfigScreen extends Screen {
         RenderSystem.disableBlend();
         RenderSystem.getModelViewStack().popPose();
         RenderSystem.applyModelViewMatrix();
+    }
+
+    private int renderMultiComponent(GuiGraphics guiGraphics, MutableComponent detailsComponent, int partHeight) {
+        partHeight = renderComponent(guiGraphics, detailsComponent, partHeight);
+
+        for (Component component : detailsComponent.getSiblings()) {
+            if (component instanceof MutableComponent mutableComponent) {
+                partHeight = renderMultiComponent(guiGraphics, mutableComponent, partHeight);
+            }
+        }
+
+        return partHeight;
+    }
+
+    private int renderComponent(GuiGraphics guiGraphics, MutableComponent detailsComponent, int partHeight) {
+        String mainText = MutableComponent.create(detailsComponent.getContents()).getString();
+
+        String[] parts = mainText.split("\\n");
+        int textWidth = Math.min(minecraft.getWindow().getScreenWidth(), 202);
+        int x = minecraft.getWindow().getGuiScaledWidth() / 2 - (textWidth) / 2 + 2;
+        for (String part : parts) {
+            List<FormattedText> text = Minecraft.getInstance().font.getSplitter().splitLines(Component.literal(part), textWidth, detailsComponent.getStyle());
+            for (int row = 0; row < text.size(); ++row) {
+                MutableComponent mutableComponent = Component.literal(text.get(row).getString());
+                mutableComponent.withStyle(detailsComponent.getStyle());
+                guiGraphics.drawString(minecraft.font, mutableComponent, x, 4 + partHeight + row * minecraft.font.lineHeight, FastColor.ARGB32.color(255, 255, 255, 255));
+            }
+            partHeight += text.isEmpty() ? minecraft.font.lineHeight / 2 : text.size() * minecraft.font.lineHeight + minecraft.font.lineHeight / 4;
+        }
+
+        return partHeight;
     }
 }

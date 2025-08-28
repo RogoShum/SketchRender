@@ -232,17 +232,19 @@ public class GraphicsResourceManager {
      * Load a JSON resource
      */
     private void loadJsonResource(Identifier type, Identifier identifier, String jsonData, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
-        ResourceLoader<?> loader = loaderRegistry.getLoader(type);
+        Set<ResourceLoader<ResourceObject>> loader = loaderRegistry.getLoader(type);
         if (loader == null) {
             System.err.println("No loader found for resource type: " + type);
             return;
         }
 
         try {
-            ResourceObject resource = loader.loadFromJson(identifier, jsonData, gson, resourceProvider);
-            if (resource != null) {
-                resources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
-                        .put(identifier, resource);
+            for (ResourceLoader<ResourceObject> resourceLoader : loader) {
+                ResourceObject resource = resourceLoader.loadFromJson(identifier, jsonData, gson, resourceProvider);
+                if (resource != null) {
+                    resources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
+                            .put(identifier, resource);
+                }
             }
         } catch (Exception e) {
             System.err.println("Failed to load JSON resource " + identifier + " of type " + type + ": " + e.getMessage());

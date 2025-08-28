@@ -8,16 +8,16 @@ import rogo.sketch.api.ResourceObject;
 import rogo.sketch.util.Identifier;
 
 public class Texture implements ResourceObject, BindingResource {
-    private final int handle;
-    private final Identifier identifier;
-    private final int format;
-    private final int filterMode;
-    private final int wrapMode;
-    private boolean disposed = false;
+    protected final int handle;
+    protected final Identifier identifier;
+    protected final int format;
+    protected final int filterMode;
+    protected final int wrapMode;
+    protected boolean disposed = false;
 
     // Current dimensions (managed by RenderTarget)
-    private int currentWidth = 0;
-    private int currentHeight = 0;
+    protected int currentWidth = 0;
+    protected int currentHeight = 0;
 
     public Texture(int handle, Identifier identifier, int format, int filterMode, int wrapMode) {
         this.handle = handle;

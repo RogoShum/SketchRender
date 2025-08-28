@@ -22,10 +22,10 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import rogo.sketch.Config;
-import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
 import rogo.sketch.compat.sodium.IndirectDrawChunkRenderer;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.compat.sodium.SodiumSectionAsyncUtil;
+import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 
@@ -49,7 +49,8 @@ public abstract class MixinRenderSectionManager {
     @Final
     private ChunkRenderer chunkRenderer;
 
-    @Shadow protected abstract void checkTranslucencyChange();
+    @Shadow
+    protected abstract void checkTranslucencyChange();
 
     @Unique
     private ChunkRenderer sketchlib$indirectDrawChunkRenderer;

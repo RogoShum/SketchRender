@@ -48,7 +48,7 @@ public class CullingTestGraphics extends SharedVertexGraphics {
 
     @Override
     public boolean shouldRender() {
-        if (!CullingStateManager.anyCulling() || CullingStateManager.checkCulling)
+        if (!CullingStateManager.anyCulling() || CullingStateManager.CHECKING_CULL)
             return false;
 
         return CullingStateManager.DEBUG > 0;

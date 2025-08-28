@@ -52,42 +52,27 @@ public class CullingStateManager {
     public static int DEPTH_INDEX;
     public static int MAIN_DEPTH_TEXTURE = 0;
     public static HizTarget[] DEPTH_BUFFER_TARGET = new HizTarget[DEPTH_SIZE];
-    public static boolean updatingDepth;
-    public static boolean applyFrustum;
     public static int DEBUG = 0;
     public static ShaderPackLoader SHADER_LOADER = null;
-
-    private static boolean[] nextTick = new boolean[20];
-    public static int fps = 0;
-    private static int tick = 0;
-    public static int clientTickCount = 0;
-    public static int entityCulling = 0;
-    public static int entityCount = 0;
-    public static int blockCulling = 0;
-    public static int blockCount = 0;
-    public static long entityCullingTime = 0;
-    public static long blockCullingTime = 0;
-    public static long chunkCullingTime = 0;
-    private static long preEntityCullingTime = 0;
-    private static long preBlockCullingTime = 0;
-    private static long preChunkCullingTime = 0;
-    public static long preApplyFrustumTime = 0;
-    public static long applyFrustumTime = 0;
-    public static long entityCullingInitTime = 0;
-    public static long preEntityCullingInitTime = 0;
-    public static int cullingInitCount = 0;
-    public static int preCullingInitCount = 0;
-    public static boolean checkCulling = false;
-    public static boolean checkTexture = false;
-    private static boolean usingShader = false;
+    private static boolean[] NEXT_TICK = new boolean[20];
+    public static int FPS = 0;
+    private static int CURRENT_TICK = 0;
+    public static int CLIENT_TICK_COUNT = 0;
+    public static int ENTITY_CULLING = 0;
+    public static int ENTITY_COUNT = 0;
+    public static int BLOCK_CULLING = 0;
+    public static int BLOCK_COUNT = 0;
+    public static boolean CHECKING_CULL = false;
+    public static boolean CHECKING_TEXTURE = false;
+    private static boolean USING_SHADER_PACK = false;
     public static Identifier LEVEL_SECTION_RANGE_ID = Identifier.of("level_section_range");
     public static Identifier LEVEL_POS_RANGE_ID = Identifier.of("level_pos_range");
     public static Identifier LEVEL_MIN_SECTION_ABS_ID = Identifier.of("level_min_section_abs");
     public static Identifier LEVEL_MIN_POS_ID = Identifier.of("level_min_section_abs");
     public static Camera CAMERA;
     private static final HashMap<Integer, Integer> SHADER_DEPTH_BUFFER_ID = new HashMap<>();
-    public static volatile boolean useOcclusionCulling = true;
-    private static int continueUpdateCount;
+    public static volatile boolean USE_OCCLUSION_CULLING = true;
+    private static int CONTINUE_UPDATE_COUNT;
 
     static {
         RenderSystem.recordRenderCall(() -> {
@@ -118,8 +103,8 @@ public class CullingStateManager {
     }
 
     public static void cleanup() {
-        tick = 0;
-        clientTickCount = 0;
+        CURRENT_TICK = 0;
+        CLIENT_TICK_COUNT = 0;
 
         if (ENTITY_CULLING_MASK != null) {
             ENTITY_CULLING_MASK.cleanup();
@@ -132,7 +117,7 @@ public class CullingStateManager {
     }
 
     public static boolean shouldSkipBlockEntity(BlockEntity blockEntity, BlockPos pos) {
-        blockCount++;
+        BLOCK_COUNT++;
         if (ENTITY_CULLING_MASK == null || renderingShadowPass() || !Config.getCullBlockEntity()) return false;
         //for valkyrien skies
         if (CAMERA.getPosition().distanceToSqr(pos.getX(), pos.getY(), pos.getZ()) >
@@ -148,12 +133,12 @@ public class CullingStateManager {
             return false;
         }
 
-        blockCulling++;
+        BLOCK_CULLING++;
         return true;
     }
 
     public static boolean shouldSkipEntity(Entity entity) {
-        entityCount++;
+        ENTITY_COUNT++;
         if (ENTITY_CULLING_MASK == null || renderingShadowPass() || !Config.getCullEntity()) return false;
         if (entity instanceof Player || entity.isCurrentlyGlowing()) return false;
         if (entity.distanceToSqr(CAMERA.getPosition()) < 4) return false;
@@ -164,66 +149,44 @@ public class CullingStateManager {
             return false;
         }
 
-        entityCulling++;
+        ENTITY_CULLING++;
         return true;
     }
 
     @SubscribeEvent
     public void renderStage(ProxyEvent<GraphicsPipelineStageEvent<McRenderContext>> proxyEvent) {
-        if (!(proxyEvent.getWrapped() instanceof GraphicsPipelineStageEvent)) return;
-
         GraphicsPipelineStageEvent<McRenderContext> event = proxyEvent.getWrapped();
         McRenderContext context = event.getContext();
 
         if (event.getPhase() == GraphicsPipelineStageEvent.Phase.PRE) {
             if (event.getStage() == MinecraftRenderStages.SKY.getIdentifier()) {
                 CAMERA = Minecraft.getInstance().gameRenderer.getMainCamera();
-                int thisTick = clientTickCount % 20;
-                nextTick = new boolean[20];
+                int thisTick = CLIENT_TICK_COUNT % 20;
+                NEXT_TICK = new boolean[20];
 
-                if (tick != thisTick) {
-                    tick = thisTick;
-                    nextTick[thisTick] = true;
+                if (CURRENT_TICK != thisTick) {
+                    CURRENT_TICK = thisTick;
+                    NEXT_TICK[thisTick] = true;
                 }
 
-                entityCulling = 0;
-                entityCount = 0;
-                blockCulling = 0;
-                blockCount = 0;
+                ENTITY_CULLING = 0;
+                ENTITY_COUNT = 0;
+                BLOCK_CULLING = 0;
+                BLOCK_COUNT = 0;
 
                 if (anyNextTick()) {
-                    if (continueUpdateCount > 0) {
-                        continueUpdateCount--;
+                    if (CONTINUE_UPDATE_COUNT > 0) {
+                        CONTINUE_UPDATE_COUNT--;
                     }
                 }
 
                 if (isNextLoop()) {
                     if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                        CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(clientTickCount);
+                        CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(CLIENT_TICK_COUNT);
                     }
-
-                    applyFrustumTime = preApplyFrustumTime;
-                    preApplyFrustumTime = 0;
-
-                    entityCullingTime = preEntityCullingTime;
-                    preEntityCullingTime = 0;
-
-                    blockCullingTime = preBlockCullingTime;
-                    preBlockCullingTime = 0;
-
-                    cullingInitCount = preCullingInitCount;
-                    preCullingInitCount = 0;
-
-                    entityCullingInitTime = preEntityCullingInitTime;
-                    preEntityCullingInitTime = 0;
 
                     MeshResource.LAST_QUEUE_UPDATE_COUNT = MeshResource.QUEUE_UPDATE_COUNT;
                     MeshResource.QUEUE_UPDATE_COUNT = 0;
-
-                    if (preChunkCullingTime != 0) {
-                        chunkCullingTime = preChunkCullingTime;
-                        preChunkCullingTime = 0;
-                    }
                 }
             } else if (event.getStage() == MinecraftRenderStages.RENDER_START.getIdentifier()) {
                 if (((AccessorLevelRender) Minecraft.getInstance().levelRenderer).getNeedsFullRenderChunkUpdate() && Minecraft.getInstance().level != null) {
@@ -236,9 +199,7 @@ public class CullingStateManager {
                 updateMapData();
                 OcclusionCullerThread.notifyUpdate();
             } else if (event.getStage() == MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier()) {
-                updatingDepth = true;
                 updateDepthMap();
-                updatingDepth = false;
             } else if (event.getStage() == MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier()) {
                 checkShader();
             }
@@ -248,14 +209,14 @@ public class CullingStateManager {
     public static void checkShader() {
         if (SHADER_LOADER != null) {
             boolean clear = false;
-            if (SHADER_LOADER.enabledShader() && !usingShader) {
+            if (SHADER_LOADER.enabledShader() && !USING_SHADER_PACK) {
                 clear = true;
-                usingShader = true;
+                USING_SHADER_PACK = true;
             }
 
-            if (!SHADER_LOADER.enabledShader() && usingShader) {
+            if (!SHADER_LOADER.enabledShader() && USING_SHADER_PACK) {
                 clear = true;
-                usingShader = false;
+                USING_SHADER_PACK = false;
             }
 
             if (clear) {
@@ -266,7 +227,7 @@ public class CullingStateManager {
 
     public static void updateDepthMap() {
         CullingStateManager.PROJECTION_MATRIX = new Matrix4f(RenderSystem.getProjectionMatrix());
-        if (anyCulling() && !checkCulling && continueUpdateDepth()) {
+        if (anyCulling() && !CHECKING_CULL && continueUpdateDepth()) {
             Window window = Minecraft.getInstance().getWindow();
             int width = window.getWidth();
             int height = window.getHeight();
@@ -309,7 +270,6 @@ public class CullingStateManager {
             }
 
             MAIN_DEPTH_TEXTURE = depthTexture;
-            //computeHizTexture();
             bindMainFrameTarget();
 
             net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles cameraSetup = net.minecraftforge.client.ForgeHooksClient.onCameraSetup(Minecraft.getInstance().gameRenderer
@@ -325,7 +285,7 @@ public class CullingStateManager {
     }
 
     public static void updateMapData() {
-        fps = ((AccessorMinecraft) Minecraft.getInstance()).getFps();
+        FPS = ((AccessorMinecraft) Minecraft.getInstance()).getFps();
         if (anyCulling()) {
             MeshResource.updateDistance(Minecraft.getInstance().options.getEffectiveRenderDistance());
 
@@ -333,9 +293,6 @@ public class CullingStateManager {
                 if (ENTITY_CULLING_MASK == null) {
                     ENTITY_CULLING_MASK = new EntityCullingMask(64);
                 }
-
-                long time = System.nanoTime();
-                preEntityCullingInitTime += System.nanoTime() - time;
             }
         } else {
             if (ENTITY_CULLING_MASK != null) {
@@ -358,27 +315,10 @@ public class CullingStateManager {
     }
 
     public static void runOnDepthFrame(Consumer<DepthContext> consumer) {
-        runOnDepthFrame(consumer, 0);
-    }
-
-    public static void runOnDepthFrame(Consumer<DepthContext> consumer, int startAtIndex) {
-        for (DEPTH_INDEX = startAtIndex; DEPTH_INDEX < DEPTH_BUFFER_TARGET.length; ++DEPTH_INDEX) {
+        for (DEPTH_INDEX = 0; DEPTH_INDEX < DEPTH_BUFFER_TARGET.length; ++DEPTH_INDEX) {
             int lastTexture = DEPTH_INDEX == 0 ? MAIN_DEPTH_TEXTURE : DEPTH_BUFFER_TARGET[DEPTH_INDEX - 1].getColorTextureId();
             consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, lastTexture));
         }
-    }
-
-    public static void runOnDepthFrame(Consumer<DepthContext> consumer, int startAtIndex, int endAtIndex) {
-        for (DEPTH_INDEX = startAtIndex; DEPTH_INDEX < endAtIndex; ++DEPTH_INDEX) {
-            int lastTexture = DEPTH_INDEX == 0 ? MAIN_DEPTH_TEXTURE : DEPTH_BUFFER_TARGET[DEPTH_INDEX - 1].getColorTextureId();
-            consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, lastTexture));
-        }
-    }
-
-    public static void callDepthTexture() {
-        CullingStateManager.runOnDepthFrame((depthContext) -> {
-            RenderSystem.setShaderTexture(depthContext.index(), depthContext.frame().getColorTextureId());
-        });
     }
 
     public static boolean renderingShadowPass() {
@@ -391,14 +331,14 @@ public class CullingStateManager {
 
     public static boolean anyNextTick() {
         for (int i = 0; i < 20; ++i) {
-            if (nextTick[i])
+            if (NEXT_TICK[i])
                 return true;
         }
         return false;
     }
 
     public static boolean isNextLoop() {
-        return nextTick[0];
+        return NEXT_TICK[0];
     }
 
     public static boolean anyCulling() {
@@ -406,10 +346,10 @@ public class CullingStateManager {
     }
 
     public static void updating() {
-        continueUpdateCount = 10;
+        CONTINUE_UPDATE_COUNT = 10;
     }
 
     public static boolean continueUpdateDepth() {
-        return continueUpdateCount > 0;
+        return CONTINUE_UPDATE_COUNT > 0;
     }
 }

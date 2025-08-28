@@ -43,11 +43,11 @@ public class SodiumSectionAsyncUtil {
         shouldUpdate.acquireUninterruptibly();
         if (CullingStateManager.enabledShader() && shadowViewport != null) {
             frame++;
-            CullingStateManager.useOcclusionCulling = false;
+            CullingStateManager.USE_OCCLUSION_CULLING = false;
             VisibleChunkCollector shadowCollector = new AsynchronousChunkCollector(frame);
             occlusionCuller.findVisible(shadowCollector, shadowViewport, shadowSearchDistance, shadowUseOcclusionCulling, frame);
             SodiumSectionAsyncUtil.shadowCollector = shadowCollector;
-            CullingStateManager.useOcclusionCulling = true;
+            CullingStateManager.USE_OCCLUSION_CULLING = true;
         }
 
         if (viewport != null) {

@@ -19,7 +19,7 @@ public class ForgeEventBusImplementation implements IEventBusImplementation {
     @Override
     public <T> void post(T event) {
         if (event instanceof RegistryEvent registryEvent) {
-            FMLJavaModLoadingContext.get().getModEventBus().post(new ProxyModEvent(registryEvent));
+            FMLJavaModLoadingContext.get().getModEventBus().post(new ProxyModEvent<>(registryEvent));
         } else {
             MinecraftForge.EVENT_BUS.post(new ProxyEvent<>(event));
         }

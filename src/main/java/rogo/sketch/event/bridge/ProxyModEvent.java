@@ -1,16 +1,17 @@
 package rogo.sketch.event.bridge;
 
-import net.minecraftforge.eventbus.api.Event;
+import net.minecraftforge.eventbus.api.GenericEvent;
 import net.minecraftforge.fml.event.IModBusEvent;
 
-public class ProxyModEvent extends Event implements IModBusEvent {
-    private final RegistryEvent wrapped;
+public class ProxyModEvent<T extends RegistryEvent> extends GenericEvent<T> implements IModBusEvent {
+    private final T wrapped;
 
-    public ProxyModEvent(RegistryEvent wrapped) {
+    public ProxyModEvent(T wrapped) {
+        super((Class<T>) wrapped.getClass());
         this.wrapped = wrapped;
     }
 
-    public RegistryEvent getWrapped() {
+    public T getWrapped() {
         return wrapped;
     }
 }

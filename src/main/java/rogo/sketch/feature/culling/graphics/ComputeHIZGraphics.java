@@ -42,7 +42,7 @@ public class ComputeHIZGraphics extends ComputeGraphics {
 
     @Override
     public boolean shouldRender() {
-        return CullingStateManager.anyCulling() && !CullingStateManager.checkCulling && CullingStateManager.continueUpdateDepth();
+        return CullingStateManager.anyCulling() && !CullingStateManager.CHECKING_CULL && CullingStateManager.continueUpdateDepth();
     }
 
     public boolean first() {

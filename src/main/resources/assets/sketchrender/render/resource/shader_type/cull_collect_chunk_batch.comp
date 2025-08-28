@@ -120,7 +120,7 @@ bool _is_chunk_culled(ivec3 sectionPos) {
 
     far = sketch_renderDistance * 64.0;
 
-    ClipResult clip = getClippedMinDepth(chunkPos + sketch_cullingCameraDir, 10.0);
+    ClipResult clip = getClippedMinDepth(chunkPos + sketch_cullingCameraDir, 10.0, 10.0);
     float sectionDepth = LinearizeDepth(clip.minDepth);
 
     vec2 mins = clamp(clip.screenMin, 0.0, 1.0);

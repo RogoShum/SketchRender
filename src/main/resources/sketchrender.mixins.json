@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "sketchrender.refmap.json",
   "mixins": [
+    "iris.AccessorIrisRenderingPipeline"
   ],
   "client": [
     "AccessorFrustum",
@@ -18,12 +19,12 @@
     "MixinWindow",
     "render.MixinGameRender",
     "render.MixinLevelRendererProvider",
-    "sodium.MixinGlDebug",
-    "sodium.MixinMappedStagingBuffer",
-    "sodium.MixinMappedStagingBuffer$MixinMappedBuffer",
     "sodium.AccessorRenderSectionManager",
     "sodium.MixinDefaultChunkRenderer",
+    "sodium.MixinGlDebug",
     "sodium.MixinGLRenderDevice",
+    "sodium.MixinMappedStagingBuffer",
+    "sodium.MixinMappedStagingBuffer$MixinMappedBuffer",
     "sodium.MixinRenderRegion",
     "sodium.MixinRenderRegionManager",
     "sodium.MixinRenderSectionManager",

@@ -13,7 +13,6 @@ import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
-import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.vanilla.ShaderManager;
 
 import java.util.ArrayList;
@@ -58,12 +57,8 @@ public class CullingRenderEvent {
 
             List<String> monitorTexts = new ArrayList<>();
 
-            if (CullingStateManager.fps == 0) {
-                CullingStateManager.fps++;
-            }
-
-            if (CullingStateManager.cullingInitCount == 0) {
-                CullingStateManager.cullingInitCount++;
+            if (CullingStateManager.FPS == 0) {
+                CullingStateManager.FPS++;
             }
 
             int index = Minecraft.getInstance().fpsString.indexOf("fps");
@@ -87,25 +82,11 @@ public class CullingRenderEvent {
 
             if (CullingStateManager.DEBUG > 1) {
                 if (Config.doEntityCulling()) {
-                    String blockCullingTime = Component.translatable(SketchRender.MOD_ID + ".block_culling_time").getString() + ": " + (CullingStateManager.blockCullingTime / 1000 / CullingStateManager.fps) + " μs";
-                    addString(monitorTexts, blockCullingTime);
-
-                    String blockCulling = Component.translatable(SketchRender.MOD_ID + ".block_culling").getString() + ": " + CullingStateManager.blockCulling + " / " + CullingStateManager.blockCount;
-                    addString(monitorTexts, blockCulling);
-
-                    String entityCullingTime = Component.translatable(SketchRender.MOD_ID + ".entity_culling_time").getString() + ": " + (CullingStateManager.entityCullingTime / 1000 / CullingStateManager.fps) + " μs";
-                    addString(monitorTexts, entityCullingTime);
-
-                    String entityCulling = Component.translatable(SketchRender.MOD_ID + ".entity_culling").getString() + ": " + CullingStateManager.entityCulling + " / " + CullingStateManager.entityCount;
+                    String entityCulling = Component.translatable(SketchRender.MOD_ID + ".entity_cull_count").getString() + ": " + CullingStateManager.ENTITY_CULLING + " / " + CullingStateManager.ENTITY_COUNT;
                     addString(monitorTexts, entityCulling);
 
-                    String initTime = Component.translatable(SketchRender.MOD_ID + ".entity_culling_init").getString() + ": " + (CullingStateManager.entityCullingInitTime / CullingStateManager.cullingInitCount / CullingStateManager.fps) + " ns";
-                    addString(monitorTexts, initTime);
-                }
-
-                if (Config.getCullChunk()) {
-                    String chunkCullingCount = Component.translatable(SketchRender.MOD_ID + ".chunk_update_count").getString() + ": " + MeshResource.LAST_QUEUE_UPDATE_COUNT;
-                    addString(monitorTexts, chunkCullingCount);
+                    String blockCulling = Component.translatable(SketchRender.MOD_ID + ".block_cull_count").getString() + ": " + CullingStateManager.BLOCK_CULLING + " / " + CullingStateManager.BLOCK_COUNT;
+                    addString(monitorTexts, blockCulling);
                 }
             }
 
@@ -157,7 +138,7 @@ public class CullingRenderEvent {
             RenderSystem.enableDepthTest();
             Tesselator tessellator = Tesselator.getInstance();
 
-            if (!CullingStateManager.checkTexture)
+            if (!CullingStateManager.CHECKING_TEXTURE)
                 return;
 
             float screenScale = 1.0f;
