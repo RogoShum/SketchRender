@@ -2,14 +2,14 @@ package rogo.sketch.render.state.gl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.util.Identifier;
 
 public class DepthMaskState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("depth_mask");
-    
+
     private boolean writable;
 
     public DepthMaskState() {
@@ -34,7 +34,7 @@ public class DepthMaskState implements RenderStateComponent {
 
     @Override
     public void apply(RenderContext context) {
-        GL11.glDepthMask(writable);
+        GraphicsDriver.getCurrentAPI().depthMask(writable);
     }
 
     @Override

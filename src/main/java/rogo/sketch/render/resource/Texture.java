@@ -5,6 +5,7 @@ import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL42;
 import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.ResourceObject;
+import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.util.Identifier;
 
 public class Texture implements ResourceObject, BindingResource {
@@ -72,8 +73,8 @@ public class Texture implements ResourceObject, BindingResource {
         if (resourceType.equals(ResourceTypes.IMAGE_BUFFER)) {
             GL42.glBindImageTexture(textureUnit, handle, 0, false, 0, GL42.GL_READ_WRITE, format);
         } else {
-            GL42.glActiveTexture(GL13.GL_TEXTURE0 + textureUnit);
-            GL42.glBindTexture(GL11.GL_TEXTURE_2D, handle);
+            GraphicsDriver.getCurrentAPI().activeTexture(GL13.GL_TEXTURE0 + textureUnit);
+            GraphicsDriver.getCurrentAPI().bindTexture(handle);
         }
     }
 

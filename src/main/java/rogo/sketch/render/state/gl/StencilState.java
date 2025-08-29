@@ -5,11 +5,12 @@ import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.util.Identifier;
 
 public class StencilState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("stencil_test");
-    
+
     private boolean enabled;
     private int func, ref, mask, fail, zfail, zpass;
 
@@ -49,33 +50,33 @@ public class StencilState implements RenderStateComponent {
     @Override
     public void apply(RenderContext context) {
         if (enabled) {
-            GL11.glEnable(GL11.GL_STENCIL_TEST);
-            GL11.glStencilFunc(func, ref, mask);
-            GL11.glStencilOp(fail, zfail, zpass);
+            GraphicsDriver.getCurrentAPI().enableStencil();
+            GraphicsDriver.getCurrentAPI().stencilFunc(func, ref, mask);
+            GraphicsDriver.getCurrentAPI().stencilOp(fail, zfail, zpass);
         } else {
-            GL11.glDisable(GL11.GL_STENCIL_TEST);
+            GraphicsDriver.getCurrentAPI().disableStencil();
         }
     }
 
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
         this.enabled = json.has("enabled") ? json.get("enabled").getAsBoolean() : false;
-        
+
         if (json.has("function")) {
             this.func = parseStencilFunction(json.get("function").getAsString());
         }
-        
+
         this.ref = json.has("ref") ? json.get("ref").getAsInt() : 0;
         this.mask = json.has("mask") ? json.get("mask").getAsInt() : 0xFF;
-        
+
         if (json.has("fail")) {
             this.fail = parseStencilOp(json.get("fail").getAsString());
         }
-        
+
         if (json.has("zfail")) {
             this.zfail = parseStencilOp(json.get("zfail").getAsString());
         }
-        
+
         if (json.has("zpass")) {
             this.zpass = parseStencilOp(json.get("zpass").getAsString());
         }

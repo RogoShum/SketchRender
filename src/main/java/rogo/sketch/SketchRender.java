@@ -46,6 +46,8 @@ import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.feature.culling.aabb.AABBObject;
 import rogo.sketch.gui.ConfigScreen;
+import rogo.sketch.render.driver.GraphicsDriver;
+import rogo.sketch.render.driver.MinecraftAPI;
 import rogo.sketch.render.shader.uniform.UniformHookRegistry;
 import rogo.sketch.render.state.RenderStateRegistry;
 import rogo.sketch.util.CommandCallTimer;
@@ -75,6 +77,7 @@ public class SketchRender {
 
     @SuppressWarnings("removal")
     public SketchRender() {
+        GraphicsDriver.setCurrentAPI(new MinecraftAPI());
         EventBusBridge.setImplementation(new ForgeEventBusImplementation());
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             MinecraftRenderStages.addStage(CullingStages.HIZ_STAGE);

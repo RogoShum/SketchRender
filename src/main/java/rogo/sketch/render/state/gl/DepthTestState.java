@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.util.Identifier;
 
 public class DepthTestState implements RenderStateComponent {
@@ -38,10 +39,10 @@ public class DepthTestState implements RenderStateComponent {
     @Override
     public void apply(RenderContext context) {
         if (enabled) {
-            GL11.glEnable(GL11.GL_DEPTH_TEST);
-            GL11.glDepthFunc(func);
+            GraphicsDriver.getCurrentAPI().enableDepthTest();
+            GraphicsDriver.getCurrentAPI().depthFunc(func);
         } else {
-            GL11.glDisable(GL11.GL_DEPTH_TEST);
+            GraphicsDriver.getCurrentAPI().disableDepthTest();
         }
     }
 

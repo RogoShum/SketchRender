@@ -5,11 +5,12 @@ import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.util.Identifier;
 
 public class PolygonModeState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("polygon_mode");
-    
+
     private int face, mode;
 
     public PolygonModeState() {
@@ -36,7 +37,7 @@ public class PolygonModeState implements RenderStateComponent {
 
     @Override
     public void apply(RenderContext context) {
-        GL11.glPolygonMode(face, mode);
+        GraphicsDriver.getCurrentAPI().polygonMode(face, mode);
     }
 
     @Override
@@ -44,7 +45,7 @@ public class PolygonModeState implements RenderStateComponent {
         if (json.has("face")) {
             this.face = parseFace(json.get("face").getAsString());
         }
-        
+
         if (json.has("mode")) {
             this.mode = parseMode(json.get("mode").getAsString());
         }

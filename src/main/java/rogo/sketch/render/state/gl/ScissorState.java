@@ -2,14 +2,14 @@ package rogo.sketch.render.state.gl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.util.Identifier;
 
 public class ScissorState implements RenderStateComponent {
     public static final Identifier TYPE = Identifier.of("scissor_test");
-    
+
     private boolean enabled;
     private int x, y, width, height;
 
@@ -44,10 +44,9 @@ public class ScissorState implements RenderStateComponent {
     @Override
     public void apply(RenderContext context) {
         if (enabled) {
-            GL11.glEnable(GL11.GL_SCISSOR_TEST);
-            GL11.glScissor(x, y, width, height);
+            GraphicsDriver.getCurrentAPI().enableScissor(x, y, width, height);
         } else {
-            GL11.glDisable(GL11.GL_SCISSOR_TEST);
+            GraphicsDriver.getCurrentAPI().disableScissor();
         }
     }
 
