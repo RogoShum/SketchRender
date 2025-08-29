@@ -96,7 +96,7 @@ public class CullingStateManager {
         }
     }
 
-    public static void onWorldUnload(Level world) {
+    public static void onWorldReload(Level world) {
         if (world != Minecraft.getInstance().level) {
             cleanup();
         }
@@ -114,6 +114,28 @@ public class CullingStateManager {
         if (SketchRender.hasSodium()) {
             SodiumSectionAsyncUtil.pauseAsync();
         }
+
+        Window window = Minecraft.getInstance().getWindow();
+        int width = window.getWidth();
+        int height = window.getHeight();
+
+        runOnDepthFrame((depthContext) -> {
+            int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
+            int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
+
+            if (scaleWidth % 2 == 1) {
+                scaleWidth += 1;
+            }
+
+            if (scaleHeight % 2 == 1) {
+                scaleHeight += 1;
+            }
+            if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
+                depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
+            }
+        });
+
+        bindMainFrameTarget();
     }
 
     public static boolean shouldSkipBlockEntity(BlockEntity blockEntity, BlockPos pos) {

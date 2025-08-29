@@ -3,7 +3,7 @@
   "minVersion": "0.8",
   "package": "rogo.sketch.mixin",
   "compatibilityLevel": "JAVA_17",
-  "refmap": "sketchrender.refmap.json",
+  "refmap": "sketch_render.refmap.json",
   "mixins": [
     "iris.AccessorIrisRenderingPipeline"
   ],

@@ -67,7 +67,7 @@ import static rogo.sketch.feature.culling.CullingStateManager.*;
 
 @Mod(SketchRender.MOD_ID)
 public class SketchRender {
-    public static final String MOD_ID = "sketchrender";
+    public static final String MOD_ID = "sketch_render";
     public static final Logger LOGGER = LogUtils.getLogger();
     private static final ShaderManager shaderManager = new ShaderManager();
     private static final RenderResourceManager resourceManager = new RenderResourceManager();

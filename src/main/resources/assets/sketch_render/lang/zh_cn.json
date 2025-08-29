@@ -1,0 +1,34 @@
+{
+  "key.category.sketch_render": "草图渲染",
+  "sketch_render.key.config": "配置菜单",
+  "sketch_render.key.debug": "测试界面",
+
+  "sketch_render.cull_entity": "剔除实体",
+  "sketch_render.cull_block_entity": "剔除方块实体",
+  "sketch_render.cull_chunk": "剔除区块",
+  "sketch_render.async_chunk_build": "异步构建区块",
+  "sketch_render.test_feature": "测试用",
+  "sketch_render.auto_shader_async": "自动关闭异步",
+  "sketch_render.culling_precision": "剔除精细度",
+  "sketch_render.entity_cull_count": "实体剔除数量",
+  "sketch_render.block_cull_count": "方块实体剔除数量",
+
+  "sketch_render.enable": "开启",
+  "sketch_render.disable": "关闭",
+  "sketch_render.detail.cull_entity": "剔除视觉上不可见的实体",
+  "sketch_render.detail.cull_block_entity": "剔除视觉上不可见的方块实体",
+  "sketch_render.detail.cull_chunk": "剔除视觉上不可见的区块",
+  "sketch_render.detail.async_chunk_build": "{\"extra\":[{\"text\":\"\n可以适当提高游戏设置的多线程加载区块数量辅助此功能。如在加载区块时崩溃请尝试关掉此设置。\"}, {\"color\":\"dark_red\",\"text\":\"\n\n剔除结果同步到主线程会有延迟，高速旋转视角时边缘区块加载速度可能会变慢。\"}],\"text\":\"使用独立线程异步更新可见区块，并同步到主渲染线程。可以加速移动时的区块构建速度，提升帧数。\"}",
+  "sketch_render.detail.culling_precision": "剔除判断的精细程度，数值越高剔除越精细，但对显卡设备的计算力要求也更高，性能较好的显卡设备可以适当提高",
+  "sketch_render.detail.check_texture": "测试用，开启数据监控面板时可以查看深度纹理与剔除纹理工作是否正常。",
+  "sketch_render.detail.debug": "测试用，仅在原版生效，用于查看被剔除区块。",
+  "sketch_render.detail.test_feature": "测试用。",
+  "sketch_render.detail.nvidium": "{\"color\":\"dark_red\",\"text\":\"无法与Nvidium的Async bfs功能共用\"}",
+  "sketch_render.detail.auto_shader_async": "在部分设备上同时使用光影与异步构建区块会发生崩溃现象，此设置可以在开启光影时自动关闭异步构建区块",
+  "sketch_render.detail.sodium": "{\"color\":\"dark_red\",\"text\":\"此功能需要Sodium(Embeddium)\"}",
+  "sketch_render.detail.gl44": "{\"color\":\"dark_red\",\"text\":\"需要显卡支持OpenGL 4.4\"}",
+  "sketch_render.detail.gl46": "{\"color\":\"dark_red\",\"text\":\"需要显卡支持OpenGL 4.6\"}",
+
+  "sketch_render.skip_culling_entities": "不被剔除的实体",
+  "sketch_render.skip_culling_block_entities": "不被剔除的方块实体"
+}

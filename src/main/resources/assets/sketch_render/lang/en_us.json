@@ -1,0 +1,34 @@
+{
+  "key.category.sketch_render": "SketchRender",
+  "sketch_render.key.config": "Config Menu",
+  "sketch_render.key.debug": "Debug Screen",
+
+  "sketch_render.cull_entity": "Cull Entities",
+  "sketch_render.cull_block_entity": "Cull Block Entities",
+  "sketch_render.cull_chunk": "Cull Chunks",
+  "sketch_render.async_chunk_build": "Async Chunk Build",
+  "sketch_render.test_feature": "For Testing",
+  "sketch_render.auto_shader_async": "Auto Disable Async",
+  "sketch_render.culling_precision": "Culling Precision",
+  "sketch_render.entity_cull_count": "Culled Entity Count",
+  "sketch_render.block_cull_count": "Culled Block Entity Count",
+
+  "sketch_render.enable": "Enable",
+  "sketch_render.disable": "Disable",
+  "sketch_render.detail.cull_entity": "Cull entities that are not visible.",
+  "sketch_render.detail.cull_block_entity": "Cull block entities that are not visible.",
+  "sketch_render.detail.cull_chunk": "Cull chunks that are not visible.",
+  "sketch_render.detail.async_chunk_build": "{\"extra\":[{\"text\":\"\nYou can increase the number of multithreaded chunk loads in game settings to assist this feature. If crashes occur when loading chunks, try disabling this option.\"}, {\"color\":\"dark_red\",\"text\":\"\n\nThere will be a delay when synchronizing culling results to the main thread. When rotating the view quickly, edge chunks may load more slowly.\"}],\"text\":\"Use a separate thread to asynchronously update visible chunks and sync to the main render thread. Can speed up chunk building during movement and improve FPS.\"}",
+  "sketch_render.detail.culling_precision": "The precision level of culling checks. Higher values give more accurate culling but require stronger GPU performance. GPUs with better performance can raise this value appropriately.",
+  "sketch_render.detail.check_texture": "For testing. When the monitoring panel is enabled, you can check whether the depth texture and culling texture are working properly.",
+  "sketch_render.detail.debug": "For testing. Only effective in vanilla, used to view culled chunks.",
+  "sketch_render.detail.test_feature": "For testing.",
+  "sketch_render.detail.nvidium": "{\"color\":\"dark_red\",\"text\":\"Incompatible with Nvidium's Async BFS feature.\"}",
+  "sketch_render.detail.auto_shader_async": "On some devices, using shaders and async chunk building together may cause crashes. This option will automatically disable async chunk building when shaders are enabled.",
+  "sketch_render.detail.sodium": "{\"color\":\"dark_red\",\"text\":\"This feature requires Sodium (Embeddium).\"}",
+  "sketch_render.detail.gl44": "{\"color\":\"dark_red\",\"text\":\"Requires GPU support for OpenGL 4.4.\"}",
+  "sketch_render.detail.gl46": "{\"color\":\"dark_red\",\"text\":\"Requires GPU support for OpenGL 4.6.\"}",
+
+  "sketch_render.skip_culling_entities": "Entities Not Culled",
+  "sketch_render.skip_culling_block_entities": "Block Entities Not Culled"
+}

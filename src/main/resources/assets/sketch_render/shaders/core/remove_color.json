@@ -5,7 +5,7 @@
         "dstrgb": "1-srcalpha"
     },
     "vertex": "position_color_tex",
-    "fragment": "sketchrender:remove_color",
+    "fragment": "sketch_render:remove_color",
     "attributes": [
         "Position",
         "Color",

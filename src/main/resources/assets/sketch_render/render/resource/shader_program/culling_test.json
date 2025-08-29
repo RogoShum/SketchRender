@@ -1,0 +1,4 @@
+{
+  "vertex": "sketch_render:culling_test.vsh",
+  "fragment": "sketch_render:culling_test.fsh"
+}

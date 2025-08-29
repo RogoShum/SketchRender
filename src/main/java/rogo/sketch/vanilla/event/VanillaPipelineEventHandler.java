@@ -359,7 +359,7 @@ public class VanillaPipelineEventHandler {
     @SubscribeEvent
     public void onStaticGraphicsRegister(ProxyEvent<RegisterStaticGraphicsEvent> event) {
         RegisterStaticGraphicsEvent registerEvent = event.getWrapped();
-        registerReloadableComputeShader(registerEvent, "sketchrender:hierarchy_depth_buffer_first",
+        registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":hierarchy_depth_buffer_first",
                 () -> new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true));
 
         registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":hierarchy_depth_buffer_second",
@@ -368,7 +368,7 @@ public class VanillaPipelineEventHandler {
         registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":cull_entity_batch",
                 () -> new ComputeEntityCullingGraphics(Identifier.of(SketchRender.MOD_ID, "cull_entity_batch")));
 
-        Identifier settingId = Identifier.of("sketchrender:culling_test");
+        Identifier settingId = Identifier.of(SketchRender.MOD_ID, "culling_test");
         Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                 .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
 

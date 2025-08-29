@@ -26,7 +26,7 @@ public class MixinMinecraft {
 
     @Inject(method = "setLevel", at = @At(value = "HEAD"))
     public void onJoinWorld(ClientLevel world, CallbackInfo ci) {
-        CullingStateManager.onWorldUnload(world);
+        CullingStateManager.onWorldReload(world);
         SketchRender.getShaderManager().resetShader(Minecraft.getInstance().getResourceManager());
     }
 }

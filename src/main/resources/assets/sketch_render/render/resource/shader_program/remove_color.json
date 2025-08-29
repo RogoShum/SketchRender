@@ -1,0 +1,4 @@
+{
+    "vertex": "sketch_render:position_color_tex.vsh",
+    "fragment": "sketch_render:remove_color.fsh"
+}

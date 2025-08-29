@@ -1,0 +1,14 @@
+{
+  "renderState": {
+    "shader_program": {
+      "identifier": "sketch_render:copy_counter"
+    }
+  },
+  "resourceBinding": {
+    "shader_storage_buffer": {
+      "InputBuffer": "sketch_render:max_element_count",
+      "OutputBuffer": "sketch_render:persistent_max_element_count"
+    }
+  },
+  "shouldSwitchRenderState": true
+}
