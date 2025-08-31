@@ -101,6 +101,7 @@ $RECYCLE.BIN/
 *.lnk
 
 .gradle
+.vertex
 build/
 
 # Ignore Gradle GUI config
