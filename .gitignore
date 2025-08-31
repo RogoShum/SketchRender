@@ -120,3 +120,4 @@ runs/
 !gradle-wrapper.jar
 /bin/
 /readme/
+/.docs/
