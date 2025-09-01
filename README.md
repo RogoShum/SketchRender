@@ -1,14 +1,15 @@
 # SketchRender
+English | [中文](README.zh.md)
 
-一个轻量级的渲染工具库，服务于 **Minecraft 模组开发**。
+A lightweight rendering utility library for **Minecraft mod development**.
 
-## ✨ 特性
+## ✨ Current Features
 
-### 实体剔除
-- **功能**：基于深度缓冲的可见性判断，剔除视觉上不可见的实体。
-- **环境要求**：需要 **OpenGL 4.4** 及以上版本。
+### Entity Culling
+- **Function**: Visibility determination based on depth buffer, culling entities that are visually not visible.
+- **Requirements**: Requires **OpenGL 4.4** or higher.
 
-### 区块剔除
-- **功能**：在 Embeddium 模组的渲染流程中集成区块可见性判断，有效剔除不可见区块。
-- **环境要求**：需要 **OpenGL 4.6** 及以上版本，并安装 **Embeddium**。
-- **适用场景**：在 **CPU 性能较弱、GPU 性能较强** 的设备上，可以显著提升 Embeddium 的区块渲染效率。
+### Chunk Culling
+- **Function**: Integrates chunk visibility checks into the Embeddium mod rendering pipeline, performing GPU-driven culling of invisible chunks and submitting draw calls.
+- **Requirements**: Requires **OpenGL 4.6** and **Embeddium** installed.
+- **Use Case**: Significantly improves Embeddium's chunk rendering performance on devices with **relatively weak CPU but strong GPU**.
