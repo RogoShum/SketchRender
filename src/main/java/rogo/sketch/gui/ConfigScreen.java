@@ -166,7 +166,9 @@ public class ConfigScreen extends Screen {
                 });
         addConfigButton(Config::getCullChunk, Config::setCullChunk, () -> TranslationUtil.fromLang(".cull_chunk"))
                 .setDetailMessage(() -> {
-                    if (GLFeatureChecker.supportsIndirectDrawCount()) {
+                    if (!SketchRender.hasSodium()) {
+                        return TranslationUtil.fromLang(".detail.sodium");
+                    } else if (GLFeatureChecker.supportsIndirectDrawCount()) {
                         return TranslationUtil.fromLang(".detail.cull_chunk");
                     } else {
                         return TranslationUtil.fromLang(".detail.gl46");

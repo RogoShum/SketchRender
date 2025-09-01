@@ -1,7 +1,6 @@
 package rogo.sketch.vanilla.event;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
@@ -12,6 +11,7 @@ import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.api.GraphicsInstance;
 import rogo.sketch.compat.sodium.MeshResource;
+import rogo.sketch.compat.sodium.SodiumImplOptions;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
 import rogo.sketch.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.event.UniformHookRegisterEvent;
@@ -186,11 +186,11 @@ public class VanillaPipelineEventHandler {
 
         if (SketchRender.hasSodium()) {
             uniformEvent.register(Identifier.of("sketch_cullFacing"), ValueGetter.create(() -> {
-                return SodiumClientMod.options().performance.useBlockFaceCulling ? 1 : 0;
+                return SodiumImplOptions.useBlockFaceCulling() ? 1 : 0;
             }, Integer.class));
 
             uniformEvent.register(Identifier.of("sketch_translucentSort"), ValueGetter.create(() -> {
-                return SodiumClientMod.canApplyTranslucencySorting() ? 1 : 0;
+                return SodiumImplOptions.canApplyTranslucencySorting() ? 1 : 0;
             }, Integer.class));
         }
 

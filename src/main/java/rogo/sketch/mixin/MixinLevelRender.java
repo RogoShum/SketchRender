@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.feature.culling.CullingStateManager;
 
@@ -27,6 +28,8 @@ public abstract class MixinLevelRender {
 
     @Inject(method = "allChanged", at = @At(value = "RETURN"))
     public void onApplyFrustumReturn(CallbackInfo ci) {
-        MeshResource.clearRegions();
+        if (SketchRender.hasSodium()) {
+            MeshResource.clearRegions();
+        }
     }
 }

@@ -38,6 +38,7 @@ public class Config {
     public static boolean getCullBlockEntity() {
         if (unload() || !GLFeatureChecker.supportsPersistentMapping())
             return false;
+
         return CULL_BLOCK_ENTITY.get();
     }
 
@@ -47,17 +48,10 @@ public class Config {
     }
 
     public static boolean getCullChunk() {
-        if (unload() || !GLFeatureChecker.supportsIndirectDrawCount())
+        if (unload() || !GLFeatureChecker.supportsIndirectDrawCount() || !SketchRender.hasSodium())
             return false;
 
         return CULL_CHUNK.get();
-    }
-
-    public static boolean shouldCullChunk() {
-        if (unload())
-            return false;
-
-        return getCullChunk();
     }
 
     public static void setCullChunk(boolean value) {
@@ -74,10 +68,7 @@ public class Config {
         if (unload())
             return false;
 
-        if (!shouldCullChunk())
-            return false;
-
-        if (!SketchRender.hasSodium())
+        if (!getCullChunk())
             return false;
 
         if (getAutoDisableAsync() && CullingStateManager.enabledShader())
@@ -87,10 +78,7 @@ public class Config {
     }
 
     public static void setAsyncChunkRebuild(boolean value) {
-        if (!shouldCullChunk())
-            return;
-
-        if (!SketchRender.hasSodium())
+        if (!getCullChunk())
             return;
 
         ASYNC.set(value);
