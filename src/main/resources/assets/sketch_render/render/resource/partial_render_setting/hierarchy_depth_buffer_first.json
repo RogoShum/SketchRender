@@ -6,10 +6,7 @@
   },
   "resourceBinding": {
     "image_buffer": {
-      "output_texture_0": "sketch_render:hiz_texture_0",
-      "output_texture_1": "sketch_render:hiz_texture_1",
-      "output_texture_2": "sketch_render:hiz_texture_2",
-      "output_texture_3": "sketch_render:hiz_texture_3"
+      "output_texture_0": "sketch_render:hiz_texture"
     },
     "texture": {
       "sketch_SamplerTexture": "minecraft:main_depth"

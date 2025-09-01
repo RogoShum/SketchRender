@@ -1,5 +1,6 @@
 package rogo.sketch.util;
 
-import com.mojang.blaze3d.pipeline.RenderTarget;
+import org.joml.Vector3i;
 
-public record DepthContext(RenderTarget frame, int index, int lastTexture) {}
+public record DepthContext(Vector3i size) {
+}

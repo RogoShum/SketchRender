@@ -1,4 +1,14 @@
 # SketchRender
 
-## Introduction
-**SketchRender** is a lightweight rendering tool developed for Minecraft, designed to meet my personal development needs.  
+一个轻量级的渲染工具库，服务于 **Minecraft 模组开发**。
+
+## ✨ 特性
+
+### 实体剔除
+- **功能**：基于深度缓冲的可见性判断，剔除视觉上不可见的实体。
+- **环境要求**：需要 **OpenGL 4.4** 及以上版本。
+
+### 区块剔除
+- **功能**：在 Embeddium 模组的渲染流程中集成区块可见性判断，有效剔除不可见区块。
+- **环境要求**：需要 **OpenGL 4.6** 及以上版本，并安装 **Embeddium**。
+- **适用场景**：在 **CPU 性能较弱、GPU 性能较强** 的设备上，可以显著提升 Embeddium 的区块渲染效率。

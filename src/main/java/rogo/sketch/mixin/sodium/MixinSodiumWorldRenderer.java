@@ -31,20 +31,20 @@ public abstract class MixinSodiumWorldRenderer {
         if (Config.shouldCullChunk()) {
             SodiumSectionAsyncUtil.update(viewport, ((AccessorRenderSectionManager) this.renderSectionManager).invokeSearchDistance()
                     , ((AccessorRenderSectionManager) this.renderSectionManager).invokeShouldUseOcclusionCulling(camera, spectator));
-            if(SodiumSectionAsyncUtil.needSyncRebuild) {
+            if(SodiumSectionAsyncUtil.NEED_ASYNC_BUILD) {
                 this.renderSectionManager.markGraphDirty();
-                SodiumSectionAsyncUtil.needSyncRebuild = false;
+                SodiumSectionAsyncUtil.NEED_ASYNC_BUILD = false;
             }
         }
     }
 
     @Inject(method = "renderBlockEntities(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/RenderBuffers;Lit/unimi/dsi/fastutil/longs/Long2ObjectMap;FLnet/minecraft/client/renderer/MultiBufferSource$BufferSource;DDDLnet/minecraft/client/renderer/blockentity/BlockEntityRenderDispatcher;)V", at = @At(value = "HEAD"), remap = false)
     public void beforeRenderBlockEntities(PoseStack matrices, RenderBuffers bufferBuilders, Long2ObjectMap<SortedSet<BlockDestructionProgress>> blockBreakingProgressions, float tickDelta, MultiBufferSource.BufferSource immediate, double x, double y, double z, BlockEntityRenderDispatcher blockEntityRenderer, CallbackInfo ci) {
-        SodiumSectionAsyncUtil.renderingEntities = true;
+        SodiumSectionAsyncUtil.RENDERING_ENTITIES = true;
     }
 
     @Inject(method = "renderBlockEntities(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/RenderBuffers;Lit/unimi/dsi/fastutil/longs/Long2ObjectMap;FLnet/minecraft/client/renderer/MultiBufferSource$BufferSource;DDDLnet/minecraft/client/renderer/blockentity/BlockEntityRenderDispatcher;)V", at = @At(value = "RETURN"), remap = false)
     public void afterRenderBlockEntities(PoseStack matrices, RenderBuffers bufferBuilders, Long2ObjectMap<SortedSet<BlockDestructionProgress>> blockBreakingProgressions, float tickDelta, MultiBufferSource.BufferSource immediate, double x, double y, double z, BlockEntityRenderDispatcher blockEntityRenderer, CallbackInfo ci) {
-        SodiumSectionAsyncUtil.renderingEntities = false;
+        SodiumSectionAsyncUtil.RENDERING_ENTITIES = false;
     }
 }

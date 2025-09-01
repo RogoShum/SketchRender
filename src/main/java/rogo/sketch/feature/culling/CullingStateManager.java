@@ -17,6 +17,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.Matrix4f;
+import org.joml.Vector3i;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
@@ -25,7 +26,6 @@ import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.ProxyEvent;
 import rogo.sketch.mixin.AccessorLevelRender;
 import rogo.sketch.mixin.AccessorMinecraft;
-import rogo.sketch.util.DepthContext;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.util.ShaderPackLoader;
@@ -34,7 +34,6 @@ import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.VanillaShaderPackLoader;
 
 import java.util.HashMap;
-import java.util.function.Consumer;
 
 import static org.lwjgl.opengl.GL11.GL_TEXTURE;
 import static org.lwjgl.opengl.GL30.*;
@@ -49,9 +48,9 @@ public class CullingStateManager {
     }
 
     public static final int DEPTH_SIZE = 8;
-    public static int DEPTH_INDEX;
     public static int MAIN_DEPTH_TEXTURE = 0;
-    public static HizTarget[] DEPTH_BUFFER_TARGET = new HizTarget[DEPTH_SIZE];
+    public static HizTarget DEPTH_BUFFER_TARGET;
+    public static Vector3i[] DEPTH_BUFFER_INFORMATION = new Vector3i[DEPTH_SIZE];
     public static int DEBUG = 0;
     public static ShaderPackLoader SHADER_LOADER = null;
     private static boolean[] NEXT_TICK = new boolean[20];
@@ -75,12 +74,14 @@ public class CullingStateManager {
     private static int CONTINUE_UPDATE_COUNT;
 
     static {
+        for (int i = 0; i < DEPTH_SIZE; i++) {
+            DEPTH_BUFFER_INFORMATION[i] = new Vector3i();
+        }
+
         RenderSystem.recordRenderCall(() -> {
-            for (int i = 0; i < DEPTH_BUFFER_TARGET.length; ++i) {
-                DEPTH_BUFFER_TARGET[i] = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), true);
-                DEPTH_BUFFER_TARGET[i].setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-                DEPTH_BUFFER_TARGET[i].clear(Minecraft.ON_OSX);
-            }
+            DEPTH_BUFFER_TARGET = new HizTarget(Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), true);
+            DEPTH_BUFFER_TARGET.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+            DEPTH_BUFFER_TARGET.clear(Minecraft.ON_OSX);
         });
     }
 
@@ -114,28 +115,6 @@ public class CullingStateManager {
         if (SketchRender.hasSodium()) {
             SodiumSectionAsyncUtil.pauseAsync();
         }
-
-        Window window = Minecraft.getInstance().getWindow();
-        int width = window.getWidth();
-        int height = window.getHeight();
-
-        runOnDepthFrame((depthContext) -> {
-            int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
-            int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
-
-            if (scaleWidth % 2 == 1) {
-                scaleWidth += 1;
-            }
-
-            if (scaleHeight % 2 == 1) {
-                scaleHeight += 1;
-            }
-            if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
-                depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
-            }
-        });
-
-        bindMainFrameTarget();
     }
 
     public static boolean shouldSkipBlockEntity(BlockEntity blockEntity, BlockPos pos) {
@@ -254,9 +233,11 @@ public class CullingStateManager {
             int width = window.getWidth();
             int height = window.getHeight();
 
-            runOnDepthFrame((depthContext) -> {
-                int scaleWidth = Math.max(1, width >> (depthContext.index() + 1));
-                int scaleHeight = Math.max(1, height >> (depthContext.index() + 1));
+            int totalHeight = 0;
+
+            for (int index = 0; index < DEPTH_SIZE; ++index) {
+                int scaleWidth = Math.max(1, width >> (index + 1));
+                int scaleHeight = Math.max(1, height >> (index + 1));
 
                 if (scaleWidth % 2 == 1) {
                     scaleWidth += 1;
@@ -265,10 +246,15 @@ public class CullingStateManager {
                 if (scaleHeight % 2 == 1) {
                     scaleHeight += 1;
                 }
-                if (depthContext.frame().width != scaleWidth || depthContext.frame().height != scaleHeight) {
-                    depthContext.frame().resize(scaleWidth, scaleHeight, Minecraft.ON_OSX);
-                }
-            });
+
+
+                DEPTH_BUFFER_INFORMATION[index] = new Vector3i(scaleWidth, scaleHeight, totalHeight);
+                totalHeight += scaleHeight;
+            }
+
+            if (DEPTH_BUFFER_TARGET.width != DEPTH_BUFFER_INFORMATION[0].x || DEPTH_BUFFER_TARGET.height != totalHeight) {
+                DEPTH_BUFFER_TARGET.resize(DEPTH_BUFFER_INFORMATION[0].x, totalHeight, Minecraft.ON_OSX);
+            }
 
             int depthTexture = Minecraft.getInstance().getMainRenderTarget().getDepthTextureId();
             if (SHADER_LOADER.enabledShader()) {
@@ -333,13 +319,6 @@ public class CullingStateManager {
             SHADER_LOADER.bindDefaultFrameBuffer();
         } else {
             Minecraft.getInstance().getMainRenderTarget().bindWrite(true);
-        }
-    }
-
-    public static void runOnDepthFrame(Consumer<DepthContext> consumer) {
-        for (DEPTH_INDEX = 0; DEPTH_INDEX < DEPTH_BUFFER_TARGET.length; ++DEPTH_INDEX) {
-            int lastTexture = DEPTH_INDEX == 0 ? MAIN_DEPTH_TEXTURE : DEPTH_BUFFER_TARGET[DEPTH_INDEX - 1].getColorTextureId();
-            consumer.accept(new DepthContext(DEPTH_BUFFER_TARGET[DEPTH_INDEX], DEPTH_INDEX, lastTexture));
         }
     }
 

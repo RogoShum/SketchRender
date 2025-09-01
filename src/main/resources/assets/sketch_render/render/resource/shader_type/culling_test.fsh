@@ -133,7 +133,8 @@ void main() {
         vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
 
         int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
-        vec2 depthSize = sketch_depthSize[idx];
+        ivec3 depthSize_ = sketch_depthSize[idx];
+        vec2 depthSize = vec2(depthSize_.x, depthSize_.y);
 
         ivec2 coordMin = max(ivec2(floor(mins * depthSize)), ivec2(0));
         ivec2 coordMax = min(ivec2(ceil(maxs * depthSize)), ivec2(depthSize) - 1);
@@ -262,7 +263,8 @@ void main() {
         vec2 maxs = clamp(clip.screenMax, 0.0, 1.0);
 
         int idx = getSampler(maxs.x - mins.x, maxs.y - mins.y);
-        vec2 depthSize = sketch_depthSize[idx];
+        ivec3 depthSize_ = sketch_depthSize[idx];
+        vec2 depthSize = vec2(depthSize_.x, depthSize_.y);
 
         ivec2 coordMin = max(ivec2(floor(mins * depthSize)), ivec2(0));
         ivec2 coordMax = min(ivec2(ceil(maxs * depthSize)), ivec2(depthSize) - 1);

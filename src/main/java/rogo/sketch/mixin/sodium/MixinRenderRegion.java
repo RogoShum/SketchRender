@@ -37,7 +37,7 @@ public abstract class MixinRenderRegion implements ExtraRenderRegion {
 
     @Inject(method = "getSection", at = @At("HEAD"), cancellable = true, remap = false)
     private void onGetSection(int id, CallbackInfoReturnable<RenderSection> cir) {
-        if (SodiumSectionAsyncUtil.renderingEntities && this.sections[id] == null)
+        if (SodiumSectionAsyncUtil.RENDERING_ENTITIES && this.sections[id] == null)
             cir.setReturnValue(new RenderSection((RenderRegion) (Object) this, 0, 0, 0));
     }
 

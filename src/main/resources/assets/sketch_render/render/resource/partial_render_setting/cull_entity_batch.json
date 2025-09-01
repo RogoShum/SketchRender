@@ -10,14 +10,7 @@
       "CullingResultBuffer": "sketch_render:entity_culling_result"
     },
     "texture": {
-      "Sampler0": "sketch_render:hiz_texture_0",
-      "Sampler1": "sketch_render:hiz_texture_1",
-      "Sampler2": "sketch_render:hiz_texture_2",
-      "Sampler3": "sketch_render:hiz_texture_3",
-      "Sampler4": "sketch_render:hiz_texture_4",
-      "Sampler5": "sketch_render:hiz_texture_5",
-      "Sampler6": "sketch_render:hiz_texture_6",
-      "Sampler7": "sketch_render:hiz_texture_7"
+      "Sampler0": "sketch_render:hiz_texture"
     }
   },
   "shouldSwitchRenderState": true

@@ -11,15 +11,15 @@ import java.util.List;
 
 public class Config {
     public static ForgeConfigSpec CLIENT_CONFIG;
-    private static ForgeConfigSpec.BooleanValue CULL_ENTITY;
-    private static ForgeConfigSpec.BooleanValue CULL_BLOCK_ENTITY;
-    private static ForgeConfigSpec.BooleanValue CULL_CHUNK;
-    private static ForgeConfigSpec.BooleanValue COMPUTE_SHADER;
-    private static ForgeConfigSpec.BooleanValue ASYNC;
-    private static ForgeConfigSpec.BooleanValue AUTO_DISABLE_ASYNC;
-    private static ForgeConfigSpec.DoubleValue UPDATE_DELAY;
-    private static ForgeConfigSpec.ConfigValue<List<? extends String>> ENTITY_SKIP;
-    private static ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_ENTITY_SKIP;
+    private static final ForgeConfigSpec.BooleanValue CULL_ENTITY;
+    private static final ForgeConfigSpec.BooleanValue CULL_BLOCK_ENTITY;
+    private static final ForgeConfigSpec.BooleanValue CULL_CHUNK;
+    private static final ForgeConfigSpec.BooleanValue COMPUTE_SHADER;
+    private static final ForgeConfigSpec.BooleanValue ASYNC;
+    private static final ForgeConfigSpec.BooleanValue AUTO_DISABLE_ASYNC;
+    private static final ForgeConfigSpec.DoubleValue UPDATE_DELAY;
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> ENTITY_SKIP;
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_ENTITY_SKIP;
 
     public static boolean doEntityCulling() {
         return getCullBlockEntity() || getCullEntity();

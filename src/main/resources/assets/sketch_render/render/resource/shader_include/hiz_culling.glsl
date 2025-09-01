@@ -1,12 +1,5 @@
 // uniforms used in culling shaders
 uniform sampler2D Sampler0;
-uniform sampler2D Sampler1;
-uniform sampler2D Sampler2;
-uniform sampler2D Sampler3;
-uniform sampler2D Sampler4;
-uniform sampler2D Sampler5;
-uniform sampler2D Sampler6;
-uniform sampler2D Sampler7;
 
 uniform mat4 sketch_cullingViewMat;
 uniform mat4 sketch_cullingProjMat;
@@ -14,7 +7,7 @@ uniform vec3 sketch_cullingCameraPos;
 uniform vec3 sketch_cullingCameraDir;
 uniform vec3 sketch_frustumPos;
 uniform vec4[6] sketch_cullingFrustum;
-uniform vec2[8] sketch_depthSize;
+uniform ivec3[8] sketch_depthSize;
 uniform int sketch_renderDistance;
 uniform float sketch_cullingFineness;
 
@@ -64,22 +57,9 @@ vec3 blockToChunk(vec3 blockPos) {
 }
 
 float getUVDepth(int idx, ivec2 uv) {
-    if (idx == 0)
-    return texelFetch(Sampler0, uv, 0).r;
-    else if (idx == 1)
-    return texelFetch(Sampler1, uv, 0).r;
-    else if (idx == 2)
-    return texelFetch(Sampler2, uv, 0).r;
-    else if (idx == 3)
-    return texelFetch(Sampler3, uv, 0).r;
-    else if (idx == 4)
-    return texelFetch(Sampler4, uv, 0).r;
-    else if (idx == 5)
-    return texelFetch(Sampler5, uv, 0).r;
-    else if (idx == 6)
-    return texelFetch(Sampler6, uv, 0).r;
+    uv.y += sketch_depthSize[idx].z;
 
-    return texelFetch(Sampler7, uv, 0).r;
+    return texelFetch(Sampler0, uv, 0).r;
 }
 
 // Clipping and visibility functions used in culling shaders

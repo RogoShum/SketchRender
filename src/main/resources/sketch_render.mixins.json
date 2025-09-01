@@ -16,7 +16,6 @@
     "MixinLevelRender",
     "MixinMinecraft",
     "MixinProgram",
-    "MixinWindow",
     "render.MixinGameRender",
     "render.MixinLevelRendererProvider",
     "sodium.AccessorRenderSectionManager",
