@@ -14,7 +14,6 @@ public class Config {
     private static final ForgeConfigSpec.BooleanValue CULL_ENTITY;
     private static final ForgeConfigSpec.BooleanValue CULL_BLOCK_ENTITY;
     private static final ForgeConfigSpec.BooleanValue CULL_CHUNK;
-    private static final ForgeConfigSpec.BooleanValue COMPUTE_SHADER;
     private static final ForgeConfigSpec.BooleanValue ASYNC;
     private static final ForgeConfigSpec.BooleanValue AUTO_DISABLE_ASYNC;
     private static final ForgeConfigSpec.DoubleValue UPDATE_DELAY;
@@ -69,18 +68,6 @@ public class Config {
         CULL_CHUNK.set(value);
         CULL_CHUNK.save();
         Minecraft.getInstance().levelRenderer.allChanged();
-    }
-
-    public static boolean shouldComputeShader() {
-        if (unload())
-            return false;
-
-        return COMPUTE_SHADER.get();
-    }
-
-    public static void setComputeShader(boolean value) {
-        COMPUTE_SHADER.set(value);
-        COMPUTE_SHADER.save();
     }
 
     public static boolean getAsyncChunkRebuild() {
@@ -159,8 +146,8 @@ public class Config {
     static {
         ForgeConfigSpec.Builder CLIENT_BUILDER = new ForgeConfigSpec.Builder();
 
-        CLIENT_BUILDER.push("Culling Map update delay");
-        UPDATE_DELAY = CLIENT_BUILDER.defineInRange("delay frame", 4d, 0d, 10d);
+        CLIENT_BUILDER.push("Culling Precision");
+        UPDATE_DELAY = CLIENT_BUILDER.defineInRange("level", 4d, 0d, 10d);
         CLIENT_BUILDER.pop();
 
         CLIENT_BUILDER.push("Cull entity");
@@ -175,10 +162,6 @@ public class Config {
         CULL_CHUNK = CLIENT_BUILDER.define("enabled", true);
         CLIENT_BUILDER.pop();
 
-        CLIENT_BUILDER.push("Compute shader");
-        COMPUTE_SHADER = CLIENT_BUILDER.define("enabled", true);
-        CLIENT_BUILDER.pop();
-
         CLIENT_BUILDER.push("Async chunk rebuild");
         ASYNC = CLIENT_BUILDER.define("enabled", true);
         CLIENT_BUILDER.pop();
@@ -189,15 +172,15 @@ public class Config {
 
         List<String> list = new ArrayList<>();
         list.add("create:stationary_contraption");
-        CLIENT_BUILDER.comment("Entity skip CULLING").push("Entity ResourceLocation");
-        ENTITY_SKIP = CLIENT_BUILDER.comment("Entity that skip CULLING, example: \n" +
+        CLIENT_BUILDER.comment("Entity skip culling").push("Entity ResourceLocation");
+        ENTITY_SKIP = CLIENT_BUILDER.comment("Entity that skip culling, example: \n" +
                 "[\"minecraft:creeper\", \"minecraft:zombie\"]").defineList("list", list, (o -> o instanceof String));
         CLIENT_BUILDER.pop();
 
         list = new ArrayList<>();
         list.add("minecraft:beacon");
-        CLIENT_BUILDER.comment("Block Entity skip CULLING").push("Block Entity ResourceLocation");
-        BLOCK_ENTITY_SKIP = CLIENT_BUILDER.comment("Block Entity that skip CULLING, example: \n" +
+        CLIENT_BUILDER.comment("Block Entity skip culling").push("Block Entity ResourceLocation");
+        BLOCK_ENTITY_SKIP = CLIENT_BUILDER.comment("Block Entity that skip culling, example: \n" +
                 "[\"minecraft:chest\", \"minecraft:mob_spawner\"]").defineList("list", list, (o -> o instanceof String));
         CLIENT_BUILDER.pop();
 

@@ -1,6 +1,5 @@
 package rogo.sketch.feature.culling;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -35,9 +34,6 @@ import rogo.sketch.vanilla.VanillaShaderPackLoader;
 
 import java.util.HashMap;
 
-import static org.lwjgl.opengl.GL11.GL_TEXTURE;
-import static org.lwjgl.opengl.GL30.*;
-
 public class CullingStateManager {
     public static EntityCullingMask ENTITY_CULLING_MASK = null;
     public static Matrix4f VIEW_MATRIX = new Matrix4f();
@@ -48,7 +44,6 @@ public class CullingStateManager {
     }
 
     public static final int DEPTH_SIZE = 8;
-    public static int MAIN_DEPTH_TEXTURE = 0;
     public static HizTarget DEPTH_BUFFER_TARGET;
     public static Vector3i[] DEPTH_BUFFER_INFORMATION = new Vector3i[DEPTH_SIZE];
     public static int DEBUG = 0;
@@ -256,28 +251,6 @@ public class CullingStateManager {
                 DEPTH_BUFFER_TARGET.resize(DEPTH_BUFFER_INFORMATION[0].x, totalHeight, Minecraft.ON_OSX);
             }
 
-            int depthTexture = Minecraft.getInstance().getMainRenderTarget().getDepthTextureId();
-            if (SHADER_LOADER.enabledShader()) {
-                if (!SHADER_DEPTH_BUFFER_ID.containsKey(SHADER_LOADER.getFrameBufferID())) {
-                    RenderSystem.assertOnRenderThreadOrInit();
-                    GlStateManager._glBindFramebuffer(GL_FRAMEBUFFER, SHADER_LOADER.getFrameBufferID());
-
-                    int attachmentType = GL_DEPTH_ATTACHMENT;
-                    int[] attachmentObjectType = new int[1];
-                    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, attachmentType, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, attachmentObjectType);
-
-                    if (attachmentObjectType[0] == GL_TEXTURE) {
-                        int[] depthTextureID = new int[1];
-                        glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, attachmentType, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, depthTextureID);
-                        depthTexture = depthTextureID[0];
-                        SHADER_DEPTH_BUFFER_ID.put(SHADER_LOADER.getFrameBufferID(), depthTexture);
-                    }
-                } else {
-                    depthTexture = SHADER_DEPTH_BUFFER_ID.get(SHADER_LOADER.getFrameBufferID());
-                }
-            }
-
-            MAIN_DEPTH_TEXTURE = depthTexture;
             bindMainFrameTarget();
 
             net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles cameraSetup = net.minecraftforge.client.ForgeHooksClient.onCameraSetup(Minecraft.getInstance().gameRenderer

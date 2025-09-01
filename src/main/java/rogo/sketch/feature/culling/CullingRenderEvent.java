@@ -141,14 +141,13 @@ public class CullingRenderEvent {
             if (!CullingStateManager.CHECKING_TEXTURE)
                 return;
 
-            float screenScale = 1.0f;
-            double windowScale = 0.4;
+            float windowScale = 0.7f * (minecraft.getWindow().getGuiScaledWidth() / (float) minecraft.getWindow().getWidth());
             RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
             RenderSystem.enableBlend();
             RenderSystem.depthMask(false);
             RenderSystem.defaultBlendFunc();
-            int scaledHeight = (int) (CullingStateManager.DEPTH_BUFFER_TARGET.height * windowScale * screenScale);
-            int scaledWidth = (int) (CullingStateManager.DEPTH_BUFFER_TARGET.width * windowScale * screenScale);
+            int scaledHeight = (int) (CullingStateManager.DEPTH_BUFFER_TARGET.height * windowScale);
+            int scaledWidth = (int) (CullingStateManager.DEPTH_BUFFER_TARGET.width * windowScale);
             bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
             bufferbuilder.vertex(0.0D, minecraft.getWindow().getGuiScaledHeight(), 0.0D).uv(0.0F, 0.0F).color(255, 255, 255, 255).endVertex();
             bufferbuilder.vertex(scaledWidth, minecraft.getWindow().getGuiScaledHeight(), 0.0D).uv(1, 0.0F).color(255, 255, 255, 255).endVertex();

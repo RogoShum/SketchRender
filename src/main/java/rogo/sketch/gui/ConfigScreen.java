@@ -15,6 +15,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.FastColor;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.feature.culling.CullingStateManager;
@@ -133,16 +134,13 @@ public class ConfigScreen extends Screen {
             return;
         }
 
-        if (player.getName().getString().equals("Dev")) {
+        if (!FMLEnvironment.production) {
             addConfigButton(() -> CullingStateManager.CHECKING_CULL, (b) -> CullingStateManager.CHECKING_CULL = b, () -> Component.literal("Debug"))
                     .setDetailMessage(() -> TranslationUtil.fromLang(".detail.debug"));
 
             addConfigButton(() -> CullingStateManager.CHECKING_TEXTURE, (b) -> CullingStateManager.CHECKING_TEXTURE = b, () -> Component.literal("Check Texture"))
                     .setDetailMessage(() -> TranslationUtil.fromLang(".detail.check_texture"));
         }
-
-        addConfigButton(Config::shouldComputeShader, Config::setComputeShader, () -> TranslationUtil.fromLang(".test_feature"))
-                .setDetailMessage(() -> TranslationUtil.fromLang(".detail.test_feature"));
 
         addConfigButton(() -> Config.getDepthUpdateDelay() / 10d, (value) -> {
             double step = 0.5;
