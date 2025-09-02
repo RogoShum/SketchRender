@@ -24,7 +24,8 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
             ResourceTypes.SHADER_PROGRAM,
             ResourceTypes.TEXTURE,
             ResourceTypes.RENDER_TARGET,
-            ResourceTypes.PARTIAL_RENDER_SETTING
+            ResourceTypes.PARTIAL_RENDER_SETTING,
+            ResourceTypes.MESH
     };
 
     @Override

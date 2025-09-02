@@ -449,6 +449,7 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.RENDER_TARGET, new RenderTargetLoader());
         registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader());
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
+        registerLoader(ResourceTypes.MESH, new MeshLoader());
     }
 
     /**

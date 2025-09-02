@@ -22,6 +22,7 @@ public final class ResourceTypes {
     public static final Identifier RENDER_SETTING = Identifier.of("render_setting");
     public static final Identifier PARTIAL_RENDER_SETTING = Identifier.of("partial_render_setting");
     public static final Identifier VERTEX_BUFFER = Identifier.of("vertex_buffer");
+    public static final Identifier MESH = Identifier.of("mesh");
 
     // Resource type inheritance mapping: child -> parent
     private static final Map<Identifier, Identifier> TYPE_INHERITANCE = new HashMap<>();
