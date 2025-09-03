@@ -296,6 +296,60 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         }
         instanceCount = 0;
     }
+    
+    /**
+     * Upload static vertex data from a VertexFiller
+     */
+    public void uploadStaticFromVertexFiller(VertexFiller filler) {
+        if (filler == null) {
+            throw new IllegalArgumentException("VertexFiller cannot be null");
+        }
+
+        filler.end();
+
+        // Get vertex data
+        ByteBuffer vertexData = filler.getVertexData();
+        if (vertexData != null) {
+            uploadStaticData(vertexData, filler.getVertexCount());
+        }
+
+        // Generate and upload index data if needed
+        if (filler.isUsingIndexBuffer() && indexBuffer != null) {
+            generateIndices(filler);
+        }
+    }
+    
+    /**
+     * Upload dynamic vertex data from a VertexFiller (for instance data)
+     */
+    public void uploadDynamicFromVertexFiller(VertexFiller filler) {
+        if (filler == null || dynamicFormat == null) {
+            return;
+        }
+
+        filler.end();
+
+        // Get vertex data
+        ByteBuffer vertexData = filler.getVertexData();
+        if (vertexData != null) {
+            uploadDynamicData(vertexData, filler.getVertexCount());
+        }
+    }
+    
+    /**
+     * Upload dynamic vertex data directly
+     */
+    public void uploadDynamicData(ByteBuffer vertexData, int instanceCount) {
+        if (vertexData == null || dynamicFormat == null) {
+            return;
+        }
+
+        this.instanceCount = instanceCount;
+
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, dynamicVBO);
+        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, vertexData, GL15.GL_DYNAMIC_DRAW);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+    }
 
     /**
      * Bind the VAO

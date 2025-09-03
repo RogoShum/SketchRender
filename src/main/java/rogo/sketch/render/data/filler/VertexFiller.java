@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
 /**
  * Enhanced vertex data filler with automatic vertex counting, index buffer support,
@@ -23,6 +24,10 @@ public class VertexFiller extends DataFiller {
     private ByteBuffer currentBuffer;
     private final int initialBufferSize;
     private final int bufferGrowthSize;
+    
+    // Matrix stack for transformations
+    private final Stack<float[]> matrixStack = new Stack<>();
+    private int vertexOffset = 0;
 
     public VertexFiller(DataFormat format, PrimitiveType primitiveType) {
         this(format, primitiveType, 1024);
@@ -301,6 +306,7 @@ public class VertexFiller extends DataFiller {
         vertexCount = 0;
         currentVertex = 0;
         currentElementIndex = 0;
+        vertexOffset = 0;
 
         // Reset current buffer
         if (currentBuffer != null) {
@@ -309,6 +315,69 @@ public class VertexFiller extends DataFiller {
 
         // Clear sorting data
         sorting = null;
+        
+        // Clear matrix stack
+        matrixStack.clear();
+    }
+    
+    /**
+     * Reset the filler to reuse for new data
+     */
+    public void reset() {
+        clear();
+        allocateNewBuffer();
+    }
+    
+    /**
+     * Set the vertex offset for this filler
+     */
+    public void setVertexOffset(int offset) {
+        this.vertexOffset = offset;
+        this.currentVertex = offset;
+    }
+    
+    /**
+     * Get the current vertex offset
+     */
+    public int getVertexOffset() {
+        return vertexOffset;
+    }
+    
+    /**
+     * Push a transformation matrix onto the stack
+     */
+    public void pushMatrix(float[] matrix) {
+        if (matrix.length != 16) {
+            throw new IllegalArgumentException("Matrix must be 4x4 (16 elements)");
+        }
+        float[] copy = new float[16];
+        System.arraycopy(matrix, 0, copy, 0, 16);
+        matrixStack.push(copy);
+    }
+    
+    /**
+     * Pop a transformation matrix from the stack
+     */
+    public void popMatrix() {
+        if (matrixStack.isEmpty()) {
+            throw new IllegalStateException("Matrix stack is empty");
+        }
+        matrixStack.pop();
+    }
+    
+    /**
+     * Get the current transformation matrix (top of stack)
+     */
+    @Nullable
+    public float[] getCurrentMatrix() {
+        return matrixStack.isEmpty() ? null : matrixStack.peek();
+    }
+    
+    /**
+     * Check if matrix stack is empty
+     */
+    public boolean hasMatrix() {
+        return !matrixStack.isEmpty();
     }
 
     /**
