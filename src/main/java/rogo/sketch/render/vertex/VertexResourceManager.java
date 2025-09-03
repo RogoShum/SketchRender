@@ -2,13 +2,11 @@ package rogo.sketch.render.vertex;
 
 import rogo.sketch.render.RenderParameter;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.filler.VertexFillerManager;
+import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.information.RenderList;
 import rogo.sketch.render.resource.buffer.VertexResource;
-import rogo.sketch.render.vertex.InstancedVertexLayout;
-
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,7 +48,7 @@ public class VertexResourceManager {
         return new VertexResource(
                 parameter.dataFormat(),
                 null, // No dynamic format for shared resources
-                rogo.sketch.render.vertex.DrawMode.NORMAL,
+                DrawMode.NORMAL,
                 parameter.primitiveType(),
                 parameter.usage()
         );
@@ -95,14 +93,14 @@ public class VertexResourceManager {
     public String getCacheStats() {
         return String.format("VertexResourceManager: %d cached resources", resourceCache.size());
     }
-    
+
     /**
      * Overloaded method to create vertex resource with specific vertex count
      */
     public VertexResource getOrCreateVertexResource(PrimitiveType primitiveType, DataFormat dataFormat, int vertexCount) {
         RenderParameter parameter = RenderParameter.create(dataFormat, primitiveType);
         VertexResource resource = getOrCreateVertexResource(parameter);
-        
+
         // Ensure the resource has enough capacity for the vertex count
         if (resource.getStaticVertexCount() < vertexCount) {
             // Create a new resource with the required capacity
@@ -116,10 +114,10 @@ public class VertexResourceManager {
             );
             return newResource;
         }
-        
+
         return resource;
     }
-    
+
     /**
      * Get or create a vertex filler for the given parameters
      */
@@ -127,13 +125,13 @@ public class VertexResourceManager {
         RenderParameter parameter = RenderParameter.create(dataFormat, primitiveType);
         return VertexFillerManager.getInstance().getOrCreateVertexFiller(parameter);
     }
-    
+
     /**
      * Create an instanced vertex resource for the given batch
      */
-    public VertexResource getOrCreateInstancedVertexResource(PrimitiveType primitiveType, 
-                                                            DataFormat staticFormat, 
-                                                            RenderList.RenderBatch batch) {
+    public VertexResource getOrCreateInstancedVertexResource(PrimitiveType primitiveType,
+                                                             DataFormat staticFormat,
+                                                             RenderList.RenderBatch batch) {
         // Get the dynamic format from the first instance's layout
         DataFormat dynamicFormat = null;
         if (!batch.getInstances().isEmpty()) {
@@ -142,29 +140,29 @@ public class VertexResourceManager {
                 dynamicFormat = firstInfo.getInstancedVertexLayout().dataFormat();
             }
         }
-        
+
         // Calculate total instance count across all graphics instances in the batch
         int totalInstanceCount = batch.getInstances().stream()
                 .mapToInt(info -> info.getInstanceCount())
                 .sum();
-        
+
         // Create vertex resource with both static and dynamic layouts
         return new VertexResource(
                 staticFormat,           // Static vertex format (mesh geometry)
                 dynamicFormat,         // Dynamic vertex format (instance data)
-                rogo.sketch.render.vertex.DrawMode.INSTANCED,
+                DrawMode.INSTANCED,
                 primitiveType,
                 RenderParameter.create(staticFormat, primitiveType).usage()
         );
     }
-    
+
     /**
      * Create a dynamic vertex filler for instance data
      */
     public VertexFiller getOrCreateDynamicVertexFiller(InstancedVertexLayout layout) {
         DataFormat dynamicFormat = layout.dataFormat();
         PrimitiveType primitiveType = PrimitiveType.POINTS; // Instance data is per-point
-        
+
         return new VertexFiller(dynamicFormat, primitiveType);
     }
 }
