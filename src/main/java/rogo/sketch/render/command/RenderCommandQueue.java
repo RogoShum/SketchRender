@@ -187,9 +187,9 @@ public class RenderCommandQueue {
                 .mapToInt(List::size)
                 .sum();
         
-        int totalInstances = commandsByVertexResource.values().stream()
+        int totalGraphicsInstances = commandsByVertexResource.values().stream()
                 .flatMap(List::stream)
-                .mapToInt(RenderCommand::getInstanceCount)
+                .mapToInt(cmd -> cmd.getInstances().size())
                 .sum();
         
         int totalVertices = commandsByVertexResource.values().stream()
@@ -199,7 +199,7 @@ public class RenderCommandQueue {
         
         return new QueueStats(
                 totalCommands,
-                totalInstances,
+                totalGraphicsInstances,
                 totalVertices,
                 commandsByVertexResource.size(),
                 stageOrder.size()

@@ -1,6 +1,6 @@
 package rogo.sketch.render.instance;
 
-import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.api.ResourceReloadable;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.RenderContext;

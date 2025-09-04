@@ -1,5 +1,6 @@
 package rogo.sketch.render.vertex;
 
+import rogo.sketch.api.graphics.InstancedLayoutProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.information.GraphicsInformation;
 import rogo.sketch.render.information.RenderList;
@@ -212,20 +213,18 @@ public class AsyncVertexFiller {
 
         // Create dynamic vertex filler for instance data
         VertexFiller dynamicFiller = vertexResourceManager.getOrCreateDynamicVertexFiller(
-                firstInfo.getInstancedVertexLayout()
+                firstInfo.getInstancedVertexLayout(),
+                firstInfo.getMesh().getPrimitiveType()
         );
 
         dynamicFiller.reset();
 
         // Fill instance data for each graphics instance
-        int instanceIndex = 0;
         for (GraphicsInformation info : batch.getInstances()) {
-            if (info.getInstance() instanceof rogo.sketch.render.information.InfoCollector.InstancedLayoutProvider provider) {
-                // Fill instance-specific data for each instance count
-                for (int i = 0; i < info.getInstanceCount(); i++) {
-                    provider.fillInstanceVertexData(dynamicFiller, instanceIndex++);
-                    dynamicFiller.nextVertex();
-                }
+            if (info.getInstance() instanceof InstancedLayoutProvider provider) {
+                // Each graphics instance fills its own instance data
+                provider.fillInstanceVertexData(dynamicFiller);
+                dynamicFiller.nextVertex();
             }
         }
 
@@ -271,8 +270,8 @@ public class AsyncVertexFiller {
             return batch.getTotalVertexCount();
         }
 
-        public int getInstanceCount() {
-            return batch.getInstanceCount();
+        public int getDynamicVertexCount() {
+            return batch.getGraphicsInstanceCount();
         }
 
         @Override

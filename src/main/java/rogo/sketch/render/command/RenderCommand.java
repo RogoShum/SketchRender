@@ -6,7 +6,10 @@ import rogo.sketch.render.information.GraphicsInformation;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.util.Identifier;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A render command that combines vertex resources with instance parameters for batch rendering
@@ -73,22 +76,26 @@ public class RenderCommand {
     }
     
     /**
-     * Execute regular multi-draw batch
+     * Execute regular multi-draw batch using baseVertex approach
      */
     private void executeRegularMultiDrawBatch() {
-        // Prepare arrays for multi-draw calls
-        int[] offsets = new int[instances.size()];
-        int[] counts = new int[instances.size()];
+        // Group by mesh to use baseVertex efficiently
+        Map<Object, List<InstanceData>> meshGroups = groupInstancesByMesh();
         
-        for (int i = 0; i < instances.size(); i++) {
-            InstanceData instanceData = instances.get(i);
-            offsets[i] = instanceData.getVertexOffset();
-            counts[i] = instanceData.getVertexCount();
+        for (Map.Entry<Object, List<InstanceData>> entry : meshGroups.entrySet()) {
+            List<InstanceData> meshInstances = entry.getValue();
+            if (meshInstances.isEmpty()) continue;
+            
+            // For each mesh, draw all its instances using baseVertex
+            for (InstanceData instanceData : meshInstances) {
+                DrawCommand drawCommand = instanceData.getDrawCommand();
+                int baseVertex = instanceData.getVertexOffset();
+                int vertexCount = instanceData.getVertexCount();
+                
+                // Execute draw command with baseVertex
+                executeDrawCommandWithBaseVertex(drawCommand, baseVertex, vertexCount);
+            }
         }
-        
-        // Execute multi-draw command
-        DrawCommand firstCommand = instances.get(0).getDrawCommand();
-        executeMultiDrawCommand(firstCommand, offsets, counts);
         
         // Call afterDraw for all instances
         for (InstanceData instanceData : instances) {
@@ -98,19 +105,30 @@ public class RenderCommand {
     }
     
     /**
-     * Execute instanced batch rendering
+     * Execute instanced batch rendering using baseVertex and baseInstance
      */
     private void executeInstancedBatch() {
-        // For instanced rendering, we draw once with the total instance count
-        DrawCommand firstCommand = instances.get(0).getDrawCommand();
+        // For instanced rendering, we need to handle mesh batching with baseVertex/baseInstance
+        Map<Object, List<InstanceData>> meshGroups = groupInstancesByMesh();
         
-        // Calculate total instance count across all graphics instances
-        int totalInstanceCount = instances.stream()
-                .mapToInt(instanceData -> instanceData.getGraphicsInfo().getInstanceCount())
-                .sum();
-        
-        // Execute instanced draw command
-        executeInstancedDrawCommand(firstCommand, totalInstanceCount);
+        int baseInstance = 0;
+        for (Map.Entry<Object, List<InstanceData>> entry : meshGroups.entrySet()) {
+            List<InstanceData> meshInstances = entry.getValue();
+            if (meshInstances.isEmpty()) continue;
+            
+            // Get mesh information from first instance
+            InstanceData firstInstance = meshInstances.get(0);
+            DrawCommand drawCommand = firstInstance.getDrawCommand();
+            int baseVertex = firstInstance.getVertexOffset();
+            int vertexCount = firstInstance.getVertexCount();
+            int instanceCount = meshInstances.size();
+            
+            // Execute instanced draw command with baseVertex and baseInstance
+            executeInstancedDrawCommandWithBase(drawCommand, baseVertex, vertexCount, 
+                                              baseInstance, instanceCount);
+            
+            baseInstance += instanceCount;
+        }
         
         // Call afterDraw for all instances
         for (InstanceData instanceData : instances) {
@@ -202,13 +220,94 @@ public class RenderCommand {
         // Parameters: primitive type, index count, index type, indices offset, instance count
     }
     
+    /**
+     * Group instances by their mesh reference for efficient batching
+     */
+    private Map<Object, List<InstanceData>> groupInstancesByMesh() {
+        Map<Object, List<InstanceData>> meshGroups = new LinkedHashMap<>();
+        
+        for (InstanceData instanceData : instances) {
+            GraphicsInformation info = instanceData.getGraphicsInfo();
+            Object meshRef = null;
+            
+            if (info.hasModelMesh()) {
+                meshRef = info.getModelMesh();
+            } else if (info.hasMesh()) {
+                meshRef = info.getMesh();
+            }
+            
+            meshGroups.computeIfAbsent(meshRef, k -> new ArrayList<>()).add(instanceData);
+        }
+        
+        return meshGroups;
+    }
+    
+    /**
+     * Execute draw command with baseVertex
+     */
+    private void executeDrawCommandWithBaseVertex(DrawCommand command, int baseVertex, int vertexCount) {
+        // Implementation depends on your OpenGL wrapper
+        // This would call something like glDrawArrays or glDrawElements with baseVertex
+        if (command.useIndexBuffer()) {
+            // glDrawElementsBaseVertex equivalent
+            executeElementsDrawCommandWithBaseVertex(command, baseVertex, vertexCount);
+        } else {
+            // glDrawArrays with offset
+            executeArrayDrawCommand(command, baseVertex, vertexCount);
+        }
+    }
+    
+    /**
+     * Execute elements draw command with baseVertex
+     */
+    private void executeElementsDrawCommandWithBaseVertex(DrawCommand command, int baseVertex, int vertexCount) {
+        // Implementation depends on your OpenGL wrapper
+        // This would call something like glDrawElementsBaseVertex
+        // Parameters: primitive type, index count, index type, indices offset, baseVertex
+    }
+    
+    /**
+     * Execute instanced draw command with baseVertex and baseInstance
+     */
+    private void executeInstancedDrawCommandWithBase(DrawCommand command, int baseVertex, int vertexCount,
+                                                    int baseInstance, int instanceCount) {
+        // Implementation depends on your OpenGL wrapper
+        if (command.useIndexBuffer()) {
+            // glDrawElementsInstancedBaseVertexBaseInstance equivalent
+            executeInstancedElementsDrawCommandWithBase(command, baseVertex, vertexCount, baseInstance, instanceCount);
+        } else {
+            // glDrawArraysInstancedBaseInstance equivalent
+            executeInstancedArrayDrawCommandWithBase(command, baseVertex, vertexCount, baseInstance, instanceCount);
+        }
+    }
+    
+    /**
+     * Execute instanced array draw command with baseVertex and baseInstance
+     */
+    private void executeInstancedArrayDrawCommandWithBase(DrawCommand command, int baseVertex, int vertexCount,
+                                                         int baseInstance, int instanceCount) {
+        // Implementation depends on your OpenGL wrapper
+        // This would call something like glDrawArraysInstancedBaseInstance
+        // Parameters: primitive type, baseVertex, vertexCount, instanceCount, baseInstance
+    }
+    
+    /**
+     * Execute instanced elements draw command with baseVertex and baseInstance
+     */
+    private void executeInstancedElementsDrawCommandWithBase(DrawCommand command, int baseVertex, int vertexCount,
+                                                           int baseInstance, int instanceCount) {
+        // Implementation depends on your OpenGL wrapper  
+        // This would call something like glDrawElementsInstancedBaseVertexBaseInstance
+        // Parameters: primitive type, index count, index type, indices offset, instanceCount, baseVertex, baseInstance
+    }
+    
     // Getters
     public VertexResource getVertexResource() { return vertexResource; }
     public RenderSetting getRenderSetting() { return renderSetting; }
     public List<InstanceData> getInstances() { return instances; }
     public Identifier getStageId() { return stageId; }
     
-    public int getInstanceCount() { return instances.size(); }
+    public int getGraphicsInstanceCount() { return instances.size(); }
     public int getTotalVertexCount() { 
         return instances.stream().mapToInt(InstanceData::getVertexCount).sum(); 
     }
@@ -295,7 +394,7 @@ public class RenderCommand {
         return new DrawCommand(
                 info.getRenderSetting().renderParameter().primitiveType().getGLType(),
                 DrawCommand.DrawMode.ARRAYS,
-                1, // instance count
+                1, // instance count - for instanced rendering this will be managed at batch level
                 false, // use index buffer
                 info.getRenderSetting().renderParameter().enableSorting()
         );

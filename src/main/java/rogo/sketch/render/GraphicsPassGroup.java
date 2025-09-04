@@ -1,6 +1,6 @@
 package rogo.sketch.render;
 
-import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.EventBusBridge;

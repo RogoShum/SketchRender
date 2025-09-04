@@ -43,7 +43,7 @@ public class VertexRenderer {
                             indexCount,
                             indexType,
                             0,
-                            resource.getInstanceCount()
+                            resource.getDynamicVertexCount()
                     );
                 } else {
                     // Regular indexed rendering
@@ -62,7 +62,7 @@ public class VertexRenderer {
                             resource.getPrimitiveType().getGLType(),
                             0,
                             resource.getStaticVertexCount(),
-                            resource.getInstanceCount()
+                            resource.getDynamicVertexCount()
                     );
                 } else {
                     // Regular array rendering
@@ -167,7 +167,7 @@ public class VertexRenderer {
     public static RenderStats getRenderStats(VertexResource resource) {
         return new RenderStats(
                 resource.getStaticVertexCount(),
-                resource.getInstanceCount(),
+                resource.getDynamicVertexCount(),
                 resource.hasIndices() ? resource.getIndexBuffer().getIndexCount() : 0,
                 resource.hasIndices(),
                 resource.hasInstances(),

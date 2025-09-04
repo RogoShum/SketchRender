@@ -1,6 +1,6 @@
 package rogo.sketch.render.async;
 
-import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.pool.InstancePoolManager;
 

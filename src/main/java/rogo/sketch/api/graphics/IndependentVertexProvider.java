@@ -1,4 +1,4 @@
-package rogo.sketch.api;
+package rogo.sketch.api.graphics;
 
 import rogo.sketch.render.vertex.VertexResourcePair;
 

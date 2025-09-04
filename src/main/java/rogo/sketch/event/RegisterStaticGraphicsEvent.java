@@ -1,6 +1,6 @@
 package rogo.sketch.event;
 
-import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.render.GraphicsPipeline;
 import rogo.sketch.render.RenderSetting;
 import rogo.sketch.util.Identifier;

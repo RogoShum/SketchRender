@@ -1,6 +1,6 @@
 package rogo.sketch.render;
 
-import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
 import rogo.sketch.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
@@ -92,7 +92,7 @@ public class GraphicsPipeline<C extends RenderContext> {
             renderAllStagesLegacy();
         }
     }
-    
+
     /**
      * Legacy direct rendering approach
      */
@@ -102,7 +102,7 @@ public class GraphicsPipeline<C extends RenderContext> {
             group.render(renderStateManager, currentContext);
         }
     }
-    
+
     /**
      * New three-stage rendering approach: collect data, fill vertex buffers, batch render
      */
@@ -110,23 +110,22 @@ public class GraphicsPipeline<C extends RenderContext> {
         try {
             // Stage 1: Data Collection
             List<GraphicsInformation> collectedData = collectRenderData();
-            
+
             // Stage 2: Organize and Fill Vertex Buffers
             RenderList renderList = RenderList.organize(collectedData);
-            CompletableFuture<List<AsyncVertexFiller.FilledVertexResource>> filledResourcesFuture = 
+            CompletableFuture<List<AsyncVertexFiller.FilledVertexResource>> filledResourcesFuture =
                     vertexFiller.fillVertexBuffersAsync(renderList);
-            
+
             // Stage 3: Create Render Commands and Execute
             List<AsyncVertexFiller.FilledVertexResource> filledResources = filledResourcesFuture.join();
             List<RenderCommand> renderCommands = createRenderCommands(filledResources);
-            
+
             // Clear previous commands and add new ones
             renderCommandQueue.clear();
             renderCommandQueue.addCommands(renderCommands);
-            
+
             // Execute all render commands
             renderCommandQueue.executeAll();
-            
         } catch (Exception e) {
             // Fallback to legacy rendering if something goes wrong
             renderAllStagesLegacy();
@@ -333,13 +332,13 @@ public class GraphicsPipeline<C extends RenderContext> {
                     totalStages, pendingStages, totalInstances, initialized);
         }
     }
-    
+
     /**
      * Collect render data from all stages - Stage 1 of three-stage pipeline
      */
     private List<GraphicsInformation> collectRenderData() {
         List<GraphicsInformation> allData = new ArrayList<>();
-        
+
         for (GraphicsStage stage : stages.getOrderedList()) {
             GraphicsPassGroup<C> passGroup = passMap.get(stage);
             if (passGroup != null) {
@@ -348,38 +347,38 @@ public class GraphicsPipeline<C extends RenderContext> {
                 for (GraphicsPass<C> pass : passGroup.getPasses()) {
                     stageInstances.addAll(pass.getAllInstances());
                 }
-                
+
                 // Use InfoCollector to extract render information
                 List<GraphicsInformation> stageData = InfoCollector.collectRenderInfo(stageInstances, currentContext);
                 allData.addAll(stageData);
             }
         }
-        
+
         return allData;
     }
-    
+
     /**
      * Create render commands from filled vertex resources - Stage 3 of three-stage pipeline
      */
     private List<RenderCommand> createRenderCommands(List<AsyncVertexFiller.FilledVertexResource> filledResources) {
         List<RenderCommand> commands = new ArrayList<>();
-        
+
         for (AsyncVertexFiller.FilledVertexResource filledResource : filledResources) {
             // Group instances by stage
             Map<Identifier, List<GraphicsInformation>> instancesByStage = new LinkedHashMap<>();
-            
+
             for (GraphicsInformation info : filledResource.getBatch().getInstances()) {
                 Identifier stageId = findStageForInstance(info.getInstance());
                 if (stageId != null) {
                     instancesByStage.computeIfAbsent(stageId, k -> new ArrayList<>()).add(info);
                 }
             }
-            
+
             // Create render commands for each stage
             for (Map.Entry<Identifier, List<GraphicsInformation>> entry : instancesByStage.entrySet()) {
                 Identifier stageId = entry.getKey();
                 List<GraphicsInformation> stageInstances = entry.getValue();
-                
+
                 if (!stageInstances.isEmpty()) {
                     RenderCommand command = RenderCommand.createFromFilledResource(
                             filledResource.getVertexResource(),
@@ -390,10 +389,10 @@ public class GraphicsPipeline<C extends RenderContext> {
                 }
             }
         }
-        
+
         return commands;
     }
-    
+
     /**
      * Find which stage a graphics instance belongs to
      */
@@ -408,21 +407,21 @@ public class GraphicsPipeline<C extends RenderContext> {
         }
         return null;
     }
-    
+
     /**
      * Set whether to use the new three-stage pipeline or legacy direct rendering
      */
     public void setUseNewPipeline(boolean useNewPipeline) {
         this.useNewPipeline = useNewPipeline;
     }
-    
+
     /**
      * Check if using the new three-stage pipeline
      */
     public boolean isUsingNewPipeline() {
         return useNewPipeline;
     }
-    
+
     /**
      * Get the render command queue (for new pipeline)
      */

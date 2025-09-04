@@ -2,8 +2,11 @@ package rogo.sketch.render.information;
 
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.render.model.Mesh;
+import rogo.sketch.render.model.ModelMesh;
 
 import java.util.*;
+import javax.annotation.Nullable;
 
 /**
  * Organizes graphics information into a render queue with calculated vertex offsets
@@ -45,13 +48,22 @@ public class RenderList {
     
     /**
      * Create a batch key for grouping compatible graphics instances
+     * Compatible instances must have the same primitive type, data format, instanced flag, and mesh
      */
     private static BatchKey createBatchKey(GraphicsInformation info) {
         PrimitiveType primitiveType = info.getRenderSetting().renderParameter().primitiveType();
         DataFormat dataFormat = info.getRenderSetting().renderParameter().dataFormat();
         boolean isInstanced = info.isInstancedRendering();
         
-        return new BatchKey(primitiveType, dataFormat, isInstanced);
+        // Get mesh reference for batching - only instances with the same mesh can be batched together
+        Object meshRef = null;
+        if (info.hasModelMesh()) {
+            meshRef = info.getModelMesh();
+        } else if (info.hasMesh()) {
+            meshRef = info.getMesh();
+        }
+        
+        return new BatchKey(primitiveType, dataFormat, isInstanced, meshRef);
     }
     
     private void addBatch(RenderBatch batch) {
@@ -77,23 +89,29 @@ public class RenderList {
     
     /**
      * Key for grouping compatible render instances
+     * Instances with the same key can be batched together for efficient rendering
      */
     public static class BatchKey {
         private final PrimitiveType primitiveType;
         private final DataFormat dataFormat;
         private final boolean isInstanced;
+        @Nullable
+        private final Object meshRef; // ModelMesh or Mesh reference
         private final int hashCode;
         
-        public BatchKey(PrimitiveType primitiveType, DataFormat dataFormat, boolean isInstanced) {
+        public BatchKey(PrimitiveType primitiveType, DataFormat dataFormat, boolean isInstanced, @Nullable Object meshRef) {
             this.primitiveType = primitiveType;
             this.dataFormat = dataFormat;
             this.isInstanced = isInstanced;
-            this.hashCode = Objects.hash(primitiveType, dataFormat, isInstanced);
+            this.meshRef = meshRef;
+            this.hashCode = Objects.hash(primitiveType, dataFormat, isInstanced, meshRef);
         }
         
         public PrimitiveType getPrimitiveType() { return primitiveType; }
         public DataFormat getDataFormat() { return dataFormat; }
         public boolean isInstanced() { return isInstanced; }
+        @Nullable
+        public Object getMeshRef() { return meshRef; }
         
         @Override
         public boolean equals(Object o) {
@@ -102,7 +120,8 @@ public class RenderList {
             BatchKey batchKey = (BatchKey) o;
             return isInstanced == batchKey.isInstanced &&
                    Objects.equals(primitiveType, batchKey.primitiveType) &&
-                   Objects.equals(dataFormat, batchKey.dataFormat);
+                   Objects.equals(dataFormat, batchKey.dataFormat) &&
+                   Objects.equals(meshRef, batchKey.meshRef);
         }
         
         @Override
@@ -116,6 +135,7 @@ public class RenderList {
                     "primitiveType=" + primitiveType +
                     ", dataFormat=" + dataFormat +
                     ", isInstanced=" + isInstanced +
+                    ", meshRef=" + (meshRef != null ? meshRef.getClass().getSimpleName() : "null") +
                     '}';
         }
     }
@@ -145,7 +165,7 @@ public class RenderList {
         public BatchKey getKey() { return key; }
         public List<GraphicsInformation> getInstances() { return new ArrayList<>(instances); }
         public int getTotalVertexCount() { return totalVertexCount; }
-        public int getInstanceCount() { return instances.size(); }
+        public int getGraphicsInstanceCount() { return instances.size(); }
         
         /**
          * Get instances sorted by vertex offset
@@ -160,7 +180,7 @@ public class RenderList {
         public String toString() {
             return "RenderBatch{" +
                     "key=" + key +
-                    ", instanceCount=" + instances.size() +
+                    ", graphicsInstanceCount=" + instances.size() +
                     ", totalVertexCount=" + totalVertexCount +
                     '}';
         }

@@ -1,6 +1,6 @@
 package rogo.sketch.render.pool;
 
-import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.util.Identifier;
 
 /**

@@ -141,10 +141,8 @@ public class VertexResourceManager {
             }
         }
 
-        // Calculate total instance count across all graphics instances in the batch
-        int totalInstanceCount = batch.getInstances().stream()
-                .mapToInt(info -> info.getInstanceCount())
-                .sum();
+        // For instanced rendering, each graphics instance contributes one instance
+        int totalInstanceCount = batch.getGraphicsInstanceCount();
 
         // Create vertex resource with both static and dynamic layouts
         return new VertexResource(
@@ -159,9 +157,8 @@ public class VertexResourceManager {
     /**
      * Create a dynamic vertex filler for instance data
      */
-    public VertexFiller getOrCreateDynamicVertexFiller(InstancedVertexLayout layout) {
+    public VertexFiller getOrCreateDynamicVertexFiller(InstancedVertexLayout layout, PrimitiveType primitiveType) {
         DataFormat dynamicFormat = layout.dataFormat();
-        PrimitiveType primitiveType = PrimitiveType.POINTS; // Instance data is per-point
 
         return new VertexFiller(dynamicFormat, primitiveType);
     }

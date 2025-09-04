@@ -379,7 +379,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         return staticVertexCount;
     }
 
-    public int getInstanceCount() {
+    public int getDynamicVertexCount() {
         return instanceCount;
     }
 

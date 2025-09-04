@@ -1,7 +1,7 @@
 package rogo.sketch.render;
 
-import rogo.sketch.api.GraphicsInstance;
-import rogo.sketch.api.IndependentVertexProvider;
+import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.api.graphics.IndependentVertexProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.instance.SharedVertexGraphics;
 import rogo.sketch.render.pool.InstancePoolManager;

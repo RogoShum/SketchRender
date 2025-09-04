@@ -9,7 +9,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.*;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
-import rogo.sketch.api.GraphicsInstance;
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.compat.sodium.SodiumImplOptions;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
