@@ -74,6 +74,51 @@ public class ByteBufferFiller extends DataFiller {
         buffer.putDouble(value);
     }
 
+    @Override
+    public void writeFloatAt(int vertexIndex, int elementIndex, float value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        buffer.putFloat(bytePosition, value);
+    }
+
+    @Override
+    public void writeIntAt(int vertexIndex, int elementIndex, int value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        buffer.putInt(bytePosition, value);
+    }
+
+    @Override
+    public void writeUIntAt(int vertexIndex, int elementIndex, int value) {
+        writeIntAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeByteAt(int vertexIndex, int elementIndex, byte value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        buffer.put(bytePosition, value);
+    }
+
+    @Override
+    public void writeUByteAt(int vertexIndex, int elementIndex, byte value) {
+        writeByteAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeShortAt(int vertexIndex, int elementIndex, short value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        buffer.putShort(bytePosition, value);
+    }
+
+    @Override
+    public void writeUShortAt(int vertexIndex, int elementIndex, short value) {
+        writeShortAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeDoubleAt(int vertexIndex, int elementIndex, double value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        buffer.putDouble(bytePosition, value);
+    }
+
     /**
      * Get the underlying ByteBuffer
      */

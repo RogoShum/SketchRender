@@ -92,6 +92,81 @@ public class SSBOFiller extends DataFiller {
         internalFiller.writeDouble(value);
     }
 
+    @Override
+    public void writeFloatAt(int vertexIndex, int elementIndex, float value) {
+        internalFiller.writeFloatAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeIntAt(int vertexIndex, int elementIndex, int value) {
+        internalFiller.writeIntAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeUIntAt(int vertexIndex, int elementIndex, int value) {
+        internalFiller.writeUIntAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeByteAt(int vertexIndex, int elementIndex, byte value) {
+        internalFiller.writeByteAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeUByteAt(int vertexIndex, int elementIndex, byte value) {
+        internalFiller.writeUByteAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeShortAt(int vertexIndex, int elementIndex, short value) {
+        internalFiller.writeShortAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeUShortAt(int vertexIndex, int elementIndex, short value) {
+        internalFiller.writeUShortAt(vertexIndex, elementIndex, value);
+    }
+
+    @Override
+    public void writeDoubleAt(int vertexIndex, int elementIndex, double value) {
+        internalFiller.writeDoubleAt(vertexIndex, elementIndex, value);
+    }
+
+    /**
+     * High-level indexed data filling with automatic mode switching
+     */
+    public SSBOFiller fillVertexAt(int vertexIndex, Runnable fillAction) {
+        boolean wasIndexed = indexedMode;
+        setIndexedMode(true);
+        try {
+            fillAction.run();
+        } finally {
+            setIndexedMode(wasIndexed);
+        }
+        return this;
+    }
+
+    /**
+     * Convenience method for setting position at vertex index
+     */
+    public SSBOFiller positionAt(int vertexIndex, float x, float y, float z) {
+        writeFloatAt(vertexIndex, 0, x);  // Assuming position is first element
+        writeFloatAt(vertexIndex, 1, y);
+        writeFloatAt(vertexIndex, 2, z);
+        return this;
+    }
+
+    /**
+     * Convenience method for setting color at vertex index
+     */
+    public SSBOFiller colorAt(int vertexIndex, int elementOffset, float r, float g, float b, float a) {
+        writeFloatAt(vertexIndex, elementOffset, r);
+        writeFloatAt(vertexIndex, elementOffset + 1, g);
+        writeFloatAt(vertexIndex, elementOffset + 2, b);
+        writeFloatAt(vertexIndex, elementOffset + 3, a);
+        return this;
+    }
+
     /**
      * Upload data to GPU at a specific index
      */

@@ -6,10 +6,12 @@ import rogo.sketch.render.information.GraphicsInformation;
 import rogo.sketch.render.information.RenderList;
 import rogo.sketch.render.resource.buffer.VertexResource;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 
 /**
  * Handles async vertex buffer filling with offset-based attribute setting
@@ -18,6 +20,10 @@ public class AsyncVertexFiller {
     private static final AsyncVertexFiller INSTANCE = new AsyncVertexFiller();
     private final ExecutorService executor;
     private final VertexResourceManager vertexResourceManager;
+
+    // 性能配置参数
+    private int asyncThreshold = 32;  // 异步处理阈值
+    private int chunkSize = 128;      // 分块处理大小
 
     private AsyncVertexFiller() {
         this.executor = Executors.newCachedThreadPool(r -> {
@@ -219,17 +225,104 @@ public class AsyncVertexFiller {
 
         dynamicFiller.reset();
 
-        // Fill instance data for each graphics instance
-        for (GraphicsInformation info : batch.getInstances()) {
-            if (info.getInstance() instanceof InstancedLayoutProvider provider) {
-                // Each graphics instance fills its own instance data
-                provider.fillInstanceVertexData(dynamicFiller);
-                dynamicFiller.nextVertex();
+        // Fill instance data - use efficient async strategy based on batch size
+        List<GraphicsInformation> instances = batch.getInstances();
+
+        if (instances.size() < asyncThreshold) {
+            // 小批次：直接同步处理，使用顺序模式
+            dynamicFiller.setIndexedMode(false);
+            fillInstanceDataSync(dynamicFiller, instances);
+        } else {
+            // 大批次：使用索引模式进行异步处理
+            dynamicFiller.setIndexedMode(true);
+            if (instances.size() < chunkSize * 4) {
+                // 中等批次：使用并行流
+                fillInstanceDataParallel(dynamicFiller, instances);
+            } else {
+                // 超大批次：使用分块处理
+                fillInstanceDataChunked(dynamicFiller, instances);
             }
         }
 
         // Upload dynamic data to GPU
         vertexResource.uploadDynamicFromVertexFiller(dynamicFiller);
+    }
+
+    /**
+     * 同步填充实例数据 - 用于小批次，使用顺序模式避免开销
+     */
+    private void fillInstanceDataSync(VertexFiller dynamicFiller, List<GraphicsInformation> instances) {
+        for (int i = 0; i < instances.size(); i++) {
+            GraphicsInformation info = instances.get(i);
+            if (info.getInstance() instanceof InstancedLayoutProvider provider) {
+                // 顺序模式：直接调用provider，filler会按顺序填充
+                provider.fillInstanceVertexData(dynamicFiller, i);
+                dynamicFiller.nextVertex();
+            }
+        }
+    }
+
+    /**
+     * 并行填充实例数据 - 用于中等批次，使用索引模式无锁并行
+     */
+    private void fillInstanceDataParallel(VertexFiller dynamicFiller, List<GraphicsInformation> instances) {
+        // 使用索引并行流，每个线程直接写入指定位置，无需同步
+        IntStream.range(0, instances.size())
+                .parallel()
+                .forEach(i -> {
+                    GraphicsInformation info = instances.get(i);
+                    if (info.getInstance() instanceof InstancedLayoutProvider provider) {
+                        // 索引模式：每个线程写入不同位置，无冲突
+                        dynamicFiller.fillVertexAt(i, () -> {
+                            provider.fillInstanceVertexData(dynamicFiller, i);
+                        });
+                    }
+                });
+    }
+
+    /**
+     * 分块填充实例数据 - 用于超大批次，避免线程池过载
+     */
+    private void fillInstanceDataChunked(VertexFiller dynamicFiller, List<GraphicsInformation> instances) {
+        int totalInstances = instances.size();
+        List<CompletableFuture<Void>> chunkFutures = new ArrayList<>((totalInstances + chunkSize - 1) / chunkSize);
+
+        for (int start = 0; start < totalInstances; start += chunkSize) {
+            final int chunkStart = start;
+            final int chunkEnd = Math.min(start + chunkSize, totalInstances);
+
+            CompletableFuture<Void> chunkFuture = CompletableFuture.runAsync(() -> {
+                for (int i = chunkStart; i < chunkEnd; i++) {
+                    final int index = i; // Make effectively final
+                    GraphicsInformation info = instances.get(i);
+                    if (info.getInstance() instanceof InstancedLayoutProvider provider) {
+                        // 索引模式：每个chunk处理不同范围的vertex，无冲突
+                        dynamicFiller.fillVertexAt(index, () -> {
+                            provider.fillInstanceVertexData(dynamicFiller, index);
+                        });
+                    }
+                }
+            }, executor);
+
+            chunkFutures.add(chunkFuture);
+        }
+
+        // 等待所有块完成
+        CompletableFuture.allOf(chunkFutures.toArray(new CompletableFuture[0])).join();
+    }
+
+    /**
+     * 设置异步处理阈值
+     */
+    public void setAsyncThreshold(int threshold) {
+        this.asyncThreshold = Math.max(1, threshold);
+    }
+
+    /**
+     * 设置分块大小
+     */
+    public void setChunkSize(int size) {
+        this.chunkSize = Math.max(1, size);
     }
 
     /**

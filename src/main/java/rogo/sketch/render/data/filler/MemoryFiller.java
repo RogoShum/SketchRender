@@ -69,6 +69,56 @@ public class MemoryFiller extends DataFiller {
         MemoryUtil.memPutDouble(baseAddress + offset, value);
     }
 
+    @Override
+    public void writeFloatAt(int vertexIndex, int elementIndex, float value) {
+        long offset = calculateBytePosition(vertexIndex, elementIndex);
+        checkBounds(offset, Float.BYTES);
+        MemoryUtil.memPutFloat(baseAddress + offset, value);
+    }
+
+    @Override
+    public void writeIntAt(int vertexIndex, int elementIndex, int value) {
+        long offset = calculateBytePosition(vertexIndex, elementIndex);
+        checkBounds(offset, Integer.BYTES);
+        MemoryUtil.memPutInt(baseAddress + offset, value);
+    }
+
+    @Override
+    public void writeUIntAt(int vertexIndex, int elementIndex, int value) {
+        writeIntAt(vertexIndex, elementIndex, value); // Same as signed int in memory
+    }
+
+    @Override
+    public void writeByteAt(int vertexIndex, int elementIndex, byte value) {
+        long offset = calculateBytePosition(vertexIndex, elementIndex);
+        checkBounds(offset, Byte.BYTES);
+        MemoryUtil.memPutByte(baseAddress + offset, value);
+    }
+
+    @Override
+    public void writeUByteAt(int vertexIndex, int elementIndex, byte value) {
+        writeByteAt(vertexIndex, elementIndex, value); // Same as signed byte in memory
+    }
+
+    @Override
+    public void writeShortAt(int vertexIndex, int elementIndex, short value) {
+        long offset = calculateBytePosition(vertexIndex, elementIndex);
+        checkBounds(offset, Short.BYTES);
+        MemoryUtil.memPutShort(baseAddress + offset, value);
+    }
+
+    @Override
+    public void writeUShortAt(int vertexIndex, int elementIndex, short value) {
+        writeShortAt(vertexIndex, elementIndex, value); // Same as signed short in memory
+    }
+
+    @Override
+    public void writeDoubleAt(int vertexIndex, int elementIndex, double value) {
+        long offset = calculateBytePosition(vertexIndex, elementIndex);
+        checkBounds(offset, Double.BYTES);
+        MemoryUtil.memPutDouble(baseAddress + offset, value);
+    }
+
     private long getCurrentOffset() {
         long vertexOffset = currentVertex * format.getStride();
         if (currentElementIndex < format.getElementCount()) {

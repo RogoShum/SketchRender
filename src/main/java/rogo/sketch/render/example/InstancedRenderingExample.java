@@ -90,24 +90,50 @@ public class InstancedRenderingExample {
         }
 
         @Override
+        public void fillInstanceVertexData(VertexFiller filler, int index) {
+            // New index-based implementation - works in both sequential and indexed modes
+            if (index < instances.length) {
+                CubeInstance instance = instances[index];
+
+                if (filler.isIndexedMode()) {
+                    // 索引模式：直接写入指定vertex位置，适用于异步并行
+                    // 使用便捷方法填充位置和颜色
+                    filler.positionAt(index, instance.position[0], instance.position[1], instance.position[2]);
+                    filler.writeFloatAt(index, 3, instance.scale);  // Scale (element 3)
+                    filler.colorAt(index, 4, instance.color[0], instance.color[1], instance.color[2], instance.color[3]);
+                } else {
+                    // 顺序模式：按顺序填充当前vertex，适用于同步操作
+                    filler.position(instance.position[0], instance.position[1], instance.position[2])
+                          .floatValue(instance.scale)
+                          .color(instance.color[0], instance.color[1], instance.color[2], instance.color[3]);
+                }
+            } else {
+                // Fill with default data if index is out of bounds
+                if (filler.isIndexedMode()) {
+                    filler.positionAt(index, 0.0f, 0.0f, 0.0f);
+                    filler.writeFloatAt(index, 3, 1.0f);  // Default scale
+                    filler.colorAt(index, 4, 1.0f, 1.0f, 1.0f, 1.0f);  // Default white color
+                } else {
+                    filler.position(0.0f, 0.0f, 0.0f)
+                          .floatValue(1.0f)
+                          .color(1.0f, 1.0f, 1.0f, 1.0f);
+                }
+            }
+        }
+
+        @Override
         public void fillInstanceVertexData(VertexFiller filler) {
-            // For this example, we'll use a simplified approach
-            // In a real implementation, you'd need to manage which instance to render
-            // or implement a different pattern for multiple instances per graphics instance
-            
-            // Fill instance data for the first instance as an example
+            // Backward compatibility method - fill the first instance
             if (instances.length > 0) {
                 CubeInstance instance = instances[0];
-
-                // Fill instance-specific data (position, rotation, scale, color, etc.)
-                filler.floatValue(instance.position[0])    // X position
-                        .floatValue(instance.position[1])    // Y position
-                        .floatValue(instance.position[2])    // Z position
-                        .floatValue(instance.scale)          // Uniform scale
-                        .floatValue(instance.color[0])       // Red
-                        .floatValue(instance.color[1])       // Green
-                        .floatValue(instance.color[2])       // Blue
-                        .floatValue(instance.color[3]);      // Alpha
+                filler.floatValue(instance.position[0])
+                        .floatValue(instance.position[1])
+                        .floatValue(instance.position[2])
+                        .floatValue(instance.scale)
+                        .floatValue(instance.color[0])
+                        .floatValue(instance.color[1])
+                        .floatValue(instance.color[2])
+                        .floatValue(instance.color[3]);
             }
         }
 
@@ -186,5 +212,42 @@ public class InstancedRenderingExample {
         // 5. Render using glDrawArraysInstanced or glDrawElementsInstanced
 
         System.out.println("Instanced cube will render " + cubeInstances.length + " instances with a single draw call");
+    }
+
+    /**
+     * Example demonstrating async index-based rendering
+     */
+    public static void demonstrateAsyncIndexBasedRendering() {
+        // Create multiple cube instances
+        CubeInstance[] cubeInstances = {
+                new CubeInstance(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f), // Index 0: Red cube
+                new CubeInstance(2.0f, 0.0f, 0.0f, 0.8f, 0.0f, 1.0f, 0.0f, 1.0f), // Index 1: Green cube
+                new CubeInstance(4.0f, 0.0f, 0.0f, 1.2f, 0.0f, 0.0f, 1.0f, 1.0f), // Index 2: Blue cube
+                new CubeInstance(6.0f, 0.0f, 0.0f, 0.6f, 1.0f, 1.0f, 0.0f, 1.0f), // Index 3: Yellow cube
+        };
+
+        // Create model mesh for a cube
+        ModelMesh cubeModel = null; // TODO: Load or create cube model
+
+        // Create instanced graphics instance
+        InstancedCube instancedCube = new InstancedCube(
+                Identifier.of("example", "async_cubes"),
+                cubeModel,
+                cubeInstances
+        );
+
+        // When AsyncVertexFiller processes this batch:
+        // - Each provider will be called with fillInstanceVertexData(filler, index)
+        // - Provider at index 0 fills buffer position 0 with Red cube data
+        // - Provider at index 1 fills buffer position 1 with Green cube data  
+        // - Provider at index 2 fills buffer position 2 with Blue cube data
+        // - Provider at index 3 fills buffer position 3 with Yellow cube data
+        // - All filling happens asynchronously in parallel
+
+        System.out.println("Async index-based rendering:");
+        System.out.println("- Each provider knows its exact index position in the batch");
+        System.out.println("- Providers fill buffer positions in parallel using CompletableFuture");
+        System.out.println("- No need to pass index lists - each provider uses its batch index");
+        System.out.println("- Buffer layout: [Index0_Data, Index1_Data, Index2_Data, Index3_Data]");
     }
 }

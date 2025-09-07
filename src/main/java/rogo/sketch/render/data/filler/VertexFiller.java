@@ -15,7 +15,6 @@ import java.util.List;
  */
 public class VertexFiller extends DataFiller {
     private final List<ByteBuffer> vertexData;
-    private final int vertexStride;
     private int vertexCount;
     private final PrimitiveType primitiveType;
     private VertexSorting sorting = VertexSorting.DISTANCE_TO_ORIGIN;
@@ -32,7 +31,6 @@ public class VertexFiller extends DataFiller {
     public VertexFiller(DataFormat format, PrimitiveType primitiveType, int initialVertexCapacity) {
         super(format);
         this.primitiveType = primitiveType;
-        this.vertexStride = format.getStride();
         this.initialBufferSize = initialVertexCapacity * vertexStride;
         this.bufferGrowthSize = 2097152; // 2MB growth, like MC
         this.vertexData = new ArrayList<>();
@@ -196,6 +194,115 @@ public class VertexFiller extends DataFiller {
         currentBuffer.putDouble(value);
     }
 
+    // Indexed writing methods for async operations
+    @Override
+    public void writeFloatAt(int vertexIndex, int elementIndex, float value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        ensureCapacity(bytePosition + 4);
+        currentBuffer.putFloat(bytePosition, value);
+    }
+
+    @Override
+    public void writeIntAt(int vertexIndex, int elementIndex, int value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        ensureCapacity(bytePosition + 4);
+        currentBuffer.putInt(bytePosition, value);
+    }
+
+    @Override
+    public void writeUIntAt(int vertexIndex, int elementIndex, int value) {
+        writeIntAt(vertexIndex, elementIndex, value); // Same as int in OpenGL
+    }
+
+    @Override
+    public void writeByteAt(int vertexIndex, int elementIndex, byte value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        ensureCapacity(bytePosition + 1);
+        currentBuffer.put(bytePosition, value);
+    }
+
+    @Override
+    public void writeUByteAt(int vertexIndex, int elementIndex, byte value) {
+        writeByteAt(vertexIndex, elementIndex, value); // Same as byte
+    }
+
+    @Override
+    public void writeShortAt(int vertexIndex, int elementIndex, short value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        ensureCapacity(bytePosition + 2);
+        currentBuffer.putShort(bytePosition, value);
+    }
+
+    @Override
+    public void writeUShortAt(int vertexIndex, int elementIndex, short value) {
+        writeShortAt(vertexIndex, elementIndex, value); // Same as short
+    }
+
+    @Override
+    public void writeDoubleAt(int vertexIndex, int elementIndex, double value) {
+        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
+        ensureCapacity(bytePosition + 8);
+        currentBuffer.putDouble(bytePosition, value);
+    }
+
+    /**
+     * Calculate byte position for a specific vertex and element
+     */
+    protected int calculateBytePosition(int vertexIndex, int elementIndex) {
+        if (elementIndex >= format.getElementCount()) {
+            throw new IndexOutOfBoundsException("Element index " + elementIndex + " out of bounds for format with " + format.getElementCount() + " elements");
+        }
+
+        int vertexByteOffset = vertexIndex * vertexStride;
+        int elementByteOffset = format.getElements().get(elementIndex).getOffset();
+        return vertexByteOffset + elementByteOffset;
+    }
+
+    /**
+     * High-level indexed vertex data filling for async operations
+     *
+     * @param vertexIndex The vertex index to fill
+     * @param fillAction  Action that fills vertex data using indexed methods
+     */
+    public void fillVertexAt(int vertexIndex, Runnable fillAction) {
+        if (!indexedMode) {
+            throw new IllegalStateException("fillVertexAt requires indexed mode");
+        }
+
+        // Ensure buffer capacity for this vertex
+        int requiredSize = (vertexIndex + 1) * vertexStride;
+        ensureCapacity(requiredSize);
+
+        // Execute fill action
+        fillAction.run();
+
+        // Update vertex count if needed
+        if (vertexIndex >= vertexCount) {
+            vertexCount = vertexIndex + 1;
+        }
+    }
+
+    /**
+     * Convenience method for position at vertex index
+     */
+    public VertexFiller positionAt(int vertexIndex, float x, float y, float z) {
+        writeFloatAt(vertexIndex, 0, x);  // Assuming position is first element
+        writeFloatAt(vertexIndex, 1, y);
+        writeFloatAt(vertexIndex, 2, z);
+        return this;
+    }
+
+    /**
+     * Convenience method for color at vertex index
+     */
+    public VertexFiller colorAt(int vertexIndex, int elementOffset, float r, float g, float b, float a) {
+        writeFloatAt(vertexIndex, elementOffset, r);
+        writeFloatAt(vertexIndex, elementOffset + 1, g);
+        writeFloatAt(vertexIndex, elementOffset + 2, b);
+        writeFloatAt(vertexIndex, elementOffset + 3, a);
+        return this;
+    }
+
 
     /**
      * Get current vertex count
@@ -322,9 +429,12 @@ public class VertexFiller extends DataFiller {
     }
 
     /**
-     * Set the vertex offset for this filler
+     * Set the vertex offset for this filler (sequential mode only)
      */
     public void setVertexOffset(int offset) {
+        if (indexedMode) {
+            throw new IllegalStateException("setVertexOffset not supported in indexed mode");
+        }
         this.vertexOffset = offset;
         this.currentVertex = offset;
     }

@@ -1,34 +1,35 @@
 package rogo.sketch.render.data.filler;
 
-import org.joml.Matrix2f;
-import org.joml.Matrix3f;
-import org.joml.Matrix4f;
-import org.joml.Vector2f;
-import org.joml.Vector2i;
-import org.joml.Vector3f;
-import org.joml.Vector3i;
-import org.joml.Vector4f;
-import org.joml.Vector4i;
+import org.joml.*;
+import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.data.format.DataFormat;
+
+import java.lang.Math;
 
 /**
  * Abstract base class for data filling operations with fluent interface
+ * Supports both sequential and indexed filling modes
  */
 public abstract class DataFiller {
     protected final DataFormat format;
+    protected final int vertexStride;
     protected long currentVertex;
     protected int currentElementIndex;
-    
+
     // Validation state
     protected boolean strictValidation = true;
     protected boolean autoAdvanceElements = true;
 
+    // Filling mode
+    protected boolean indexedMode = false;  // false = sequential, true = indexed
+
     public DataFiller(DataFormat format) {
         this.format = format;
+        this.vertexStride = format.getStride();
         this.currentVertex = 0;
         this.currentElementIndex = 0;
     }
-    
+
     /**
      * Enable or disable strict data format validation
      */
@@ -36,13 +37,28 @@ public abstract class DataFiller {
         this.strictValidation = enabled;
         return this;
     }
-    
+
     /**
      * Enable or disable automatic element advancement
      */
     public DataFiller setAutoAdvanceElements(boolean enabled) {
         this.autoAdvanceElements = enabled;
         return this;
+    }
+
+    /**
+     * Switch to indexed filling mode for async operations
+     */
+    public DataFiller setIndexedMode(boolean enabled) {
+        this.indexedMode = enabled;
+        return this;
+    }
+
+    /**
+     * Check if in indexed mode
+     */
+    public boolean isIndexedMode() {
+        return indexedMode;
     }
 
     /**
@@ -73,14 +89,27 @@ public abstract class DataFiller {
 
     // Float operations
     public DataFiller floatValue(float value) {
-        validateCurrentElement(rogo.sketch.render.data.DataType.FLOAT);
+        validateCurrentElement(DataType.FLOAT);
         writeFloat(value);
         advanceElement();
         return this;
     }
 
+    /**
+     * Float value with explicit vertex index for async operations
+     */
+    public DataFiller floatValue(int vertexIndex, int elementIndex, float value) {
+        if (indexedMode) {
+            writeFloatAt(vertexIndex, elementIndex, value);
+        } else {
+            // Fall back to sequential mode
+            floatValue(value);
+        }
+        return this;
+    }
+
     public DataFiller vec2f(float x, float y) {
-        validateCurrentElement(rogo.sketch.render.data.DataType.VEC2);
+        validateCurrentElement(DataType.VEC2);
         writeFloat(x);
         writeFloat(y);
         advanceElement();
@@ -92,7 +121,7 @@ public abstract class DataFiller {
     }
 
     public DataFiller vec3f(float x, float y, float z) {
-        validateCurrentElement(rogo.sketch.render.data.DataType.VEC3);
+        validateCurrentElement(DataType.VEC3);
         writeFloat(x);
         writeFloat(y);
         writeFloat(z);
@@ -105,7 +134,7 @@ public abstract class DataFiller {
     }
 
     public DataFiller vec4f(float x, float y, float z, float w) {
-        validateCurrentElement(rogo.sketch.render.data.DataType.VEC4);
+        validateCurrentElement(DataType.VEC4);
         writeFloat(x);
         writeFloat(y);
         writeFloat(z);
@@ -120,7 +149,7 @@ public abstract class DataFiller {
 
     // Integer operations
     public DataFiller intValue(int value) {
-        validateCurrentElement(rogo.sketch.render.data.DataType.INT);
+        validateCurrentElement(DataType.INT);
         writeInt(value);
         advanceElement();
         return this;
@@ -373,7 +402,7 @@ public abstract class DataFiller {
     }
 
     public DataFiller mat4(Matrix4f matrix) {
-        validateCurrentElement(rogo.sketch.render.data.DataType.MAT4);
+        validateCurrentElement(DataType.MAT4);
         writeFloat(matrix.m00());
         writeFloat(matrix.m01());
         writeFloat(matrix.m02());
@@ -433,14 +462,108 @@ public abstract class DataFiller {
 
     // Abstract methods to be implemented by subclasses
     public abstract void writeFloat(float value);
+
     public abstract void writeInt(int value);
+
     public abstract void writeUInt(int value);
+
     public abstract void writeByte(byte value);
+
     public abstract void writeUByte(byte value);
+
     public abstract void writeShort(short value);
+
     public abstract void writeUShort(short value);
+
     public abstract void writeDouble(double value);
-    
+
+    // Indexed writing methods for async operations
+    public abstract void writeFloatAt(int vertexIndex, int elementIndex, float value);
+
+    public abstract void writeIntAt(int vertexIndex, int elementIndex, int value);
+
+    public abstract void writeUIntAt(int vertexIndex, int elementIndex, int value);
+
+    public abstract void writeByteAt(int vertexIndex, int elementIndex, byte value);
+
+    public abstract void writeUByteAt(int vertexIndex, int elementIndex, byte value);
+
+    public abstract void writeShortAt(int vertexIndex, int elementIndex, short value);
+
+    public abstract void writeUShortAt(int vertexIndex, int elementIndex, short value);
+
+    public abstract void writeDoubleAt(int vertexIndex, int elementIndex, double value);
+
+    // High-level indexed writing methods
+    /**
+     * Write vector2 at specific vertex and element index
+     */
+    public DataFiller vec2fAt(int vertexIndex, int elementIndex, float x, float y) {
+        if (indexedMode) {
+            writeFloatAt(vertexIndex, elementIndex, x);
+            writeFloatAt(vertexIndex, elementIndex + 1, y);
+        } else {
+            vec2f(x, y);
+        }
+        return this;
+    }
+
+    /**
+     * Write vector3 at specific vertex and element index
+     */
+    public DataFiller vec3fAt(int vertexIndex, int elementIndex, float x, float y, float z) {
+        if (indexedMode) {
+            writeFloatAt(vertexIndex, elementIndex, x);
+            writeFloatAt(vertexIndex, elementIndex + 1, y);
+            writeFloatAt(vertexIndex, elementIndex + 2, z);
+        } else {
+            vec3f(x, y, z);
+        }
+        return this;
+    }
+
+    /**
+     * Write vector4 at specific vertex and element index
+     */
+    public DataFiller vec4fAt(int vertexIndex, int elementIndex, float x, float y, float z, float w) {
+        if (indexedMode) {
+            writeFloatAt(vertexIndex, elementIndex, x);
+            writeFloatAt(vertexIndex, elementIndex + 1, y);
+            writeFloatAt(vertexIndex, elementIndex + 2, z);
+            writeFloatAt(vertexIndex, elementIndex + 3, w);
+        } else {
+            vec4f(x, y, z, w);
+        }
+        return this;
+    }
+
+    /**
+     * Write position at specific vertex index (assumes first 3 elements are position)
+     */
+    public DataFiller positionAt(int vertexIndex, float x, float y, float z) {
+        return vec3fAt(vertexIndex, 0, x, y, z);
+    }
+
+    /**
+     * Write color at specific vertex and element index
+     */
+    public DataFiller colorAt(int vertexIndex, int elementIndex, float r, float g, float b, float a) {
+        return vec4fAt(vertexIndex, elementIndex, r, g, b, a);
+    }
+
+    /**
+     * Calculate byte position for a specific vertex and element
+     */
+    protected int calculateBytePosition(int vertexIndex, int elementIndex) {
+        if (elementIndex >= format.getElementCount()) {
+            throw new IndexOutOfBoundsException("Element index " + elementIndex + " out of bounds for format with " + format.getElementCount() + " elements");
+        }
+
+        int vertexByteOffset = vertexIndex * vertexStride;
+        int elementByteOffset = format.getElements().get(elementIndex).getOffset();
+        return vertexByteOffset + elementByteOffset;
+    }
+
     /**
      * Complete the data filling process
      * Subclasses should implement their specific finalization logic
@@ -455,40 +578,40 @@ public abstract class DataFiller {
             }
         }
     }
-    
+
     /**
      * Validate that the current element matches the expected data type
      */
-    protected void validateCurrentElement(rogo.sketch.render.data.DataType expectedType) {
+    protected void validateCurrentElement(DataType expectedType) {
         if (!strictValidation) return;
-        
+
         if (currentElementIndex >= format.getElementCount()) {
             throw new IllegalStateException("Attempting to write beyond format element count. " +
-                "Current element index: " + currentElementIndex + 
-                ", Format element count: " + format.getElementCount());
+                    "Current element index: " + currentElementIndex +
+                    ", Format element count: " + format.getElementCount());
         }
-        
+
         var currentElement = format.getElements().get(currentElementIndex);
         if (currentElement.getDataType() != expectedType) {
-            throw new IllegalArgumentException("Data type mismatch for element '" + 
-                currentElement.getName() + "' at index " + currentElementIndex + 
-                ". Expected: " + expectedType + ", Format expects: " + currentElement.getDataType());
+            throw new IllegalArgumentException("Data type mismatch for element '" +
+                    currentElement.getName() + "' at index " + currentElementIndex +
+                    ". Expected: " + expectedType + ", Format expects: " + currentElement.getDataType());
         }
     }
-    
+
     /**
      * Validate that we have enough components for the data type
      */
-    protected void validateDataTypeComponents(rogo.sketch.render.data.DataType dataType, int providedComponents) {
+    protected void validateDataTypeComponents(DataType dataType, int providedComponents) {
         if (!strictValidation) return;
-        
+
         int expectedComponents = dataType.getComponentCount();
         if (providedComponents != expectedComponents) {
-            throw new IllegalArgumentException("Component count mismatch for data type " + dataType + 
-                ". Expected: " + expectedComponents + ", Provided: " + providedComponents);
+            throw new IllegalArgumentException("Component count mismatch for data type " + dataType +
+                    ". Expected: " + expectedComponents + ", Provided: " + providedComponents);
         }
     }
-    
+
     /**
      * Check if the current vertex is complete
      * Note: When advanceElement() auto-calls nextVertex(), currentElementIndex resets to 0
@@ -502,7 +625,7 @@ public abstract class DataFiller {
         }
         return currentElementIndex >= format.getElementCount();
     }
-    
+
     /**
      * Get the remaining elements needed to complete current vertex
      */

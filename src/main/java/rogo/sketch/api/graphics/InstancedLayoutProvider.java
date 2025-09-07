@@ -14,9 +14,15 @@ public interface InstancedLayoutProvider {
     InstancedVertexLayout getInstancedVertexLayout();
 
     /**
-     * Fill instance vertex data for this graphics instance
-     * The filler will automatically advance to the next position after filling
+     * Fill instance vertex data for this graphics instance (backward compatibility)
      * @param filler The vertex filler to write data to
      */
     void fillInstanceVertexData(VertexFiller filler);
+
+    /**
+     * Fill instance vertex data for this graphics instance at specified index
+     * @param filler The vertex filler to write data to
+     * @param index The index position of this provider in the batch
+     */
+    void fillInstanceVertexData(VertexFiller filler, int index);
 }
