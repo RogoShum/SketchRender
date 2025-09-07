@@ -163,7 +163,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
             throw new IllegalArgumentException("VertexFiller cannot be null");
         }
 
-        filler.end();
+        filler.finish();
 
         // Get vertex data
         ByteBuffer vertexData = filler.getVertexData();
@@ -305,7 +305,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
             throw new IllegalArgumentException("VertexFiller cannot be null");
         }
 
-        filler.end();
+        filler.finish();
 
         // Get vertex data
         ByteBuffer vertexData = filler.getVertexData();
@@ -327,7 +327,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
             return;
         }
 
-        filler.end();
+        filler.finish();
 
         // Get vertex data
         ByteBuffer vertexData = filler.getVertexData();

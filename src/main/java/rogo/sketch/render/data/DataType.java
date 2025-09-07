@@ -18,11 +18,16 @@ public enum DataType {
     VEC3I(GL_INT, 3, 3 * Integer.BYTES),
     VEC4I(GL_INT, 4, 4 * Integer.BYTES),
     
-    // Unsigned integer types
+    // Unsigned integer types (GLSL: uint, uvec2, uvec3, uvec4)
     UINT(GL_UNSIGNED_INT, 1, Integer.BYTES),
-    VEC2UI(GL_UNSIGNED_INT, 2, 2 * Integer.BYTES),
-    VEC3UI(GL_UNSIGNED_INT, 3, 3 * Integer.BYTES),
-    VEC4UI(GL_UNSIGNED_INT, 4, 4 * Integer.BYTES),
+    UVEC2(GL_UNSIGNED_INT, 2, 2 * Integer.BYTES),
+    UVEC3(GL_UNSIGNED_INT, 3, 3 * Integer.BYTES),
+    UVEC4(GL_UNSIGNED_INT, 4, 4 * Integer.BYTES),
+    
+    // Integer vectors (GLSL: ivec2, ivec3, ivec4)
+    IVEC2(GL_INT, 2, 2 * Integer.BYTES),
+    IVEC3(GL_INT, 3, 3 * Integer.BYTES),
+    IVEC4(GL_INT, 4, 4 * Integer.BYTES),
     
     // Byte types
     BYTE(GL_BYTE, 1, Byte.BYTES),
@@ -53,6 +58,11 @@ public enum DataType {
     VEC2D(GL_DOUBLE, 2, 2 * Double.BYTES),
     VEC3D(GL_DOUBLE, 3, 3 * Double.BYTES),
     VEC4D(GL_DOUBLE, 4, 4 * Double.BYTES),
+    
+    // Boolean vectors (GLSL: bvec2, bvec3, bvec4) - stored as bytes
+    BVEC2(GL_BYTE, 2, 2 * Byte.BYTES),
+    BVEC3(GL_BYTE, 3, 3 * Byte.BYTES),
+    BVEC4(GL_BYTE, 4, 4 * Byte.BYTES),
     
     // Matrix types
     MAT2(GL_FLOAT, 4, 4 * Float.BYTES),

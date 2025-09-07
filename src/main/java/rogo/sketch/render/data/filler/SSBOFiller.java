@@ -1,12 +1,12 @@
 package rogo.sketch.render.data.filler;
 
+import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
-import rogo.sketch.render.data.format.DataFormat;
 
 /**
  * Data filler implementation for SSBO (Shader Storage Buffer Objects)
- * Supports both sequential and random access data filling
+ * Focuses on GPU buffer operations and delegates data writing to internal fillers
  */
 public class SSBOFiller extends DataFiller {
     private final ShaderStorageBuffer ssbo;
@@ -15,18 +15,15 @@ public class SSBOFiller extends DataFiller {
     public SSBOFiller(DataFormat format, ShaderStorageBuffer ssbo) {
         super(format);
         this.ssbo = ssbo;
-        // Use MemoryFiller for direct memory access
-        this.internalFiller = MemoryFiller.wrap(format, ssbo.getMemoryAddress(), ssbo.getCapacity());
+        // Default to MemoryFiller for direct memory access
+        useMemoryAccess();
     }
 
     /**
      * Switch to ByteBuffer mode for data filling
      */
     public SSBOFiller useByteBuffer() {
-        // Create a ByteBuffer wrapper around the SSBO memory
-        java.nio.ByteBuffer buffer = org.lwjgl.system.MemoryUtil.memByteBuffer(
-            ssbo.getMemoryAddress(), (int) ssbo.getCapacity());
-        this.internalFiller = ByteBufferFiller.wrap(format, buffer);
+        this.internalFiller = ByteBufferFiller.create(format, getVertexCapacity());
         return this;
     }
 
@@ -38,134 +35,130 @@ public class SSBOFiller extends DataFiller {
         return this;
     }
 
+    // ===== Core data writing methods delegated to internal filler =====
+
     @Override
-    public DataFiller vertex(long index) {
-        super.vertex(index);
-        internalFiller.vertex(index);
+    public DataFiller putFloat(float value) {
+        internalFiller.putFloat(value);
         return this;
     }
 
     @Override
-    public DataFiller element(int elementIndex) {
-        super.element(elementIndex);
-        internalFiller.element(elementIndex);
+    public DataFiller putInt(int value) {
+        internalFiller.putInt(value);
         return this;
     }
 
     @Override
-    public void writeFloat(float value) {
-        internalFiller.writeFloat(value);
+    public DataFiller putUInt(int value) {
+        internalFiller.putUInt(value);
+        return this;
     }
 
     @Override
-    public void writeInt(int value) {
-        internalFiller.writeInt(value);
+    public DataFiller putByte(byte value) {
+        internalFiller.putByte(value);
+        return this;
     }
 
     @Override
-    public void writeUInt(int value) {
-        internalFiller.writeUInt(value);
+    public DataFiller putUByte(byte value) {
+        internalFiller.putUByte(value);
+        return this;
     }
 
     @Override
-    public void writeByte(byte value) {
-        internalFiller.writeByte(value);
+    public DataFiller putShort(short value) {
+        internalFiller.putShort(value);
+        return this;
     }
 
     @Override
-    public void writeUByte(byte value) {
-        internalFiller.writeUByte(value);
+    public DataFiller putUShort(short value) {
+        internalFiller.putUShort(value);
+        return this;
     }
 
     @Override
-    public void writeShort(short value) {
-        internalFiller.writeShort(value);
+    public DataFiller putDouble(double value) {
+        internalFiller.putDouble(value);
+        return this;
+    }
+
+    // ===== Random access methods =====
+
+    @Override
+    public void putFloatAt(long byteOffset, float value) {
+        internalFiller.putFloatAt(byteOffset, value);
     }
 
     @Override
-    public void writeUShort(short value) {
-        internalFiller.writeUShort(value);
+    public void putIntAt(long byteOffset, int value) {
+        internalFiller.putIntAt(byteOffset, value);
     }
 
     @Override
-    public void writeDouble(double value) {
-        internalFiller.writeDouble(value);
+    public void putUIntAt(long byteOffset, int value) {
+        internalFiller.putUIntAt(byteOffset, value);
     }
 
     @Override
-    public void writeFloatAt(int vertexIndex, int elementIndex, float value) {
-        internalFiller.writeFloatAt(vertexIndex, elementIndex, value);
+    public void putByteAt(long byteOffset, byte value) {
+        internalFiller.putByteAt(byteOffset, value);
     }
 
     @Override
-    public void writeIntAt(int vertexIndex, int elementIndex, int value) {
-        internalFiller.writeIntAt(vertexIndex, elementIndex, value);
+    public void putUByteAt(long byteOffset, byte value) {
+        internalFiller.putUByteAt(byteOffset, value);
     }
 
     @Override
-    public void writeUIntAt(int vertexIndex, int elementIndex, int value) {
-        internalFiller.writeUIntAt(vertexIndex, elementIndex, value);
+    public void putShortAt(long byteOffset, short value) {
+        internalFiller.putShortAt(byteOffset, value);
     }
 
     @Override
-    public void writeByteAt(int vertexIndex, int elementIndex, byte value) {
-        internalFiller.writeByteAt(vertexIndex, elementIndex, value);
+    public void putUShortAt(long byteOffset, short value) {
+        internalFiller.putUShortAt(byteOffset, value);
     }
 
     @Override
-    public void writeUByteAt(int vertexIndex, int elementIndex, byte value) {
-        internalFiller.writeUByteAt(vertexIndex, elementIndex, value);
+    public void putDoubleAt(long byteOffset, double value) {
+        internalFiller.putDoubleAt(byteOffset, value);
     }
 
     @Override
-    public void writeShortAt(int vertexIndex, int elementIndex, short value) {
-        internalFiller.writeShortAt(vertexIndex, elementIndex, value);
+    public boolean supportsRandomAccess() {
+        return internalFiller.supportsRandomAccess();
     }
 
-    @Override
-    public void writeUShortAt(int vertexIndex, int elementIndex, short value) {
-        internalFiller.writeUShortAt(vertexIndex, elementIndex, value);
-    }
-
-    @Override
-    public void writeDoubleAt(int vertexIndex, int elementIndex, double value) {
-        internalFiller.writeDoubleAt(vertexIndex, elementIndex, value);
-    }
+    // ===== SSBO-specific convenience methods =====
 
     /**
-     * High-level indexed data filling with automatic mode switching
+     * Set position at specific vertex index (assumes position is first 3 floats)
      */
-    public SSBOFiller fillVertexAt(int vertexIndex, Runnable fillAction) {
-        boolean wasIndexed = indexedMode;
-        setIndexedMode(true);
-        try {
-            fillAction.run();
-        } finally {
-            setIndexedMode(wasIndexed);
-        }
-        return this;
-    }
-
-    /**
-     * Convenience method for setting position at vertex index
-     */
-    public SSBOFiller positionAt(int vertexIndex, float x, float y, float z) {
-        writeFloatAt(vertexIndex, 0, x);  // Assuming position is first element
-        writeFloatAt(vertexIndex, 1, y);
-        writeFloatAt(vertexIndex, 2, z);
+    public SSBOFiller positionAt(long vertexIndex, float x, float y, float z) {
+        long offset = vertexIndex * format.getStride();
+        putFloatAt(offset, x);
+        putFloatAt(offset + Float.BYTES, y);
+        putFloatAt(offset + 2 * Float.BYTES, z);
         return this;
     }
 
     /**
-     * Convenience method for setting color at vertex index
+     * Set color at specific vertex index and element offset
      */
-    public SSBOFiller colorAt(int vertexIndex, int elementOffset, float r, float g, float b, float a) {
-        writeFloatAt(vertexIndex, elementOffset, r);
-        writeFloatAt(vertexIndex, elementOffset + 1, g);
-        writeFloatAt(vertexIndex, elementOffset + 2, b);
-        writeFloatAt(vertexIndex, elementOffset + 3, a);
+    public SSBOFiller colorAt(long vertexIndex, int elementOffset, float r, float g, float b, float a) {
+        long offset = vertexIndex * format.getStride() + elementOffset;
+        putFloatAt(offset, r);
+        putFloatAt(offset + Float.BYTES, g);
+        putFloatAt(offset + 2 * Float.BYTES, b);
+        putFloatAt(offset + 3 * Float.BYTES, a);
         return this;
     }
+
+
+    // ===== GPU operations =====
 
     /**
      * Upload data to GPU at a specific index
@@ -199,6 +192,54 @@ public class SSBOFiller extends DataFiller {
         return this;
     }
 
+    // ===== Capacity management =====
+
+    /**
+     * Ensure the SSBO has enough capacity for the required number of vertices
+     */
+    public SSBOFiller ensureCapacity(int vertexCount, boolean preserveData) {
+        long requiredCapacity = (long) vertexCount * format.getStride();
+        long currentCapacity = ssbo.getCapacity();
+
+        if (requiredCapacity > currentCapacity) {
+            // Calculate new capacity (grow by 50% or to required size, whichever is larger)
+            long newCapacity = Math.max(requiredCapacity, currentCapacity + currentCapacity / 2);
+            int newVertexCount = (int) (newCapacity / format.getStride());
+
+            ssbo.ensureCapacity(newVertexCount, preserveData);
+
+            // Update internal filler to use new memory address
+            if (internalFiller instanceof MemoryFiller) {
+                useMemoryAccess(); // Recreate MemoryFiller with new address
+            } else if (internalFiller instanceof ByteBufferFiller) {
+                useByteBuffer(); // Recreate ByteBuffer wrapper
+            }
+        }
+
+        return this;
+    }
+
+    /**
+     * Get current vertex capacity
+     */
+    public int getVertexCapacity() {
+        return (int) (ssbo.getCapacity() / format.getStride());
+    }
+
+    /**
+     * Clear all data in the SSBO
+     */
+    public SSBOFiller clear() {
+        if (internalFiller instanceof MemoryFiller) {
+            ((MemoryFiller) internalFiller).clear();
+        } else if (internalFiller instanceof DirectDataFiller) {
+            ((DirectDataFiller) internalFiller).reset();
+        }
+        return this;
+    }
+
+    // ===== Getters =====
+
     /**
      * Get the underlying SSBO
      */
@@ -214,43 +255,20 @@ public class SSBOFiller extends DataFiller {
     }
 
     /**
-     * Ensure the SSBO has enough capacity for the required number of vertices
+     * Get SSBO memory address
      */
-    public SSBOFiller ensureCapacity(int vertexCount, boolean preserveData) {
-        long requiredCapacity = (long) vertexCount * format.getStride();
-        long currentCapacity = ssbo.getCapacity();
-        
-        if (requiredCapacity > currentCapacity) {
-            // Calculate new capacity (grow by 50% or to required size, whichever is larger)
-            long newCapacity = Math.max(requiredCapacity, currentCapacity + currentCapacity / 2);
-            int newVertexCount = (int) (newCapacity / format.getStride());
-            
-            ssbo.ensureCapacity(newVertexCount, preserveData);
-            
-            // Update internal filler to use new memory address
-            if (internalFiller instanceof MemoryFiller) {
-                this.internalFiller = MemoryFiller.wrap(format, ssbo.getMemoryAddress(), ssbo.getCapacity());
-            } else if (internalFiller instanceof ByteBufferFiller) {
-                useByteBuffer(); // Recreate ByteBuffer wrapper
-            }
-        }
-        
-        return this;
+    public long getMemoryAddress() {
+        return ssbo.getMemoryAddress();
     }
 
     /**
-     * Clear all data in the SSBO
+     * Get SSBO capacity in bytes
      */
-    public SSBOFiller clear() {
-        if (internalFiller instanceof MemoryFiller) {
-            ((MemoryFiller) internalFiller).clear();
-        } else if (internalFiller instanceof ByteBufferFiller) {
-            ((ByteBufferFiller) internalFiller).reset();
-        }
-        currentVertex = 0;
-        currentElementIndex = 0;
-        return this;
+    public long getCapacity() {
+        return ssbo.getCapacity();
     }
+
+    // ===== Factory methods =====
 
     /**
      * Create a new SSBOFiller with the specified format and vertex capacity
@@ -267,10 +285,11 @@ public class SSBOFiller extends DataFiller {
     public static SSBOFiller wrap(DataFormat format, ShaderStorageBuffer ssbo) {
         return new SSBOFiller(format, ssbo);
     }
-    
+
     @Override
-    public void end() {
-        // For SSBOFiller, upload data to GPU
-        ssbo.upload();
+    public void finish() {
+        internalFiller.finish();
+        // Automatically upload to GPU when finishing
+        upload();
     }
 }

@@ -289,7 +289,7 @@ public class MeshCompiler {
 
             // Fill vertex attributes
             for (int j = 0; j < floatsPerVertex; j++) {
-                filler.floatValue(vertexData[i * floatsPerVertex + j]);
+                filler.putFloat(vertexData[i * floatsPerVertex + j]);
             }
 
             filler.nextVertex();

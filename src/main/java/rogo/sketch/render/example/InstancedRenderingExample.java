@@ -95,28 +95,46 @@ public class InstancedRenderingExample {
             if (index < instances.length) {
                 CubeInstance instance = instances[index];
 
-                if (filler.isIndexedMode()) {
+                if (filler.supportsRandomAccess()) {
                     // 索引模式：直接写入指定vertex位置，适用于异步并行
                     // 使用便捷方法填充位置和颜色
                     filler.positionAt(index, instance.position[0], instance.position[1], instance.position[2]);
-                    filler.writeFloatAt(index, 3, instance.scale);  // Scale (element 3)
-                    filler.colorAt(index, 4, instance.color[0], instance.color[1], instance.color[2], instance.color[3]);
+                    // Write scale using byte offset calculation
+                    long scaleOffset = index * filler.getFormat().getStride() + 
+                                     filler.getFormat().getElements().get(3).getOffset();
+                    filler.putFloatAt(scaleOffset, instance.scale);
+                    // Write color using byte offset calculation  
+                    long colorOffset = index * filler.getFormat().getStride() +
+                                     filler.getFormat().getElements().get(4).getOffset();
+                    filler.putFloatAt(colorOffset, instance.color[0]);
+                    filler.putFloatAt(colorOffset + Float.BYTES, instance.color[1]);
+                    filler.putFloatAt(colorOffset + 2 * Float.BYTES, instance.color[2]);
+                    filler.putFloatAt(colorOffset + 3 * Float.BYTES, instance.color[3]);
                 } else {
                     // 顺序模式：按顺序填充当前vertex，适用于同步操作
                     filler.position(instance.position[0], instance.position[1], instance.position[2])
-                          .floatValue(instance.scale)
-                          .color(instance.color[0], instance.color[1], instance.color[2], instance.color[3]);
+                          .putFloat(instance.scale);
+                    filler.putVec4(instance.color[0], instance.color[1], instance.color[2], instance.color[3]);
                 }
             } else {
                 // Fill with default data if index is out of bounds
-                if (filler.isIndexedMode()) {
+                if (filler.supportsRandomAccess()) {
                     filler.positionAt(index, 0.0f, 0.0f, 0.0f);
-                    filler.writeFloatAt(index, 3, 1.0f);  // Default scale
-                    filler.colorAt(index, 4, 1.0f, 1.0f, 1.0f, 1.0f);  // Default white color
+                    // Write default scale using byte offset
+                    long scaleOffset = index * filler.getFormat().getStride() + 
+                                     filler.getFormat().getElements().get(3).getOffset();
+                    filler.putFloatAt(scaleOffset, 1.0f);
+                    // Write default color using byte offset
+                    long colorOffset = index * filler.getFormat().getStride() +
+                                     filler.getFormat().getElements().get(4).getOffset();
+                    filler.putFloatAt(colorOffset, 1.0f);
+                    filler.putFloatAt(colorOffset + Float.BYTES, 1.0f);
+                    filler.putFloatAt(colorOffset + 2 * Float.BYTES, 1.0f);
+                    filler.putFloatAt(colorOffset + 3 * Float.BYTES, 1.0f);
                 } else {
                     filler.position(0.0f, 0.0f, 0.0f)
-                          .floatValue(1.0f)
-                          .color(1.0f, 1.0f, 1.0f, 1.0f);
+                          .putFloat(1.0f)
+                          .putVec4(1.0f, 1.0f, 1.0f, 1.0f);
                 }
             }
         }
@@ -126,14 +144,14 @@ public class InstancedRenderingExample {
             // Backward compatibility method - fill the first instance
             if (instances.length > 0) {
                 CubeInstance instance = instances[0];
-                filler.floatValue(instance.position[0])
-                        .floatValue(instance.position[1])
-                        .floatValue(instance.position[2])
-                        .floatValue(instance.scale)
-                        .floatValue(instance.color[0])
-                        .floatValue(instance.color[1])
-                        .floatValue(instance.color[2])
-                        .floatValue(instance.color[3]);
+                filler.putFloat(instance.position[0])
+                        .putFloat(instance.position[1])
+                        .putFloat(instance.position[2])
+                        .putFloat(instance.scale)
+                        .putFloat(instance.color[0])
+                        .putFloat(instance.color[1])
+                        .putFloat(instance.color[2])
+                        .putFloat(instance.color[3]);
             }
         }
 

@@ -371,9 +371,9 @@ public abstract class Shader implements ShaderProvider {
             case GL20.GL_INT_VEC3 -> DataType.VEC3I;
             case GL20.GL_INT_VEC4 -> DataType.VEC4I;
             case GL20.GL_UNSIGNED_INT -> DataType.UINT;
-            case GL30.GL_UNSIGNED_INT_VEC2 -> DataType.VEC2UI;
-            case GL30.GL_UNSIGNED_INT_VEC3 -> DataType.VEC3UI;
-            case GL30.GL_UNSIGNED_INT_VEC4 -> DataType.VEC4UI;
+            case GL30.GL_UNSIGNED_INT_VEC2 -> DataType.UVEC2;
+            case GL30.GL_UNSIGNED_INT_VEC3 -> DataType.UVEC3;
+            case GL30.GL_UNSIGNED_INT_VEC4 -> DataType.UVEC4;
             case GL20.GL_FLOAT_MAT2 -> DataType.MAT2;
             case GL20.GL_FLOAT_MAT3 -> DataType.MAT3;
             case GL20.GL_FLOAT_MAT4 -> DataType.MAT4;

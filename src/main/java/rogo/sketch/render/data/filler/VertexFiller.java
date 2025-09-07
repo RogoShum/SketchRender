@@ -3,26 +3,38 @@ package rogo.sketch.render.data.filler;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.render.data.format.DataElement;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Enhanced vertex data filler with automatic vertex counting, index buffer support,
- * and vertex sorting capabilities. Based on Minecraft's BufferBuilder design.
+ * Enhanced vertex data filler with automatic vertex counting, semantic methods,
+ * and vertex sorting capabilities. Delegates actual data writing to an internal DataFiller.
  */
 public class VertexFiller extends DataFiller {
-    private final List<ByteBuffer> vertexData;
-    private int vertexCount;
+    private DataFiller internalFiller;
     private final PrimitiveType primitiveType;
+    private final Map<String, Integer> elementOffsetMap;
+    
+    // Vertex management
+    private long currentVertexIndex = 0;
+    private int currentElementIndex = 0;
+    private int vertexCount = 0;
+    
+    // Sorting
     private VertexSorting sorting = VertexSorting.DISTANCE_TO_ORIGIN;
-    private boolean shouldSorting = true;
+    private boolean shouldSort = true;
+    
+    // Buffer management
+    private final List<ByteBuffer> vertexData;
     private ByteBuffer currentBuffer;
     private final int initialBufferSize;
     private final int bufferGrowthSize;
-    private int vertexOffset = 0;
 
     public VertexFiller(DataFormat format, PrimitiveType primitiveType) {
         this(format, primitiveType, 1024);
@@ -31,12 +43,21 @@ public class VertexFiller extends DataFiller {
     public VertexFiller(DataFormat format, PrimitiveType primitiveType, int initialVertexCapacity) {
         super(format);
         this.primitiveType = primitiveType;
-        this.initialBufferSize = initialVertexCapacity * vertexStride;
-        this.bufferGrowthSize = 2097152; // 2MB growth, like MC
+        this.initialBufferSize = initialVertexCapacity * format.getStride();
+        this.bufferGrowthSize = 2097152; // 2MB growth
         this.vertexData = new ArrayList<>();
-        this.vertexCount = 0;
+        this.elementOffsetMap = buildElementOffsetMap(format);
 
         allocateNewBuffer();
+        this.internalFiller = ByteBufferFiller.wrap(format, currentBuffer);
+    }
+
+    private Map<String, Integer> buildElementOffsetMap(DataFormat format) {
+        Map<String, Integer> map = new HashMap<>();
+        for (DataElement element : format.getElements()) {
+            map.put(element.getName(), element.getOffset());
+        }
+        return map;
     }
 
     private void allocateNewBuffer() {
@@ -60,27 +81,233 @@ public class VertexFiller extends DataFiller {
 
             MemoryUtil.memFree(currentBuffer);
             currentBuffer = newBuffer;
+            
+            // Update internal filler
+            this.internalFiller = ByteBufferFiller.wrap(format, currentBuffer);
         }
+    }
+
+    // ===== Core data writing methods delegated to internal filler =====
+
+    @Override
+    public DataFiller putFloat(float value) {
+        ensureCapacity(Float.BYTES);
+        internalFiller.putFloat(value);
+        advanceElement();
+        return this;
+    }
+
+    @Override
+    public DataFiller putInt(int value) {
+        ensureCapacity(Integer.BYTES);
+        internalFiller.putInt(value);
+        advanceElement();
+        return this;
+    }
+
+    @Override
+    public DataFiller putUInt(int value) {
+        ensureCapacity(Integer.BYTES);
+        internalFiller.putUInt(value);
+        advanceElement();
+        return this;
+    }
+
+    @Override
+    public DataFiller putByte(byte value) {
+        ensureCapacity(Byte.BYTES);
+        internalFiller.putByte(value);
+        advanceElement();
+        return this;
+    }
+
+    @Override
+    public DataFiller putUByte(byte value) {
+        ensureCapacity(Byte.BYTES);
+        internalFiller.putUByte(value);
+        advanceElement();
+        return this;
+    }
+
+    @Override
+    public DataFiller putShort(short value) {
+        ensureCapacity(Short.BYTES);
+        internalFiller.putShort(value);
+        advanceElement();
+        return this;
+    }
+
+    @Override
+    public DataFiller putUShort(short value) {
+        ensureCapacity(Short.BYTES);
+        internalFiller.putUShort(value);
+        advanceElement();
+        return this;
+    }
+
+    @Override
+    public DataFiller putDouble(double value) {
+        ensureCapacity(Double.BYTES);
+        internalFiller.putDouble(value);
+        advanceElement();
+        return this;
+    }
+
+    // ===== Vertex semantic convenience methods =====
+
+    /**
+     * Write position (assumes first 3 floats are position)
+     */
+    public VertexFiller position(float x, float y, float z) {
+        putVec3(x, y, z);
+        return this;
     }
 
     /**
-     * Finalize the current buffer and add it to vertex data
+     * Write normal vector
      */
-    private void finalizeCurrentBuffer() {
-        if (currentBuffer.position() > 0) {
-            currentBuffer.flip();
+    public VertexFiller normal(float x, float y, float z) {
+        putVec3(x, y, z);
+        return this;
+    }
 
-            // Create a copy for storage
-            ByteBuffer finalBuffer = MemoryUtil.memAlloc(currentBuffer.remaining());
-            finalBuffer.put(currentBuffer);
-            finalBuffer.flip();
+    /**
+     * Write texture coordinates
+     */
+    public VertexFiller uv(float u, float v) {
+        putVec2(u, v);
+        return this;
+    }
 
-            vertexData.add(finalBuffer);
+    /**
+     * Write color (RGBA)
+     */
+    public VertexFiller color(float r, float g, float b, float a) {
+        putVec4(r, g, b, a);
+        return this;
+    }
 
-            // Reset current buffer for potential reuse
-            currentBuffer.clear();
+    /**
+     * Write color as bytes (0-255 range)
+     */
+    public VertexFiller colorByte(int r, int g, int b, int a) {
+        putVec4ub(r, g, b, a);
+        return this;
+    }
+
+    /**
+     * Write tangent vector
+     */
+    public VertexFiller tangent(float x, float y, float z, float w) {
+        putVec4(x, y, z, w);
+        return this;
+    }
+
+    /**
+     * Write bone weights
+     */
+    public VertexFiller boneWeights(float w1, float w2, float w3, float w4) {
+        putVec4(w1, w2, w3, w4);
+        return this;
+    }
+
+    /**
+     * Write bone indices
+     */
+    public VertexFiller boneIndices(int i1, int i2, int i3, int i4) {
+        putIVec4(i1, i2, i3, i4);
+        return this;
+    }
+
+    // ===== Vertex management =====
+
+    /**
+     * Advance to the next vertex
+     */
+    public VertexFiller nextVertex() {
+        completeCurrentVertex();
+        vertexCount++;
+        currentVertexIndex++;
+        currentElementIndex = 0;
+        ensureCapacity(format.getStride());
+        return this;
+    }
+
+    /**
+     * Move to a specific vertex index
+     */
+    public VertexFiller vertex(long index) {
+        this.currentVertexIndex = index;
+        this.currentElementIndex = 0;
+        // Position internal filler to vertex start
+        long byteOffset = index * format.getStride();
+        if (internalFiller.supportsRandomAccess()) {
+            ((DirectDataFiller) internalFiller).setPosition(byteOffset);
+        }
+        return this;
+    }
+
+    private void completeCurrentVertex() {
+        // Pad incomplete vertices with zeros
+        while (currentElementIndex < format.getElementCount()) {
+            putFloat(0.0f);
         }
     }
+
+    private void advanceElement() {
+        currentElementIndex++;
+        if (currentElementIndex >= format.getElementCount()) {
+            nextVertex();
+        }
+    }
+
+    // ===== Random access methods for indexed filling =====
+
+    /**
+     * Write position at specific vertex index
+     */
+    public VertexFiller positionAt(long vertexIndex, float x, float y, float z) {
+        long baseOffset = vertexIndex * format.getStride();
+        Integer elementOffset = elementOffsetMap.get("position");
+        if (elementOffset == null) {
+            elementOffset = 0; // Assume position is first element
+        }
+        
+        long offset = baseOffset + elementOffset;
+        putFloatAt(offset, x);
+        putFloatAt(offset + Float.BYTES, y);
+        putFloatAt(offset + 2 * Float.BYTES, z);
+        return this;
+    }
+
+    /**
+     * Write color at specific vertex index
+     */
+    public VertexFiller colorAt(long vertexIndex, float r, float g, float b, float a) {
+        long baseOffset = vertexIndex * format.getStride();
+        Integer elementOffset = elementOffsetMap.get("color");
+        if (elementOffset == null) {
+            throw new IllegalArgumentException("Color element not found in format");
+        }
+        
+        long offset = baseOffset + elementOffset;
+        putFloatAt(offset, r);
+        putFloatAt(offset + Float.BYTES, g);
+        putFloatAt(offset + 2 * Float.BYTES, b);
+        putFloatAt(offset + 3 * Float.BYTES, a);
+        return this;
+    }
+
+    @Override
+    public void putFloatAt(long byteOffset, float value) {
+        if (internalFiller.supportsRandomAccess()) {
+            internalFiller.putFloatAt(byteOffset, value);
+        } else {
+            throw new UnsupportedOperationException("Random access not supported");
+        }
+    }
+
+    // ===== Sorting methods =====
 
     /**
      * Set the sorting method
@@ -93,14 +320,14 @@ public class VertexFiller extends DataFiller {
 
     public void enableSorting() {
         if (primitiveType.supportsSorting()) {
-            this.shouldSorting = true;
+            this.shouldSort = true;
         } else {
-            throw new IllegalStateException("primitiveType dose not support sorting");
+            throw new IllegalStateException("Primitive type does not support sorting");
         }
     }
 
     public void disableSorting() {
-        this.shouldSorting = false;
+        this.shouldSort = false;
     }
 
     /**
@@ -110,289 +337,71 @@ public class VertexFiller extends DataFiller {
         return setSorting(VertexSorting.byDistance(x, y, z));
     }
 
-    /**
-     * Set sorting by distance from origin
-     */
-    public VertexFiller sortByDistanceToOrigin() {
-        return setSorting(VertexSorting.DISTANCE_TO_ORIGIN);
-    }
+    // ===== Getters =====
 
-    /**
-     * Set orthographic Z sorting
-     */
-    public VertexFiller sortOrthographicZ() {
-        return setSorting(VertexSorting.ORTHOGRAPHIC_Z);
-    }
-
-    @Override
-    public VertexFiller nextVertex() {
-        // Complete current vertex
-        completeCurrentVertex();
-
-        // Move to next vertex
-        vertexCount++;
-        currentVertex++;
-        currentElementIndex = 0;
-
-        // Ensure capacity for next vertex
-        ensureCapacity(vertexStride);
-
-        return this;
-    }
-
-    private void completeCurrentVertex() {
-        // Ensure we're at the end of the current vertex
-        while (currentElementIndex < format.getElementCount()) {
-            // Pad with zeros if vertex is incomplete
-            writeFloat(0.0f);
-            currentElementIndex++;
-        }
-    }
-
-    @Override
-    public void writeFloat(float value) {
-        ensureCapacity(4);
-        currentBuffer.putFloat(value);
-    }
-
-    @Override
-    public void writeInt(int value) {
-        ensureCapacity(4);
-        currentBuffer.putInt(value);
-    }
-
-    @Override
-    public void writeUInt(int value) {
-        writeInt(value); // Same as int in OpenGL
-    }
-
-    @Override
-    public void writeByte(byte value) {
-        ensureCapacity(1);
-        currentBuffer.put(value);
-    }
-
-    @Override
-    public void writeUByte(byte value) {
-        writeByte(value); // Same as byte
-    }
-
-    @Override
-    public void writeShort(short value) {
-        ensureCapacity(2);
-        currentBuffer.putShort(value);
-    }
-
-    @Override
-    public void writeUShort(short value) {
-        writeShort(value); // Same as short
-    }
-
-    @Override
-    public void writeDouble(double value) {
-        ensureCapacity(8);
-        currentBuffer.putDouble(value);
-    }
-
-    // Indexed writing methods for async operations
-    @Override
-    public void writeFloatAt(int vertexIndex, int elementIndex, float value) {
-        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
-        ensureCapacity(bytePosition + 4);
-        currentBuffer.putFloat(bytePosition, value);
-    }
-
-    @Override
-    public void writeIntAt(int vertexIndex, int elementIndex, int value) {
-        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
-        ensureCapacity(bytePosition + 4);
-        currentBuffer.putInt(bytePosition, value);
-    }
-
-    @Override
-    public void writeUIntAt(int vertexIndex, int elementIndex, int value) {
-        writeIntAt(vertexIndex, elementIndex, value); // Same as int in OpenGL
-    }
-
-    @Override
-    public void writeByteAt(int vertexIndex, int elementIndex, byte value) {
-        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
-        ensureCapacity(bytePosition + 1);
-        currentBuffer.put(bytePosition, value);
-    }
-
-    @Override
-    public void writeUByteAt(int vertexIndex, int elementIndex, byte value) {
-        writeByteAt(vertexIndex, elementIndex, value); // Same as byte
-    }
-
-    @Override
-    public void writeShortAt(int vertexIndex, int elementIndex, short value) {
-        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
-        ensureCapacity(bytePosition + 2);
-        currentBuffer.putShort(bytePosition, value);
-    }
-
-    @Override
-    public void writeUShortAt(int vertexIndex, int elementIndex, short value) {
-        writeShortAt(vertexIndex, elementIndex, value); // Same as short
-    }
-
-    @Override
-    public void writeDoubleAt(int vertexIndex, int elementIndex, double value) {
-        int bytePosition = calculateBytePosition(vertexIndex, elementIndex);
-        ensureCapacity(bytePosition + 8);
-        currentBuffer.putDouble(bytePosition, value);
-    }
-
-    /**
-     * Calculate byte position for a specific vertex and element
-     */
-    protected int calculateBytePosition(int vertexIndex, int elementIndex) {
-        if (elementIndex >= format.getElementCount()) {
-            throw new IndexOutOfBoundsException("Element index " + elementIndex + " out of bounds for format with " + format.getElementCount() + " elements");
-        }
-
-        int vertexByteOffset = vertexIndex * vertexStride;
-        int elementByteOffset = format.getElements().get(elementIndex).getOffset();
-        return vertexByteOffset + elementByteOffset;
-    }
-
-    /**
-     * High-level indexed vertex data filling for async operations
-     *
-     * @param vertexIndex The vertex index to fill
-     * @param fillAction  Action that fills vertex data using indexed methods
-     */
-    public void fillVertexAt(int vertexIndex, Runnable fillAction) {
-        if (!indexedMode) {
-            throw new IllegalStateException("fillVertexAt requires indexed mode");
-        }
-
-        // Ensure buffer capacity for this vertex
-        int requiredSize = (vertexIndex + 1) * vertexStride;
-        ensureCapacity(requiredSize);
-
-        // Execute fill action
-        fillAction.run();
-
-        // Update vertex count if needed
-        if (vertexIndex >= vertexCount) {
-            vertexCount = vertexIndex + 1;
-        }
-    }
-
-    /**
-     * Convenience method for position at vertex index
-     */
-    public VertexFiller positionAt(int vertexIndex, float x, float y, float z) {
-        writeFloatAt(vertexIndex, 0, x);  // Assuming position is first element
-        writeFloatAt(vertexIndex, 1, y);
-        writeFloatAt(vertexIndex, 2, z);
-        return this;
-    }
-
-    /**
-     * Convenience method for color at vertex index
-     */
-    public VertexFiller colorAt(int vertexIndex, int elementOffset, float r, float g, float b, float a) {
-        writeFloatAt(vertexIndex, elementOffset, r);
-        writeFloatAt(vertexIndex, elementOffset + 1, g);
-        writeFloatAt(vertexIndex, elementOffset + 2, b);
-        writeFloatAt(vertexIndex, elementOffset + 3, a);
-        return this;
-    }
-
-
-    /**
-     * Get current vertex count
-     */
     public int getVertexCount() {
         return vertexCount;
     }
 
-    /**
-     * Get current index count (calculated based on vertex count and primitive type)
-     */
     public int getIndexCount() {
         return primitiveType.requiresIndexBuffer() ? primitiveType.calculateIndexCount(vertexCount) : 0;
     }
 
-    /**
-     * Check if index buffer is enabled
-     */
     public boolean isUsingIndexBuffer() {
         return primitiveType.requiresIndexBuffer();
     }
 
-    /**
-     * Check if sorting is enabled
-     */
     public boolean isSortingEnabled() {
-        return this.shouldSorting;
+        return this.shouldSort;
     }
 
-    @Override
-    public void end() {
-        validateVertexCompletion();
-        validatePrimitiveRequirements();
-
-        if (currentBuffer.position() > 0) {
-            finalizeCurrentBuffer();
-        }
+    public PrimitiveType getPrimitiveType() {
+        return primitiveType;
     }
 
-    /**
-     * Get the sorting method (if any)
-     */
     @Nullable
     public VertexSorting getSorting() {
         return sorting;
     }
 
+    // ===== Buffer management =====
+
     /**
-     * Override to provide VertexFiller-specific vertex completion logic
+     * Get all vertex data as a single ByteBuffer for upload to GPU
      */
-    @Override
-    public boolean isCurrentVertexComplete() {
-        // If we have at least one complete vertex and currentElementIndex is 0,
-        // it means advanceElement() auto-called nextVertex() after completing the last vertex
-        if (vertexCount > 0 && currentElementIndex == 0) {
-            return true;
+    public ByteBuffer getVertexData() {
+        if (vertexData.isEmpty() && currentBuffer.position() == 0) {
+            return null;
         }
 
-        // Otherwise, use the standard check
-        return currentElementIndex >= format.getElementCount();
-    }
-
-    /**
-     * Validate that the current vertex is complete
-     */
-    private void validateVertexCompletion() {
-        if (!isCurrentVertexComplete()) {
-            throw new IllegalStateException("Current vertex is incomplete. " +
-                    "Missing " + getRemainingElementsInVertex() + " elements. " +
-                    "Make sure to fill all required vertex attributes before calling end().");
+        // Calculate total size
+        int totalSize = 0;
+        for (ByteBuffer buffer : vertexData) {
+            totalSize += buffer.remaining();
         }
-    }
 
-    /**
-     * Validate that we have the correct number of vertices for the primitive type
-     */
-    private void validatePrimitiveRequirements() {
-        if (!primitiveType.isValidVertexCount(vertexCount)) {
-            throw new IllegalStateException("Invalid vertex count (" + vertexCount +
-                    ") for primitive type " + primitiveType +
-                    ". Expected multiple of " + primitiveType.getVerticesPerPrimitive() + " vertices.");
+        // Add current buffer if it has data
+        if (currentBuffer.position() > 0) {
+            totalSize += currentBuffer.position();
         }
-    }
 
+        // Create combined buffer
+        ByteBuffer combined = MemoryUtil.memAlloc(totalSize);
 
-    /**
-     * Get the primitive type for this filler
-     */
-    public PrimitiveType getPrimitiveType() {
-        return primitiveType;
+        // Copy all data
+        for (ByteBuffer buffer : vertexData) {
+            combined.put(buffer);
+        }
+
+        // Add current buffer data if any
+        if (currentBuffer.position() > 0) {
+            currentBuffer.flip();
+            combined.put(currentBuffer);
+            currentBuffer.clear();
+        }
+
+        combined.flip();
+        return combined;
     }
 
     /**
@@ -407,17 +416,13 @@ public class VertexFiller extends DataFiller {
 
         // Reset counters
         vertexCount = 0;
-        currentVertex = 0;
+        currentVertexIndex = 0;
         currentElementIndex = 0;
-        vertexOffset = 0;
 
         // Reset current buffer
         if (currentBuffer != null) {
             currentBuffer.clear();
         }
-
-        // Clear sorting data
-        sorting = null;
     }
 
     /**
@@ -428,61 +433,41 @@ public class VertexFiller extends DataFiller {
         allocateNewBuffer();
     }
 
-    /**
-     * Set the vertex offset for this filler (sequential mode only)
-     */
-    public void setVertexOffset(int offset) {
-        if (indexedMode) {
-            throw new IllegalStateException("setVertexOffset not supported in indexed mode");
-        }
-        this.vertexOffset = offset;
-        this.currentVertex = offset;
-    }
-
-    /**
-     * Get the current vertex offset
-     */
-    public int getVertexOffset() {
-        return vertexOffset;
-    }
-
-    /**
-     * Get all vertex data as a single ByteBuffer for upload to GPU
-     */
-    public ByteBuffer getVertexData() {
-        if (vertexData.isEmpty()) {
-            return null;
-        }
-
-        // Calculate total size
-        int totalSize = 0;
-        for (ByteBuffer buffer : vertexData) {
-            totalSize += buffer.remaining();
-        }
-
-        // Add current buffer if it has data
-        if (currentBuffer != null && currentBuffer.position() > 0) {
-            totalSize += currentBuffer.position();
-        }
-
-        // Create combined buffer
-        ByteBuffer combined = MemoryUtil.memAlloc(totalSize);
-
-        // Copy all data
-        for (ByteBuffer buffer : vertexData) {
-            combined.put(buffer);
-        }
-
-        // Add current buffer data if any
-        if (currentBuffer != null && currentBuffer.position() > 0) {
+    @Override
+    public void finish() {
+        if (currentBuffer.position() > 0) {
             currentBuffer.flip();
-            combined.put(currentBuffer);
+            
+            // Create a copy for storage
+            ByteBuffer finalBuffer = MemoryUtil.memAlloc(currentBuffer.remaining());
+            finalBuffer.put(currentBuffer);
+            finalBuffer.flip();
+            
+            vertexData.add(finalBuffer);
+            
+            // Reset current buffer
             currentBuffer.clear();
         }
-
-        combined.flip();
-        return combined;
+        
+        validateVertexCompletion();
+        validatePrimitiveRequirements();
     }
+
+    private void validateVertexCompletion() {
+        if (currentElementIndex != 0 && currentElementIndex < format.getElementCount()) {
+            throw new IllegalStateException("Current vertex is incomplete. " +
+                    "Missing " + (format.getElementCount() - currentElementIndex) + " elements.");
+        }
+    }
+
+    private void validatePrimitiveRequirements() {
+        if (!primitiveType.isValidVertexCount(vertexCount)) {
+            throw new IllegalStateException("Invalid vertex count (" + vertexCount +
+                    ") for primitive type " + primitiveType +
+                    ". Expected multiple of " + primitiveType.getVerticesPerPrimitive() + " vertices.");
+        }
+    }
+
 
     /**
      * Release native memory
@@ -493,7 +478,6 @@ public class VertexFiller extends DataFiller {
             currentBuffer = null;
         }
 
-        // Free any remaining buffers
         for (ByteBuffer buffer : vertexData) {
             MemoryUtil.memFree(buffer);
         }

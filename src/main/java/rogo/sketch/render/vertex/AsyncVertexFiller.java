@@ -135,7 +135,8 @@ public class AsyncVertexFiller {
         int vertexOffset = info.getVertexOffset();
 
         // Set the filler position to the instance's vertex offset
-        filler.setVertexOffset(vertexOffset);
+        // Use vertex() method to position at the desired offset
+        filler.vertex(vertexOffset);
 
         // Fill vertex data based on the instance type
         if (info.hasModelMesh()) {
@@ -230,11 +231,11 @@ public class AsyncVertexFiller {
 
         if (instances.size() < asyncThreshold) {
             // 小批次：直接同步处理，使用顺序模式
-            dynamicFiller.setIndexedMode(false);
+            // Use sequential filling mode - no mode setting needed
             fillInstanceDataSync(dynamicFiller, instances);
         } else {
             // 大批次：使用索引模式进行异步处理
-            dynamicFiller.setIndexedMode(true);
+            // Use random access methods directly - no mode setting needed
             if (instances.size() < chunkSize * 4) {
                 // 中等批次：使用并行流
                 fillInstanceDataParallel(dynamicFiller, instances);
@@ -273,9 +274,10 @@ public class AsyncVertexFiller {
                     GraphicsInformation info = instances.get(i);
                     if (info.getInstance() instanceof InstancedLayoutProvider provider) {
                         // 索引模式：每个线程写入不同位置，无冲突
-                        dynamicFiller.fillVertexAt(i, () -> {
-                            provider.fillInstanceVertexData(dynamicFiller, i);
-                        });
+                        // Direct random access filling - switch to vertex and fill
+                        dynamicFiller.vertex(i);
+                        provider.fillInstanceVertexData(dynamicFiller, i);
+                        dynamicFiller.nextVertex();
                     }
                 });
     }
@@ -297,9 +299,10 @@ public class AsyncVertexFiller {
                     GraphicsInformation info = instances.get(i);
                     if (info.getInstance() instanceof InstancedLayoutProvider provider) {
                         // 索引模式：每个chunk处理不同范围的vertex，无冲突
-                        dynamicFiller.fillVertexAt(index, () -> {
-                            provider.fillInstanceVertexData(dynamicFiller, index);
-                        });
+                        // Direct random access filling - switch to vertex and fill
+                        dynamicFiller.vertex(index);
+                        provider.fillInstanceVertexData(dynamicFiller, index);
+                        dynamicFiller.nextVertex();
                     }
                 }
             }, executor);
