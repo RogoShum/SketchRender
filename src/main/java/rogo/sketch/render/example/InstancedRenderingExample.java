@@ -155,7 +155,6 @@ public class InstancedRenderingExample {
             }
         }
 
-
         private InstancedVertexLayout createInstanceLayout() {
             // Create layout for instance data:
             // - vec3 position (12 bytes)

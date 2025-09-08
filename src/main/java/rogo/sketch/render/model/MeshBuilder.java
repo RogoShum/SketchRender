@@ -56,7 +56,7 @@ public class MeshBuilder {
      * Add a bone with transform
      */
     public MeshBuilder boneWithTransform(String name, int id, Matrix4f localTransform, Matrix4f inverseBindPose) {
-        MeshBone bone = new MeshBone(name, id, localTransform, inverseBindPose, 1.0f);
+        MeshBone bone = new MeshBone(name, id, localTransform, inverseBindPose);
         mesh.addBone(bone);
         
         if (mesh.getRootBone() == null) {

@@ -11,14 +11,25 @@ import rogo.sketch.util.Identifier;
 import java.util.*;
 
 public class GraphicsPass<C extends RenderContext> {
+    // Legacy mode: Simplified to use only GraphicsInstance for all types
+    private final Map<Identifier, GraphicsInstance> allGraphics = new LinkedHashMap<>();
+    
+    // Keep these for backward compatibility but deprecated
+    @Deprecated
     private final Map<Identifier, SharedVertexGraphics> sharedGraphics = new LinkedHashMap<>();
+    @Deprecated 
     private final Map<Identifier, IndependentVertexProvider> independentGraphics = new LinkedHashMap<>();
+    @Deprecated
     private final Map<Identifier, GraphicsInstance> customGraphics = new LinkedHashMap<>();
 
     public GraphicsPass() {
     }
 
     public void addGraphInstance(GraphicsInstance graph) {
+        // Legacy mode: All graphics instances are treated uniformly
+        allGraphics.put(graph.getIdentifier(), graph);
+        
+        // Backward compatibility: Still populate the old maps for existing code
         if (graph instanceof SharedVertexGraphics sharedVertexGraphics) {
             sharedGraphics.put(graph.getIdentifier(), sharedVertexGraphics);
         } else if (graph instanceof IndependentVertexProvider independentVertexProvider) {
@@ -29,22 +40,8 @@ public class GraphicsPass<C extends RenderContext> {
     }
 
     public void tick(C context) {
-        for (Identifier id : sharedGraphics.keySet()) {
-            GraphicsInstance graph = sharedGraphics.get(id);
-            if (graph.shouldTick()) {
-                graph.tick(context);
-            }
-        }
-
-        for (Identifier id : independentGraphics.keySet()) {
-            GraphicsInstance graph = independentGraphics.get(id);
-            if (graph.shouldTick()) {
-                graph.tick(context);
-            }
-        }
-
-        for (Identifier id : customGraphics.keySet()) {
-            GraphicsInstance graph = customGraphics.get(id);
+        // Legacy mode: Single unified loop for all graphics instances
+        for (GraphicsInstance graph : allGraphics.values()) {
             if (graph.shouldTick()) {
                 graph.tick(context);
             }
@@ -77,11 +74,8 @@ public class GraphicsPass<C extends RenderContext> {
     }
 
     public Collection<GraphicsInstance> getAllInstances() {
-        List<GraphicsInstance> allInstances = new ArrayList<>();
-        allInstances.addAll(sharedGraphics.values());
-        allInstances.addAll(independentGraphics.values());
-        allInstances.addAll(customGraphics.values());
-        return allInstances;
+        // Legacy mode: Return all instances from unified collection
+        return new ArrayList<>(allGraphics.values());
     }
 
     public List<VertexResourcePair> fillIndependentVertexForBatch(List<GraphicsInstance> batchInstances) {
@@ -122,8 +116,8 @@ public class GraphicsPass<C extends RenderContext> {
      * Cleanup discarded instances and return them to the pool
      */
     public void cleanupDiscardedInstances(InstancePoolManager poolManager) {
-        // Check shared graphics
-        sharedGraphics.entrySet().removeIf(entry -> {
+        // Legacy mode: Single unified cleanup loop
+        allGraphics.entrySet().removeIf(entry -> {
             GraphicsInstance instance = entry.getValue();
             if (instance.shouldDiscard()) {
                 poolManager.returnInstance(instance);
@@ -131,25 +125,10 @@ public class GraphicsPass<C extends RenderContext> {
             }
             return false;
         });
-
-        // Check independent graphics
-        independentGraphics.entrySet().removeIf(entry -> {
-            GraphicsInstance instance = entry.getValue();
-            if (instance.shouldDiscard()) {
-                poolManager.returnInstance(instance);
-                return true;
-            }
-            return false;
-        });
-
-        // Check custom graphics
-        customGraphics.entrySet().removeIf(entry -> {
-            GraphicsInstance instance = entry.getValue();
-            if (instance.shouldDiscard()) {
-                poolManager.returnInstance(instance);
-                return true;
-            }
-            return false;
-        });
+        
+        // Also cleanup the deprecated collections for consistency
+        sharedGraphics.entrySet().removeIf(entry -> entry.getValue().shouldDiscard());
+        independentGraphics.entrySet().removeIf(entry -> entry.getValue().shouldDiscard());
+        customGraphics.entrySet().removeIf(entry -> entry.getValue().shouldDiscard());
     }
 }

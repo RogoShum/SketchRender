@@ -22,6 +22,9 @@ import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.feature.culling.graphics.ComputeEntityCullingGraphics;
 import rogo.sketch.feature.culling.graphics.ComputeHIZGraphics;
 import rogo.sketch.feature.culling.graphics.CullingTestGraphics;
+import rogo.sketch.feature.culling.graphics.ChunkCullingTestGraphics;
+import rogo.sketch.feature.culling.graphics.EntityCullingTestGraphics;
+import rogo.sketch.feature.culling.graphics.BlockEntityCullingTestGraphics;
 import rogo.sketch.mixin.AccessorFrustum;
 import rogo.sketch.render.PartialRenderSetting;
 import rogo.sketch.render.RenderContext;
@@ -294,10 +297,9 @@ public class VanillaPipelineEventHandler {
             return new Vector4f(0, 0, 0, 0);
         }, Vector4f.class));
 
+        // Separate uniforms for entities
         uniformEvent.register(Identifier.of("sketch_testEntityPos"), ValueGetter.create(() -> {
-            if (SketchRender.testBlockEntity != null) {
-                return new Vector4f((float) SketchRender.testBlockEntity.getBlockPos().getX() + 0.5f, (float) SketchRender.testBlockEntity.getBlockPos().getY(), (float) SketchRender.testBlockEntity.getBlockPos().getZ() + 0.5f, 1);
-            } else if (SketchRender.testEntity != null) {
+            if (SketchRender.testEntity != null) {
                 return new Vector4f((float) SketchRender.testEntity.position().x, (float) SketchRender.testEntity.position().y, (float) SketchRender.testEntity.position().z, 1);
             } else {
                 return new Vector4f(0, 0, 0, 0);
@@ -305,18 +307,31 @@ public class VanillaPipelineEventHandler {
         }, Vector4f.class));
 
         uniformEvent.register(Identifier.of("sketch_testEntityAABB"), ValueGetter.create(() -> {
-            if (SketchRender.testBlockEntity != null) {
-                AABB aabb = SketchRender.getObjectAABB(SketchRender.testBlockEntity);
-                return new Vector3f((float) aabb.getXsize()
-                        , (float) aabb.getYsize()
-                        , (float) aabb.getZsize());
-            } else if (SketchRender.testEntity != null) {
+            if (SketchRender.testEntity != null) {
                 AABB aabb = SketchRender.getObjectAABB(SketchRender.testEntity);
                 return new Vector3f((float) aabb.getXsize()
                         , (float) aabb.getYsize()
                         , (float) aabb.getZsize());
             }
+            return new Vector3f(0, 0, 0);
+        }, Vector3f.class));
 
+        // Separate uniforms for block entities
+        uniformEvent.register(Identifier.of("sketch_testBlockEntityPos"), ValueGetter.create(() -> {
+            if (SketchRender.testBlockEntity != null) {
+                return new Vector4f((float) SketchRender.testBlockEntity.getBlockPos().getX() + 0.5f, (float) SketchRender.testBlockEntity.getBlockPos().getY(), (float) SketchRender.testBlockEntity.getBlockPos().getZ() + 0.5f, 1);
+            } else {
+                return new Vector4f(0, 0, 0, 0);
+            }
+        }, Vector4f.class));
+
+        uniformEvent.register(Identifier.of("sketch_testBlockEntityAABB"), ValueGetter.create(() -> {
+            if (SketchRender.testBlockEntity != null) {
+                AABB aabb = SketchRender.getObjectAABB(SketchRender.testBlockEntity);
+                return new Vector3f((float) aabb.getXsize()
+                        , (float) aabb.getYsize()
+                        , (float) aabb.getZsize());
+            }
             return new Vector3f(0, 0, 0);
         }, Vector3f.class));
     }
@@ -357,6 +372,7 @@ public class VanillaPipelineEventHandler {
         registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":cull_entity_batch",
                 () -> new ComputeEntityCullingGraphics(Identifier.of(SketchRender.MOD_ID, "cull_entity_batch")));
 
+        // Register legacy culling test graphics (original)
         Identifier settingId = Identifier.of(SketchRender.MOD_ID, "culling_test");
         Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                 .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
@@ -367,6 +383,59 @@ public class VanillaPipelineEventHandler {
             RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
             CullingTestGraphics cullingTestGraphics = new CullingTestGraphics(Identifier.of(SketchRender.MOD_ID, "culling_test"));
             registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), cullingTestGraphics, setting);
+        }
+
+        // Register new pipeline culling test graphics instances
+        registerNewPipelineCullingGraphics(registerEvent);
+    }
+
+    /**
+     * Register new pipeline culling test graphics instances for chunk, entity, and block entity
+     */
+    private static void registerNewPipelineCullingGraphics(RegisterStaticGraphicsEvent registerEvent) {
+        // Check if new pipeline should be used (for future activation)
+        // For now, register them but they'll use MeshGraphicsInstance interface
+        
+        // Register chunk culling graphics
+        ChunkCullingTestGraphics chunkGraphics = new ChunkCullingTestGraphics(
+                Identifier.of(SketchRender.MOD_ID, "culling_test_chunk_new")
+        );
+        // Since we don't have mesh yet, register as legacy for compatibility
+        registerNewPipelineGraphicsAsLegacy(registerEvent, chunkGraphics, "culling_test_chunk");
+        
+        // Register entity culling graphics  
+        EntityCullingTestGraphics entityGraphics = new EntityCullingTestGraphics(
+                Identifier.of(SketchRender.MOD_ID, "culling_test_entity_new")
+        );
+        registerNewPipelineGraphicsAsLegacy(registerEvent, entityGraphics, "culling_test_entity");
+        
+        // Register block entity culling graphics
+        BlockEntityCullingTestGraphics blockEntityGraphics = new BlockEntityCullingTestGraphics(
+                Identifier.of(SketchRender.MOD_ID, "culling_test_block_entity_new")
+        );
+        registerNewPipelineGraphicsAsLegacy(registerEvent, blockEntityGraphics, "culling_test_block_entity");
+    }
+
+    /**
+     * Register a new pipeline graphics instance as legacy for backward compatibility
+     */
+    private static void registerNewPipelineGraphicsAsLegacy(RegisterStaticGraphicsEvent registerEvent, 
+                                                           GraphicsInstance instance, 
+                                                           String settingName) {
+        Identifier settingId = Identifier.of(SketchRender.MOD_ID, settingName);
+        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
+                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
+
+        if (renderSetting.isPresent()) {
+            PartialRenderSetting partialRenderSetting = renderSetting.get();
+            RenderParameter renderParameter = new RenderParameter(
+                    DefaultDataFormats.POSITION, 
+                    PrimitiveType.QUADS, 
+                    Usage.DYNAMIC_DRAW, 
+                    false
+            );
+            RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
+            registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), instance, setting);
         }
     }
 

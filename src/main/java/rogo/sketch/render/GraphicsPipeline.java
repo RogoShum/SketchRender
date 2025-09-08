@@ -33,7 +33,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     private C currentContext;
     private boolean initialized = false;
     private boolean initializedStaticGraphics = false;
-    private boolean useNewPipeline = false; // Toggle for new three-stage pipeline
+    private boolean useNewPipeline = false; // Toggle for new three-stage pipeline - LEGACY MODE ENABLED
 
     public GraphicsPipeline(boolean throwOnSortFail, C defaultContext) {
         this.stages = new OrderedList<>(throwOnSortFail);

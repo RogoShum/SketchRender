@@ -13,36 +13,33 @@ import java.util.List;
 public class MeshBone {
     private final String name;
     private final int id;
-    
+
     // Hierarchy
     @Nullable
     private MeshBone parent;
     private final List<MeshBone> children;
-    
+
     // Joint transform data
     private final Matrix4f localTransform;       // Transform relative to parent
     private final Matrix4f inverseBindPose;      // Inverse bind pose matrix
     private Matrix4f globalTransform;            // Cached global transform
     private boolean globalTransformDirty = true;
-    
-    // Joint properties
-    private final float jointRadius;             // Radius for culling/selection
+
     private boolean visible = true;
-    
+
     public MeshBone(String name, int id) {
-        this(name, id, new Matrix4f(), new Matrix4f(), 1.0f);
+        this(name, id, new Matrix4f(), new Matrix4f());
     }
-    
-    public MeshBone(String name, int id, Matrix4f localTransform, Matrix4f inverseBindPose, float jointRadius) {
+
+    public MeshBone(String name, int id, Matrix4f localTransform, Matrix4f inverseBindPose) {
         this.name = name;
         this.id = id;
         this.children = new ArrayList<>();
         this.localTransform = new Matrix4f(localTransform);
         this.inverseBindPose = new Matrix4f(inverseBindPose);
         this.globalTransform = new Matrix4f();
-        this.jointRadius = jointRadius;
     }
-    
+
     /**
      * Set the parent bone and add this bone as a child to the parent
      */
@@ -51,24 +48,24 @@ public class MeshBone {
         if (this.parent != null) {
             this.parent.children.remove(this);
         }
-        
+
         this.parent = parent;
-        
+
         // Add to new parent
         if (parent != null) {
             parent.children.add(this);
         }
-        
+
         markGlobalTransformDirty();
     }
-    
+
     /**
      * Add a child bone
      */
     public void addChild(MeshBone child) {
         child.setParent(this);
     }
-    
+
     /**
      * Remove a child bone
      */
@@ -78,7 +75,7 @@ public class MeshBone {
             child.markGlobalTransformDirty();
         }
     }
-    
+
     /**
      * Set the local transform (relative to parent)
      */
@@ -86,14 +83,14 @@ public class MeshBone {
         this.localTransform.set(transform);
         markGlobalTransformDirty();
     }
-    
+
     /**
      * Update the local transform and mark global transform as dirty
      */
     public void updateLocalTransform(Matrix4f transform) {
         setLocalTransform(transform);
     }
-    
+
     /**
      * Get the global transform (world space)
      * This is computed on-demand and cached
@@ -104,7 +101,7 @@ public class MeshBone {
         }
         return new Matrix4f(globalTransform);
     }
-    
+
     /**
      * Update the global transform based on parent hierarchy
      */
@@ -118,21 +115,21 @@ public class MeshBone {
         }
         globalTransformDirty = false;
     }
-    
+
     /**
      * Mark this bone and all children as having dirty global transforms
      */
     private void markGlobalTransformDirty() {
         if (!globalTransformDirty) {
             globalTransformDirty = true;
-            
+
             // Mark all children as dirty too
             for (MeshBone child : children) {
                 child.markGlobalTransformDirty();
             }
         }
     }
-    
+
     /**
      * Get the final bone matrix for skinning
      * This is GlobalTransform * InverseBindPose
@@ -142,21 +139,21 @@ public class MeshBone {
         getGlobalTransform().mul(inverseBindPose, boneMatrix);
         return boneMatrix;
     }
-    
+
     /**
      * Check if this bone is a root bone (has no parent)
      */
     public boolean isRoot() {
         return parent == null;
     }
-    
+
     /**
      * Check if this bone is a leaf bone (has no children)
      */
     public boolean isLeaf() {
         return children.isEmpty();
     }
-    
+
     /**
      * Get all descendant bones (children, grandchildren, etc.)
      */
@@ -165,14 +162,14 @@ public class MeshBone {
         collectDescendants(descendants);
         return descendants;
     }
-    
+
     private void collectDescendants(List<MeshBone> collector) {
         for (MeshBone child : children) {
             collector.add(child);
             child.collectDescendants(collector);
         }
     }
-    
+
     /**
      * Find a bone by name in this bone's hierarchy
      */
@@ -181,17 +178,17 @@ public class MeshBone {
         if (this.name.equals(name)) {
             return this;
         }
-        
+
         for (MeshBone child : children) {
             MeshBone found = child.findBone(name);
             if (found != null) {
                 return found;
             }
         }
-        
+
         return null;
     }
-    
+
     /**
      * Get the depth of this bone in the hierarchy (root = 0)
      */
@@ -204,45 +201,41 @@ public class MeshBone {
         }
         return depth;
     }
-    
+
     // Getters
     public String getName() {
         return name;
     }
-    
+
     public int getId() {
         return id;
     }
-    
+
     @Nullable
     public MeshBone getParent() {
         return parent;
     }
-    
+
     public List<MeshBone> getChildren() {
         return new ArrayList<>(children);
     }
-    
+
     public Matrix4f getLocalTransform() {
         return new Matrix4f(localTransform);
     }
-    
+
     public Matrix4f getInverseBindPose() {
         return new Matrix4f(inverseBindPose);
     }
-    
-    public float getJointRadius() {
-        return jointRadius;
-    }
-    
+
     public boolean isVisible() {
         return visible;
     }
-    
+
     public void setVisible(boolean visible) {
         this.visible = visible;
     }
-    
+
     @Override
     public String toString() {
         return "MeshBone{" +

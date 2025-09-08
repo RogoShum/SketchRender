@@ -1,5 +1,6 @@
 package rogo.sketch.feature.culling.graphics;
 
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.DrawCommand;
 import rogo.sketch.render.RenderContext;
@@ -7,6 +8,10 @@ import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.instance.SharedVertexGraphics;
 import rogo.sketch.util.Identifier;
 
+/**
+ * Legacy mode: Simple graphics instance for culling tests
+ * Extends SharedVertexGraphics for backward compatibility but works in unified system
+ */
 public class CullingTestGraphics extends SharedVertexGraphics {
 
     public CullingTestGraphics(Identifier identifier) {
