@@ -41,14 +41,11 @@ public class EntityCullingTestGraphics implements MeshGraphicsInstance {
             // Create a full-screen quad mesh for culling test rendering
             Mesh mesh = MeshBuilder.create("culling_test_entity_quad", PrimitiveType.QUADS)
                     .subMesh("quad", 0, 4, DefaultDataFormats.POSITION)
-                    .vertices(
-                        // Full-screen quad vertices (NDC coordinates)
-                        -1.0f, -1.0f, 0.0f,  // Bottom-left
-                         1.0f, -1.0f, 0.0f,  // Bottom-right
-                         1.0f,  1.0f, 0.0f,  // Top-right
-                        -1.0f,  1.0f, 0.0f   // Top-left
-                    )
-                    .indices(0, 1, 2, 3)  // Quad indices
+                    .vertices(-1.0f, -1.0f, 0.0f)
+                    .vertices(1.0f, -1.0f, 0.0f)
+                    .vertices(1.0f, 1.0f, 0.0f)
+                    .vertices(-1.0f, 1.0f, 0.0f)
+                    .indices(0, 1, 2, 2, 3, 0)
                     .build();
 
             // Compile to ModelMesh for GPU rendering

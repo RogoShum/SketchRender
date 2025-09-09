@@ -1,23 +1,22 @@
 package rogo.sketch.feature.culling.graphics;
 
-import org.joml.Matrix4f;
+import rogo.sketch.SketchRender;
 import rogo.sketch.api.graphics.MeshGraphicsInstance;
 import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.render.PartialRenderSetting;
 import rogo.sketch.render.RenderContext;
 import rogo.sketch.render.RenderParameter;
 import rogo.sketch.render.RenderSetting;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.model.Mesh;
 import rogo.sketch.render.model.MeshBuilder;
 import rogo.sketch.render.model.MeshCompiler;
-import rogo.sketch.render.PartialRenderSetting;
-import rogo.sketch.render.data.Usage;
+import rogo.sketch.render.model.ModelMesh;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.vertex.DefaultDataFormats;
 import rogo.sketch.util.Identifier;
-import rogo.sketch.SketchRender;
 
 import java.util.Optional;
 
@@ -41,14 +40,12 @@ public class ChunkCullingTestGraphics implements MeshGraphicsInstance {
             // Create a full-screen quad mesh for culling test rendering
             Mesh mesh = MeshBuilder.create("culling_test_chunk_quad", PrimitiveType.QUADS)
                     .subMesh("quad", 0, 4, DefaultDataFormats.POSITION)
-                    .vertices(
-                        // Full-screen quad vertices (NDC coordinates)
-                        -1.0f, -1.0f, 0.0f,  // Bottom-left
-                         1.0f, -1.0f, 0.0f,  // Bottom-right
-                         1.0f,  1.0f, 0.0f,  // Top-right
-                        -1.0f,  1.0f, 0.0f   // Top-left
-                    )
-                    .indices(0, 1, 2, 3)  // Quad indices
+                    // Full-screen quad vertices (NDC coordinates)
+                    .vertices(-1.0f, -1.0f, 0.0f)
+                    .vertices(1.0f, -1.0f, 0.0f)
+                    .vertices(1.0f, 1.0f, 0.0f)
+                    .vertices(-1.0f, 1.0f, 0.0f)
+                    .indices(0, 1, 2, 2, 3, 0)
                     .build();
 
             // Compile to ModelMesh for GPU rendering
@@ -68,13 +65,13 @@ public class ChunkCullingTestGraphics implements MeshGraphicsInstance {
         if (partialSetting.isPresent()) {
             RenderParameter renderParameter = new RenderParameter(
                     DefaultDataFormats.POSITION,
-                    PrimitiveType.QUADS, 
-                    Usage.DYNAMIC_DRAW, 
+                    PrimitiveType.QUADS,
+                    Usage.DYNAMIC_DRAW,
                     false
             );
             return RenderSetting.fromPartial(partialSetting.get(), renderParameter);
         }
-        
+
         return null; // Fallback
     }
 
@@ -104,7 +101,7 @@ public class ChunkCullingTestGraphics implements MeshGraphicsInstance {
         if (!CullingStateManager.anyCulling() || CullingStateManager.CHECKING_CULL) {
             return false;
         }
-        
+
         return CullingStateManager.DEBUG > 0 && SketchRender.testPos != null;
     }
 

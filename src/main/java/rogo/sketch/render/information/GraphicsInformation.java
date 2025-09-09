@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 
 /**
  * Contains all rendering information for a graphics instance in a single frame
+ * RenderSetting is provided by GraphicsPassGroup, not extracted from the instance
  */
 public class GraphicsInformation {
     private final GraphicsInstance instance;

@@ -17,19 +17,20 @@ import java.util.List;
 
 /**
  * Collects rendering information from graphics instances
+ * Note: RenderSetting should be provided by GraphicsPassGroup, not extracted here
  */
 public class InfoCollector {
 
     /**
-     * Collect render information from a collection of graphics instances
+     * Collect render information from a collection of graphics instances with provided render setting
      */
     public static <C extends RenderContext> List<GraphicsInformation> collectRenderInfo(
-            Collection<GraphicsInstance> instances, C context) {
+            Collection<GraphicsInstance> instances, RenderSetting renderSetting, C context) {
         List<GraphicsInformation> collected = new ArrayList<>();
 
         for (GraphicsInstance instance : instances) {
             if (instance.shouldRender()) {
-                GraphicsInformation info = collectFromInstance(instance, context);
+                GraphicsInformation info = collectFromInstance(instance, renderSetting, context);
                 if (info != null) {
                     collected.add(info);
                 }
@@ -40,17 +41,11 @@ public class InfoCollector {
     }
 
     /**
-     * Collect render information from a single graphics instance
+     * Collect render information from a single graphics instance with provided render setting
      */
     @Nullable
     private static <C extends RenderContext> GraphicsInformation collectFromInstance(
-            GraphicsInstance instance, C context) {
-
-        // Extract render setting and resource binding
-        RenderSetting renderSetting = extractRenderSetting(instance, context);
-        if (renderSetting == null) {
-            return null;
-        }
+            GraphicsInstance instance, RenderSetting renderSetting, C context) {
 
         ResourceBinding resourceBinding = renderSetting.resourceBinding();
 
@@ -83,19 +78,6 @@ public class InfoCollector {
         );
     }
 
-    /**
-     * Extract render setting from a graphics instance
-     */
-    @Nullable
-    private static <C extends RenderContext> RenderSetting extractRenderSetting(
-            GraphicsInstance instance, C context) {
-        // This should be implemented based on how your instances provide render settings
-        // For now, we'll assume there's a method to get it from context or instance
-        if (instance instanceof RenderSettingProvider provider) {
-            return provider.getRenderSetting(context);
-        }
-        return null;
-    }
 
     /**
      * Extract model mesh from a graphics instance

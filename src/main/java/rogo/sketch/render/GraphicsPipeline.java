@@ -104,17 +104,8 @@ public class GraphicsPipeline<C extends RenderContext> {
      */
     private void renderAllStagesThreePhase() {
         try {
-            // Stage 1: Data Collection
-            List<GraphicsInformation> collectedData = collectRenderData();
-
-            // Stage 2: Organize and Fill Vertex Buffers
-            RenderList renderList = RenderList.organize(collectedData);
-            CompletableFuture<List<AsyncVertexFiller.FilledVertexResource>> filledResourcesFuture =
-                    vertexFiller.fillVertexBuffersAsync(renderList);
-
-            // Stage 3: Create Render Commands and Execute
-            List<AsyncVertexFiller.FilledVertexResource> filledResources = filledResourcesFuture.join();
-            List<RenderCommand> renderCommands = createRenderCommands(filledResources);
+            // Create render commands from all stages (each stage handles its own data collection and vertex filling)
+            List<RenderCommand> renderCommands = createRenderCommands();
 
             // Clear previous commands and add new ones
             renderCommandQueue.clear();
@@ -130,17 +121,8 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void computeAllRenderCommand() {
         try {
-            // Stage 1: Data Collection
-            List<GraphicsInformation> collectedData = collectRenderData();
-
-            // Stage 2: Organize and Fill Vertex Buffers
-            RenderList renderList = RenderList.organize(collectedData);
-            CompletableFuture<List<AsyncVertexFiller.FilledVertexResource>> filledResourcesFuture =
-                    vertexFiller.fillVertexBuffersAsync(renderList);
-
-            // Stage 3: Create Render Commands and Execute
-            List<AsyncVertexFiller.FilledVertexResource> filledResources = filledResourcesFuture.join();
-            List<RenderCommand> renderCommands = createRenderCommands(filledResources);
+            // Create render commands from all stages (each stage handles its own data collection and vertex filling)
+            List<RenderCommand> renderCommands = createRenderCommands();
 
             // Clear previous commands and add new ones
             renderCommandQueue.clear();
@@ -353,14 +335,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         for (GraphicsStage stage : stages.getOrderedList()) {
             GraphicsPassGroup<C> passGroup = passMap.get(stage);
             if (passGroup != null) {
-                // Collect all instances from this stage
-                List<GraphicsInstance> stageInstances = new ArrayList<>();
-                for (GraphicsPass<C> pass : passGroup.getPasses()) {
-                    stageInstances.addAll(pass.getAllInstances());
-                }
-
-                // Use InfoCollector to extract render information
-                List<GraphicsInformation> stageData = InfoCollector.collectRenderInfo(stageInstances, currentContext);
+                // Let GraphicsPassGroup collect its own render data
+                List<GraphicsInformation> stageData = passGroup.collectRenderData(currentContext);
                 allData.addAll(stageData);
             }
         }
@@ -369,55 +345,23 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     /**
-     * Create render commands from filled vertex resources - Stage 3 of three-stage pipeline
+     * Create render commands from all stages - Stage 3 of three-stage pipeline
      */
-    private List<RenderCommand> createRenderCommands(List<AsyncVertexFiller.FilledVertexResource> filledResources) {
-        List<RenderCommand> commands = new ArrayList<>();
+    private List<RenderCommand> createRenderCommands() {
+        List<RenderCommand> allCommands = new ArrayList<>();
 
-        for (AsyncVertexFiller.FilledVertexResource filledResource : filledResources) {
-            // Group instances by stage
-            Map<Identifier, List<GraphicsInformation>> instancesByStage = new LinkedHashMap<>();
-
-            for (GraphicsInformation info : filledResource.getBatch().getInstances()) {
-                Identifier stageId = findStageForInstance(info.getInstance());
-                if (stageId != null) {
-                    instancesByStage.computeIfAbsent(stageId, k -> new ArrayList<>()).add(info);
-                }
-            }
-
-            // Create render commands for each stage
-            for (Map.Entry<Identifier, List<GraphicsInformation>> entry : instancesByStage.entrySet()) {
-                Identifier stageId = entry.getKey();
-                List<GraphicsInformation> stageInstances = entry.getValue();
-
-                if (!stageInstances.isEmpty()) {
-                    RenderCommand command = RenderCommand.createFromFilledResource(
-                            filledResource.getVertexResource(),
-                            stageInstances,
-                            stageId
-                    );
-                    commands.add(command);
-                }
+        for (GraphicsStage stage : stages.getOrderedList()) {
+            GraphicsPassGroup<C> passGroup = passMap.get(stage);
+            if (passGroup != null) {
+                // Let GraphicsPassGroup create its own render commands
+                List<RenderCommand> stageCommands = passGroup.createRenderCommands(currentContext);
+                allCommands.addAll(stageCommands);
             }
         }
 
-        return commands;
+        return allCommands;
     }
 
-    /**
-     * Find which stage a graphics instance belongs to
-     */
-    private Identifier findStageForInstance(GraphicsInstance instance) {
-        for (Map.Entry<GraphicsStage, GraphicsPassGroup<C>> entry : passMap.entrySet()) {
-            GraphicsPassGroup<C> passGroup = entry.getValue();
-            for (GraphicsPass<C> pass : passGroup.getPasses()) {
-                if (pass.getAllInstances().contains(instance)) {
-                    return entry.getKey().getIdentifier();
-                }
-            }
-        }
-        return null;
-    }
 
     /**
      * Get the render command queue (for new pipeline)

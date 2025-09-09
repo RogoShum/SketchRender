@@ -251,6 +251,7 @@ public class VertexFiller extends DataFiller {
         // Pad incomplete vertices with zeros
         while (currentElementIndex < format.getElementCount()) {
             putFloat(0.0f);
+            currentElementIndex++;
         }
     }
 

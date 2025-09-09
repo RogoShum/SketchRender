@@ -5,13 +5,18 @@ import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.async.AsyncRenderManager;
+import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.filler.VertexFillerManager;
+import rogo.sketch.render.information.GraphicsInformation;
+import rogo.sketch.render.information.InfoCollector;
+import rogo.sketch.render.information.RenderList;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.render.state.gl.ShaderState;
+import rogo.sketch.render.vertex.AsyncVertexFiller;
 import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
@@ -28,6 +33,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
     private final VertexFillerManager vertexFillerManager = VertexFillerManager.getInstance();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
+    private final AsyncVertexFiller asyncVertexFiller = AsyncVertexFiller.getInstance();
 
     public GraphicsPassGroup(GraphicsPipeline<C> graphicsPipeline, Identifier stageIdentifier) {
         this.graphicsPipeline = graphicsPipeline;
@@ -348,6 +354,62 @@ public class GraphicsPassGroup<C extends RenderContext> {
     public void cleanupDiscardedInstances() {
         for (GraphicsPass<C> pass : groups.values()) {
             pass.cleanupDiscardedInstances(poolManager);
+        }
+    }
+
+    /**
+     * Collect render information from all graphics instances in this stage
+     * This method provides the RenderSetting from the pass group
+     */
+    public List<GraphicsInformation> collectRenderData(C context) {
+        List<GraphicsInformation> allData = new ArrayList<>();
+
+        for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
+            RenderSetting renderSetting = entry.getKey();
+            GraphicsPass<C> pass = entry.getValue();
+
+            // Collect all instances from this pass
+            Collection<GraphicsInstance> allInstances = pass.getAllInstances();
+
+            // Use InfoCollector with the RenderSetting from this pass group
+            List<GraphicsInformation> passData = InfoCollector.collectRenderInfo(
+                    allInstances, renderSetting, context);
+            allData.addAll(passData);
+        }
+
+        return allData;
+    }
+
+    /**
+     * Create render commands from the graphics information in this stage
+     */
+    public List<RenderCommand> createRenderCommands(C context) {
+        try {
+            // Collect render data from this stage
+            List<GraphicsInformation> collectedData = collectRenderData(context);
+
+            // Organize into batches
+            RenderList renderList = RenderList.organize(collectedData);
+
+            // Fill vertex buffers asynchronously
+            var filledResourcesFuture = asyncVertexFiller.fillVertexBuffersAsync(renderList);
+            var filledResources = filledResourcesFuture.join();
+
+            // Create render commands
+            List<RenderCommand> commands = new ArrayList<>();
+            for (AsyncVertexFiller.FilledVertexResource filledResource : filledResources) {
+                RenderCommand command = RenderCommand.createFromFilledResource(
+                        filledResource.getVertexResource(),
+                        filledResource.getBatch().getInstances(),
+                        stageIdentifier
+                );
+                commands.add(command);
+            }
+
+            return commands;
+        } catch (Exception e) {
+            // Return empty list if something goes wrong
+            return new ArrayList<>();
         }
     }
 }

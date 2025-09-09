@@ -1,6 +1,7 @@
 package rogo.sketch.vanilla.event;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
@@ -385,8 +386,9 @@ public class VanillaPipelineEventHandler {
             registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), cullingTestGraphics, setting);
         }
 
-        // Register new pipeline culling test graphics instances
-        registerNewPipelineCullingGraphics(registerEvent);
+        RenderSystem.recordRenderCall(() -> {
+            registerNewPipelineCullingGraphics(registerEvent);
+        });
     }
 
     /**
