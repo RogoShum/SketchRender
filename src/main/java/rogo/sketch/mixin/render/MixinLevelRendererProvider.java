@@ -50,6 +50,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
 
         McRenderContext context = new McRenderContext((LevelRenderer) (Object) this, modelViewMatrix, projectionMatrix, camera, frustum, this.ticks, partialTicks);
         sketchlib$graphPipeline.resetRenderContext(context);
+        sketchlib$graphPipeline.computeAllRenderCommand();
     }
 
     @Inject(

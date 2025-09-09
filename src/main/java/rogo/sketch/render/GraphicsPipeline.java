@@ -33,7 +33,6 @@ public class GraphicsPipeline<C extends RenderContext> {
     private C currentContext;
     private boolean initialized = false;
     private boolean initializedStaticGraphics = false;
-    private boolean useNewPipeline = false; // Toggle for new three-stage pipeline - LEGACY MODE ENABLED
 
     public GraphicsPipeline(boolean throwOnSortFail, C defaultContext) {
         this.stages = new OrderedList<>(throwOnSortFail);
@@ -86,11 +85,8 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Render all stages in order.
      */
     public void renderAllStages() {
-        if (useNewPipeline) {
-            renderAllStagesThreePhase();
-        } else {
-            renderAllStagesLegacy();
-        }
+        renderAllStagesThreePhase();
+        renderAllStagesLegacy();
     }
 
     /**
@@ -132,76 +128,91 @@ public class GraphicsPipeline<C extends RenderContext> {
         }
     }
 
+    public void computeAllRenderCommand() {
+        try {
+            // Stage 1: Data Collection
+            List<GraphicsInformation> collectedData = collectRenderData();
+
+            // Stage 2: Organize and Fill Vertex Buffers
+            RenderList renderList = RenderList.organize(collectedData);
+            CompletableFuture<List<AsyncVertexFiller.FilledVertexResource>> filledResourcesFuture =
+                    vertexFiller.fillVertexBuffersAsync(renderList);
+
+            // Stage 3: Create Render Commands and Execute
+            List<AsyncVertexFiller.FilledVertexResource> filledResources = filledResourcesFuture.join();
+            List<RenderCommand> renderCommands = createRenderCommands(filledResources);
+
+            // Clear previous commands and add new ones
+            renderCommandQueue.clear();
+            renderCommandQueue.addCommands(renderCommands);
+        } catch (Exception e) {
+            // Fallback to legacy rendering if something goes wrong
+            renderAllStagesLegacy();
+        }
+    }
+
     /**
      * Render stages between 'fromStage' (exclusive) and 'toStage' (exclusive).
      * Only renders the stages strictly between fromId and toId.
      */
     public void renderStagesBetween(Identifier fromId, Identifier toId) {
-        if (useNewPipeline) {
-            renderCommandQueue.executeStagesBetween(fromId, toId);
-        } else {
-            List<GraphicsStage> ordered = stages.getOrderedList();
-            GraphicsStage fromStage = idToStage.get(fromId);
-            GraphicsStage toStage = idToStage.get(toId);
-            int fromIdx = ordered.indexOf(fromStage);
-            int toIdx = ordered.indexOf(toStage);
-            for (int i = fromIdx + 1; i < toIdx; i++) {
-                GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
-                if (passGroup != null) passGroup.render(renderStateManager, currentContext);
-            }
+        renderCommandQueue.executeStagesBetween(fromId, toId);
 
-            renderStage(toId);
+        List<GraphicsStage> ordered = stages.getOrderedList();
+        GraphicsStage fromStage = idToStage.get(fromId);
+        GraphicsStage toStage = idToStage.get(toId);
+        int fromIdx = ordered.indexOf(fromStage);
+        int toIdx = ordered.indexOf(toStage);
+        for (int i = fromIdx + 1; i < toIdx; i++) {
+            GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
+            if (passGroup != null) passGroup.render(renderStateManager, currentContext);
         }
+
+        renderStage(toId);
     }
 
     /**
      * Render a single stage.
      */
     public void renderStage(Identifier id) {
-        if (useNewPipeline) {
-            renderCommandQueue.executeStage(id);
-        } else {
-            GraphicsStage stage = idToStage.get(id);
-            if (stage != null) {
-                GraphicsPassGroup<C> passGroup = passMap.get(stage);
-                if (passGroup != null) {
-                    passGroup.render(renderStateManager, currentContext);
-                }
+        renderCommandQueue.executeStage(id);
+
+        GraphicsStage stage = idToStage.get(id);
+        if (stage != null) {
+            GraphicsPassGroup<C> passGroup = passMap.get(stage);
+            if (passGroup != null) {
+                passGroup.render(renderStateManager, currentContext);
             }
         }
     }
 
     public void renderStagesBefore(Identifier id) {
-        if (useNewPipeline) {
-            renderCommandQueue.executeStagesBefore(id);
-            renderCommandQueue.executeStage(id);
-        } else {
-            List<GraphicsStage> ordered = stages.getOrderedList();
-            GraphicsStage stage = idToStage.get(id);
-            int idx = ordered.indexOf(stage);
-            for (int i = 0; i < idx; i++) {
-                GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
-                if (passGroup != null) passGroup.render(renderStateManager, currentContext);
-            }
+        renderCommandQueue.executeStagesBefore(id);
+        renderCommandQueue.executeStage(id);
 
-            renderStage(id);
+        List<GraphicsStage> ordered = stages.getOrderedList();
+        GraphicsStage stage = idToStage.get(id);
+        int idx = ordered.indexOf(stage);
+        for (int i = 0; i < idx; i++) {
+            GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
+            if (passGroup != null) passGroup.render(renderStateManager, currentContext);
         }
+
+        renderStage(id);
     }
 
     public void renderStagesAfter(Identifier id) {
-        if (useNewPipeline) {
-            renderCommandQueue.executeStage(id);
-            renderCommandQueue.executeStagesAfter(id);
-        } else {
-            renderStage(id);
+        renderCommandQueue.executeStage(id);
+        renderCommandQueue.executeStagesAfter(id);
 
-            List<GraphicsStage> ordered = stages.getOrderedList();
-            GraphicsStage stage = idToStage.get(id);
-            int idx = ordered.indexOf(stage);
-            for (int i = idx + 1; i < ordered.size(); i++) {
-                GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
-                if (passGroup != null) passGroup.render(renderStateManager, currentContext);
-            }
+        renderStage(id);
+
+        List<GraphicsStage> ordered = stages.getOrderedList();
+        GraphicsStage stage = idToStage.get(id);
+        int idx = ordered.indexOf(stage);
+        for (int i = idx + 1; i < ordered.size(); i++) {
+            GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
+            if (passGroup != null) passGroup.render(renderStateManager, currentContext);
         }
     }
 
@@ -406,20 +417,6 @@ public class GraphicsPipeline<C extends RenderContext> {
             }
         }
         return null;
-    }
-
-    /**
-     * Set whether to use the new three-stage pipeline or legacy direct rendering
-     */
-    public void setUseNewPipeline(boolean useNewPipeline) {
-        this.useNewPipeline = useNewPipeline;
-    }
-
-    /**
-     * Check if using the new three-stage pipeline
-     */
-    public boolean isUsingNewPipeline() {
-        return useNewPipeline;
     }
 
     /**

@@ -8,7 +8,9 @@ import rogo.sketch.render.resource.buffer.VertexResource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
@@ -20,6 +22,9 @@ public class AsyncVertexFiller {
     private static final AsyncVertexFiller INSTANCE = new AsyncVertexFiller();
     private final ExecutorService executor;
     private final VertexResourceManager vertexResourceManager;
+
+    // 预分配的资源缓存 - 在主线程中创建，在异步线程中安全访问
+    private final Map<BatchResourceKey, PreallocatedResources> preallocatedResources = new ConcurrentHashMap<>();
 
     // 性能配置参数
     private int asyncThreshold = 32;  // 异步处理阈值
@@ -39,10 +44,20 @@ public class AsyncVertexFiller {
     }
 
     /**
+     * 预分配渲染列表所需的所有OpenGL资源（必须在渲染线程中调用）
+     */
+    public void preallocateResources(RenderList renderList) {
+        for (RenderList.RenderBatch batch : renderList.getBatches()) {
+            preallocateBatchResources(batch);
+        }
+    }
+
+    /**
      * Fill vertex buffers asynchronously for all batches in a render list
      */
     public CompletableFuture<List<FilledVertexResource>> fillVertexBuffersAsync(RenderList renderList) {
         List<RenderList.RenderBatch> batches = renderList.getBatches();
+        preallocateResources(renderList);
 
         @SuppressWarnings("unchecked")
         CompletableFuture<FilledVertexResource>[] futures = batches.stream()
@@ -79,18 +94,17 @@ public class AsyncVertexFiller {
      * Fill vertex buffer for regular (non-instanced) batch
      */
     private FilledVertexResource fillRegularBatch(RenderList.RenderBatch batch, RenderList.BatchKey key) {
-        // Create or get vertex resource for this batch
-        VertexResource vertexResource = vertexResourceManager.getOrCreateVertexResource(
-                key.getPrimitiveType(),
-                key.getDataFormat(),
-                batch.getTotalVertexCount()
-        );
+        // 获取预分配的资源
+        BatchResourceKey resourceKey = new BatchResourceKey(key, false);
+        PreallocatedResources resources = preallocatedResources.get(resourceKey);
+        
+        if (resources == null) {
+            throw new IllegalStateException("Resources not preallocated for batch: " + key + 
+                    ". Call preallocateResources() first in the render thread.");
+        }
 
-        // Get vertex filler for this batch
-        VertexFiller filler = vertexResourceManager.getOrCreateVertexFiller(
-                key.getPrimitiveType(),
-                key.getDataFormat()
-        );
+        VertexResource vertexResource = resources.vertexResource;
+        VertexFiller filler = resources.vertexFiller;
 
         // Reset filler for new data
         filler.reset();
@@ -100,7 +114,7 @@ public class AsyncVertexFiller {
             fillInstanceVertexData(filler, info);
         }
 
-        // Upload data to GPU
+        // Upload data to GPU (这个操作是线程安全的，因为只是更新缓冲区数据)
         vertexResource.uploadFromVertexFiller(filler);
 
         return new FilledVertexResource(vertexResource, batch);
@@ -110,20 +124,22 @@ public class AsyncVertexFiller {
      * Fill vertex buffer for instanced batch
      */
     private FilledVertexResource fillInstancedBatch(RenderList.RenderBatch batch, RenderList.BatchKey key) {
-        // For instanced rendering, we need to handle static and dynamic vertex data separately
+        // 获取预分配的实例化资源
+        BatchResourceKey resourceKey = new BatchResourceKey(key, true);
+        PreallocatedResources resources = preallocatedResources.get(resourceKey);
+        
+        if (resources == null) {
+            throw new IllegalStateException("Instanced resources not preallocated for batch: " + key + 
+                    ". Call preallocateResources() first in the render thread.");
+        }
 
-        // Create vertex resource with both static and dynamic layouts
-        VertexResource vertexResource = vertexResourceManager.getOrCreateInstancedVertexResource(
-                key.getPrimitiveType(),
-                key.getDataFormat(),
-                batch
-        );
+        VertexResource vertexResource = resources.vertexResource;
 
         // Fill static vertex data (mesh geometry)
-        fillStaticVertexData(vertexResource, batch);
+        fillStaticVertexData(vertexResource, batch, resources);
 
         // Fill dynamic vertex data (instance attributes)
-        fillDynamicVertexData(vertexResource, batch);
+        fillDynamicVertexData(vertexResource, batch, resources);
 
         return new FilledVertexResource(vertexResource, batch);
     }
@@ -180,13 +196,8 @@ public class AsyncVertexFiller {
     /**
      * Fill static vertex data for instanced rendering (mesh geometry)
      */
-    private void fillStaticVertexData(VertexResource vertexResource, RenderList.RenderBatch batch) {
-        // Get static vertex filler
-        VertexFiller staticFiller = vertexResourceManager.getOrCreateVertexFiller(
-                batch.getKey().getPrimitiveType(),
-                batch.getKey().getDataFormat()
-        );
-
+    private void fillStaticVertexData(VertexResource vertexResource, RenderList.RenderBatch batch, PreallocatedResources resources) {
+        VertexFiller staticFiller = resources.staticFiller;
         staticFiller.reset();
 
         // For instanced rendering, we typically only need one copy of the mesh geometry
@@ -211,19 +222,14 @@ public class AsyncVertexFiller {
     /**
      * Fill dynamic vertex data for instanced rendering (instance attributes)
      */
-    private void fillDynamicVertexData(VertexResource vertexResource, RenderList.RenderBatch batch) {
+    private void fillDynamicVertexData(VertexResource vertexResource, RenderList.RenderBatch batch, PreallocatedResources resources) {
         // Get the instanced vertex layout from the first instance
         GraphicsInformation firstInfo = batch.getInstances().get(0);
         if (!firstInfo.hasInstancedData()) {
             return;
         }
 
-        // Create dynamic vertex filler for instance data
-        VertexFiller dynamicFiller = vertexResourceManager.getOrCreateDynamicVertexFiller(
-                firstInfo.getInstancedVertexLayout(),
-                firstInfo.getMesh().getPrimitiveType()
-        );
-
+        VertexFiller dynamicFiller = resources.dynamicFiller;
         dynamicFiller.reset();
 
         // Fill instance data - use efficient async strategy based on batch size
@@ -340,6 +346,181 @@ public class AsyncVertexFiller {
      */
     public interface VertexDataProvider {
         void fillVertexData(VertexFiller filler);
+    }
+
+    /**
+     * 预分配批次资源（必须在渲染线程中调用）
+     */
+    private void preallocateBatchResources(RenderList.RenderBatch batch) {
+        RenderList.BatchKey key = batch.getKey();
+        
+        if (key.isInstanced()) {
+            preallocateInstancedBatchResources(batch, key);
+        } else {
+            preallocateRegularBatchResources(batch, key);
+        }
+    }
+
+    /**
+     * 预分配常规批次资源
+     */
+    private void preallocateRegularBatchResources(RenderList.RenderBatch batch, RenderList.BatchKey key) {
+        BatchResourceKey resourceKey = new BatchResourceKey(key, false);
+        
+        if (!preallocatedResources.containsKey(resourceKey)) {
+            // 在渲染线程中创建OpenGL资源
+            VertexResource vertexResource = vertexResourceManager.getOrCreateVertexResource(
+                    key.getPrimitiveType(),
+                    key.getDataFormat(),
+                    batch.getTotalVertexCount()
+            );
+
+            VertexFiller vertexFiller = vertexResourceManager.getOrCreateVertexFiller(
+                    key.getPrimitiveType(),
+                    key.getDataFormat()
+            );
+
+            PreallocatedResources resources = new PreallocatedResources(
+                    vertexResource, vertexFiller, null, null
+            );
+            
+            preallocatedResources.put(resourceKey, resources);
+        }
+    }
+
+    /**
+     * 预分配实例化批次资源
+     */
+    private void preallocateInstancedBatchResources(RenderList.RenderBatch batch, RenderList.BatchKey key) {
+        BatchResourceKey resourceKey = new BatchResourceKey(key, true);
+        
+        if (!preallocatedResources.containsKey(resourceKey)) {
+            // 在渲染线程中创建OpenGL资源
+            VertexResource vertexResource = vertexResourceManager.getOrCreateInstancedVertexResource(
+                    key.getPrimitiveType(),
+                    key.getDataFormat(),
+                    batch
+            );
+
+            VertexFiller staticFiller = vertexResourceManager.getOrCreateVertexFiller(
+                    key.getPrimitiveType(),
+                    key.getDataFormat()
+            );
+
+            VertexFiller dynamicFiller = null;
+            if (!batch.getInstances().isEmpty()) {
+                GraphicsInformation firstInfo = batch.getInstances().get(0);
+                if (firstInfo.hasInstancedData() && 
+                    firstInfo.getInstancedVertexLayout() != null) {
+                    var mesh = firstInfo.getMesh();
+                    if (mesh != null) {
+                        dynamicFiller = vertexResourceManager.getOrCreateDynamicVertexFiller(
+                                firstInfo.getInstancedVertexLayout(),
+                                mesh.getPrimitiveType()
+                        );
+                    }
+                }
+            }
+
+            PreallocatedResources resources = new PreallocatedResources(
+                    vertexResource, null, staticFiller, dynamicFiller
+            );
+            
+            preallocatedResources.put(resourceKey, resources);
+        }
+    }
+
+    /**
+     * 清理预分配的资源
+     */
+    public void clearPreallocatedResources() {
+        preallocatedResources.clear();
+    }
+
+    /**
+     * 获取当前预分配资源的统计信息
+     */
+    public String getPreallocationStats() {
+        return String.format("AsyncVertexFiller: %d preallocated resource sets", 
+                preallocatedResources.size());
+    }
+
+    /**
+     * 使用示例：正确的调用顺序
+     * 
+     * // 在渲染线程中：
+     * AsyncVertexFiller filler = AsyncVertexFiller.getInstance();
+     * filler.preallocateResources(renderList);  // 预分配OpenGL资源
+     * 
+     * // 然后可以在异步线程中：
+     * CompletableFuture<List<FilledVertexResource>> future = 
+     *     filler.fillVertexBuffersAsync(renderList);  // 异步填充数据
+     * 
+     * // 处理结果...
+     * future.thenAccept(resources -> {
+     *     // 在这里处理填充好的vertex资源
+     * });
+     */
+    public static void usageExample() {
+        // This is a documentation method - do not call
+    }
+
+    /**
+     * 批次资源键，用于标识不同的批次资源
+     */
+    private static class BatchResourceKey {
+        private final RenderList.BatchKey batchKey;
+        private final boolean isInstanced;
+
+        public BatchResourceKey(RenderList.BatchKey batchKey, boolean isInstanced) {
+            this.batchKey = batchKey;
+            this.isInstanced = isInstanced;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            BatchResourceKey that = (BatchResourceKey) o;
+            return isInstanced == that.isInstanced && 
+                   batchKey.equals(that.batchKey);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = batchKey.hashCode();
+            result = 31 * result + (isInstanced ? 1 : 0);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "BatchResourceKey{" +
+                    "batchKey=" + batchKey +
+                    ", isInstanced=" + isInstanced +
+                    '}';
+        }
+    }
+
+    /**
+     * 预分配的资源容器
+     */
+    private static class PreallocatedResources {
+        final VertexResource vertexResource;
+        final VertexFiller vertexFiller;      // 用于常规渲染
+        final VertexFiller staticFiller;      // 用于实例化渲染的静态数据
+        final VertexFiller dynamicFiller;     // 用于实例化渲染的动态数据
+
+        public PreallocatedResources(VertexResource vertexResource,
+                                   VertexFiller vertexFiller,
+                                   VertexFiller staticFiller,
+                                   VertexFiller dynamicFiller) {
+            this.vertexResource = vertexResource;
+            this.vertexFiller = vertexFiller;
+            this.staticFiller = staticFiller;
+            this.dynamicFiller = dynamicFiller;
+        }
     }
 
     /**

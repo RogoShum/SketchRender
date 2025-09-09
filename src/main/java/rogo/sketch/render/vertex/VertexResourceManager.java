@@ -14,6 +14,11 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Manager for shared VertexResource instances based on RenderSetting
  * Provides efficient caching and reuse of vertex resources with the same parameters
+ * 
+ * Thread Safety: 
+ * - Resource creation methods (getOrCreate*) must only be called from the OpenGL render thread
+ * - Resource retrieval for async processing should use preallocated resources via AsyncVertexFiller
+ * - ConcurrentHashMap provides thread-safe access to cached resources
  */
 public class VertexResourceManager {
     private static VertexResourceManager instance;
@@ -32,6 +37,8 @@ public class VertexResourceManager {
     /**
      * Get or create a VertexResource for the given RenderSetting
      * Returns a shared instance if one with the same parameters already exists
+     * 
+     * WARNING: Must only be called from the OpenGL render thread
      */
     public VertexResource getOrCreateVertexResource(RenderParameter parameter) {
         if (parameter.isInvalid()) {
@@ -96,6 +103,8 @@ public class VertexResourceManager {
 
     /**
      * Overloaded method to create vertex resource with specific vertex count
+     * 
+     * WARNING: Must only be called from the OpenGL render thread
      */
     public VertexResource getOrCreateVertexResource(PrimitiveType primitiveType, DataFormat dataFormat, int vertexCount) {
         RenderParameter parameter = RenderParameter.create(dataFormat, primitiveType);
@@ -120,6 +129,8 @@ public class VertexResourceManager {
 
     /**
      * Get or create a vertex filler for the given parameters
+     * 
+     * Thread-safe: VertexFiller creation is thread-safe as it doesn't create OpenGL resources
      */
     public VertexFiller getOrCreateVertexFiller(PrimitiveType primitiveType, DataFormat dataFormat) {
         RenderParameter parameter = RenderParameter.create(dataFormat, primitiveType);
@@ -128,6 +139,8 @@ public class VertexResourceManager {
 
     /**
      * Create an instanced vertex resource for the given batch
+     * 
+     * WARNING: Must only be called from the OpenGL render thread
      */
     public VertexResource getOrCreateInstancedVertexResource(PrimitiveType primitiveType,
                                                              DataFormat staticFormat,
@@ -136,13 +149,10 @@ public class VertexResourceManager {
         DataFormat dynamicFormat = null;
         if (!batch.getInstances().isEmpty()) {
             var firstInfo = batch.getInstances().get(0);
-            if (firstInfo.hasInstancedData()) {
+            if (firstInfo.hasInstancedData() && firstInfo.getInstancedVertexLayout() != null) {
                 dynamicFormat = firstInfo.getInstancedVertexLayout().dataFormat();
             }
         }
-
-        // For instanced rendering, each graphics instance contributes one instance
-        int totalInstanceCount = batch.getGraphicsInstanceCount();
 
         // Create vertex resource with both static and dynamic layouts
         return new VertexResource(
@@ -156,6 +166,8 @@ public class VertexResourceManager {
 
     /**
      * Create a dynamic vertex filler for instance data
+     * 
+     * Thread-safe: VertexFiller creation is thread-safe as it doesn't create OpenGL resources
      */
     public VertexFiller getOrCreateDynamicVertexFiller(InstancedVertexLayout layout, PrimitiveType primitiveType) {
         DataFormat dynamicFormat = layout.dataFormat();
