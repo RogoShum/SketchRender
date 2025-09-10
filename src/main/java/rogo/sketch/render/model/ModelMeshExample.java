@@ -24,13 +24,7 @@ public class ModelMeshExample {
         // Create mesh using builder
         Mesh mesh = MeshBuilder.create("textured_quad", PrimitiveType.QUADS)
                 .subMesh("quad", 0, 4, vertexFormat)
-                .vertices(
-                    // position     texCoord
-                    -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  // Bottom-left
-                     1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  // Bottom-right
-                     1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  // Top-right
-                    -1.0f,  1.0f, 0.0f,  0.0f, 1.0f   // Top-left
-                )
+
                 .indices(0, 1, 2, 3)
                 .material("grass_texture")
                 .build();
@@ -101,18 +95,7 @@ public class ModelMeshExample {
                 // Create body mesh bound to spine
                 .selectBone("spine_mid")
                 .subMesh("torso", 0, 8, skinnedFormat)
-                .vertices(
-                    // Front face (simplified box)
-                    -0.3f, -0.5f,  0.1f,  0.0f, 0.0f, 1.0f,  0.0f, 0.0f,  2.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                     0.3f, -0.5f,  0.1f,  0.0f, 0.0f, 1.0f,  1.0f, 0.0f,  2.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                     0.3f,  0.5f,  0.1f,  0.0f, 0.0f, 1.0f,  1.0f, 1.0f,  2.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                    -0.3f,  0.5f,  0.1f,  0.0f, 0.0f, 1.0f,  0.0f, 1.0f,  2.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                    // Back face
-                    -0.3f, -0.5f, -0.1f,  0.0f, 0.0f, -1.0f, 1.0f, 0.0f,  2.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                     0.3f, -0.5f, -0.1f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,  2.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                     0.3f,  0.5f, -0.1f,  0.0f, 0.0f, -1.0f, 0.0f, 1.0f,  2.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                    -0.3f,  0.5f, -0.1f,  0.0f, 0.0f, -1.0f, 1.0f, 1.0f,  2.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f
-                )
+
                 .indices(
                     0, 1, 2, 3,  // Front
                     4, 5, 6, 7   // Back
@@ -123,13 +106,7 @@ public class ModelMeshExample {
                 // Create head mesh
                 .selectBone("head")
                 .subMesh("head", 1, 4, skinnedFormat)
-                .vertices(
-                    // Simple head quad
-                    -0.15f, -0.15f, 0.05f,  0.0f, 0.0f, 1.0f,  0.0f, 0.0f,  5.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                     0.15f, -0.15f, 0.05f,  0.0f, 0.0f, 1.0f,  1.0f, 0.0f,  5.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                     0.15f,  0.15f, 0.05f,  0.0f, 0.0f, 1.0f,  1.0f, 1.0f,  5.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-                    -0.15f,  0.15f, 0.05f,  0.0f, 0.0f, 1.0f,  0.0f, 1.0f,  5.0f, 0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 0.0f
-                )
+
                 .indices(0, 1, 2, 3)
                 .bindToBone()
                 .material("character_head")
@@ -243,26 +220,11 @@ public class ModelMeshExample {
         
         Mesh mixedMesh = MeshBuilder.create("mixed_primitives", PrimitiveType.TRIANGLES)
                 .subMesh("triangles", 0, 6, format)
-                .vertices(
-                    // Triangle 1
-                    0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
-                    1.0f, 0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
-                    0.5f, 1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-                    // Triangle 2
-                    2.0f, 0.0f, 0.0f,  1.0f, 1.0f, 0.0f,
-                    3.0f, 0.0f, 0.0f,  1.0f, 0.0f, 1.0f,
-                    2.5f, 1.0f, 0.0f,  0.0f, 1.0f, 1.0f
-                )
+
                 .indices(0, 1, 2, 3, 4, 5)
                 
                 .subMesh("quads", 1, 4, format)
-                .vertices(
-                    // Quad
-                    4.0f, 0.0f, 0.0f,  1.0f, 0.5f, 0.0f,
-                    5.0f, 0.0f, 0.0f,  0.5f, 1.0f, 0.0f,
-                    5.0f, 1.0f, 0.0f,  0.0f, 1.0f, 0.5f,
-                    4.0f, 1.0f, 0.0f,  0.5f, 0.0f, 1.0f
-                )
+
                 .indices(0, 1, 2, 3)
                 
                 .build();

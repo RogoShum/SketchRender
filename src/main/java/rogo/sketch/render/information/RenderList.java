@@ -4,6 +4,13 @@ import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.model.Mesh;
 import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.UniformBatchGroup;
+import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
+import rogo.sketch.api.ShaderProvider;
+import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.render.resource.ResourceReference;
+import rogo.sketch.render.resource.ResourceTypes;
+import rogo.sketch.render.state.gl.ShaderState;
 
 import java.util.*;
 import javax.annotation.Nullable;
@@ -40,6 +47,8 @@ public class RenderList {
             List<GraphicsInformation> infos = entry.getValue();
             
             RenderBatch batch = new RenderBatch(key, infos);
+            // Collect uniform batches for this render batch
+            batch.collectUniformBatches();
             renderList.addBatch(batch);
         }
         
@@ -147,10 +156,12 @@ public class RenderList {
         private final BatchKey key;
         private final List<GraphicsInformation> instances;
         private final int totalVertexCount;
+        private final List<UniformBatchGroup> uniformBatches;
         
         public RenderBatch(BatchKey key, List<GraphicsInformation> instances) {
             this.key = key;
             this.instances = new ArrayList<>(instances);
+            this.uniformBatches = new ArrayList<>();
             
             // Calculate vertex offsets for each instance
             int currentOffset = 0;
@@ -166,6 +177,64 @@ public class RenderList {
         public List<GraphicsInformation> getInstances() { return new ArrayList<>(instances); }
         public int getTotalVertexCount() { return totalVertexCount; }
         public int getGraphicsInstanceCount() { return instances.size(); }
+        public List<UniformBatchGroup> getUniformBatches() { return new ArrayList<>(uniformBatches); }
+        
+        /**
+         * Set uniform batches for this render batch
+         */
+        public void setUniformBatches(List<UniformBatchGroup> uniformBatches) {
+            this.uniformBatches.clear();
+            this.uniformBatches.addAll(uniformBatches);
+        }
+        
+        /**
+         * Collect uniform batches for this render batch based on graphics instances
+         */
+        public void collectUniformBatches() {
+            if (instances.isEmpty()) {
+                return;
+            }
+            
+            // Get render setting and shader provider from the first instance
+            GraphicsInformation firstInfo = instances.get(0);
+            ShaderProvider shaderProvider = extractShaderProvider(firstInfo);
+            
+            if (shaderProvider == null) {
+                return;
+            }
+            
+            // Collect uniform batches using the same logic as the old pipeline
+            Map<UniformValueSnapshot, UniformBatchGroup> batches = new HashMap<>();
+            
+            for (GraphicsInformation info : instances) {
+                GraphicsInstance instance = info.getInstance();
+                if (instance.shouldRender()) {
+                    UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(
+                            shaderProvider.getUniformHookGroup(), instance);
+                    
+                    batches.computeIfAbsent(snapshot, UniformBatchGroup::new).addInstance(instance);
+                }
+            }
+            
+            this.uniformBatches.clear();
+            this.uniformBatches.addAll(batches.values());
+        }
+        
+        /**
+         * Extract shader provider from GraphicsInformation
+         */
+        private ShaderProvider extractShaderProvider(GraphicsInformation info) {
+            try {
+                ResourceReference<ShaderProvider> reference = 
+                    ((ShaderState) info.getRenderSetting().renderState().get(ResourceTypes.SHADER_PROGRAM)).shader();
+                if (reference.isAvailable()) {
+                    return reference.get();
+                }
+            } catch (Exception e) {
+                // Ignore and return null
+            }
+            return null;
+        }
         
         /**
          * Get instances sorted by vertex offset

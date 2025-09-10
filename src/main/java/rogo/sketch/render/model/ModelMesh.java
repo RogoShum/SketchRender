@@ -1,7 +1,11 @@
 package rogo.sketch.render.model;
 
+import org.joml.Vector3f;
+import rogo.sketch.api.graphics.VertexDataProvider;
 import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.resource.buffer.VertexResource;
+import rogo.sketch.render.vertex.AsyncVertexFiller;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -16,7 +20,7 @@ import java.util.Map;
  * ModelMesh stores vertex data in VertexResource and maintains offset information
  * for each sub-mesh to enable batch drawing commands.
  */
-public class ModelMesh implements AutoCloseable {
+public class ModelMesh implements AutoCloseable, VertexDataProvider {
     private final String name;
     private final Mesh originalMesh;
     
@@ -328,5 +332,14 @@ public class ModelMesh implements AutoCloseable {
                 ", totalIndices=" + getTotalIndexCount() +
                 ", disposed=" + disposed +
                 '}';
+    }
+
+    @Override
+    public void fillVertexData(VertexFiller filler) {
+        this.originalMesh.getSubMeshes().forEach(subMesh -> {
+            for (int i = 0; i < subMesh.getVertexCount(); ++i) {
+                filler.putVec3(subMesh.getVertexData()[i*3], subMesh.getVertexData()[i*3 + 1], subMesh.getVertexData()[i*3 + 2]);
+            }
+        });
     }
 }

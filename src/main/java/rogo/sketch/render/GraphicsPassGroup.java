@@ -398,9 +398,9 @@ public class GraphicsPassGroup<C extends RenderContext> {
             // Create render commands
             List<RenderCommand> commands = new ArrayList<>();
             for (AsyncVertexFiller.FilledVertexResource filledResource : filledResources) {
-                RenderCommand command = RenderCommand.createFromFilledResource(
+                RenderCommand command = RenderCommand.createFromRenderBatch(
                         filledResource.getVertexResource(),
-                        filledResource.getBatch().getInstances(),
+                        filledResource.getBatch(),
                         stageIdentifier
                 );
                 commands.add(command);

@@ -8,8 +8,6 @@ import rogo.sketch.render.async.AsyncRenderManager;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.RenderCommandQueue;
 import rogo.sketch.render.information.GraphicsInformation;
-import rogo.sketch.render.information.InfoCollector;
-import rogo.sketch.render.information.RenderList;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.vertex.AsyncVertexFiller;
 import rogo.sketch.util.Identifier;
@@ -19,7 +17,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 public class GraphicsPipeline<C extends RenderContext> {
     private final OrderedList<GraphicsStage> stages;
@@ -82,40 +79,12 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     /**
-     * Render all stages in order.
-     */
-    public void renderAllStages() {
-        renderAllStagesThreePhase();
-        renderAllStagesLegacy();
-    }
-
-    /**
      * Legacy direct rendering approach
      */
     private void renderAllStagesLegacy() {
         for (GraphicsStage stage : stages.getOrderedList()) {
             GraphicsPassGroup<C> group = passMap.get(stage);
             group.render(renderStateManager, currentContext);
-        }
-    }
-
-    /**
-     * New three-stage rendering approach: collect data, fill vertex buffers, batch render
-     */
-    private void renderAllStagesThreePhase() {
-        try {
-            // Create render commands from all stages (each stage handles its own data collection and vertex filling)
-            List<RenderCommand> renderCommands = createRenderCommands();
-
-            // Clear previous commands and add new ones
-            renderCommandQueue.clear();
-            renderCommandQueue.addCommands(renderCommands);
-
-            // Execute all render commands
-            renderCommandQueue.executeAll();
-        } catch (Exception e) {
-            // Fallback to legacy rendering if something goes wrong
-            renderAllStagesLegacy();
         }
     }
 
@@ -138,7 +107,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Only renders the stages strictly between fromId and toId.
      */
     public void renderStagesBetween(Identifier fromId, Identifier toId) {
-        renderCommandQueue.executeStagesBetween(fromId, toId);
+        renderCommandQueue.executeStagesBetween(fromId, toId, this.renderStateManager, this.currentContext);
 
         List<GraphicsStage> ordered = stages.getOrderedList();
         GraphicsStage fromStage = idToStage.get(fromId);
@@ -157,7 +126,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Render a single stage.
      */
     public void renderStage(Identifier id) {
-        renderCommandQueue.executeStage(id);
+        renderCommandQueue.executeStage(id, this.renderStateManager, this.currentContext);
 
         GraphicsStage stage = idToStage.get(id);
         if (stage != null) {
@@ -169,8 +138,8 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public void renderStagesBefore(Identifier id) {
-        renderCommandQueue.executeStagesBefore(id);
-        renderCommandQueue.executeStage(id);
+        renderCommandQueue.executeStagesBefore(id, this.renderStateManager, this.currentContext);
+        renderCommandQueue.executeStage(id, this.renderStateManager, this.currentContext);
 
         List<GraphicsStage> ordered = stages.getOrderedList();
         GraphicsStage stage = idToStage.get(id);
@@ -184,8 +153,8 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public void renderStagesAfter(Identifier id) {
-        renderCommandQueue.executeStage(id);
-        renderCommandQueue.executeStagesAfter(id);
+        renderCommandQueue.executeStage(id, this.renderStateManager, this.currentContext);
+        renderCommandQueue.executeStagesAfter(id, this.renderStateManager, this.currentContext);
 
         renderStage(id);
 

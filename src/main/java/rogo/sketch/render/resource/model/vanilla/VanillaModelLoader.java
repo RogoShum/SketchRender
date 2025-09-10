@@ -122,12 +122,12 @@ public class VanillaModelLoader {
         // Create sub-mesh with all the geometry
         builder.subMesh("main", 0, vertices.size() / getVertexFloatCount(), MINECRAFT_VERTEX_FORMAT);
         
-        // Add vertices
-        float[] vertexArray = new float[vertices.size()];
-        for (int i = 0; i < vertices.size(); i++) {
-            vertexArray[i] = vertices.get(i);
-        }
-        builder.vertices(vertexArray);
+//        // Add vertices
+//        float[] vertexArray = new float[vertices.size()];
+//        for (int i = 0; i < vertices.size(); i++) {
+//            vertexArray[i] = vertices.get(i);
+//        }
+//        builder.vertices(vertexArray);
         
         // Add indices
         int[] indexArray = new int[indices.size()];
@@ -216,12 +216,12 @@ public class VanillaModelLoader {
         // Create sub-mesh
         builder.subMesh("main", 0, vertices.size() / getVertexFloatCount(), MINECRAFT_VERTEX_FORMAT);
         
-        // Add vertices and indices
-        float[] vertexArray = new float[vertices.size()];
-        for (int i = 0; i < vertices.size(); i++) {
-            vertexArray[i] = vertices.get(i);
-        }
-        builder.vertices(vertexArray);
+//        // Add vertices and indices
+//        float[] vertexArray = new float[vertices.size()];
+//        for (int i = 0; i < vertices.size(); i++) {
+//            vertexArray[i] = vertices.get(i);
+//        }
+//        builder.vertices(vertexArray);
         
         int[] indexArray = new int[indices.size()];
         for (int i = 0; i < indices.size(); i++) {

@@ -291,8 +291,6 @@ public class MeshCompiler {
             for (int j = 0; j < floatsPerVertex; j++) {
                 filler.putFloat(vertexData[i * floatsPerVertex + j]);
             }
-
-            filler.nextVertex();
         }
     }
 

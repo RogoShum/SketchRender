@@ -42,14 +42,12 @@ public class VertexRenderer {
             }
 
             // Use the unified GL call with all offsets
-            GL45.glDrawElementsInstancedBaseVertexBaseInstance(
+            GL45.glDrawElementsBaseVertex(
                     primitiveType.getGLType(),
                     indexCount,
-                    GL15.GL_UNSIGNED_INT, // Assuming 32-bit indices
-                    indexOffset,
-                    instanceCount,
-                    baseVertex,
-                    baseInstance
+                    resource.getIndexBuffer().currentIndexType().glType, // Assuming 32-bit indices
+                    0,
+                    baseVertex
             );
         } finally {
             resource.unbind();
