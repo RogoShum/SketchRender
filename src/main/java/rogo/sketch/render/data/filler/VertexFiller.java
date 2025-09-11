@@ -2,8 +2,8 @@ package rogo.sketch.render.data.filler;
 
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.DataElement;
+import rogo.sketch.render.data.format.DataFormat;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
@@ -20,16 +20,16 @@ public class VertexFiller extends DataFiller {
     private DataFiller internalFiller;
     private final PrimitiveType primitiveType;
     private final Map<String, Integer> elementOffsetMap;
-    
+
     // Vertex management
     private long currentVertexIndex = 0;
-    private int currentElementIndex = 0;
+    private int currentElementStride = 0;
     private int vertexCount = 0;
-    
+
     // Sorting
     private VertexSorting sorting = VertexSorting.DISTANCE_TO_ORIGIN;
     private boolean shouldSort = true;
-    
+
     // Buffer management
     private final List<ByteBuffer> vertexData;
     private ByteBuffer currentBuffer;
@@ -49,7 +49,6 @@ public class VertexFiller extends DataFiller {
         this.elementOffsetMap = buildElementOffsetMap(format);
 
         allocateNewBuffer();
-        this.internalFiller = ByteBufferFiller.wrap(format, currentBuffer);
     }
 
     private Map<String, Integer> buildElementOffsetMap(DataFormat format) {
@@ -63,6 +62,7 @@ public class VertexFiller extends DataFiller {
     private void allocateNewBuffer() {
         currentBuffer = MemoryUtil.memAlloc(initialBufferSize);
         currentBuffer.clear();
+        this.internalFiller = ByteBufferFiller.wrap(format, currentBuffer);
     }
 
     private void ensureCapacity(int additionalBytes) {
@@ -81,7 +81,7 @@ public class VertexFiller extends DataFiller {
 
             MemoryUtil.memFree(currentBuffer);
             currentBuffer = newBuffer;
-            
+
             // Update internal filler
             this.internalFiller = ByteBufferFiller.wrap(format, currentBuffer);
         }
@@ -93,7 +93,7 @@ public class VertexFiller extends DataFiller {
     public DataFiller putFloat(float value) {
         ensureCapacity(Float.BYTES);
         internalFiller.putFloat(value);
-        advanceElement();
+        advanceElement(Float.BYTES);
         return this;
     }
 
@@ -101,7 +101,7 @@ public class VertexFiller extends DataFiller {
     public DataFiller putInt(int value) {
         ensureCapacity(Integer.BYTES);
         internalFiller.putInt(value);
-        advanceElement();
+        advanceElement(Integer.BYTES);
         return this;
     }
 
@@ -109,7 +109,7 @@ public class VertexFiller extends DataFiller {
     public DataFiller putUInt(int value) {
         ensureCapacity(Integer.BYTES);
         internalFiller.putUInt(value);
-        advanceElement();
+        advanceElement(Integer.BYTES);
         return this;
     }
 
@@ -117,7 +117,7 @@ public class VertexFiller extends DataFiller {
     public DataFiller putByte(byte value) {
         ensureCapacity(Byte.BYTES);
         internalFiller.putByte(value);
-        advanceElement();
+        advanceElement(Byte.BYTES);
         return this;
     }
 
@@ -125,7 +125,7 @@ public class VertexFiller extends DataFiller {
     public DataFiller putUByte(byte value) {
         ensureCapacity(Byte.BYTES);
         internalFiller.putUByte(value);
-        advanceElement();
+        advanceElement(Byte.BYTES);
         return this;
     }
 
@@ -133,7 +133,7 @@ public class VertexFiller extends DataFiller {
     public DataFiller putShort(short value) {
         ensureCapacity(Short.BYTES);
         internalFiller.putShort(value);
-        advanceElement();
+        advanceElement(Short.BYTES);
         return this;
     }
 
@@ -141,7 +141,7 @@ public class VertexFiller extends DataFiller {
     public DataFiller putUShort(short value) {
         ensureCapacity(Short.BYTES);
         internalFiller.putUShort(value);
-        advanceElement();
+        advanceElement(Short.BYTES);
         return this;
     }
 
@@ -149,7 +149,7 @@ public class VertexFiller extends DataFiller {
     public DataFiller putDouble(double value) {
         ensureCapacity(Double.BYTES);
         internalFiller.putDouble(value);
-        advanceElement();
+        advanceElement(Double.BYTES);
         return this;
     }
 
@@ -228,7 +228,7 @@ public class VertexFiller extends DataFiller {
         completeCurrentVertex();
         vertexCount++;
         currentVertexIndex++;
-        currentElementIndex = 0;
+        currentElementStride = 0;
         ensureCapacity(format.getStride());
         return this;
     }
@@ -238,7 +238,7 @@ public class VertexFiller extends DataFiller {
      */
     public VertexFiller vertex(long index) {
         this.currentVertexIndex = index;
-        this.currentElementIndex = 0;
+        this.currentElementStride = 0;
         // Position internal filler to vertex start
         long byteOffset = index * format.getStride();
         if (internalFiller.supportsRandomAccess()) {
@@ -249,15 +249,14 @@ public class VertexFiller extends DataFiller {
 
     private void completeCurrentVertex() {
         // Pad incomplete vertices with zeros
-        while (currentElementIndex < format.getElementCount()) {
+        while (currentElementStride < format.getStride()) {
             putFloat(0.0f);
-            currentElementIndex++;
         }
     }
 
-    private void advanceElement() {
-        currentElementIndex++;
-        if (currentElementIndex >= format.getElementCount()) {
+    private void advanceElement(int stride) {
+        currentElementStride += stride;
+        if (currentElementStride >= format.getStride()) {
             nextVertex();
         }
     }
@@ -273,7 +272,7 @@ public class VertexFiller extends DataFiller {
         if (elementOffset == null) {
             elementOffset = 0; // Assume position is first element
         }
-        
+
         long offset = baseOffset + elementOffset;
         putFloatAt(offset, x);
         putFloatAt(offset + Float.BYTES, y);
@@ -290,7 +289,7 @@ public class VertexFiller extends DataFiller {
         if (elementOffset == null) {
             throw new IllegalArgumentException("Color element not found in format");
         }
-        
+
         long offset = baseOffset + elementOffset;
         putFloatAt(offset, r);
         putFloatAt(offset + Float.BYTES, g);
@@ -418,7 +417,7 @@ public class VertexFiller extends DataFiller {
         // Reset counters
         vertexCount = 0;
         currentVertexIndex = 0;
-        currentElementIndex = 0;
+        currentElementStride = 0;
 
         // Reset current buffer
         if (currentBuffer != null) {
@@ -438,26 +437,26 @@ public class VertexFiller extends DataFiller {
     public void finish() {
         if (currentBuffer.position() > 0) {
             currentBuffer.flip();
-            
+
             // Create a copy for storage
             ByteBuffer finalBuffer = MemoryUtil.memAlloc(currentBuffer.remaining());
             finalBuffer.put(currentBuffer);
             finalBuffer.flip();
-            
+
             vertexData.add(finalBuffer);
-            
+
             // Reset current buffer
             currentBuffer.clear();
         }
-        
+
         validateVertexCompletion();
         validatePrimitiveRequirements();
     }
 
     private void validateVertexCompletion() {
-        if (currentElementIndex != 0 && currentElementIndex < format.getElementCount()) {
+        if (currentElementStride != 0 && currentElementStride < format.getStride()) {
             throw new IllegalStateException("Current vertex is incomplete. " +
-                    "Missing " + (format.getElementCount() - currentElementIndex) + " elements.");
+                    "Missing " + (format.getStride() - currentElementStride) + " data.");
         }
     }
 

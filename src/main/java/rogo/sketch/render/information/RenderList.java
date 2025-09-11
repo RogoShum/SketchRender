@@ -63,16 +63,8 @@ public class RenderList {
         PrimitiveType primitiveType = info.getRenderSetting().renderParameter().primitiveType();
         DataFormat dataFormat = info.getRenderSetting().renderParameter().dataFormat();
         boolean isInstanced = info.isInstancedRendering();
-        
-        // Get mesh reference for batching - only instances with the same mesh can be batched together
-        Object meshRef = null;
-        if (info.hasModelMesh()) {
-            meshRef = info.getModelMesh();
-        } else if (info.hasMesh()) {
-            meshRef = info.getMesh();
-        }
-        
-        return new BatchKey(primitiveType, dataFormat, isInstanced, meshRef);
+
+        return new BatchKey(primitiveType, dataFormat, isInstanced);
     }
     
     private void addBatch(RenderBatch batch) {
@@ -104,23 +96,18 @@ public class RenderList {
         private final PrimitiveType primitiveType;
         private final DataFormat dataFormat;
         private final boolean isInstanced;
-        @Nullable
-        private final Object meshRef; // ModelMesh or Mesh reference
         private final int hashCode;
         
-        public BatchKey(PrimitiveType primitiveType, DataFormat dataFormat, boolean isInstanced, @Nullable Object meshRef) {
+        public BatchKey(PrimitiveType primitiveType, DataFormat dataFormat, boolean isInstanced) {
             this.primitiveType = primitiveType;
             this.dataFormat = dataFormat;
             this.isInstanced = isInstanced;
-            this.meshRef = meshRef;
-            this.hashCode = Objects.hash(primitiveType, dataFormat, isInstanced, meshRef);
+            this.hashCode = Objects.hash(primitiveType, dataFormat, isInstanced);
         }
         
         public PrimitiveType getPrimitiveType() { return primitiveType; }
         public DataFormat getDataFormat() { return dataFormat; }
         public boolean isInstanced() { return isInstanced; }
-        @Nullable
-        public Object getMeshRef() { return meshRef; }
         
         @Override
         public boolean equals(Object o) {
@@ -129,8 +116,7 @@ public class RenderList {
             BatchKey batchKey = (BatchKey) o;
             return isInstanced == batchKey.isInstanced &&
                    Objects.equals(primitiveType, batchKey.primitiveType) &&
-                   Objects.equals(dataFormat, batchKey.dataFormat) &&
-                   Objects.equals(meshRef, batchKey.meshRef);
+                   Objects.equals(dataFormat, batchKey.dataFormat);
         }
         
         @Override
@@ -144,7 +130,6 @@ public class RenderList {
                     "primitiveType=" + primitiveType +
                     ", dataFormat=" + dataFormat +
                     ", isInstanced=" + isInstanced +
-                    ", meshRef=" + (meshRef != null ? meshRef.getClass().getSimpleName() : "null") +
                     '}';
         }
     }

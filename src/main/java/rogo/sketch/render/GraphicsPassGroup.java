@@ -1,7 +1,7 @@
 package rogo.sketch.render;
 
-import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.api.ShaderProvider;
+import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.async.AsyncRenderManager;
@@ -14,11 +14,11 @@ import rogo.sketch.render.information.RenderList;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
+import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.render.state.gl.ShaderState;
 import rogo.sketch.render.vertex.AsyncVertexFiller;
 import rogo.sketch.render.vertex.VertexRenderer;
-import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.render.vertex.VertexResourcePair;
 import rogo.sketch.util.Identifier;
@@ -398,6 +398,17 @@ public class GraphicsPassGroup<C extends RenderContext> {
             // Create render commands
             List<RenderCommand> commands = new ArrayList<>();
             for (AsyncVertexFiller.FilledVertexResource filledResource : filledResources) {
+                AsyncVertexFiller.PreallocatedResources resources = filledResource.getResources();
+                if (resources.vertexFiller() != null) {
+                    filledResource.getVertexResource().uploadFromVertexFiller(resources.vertexFiller());
+                }
+                if (resources.staticFiller() != null) {
+                    resources.vertexResource().uploadStaticFromVertexFiller(resources.staticFiller());
+                }
+                if (resources.dynamicFiller() != null) {
+                    resources.vertexResource().uploadDynamicFromVertexFiller(resources.dynamicFiller());
+                }
+
                 RenderCommand command = RenderCommand.createFromRenderBatch(
                         filledResource.getVertexResource(),
                         filledResource.getBatch(),

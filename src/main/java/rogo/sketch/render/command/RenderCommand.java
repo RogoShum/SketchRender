@@ -3,6 +3,7 @@ package rogo.sketch.render.command;
 import rogo.sketch.render.RenderSetting;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.information.GraphicsInformation;
+import rogo.sketch.render.information.RenderList;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexRenderer;
@@ -258,7 +259,7 @@ public class RenderCommand {
 //                    totalIndexCount = Math.max(totalIndexCount, info.getMesh().getIndexCount());
 //                } else
                     if (info.hasModelMesh()) {
-                    totalIndexCount = Math.max(totalIndexCount, info.getModelMesh().getTotalVertexCount());
+                    totalIndexCount = Math.max(totalIndexCount, info.getModelMesh().getTotalIndexCount());
                 } else {
                     // Estimate index count from vertex count (assuming triangles)
                     totalIndexCount = Math.max(totalIndexCount, info.getVertexCount() * 3 / 2);
@@ -314,7 +315,7 @@ public class RenderCommand {
      */
     public static RenderCommand createFromRenderBatch(
             VertexResource vertexResource,
-            rogo.sketch.render.information.RenderList.RenderBatch renderBatch,
+            RenderList.RenderBatch renderBatch,
             Identifier stageId) {
         
         List<GraphicsInformation> instances = renderBatch.getInstances();

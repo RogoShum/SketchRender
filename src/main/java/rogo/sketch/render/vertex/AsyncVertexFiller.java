@@ -106,9 +106,11 @@ public class AsyncVertexFiller {
             fillInstanceVertexData(filler, info);
         }
 
-        vertexResource.uploadFromVertexFiller(filler);
+//        if (filler.getVertexCount() > 0) {
+//            vertexResource.uploadFromVertexFiller(filler);
+//        }
 
-        return new FilledVertexResource(vertexResource, batch);
+        return new FilledVertexResource(vertexResource, resources, batch);
     }
 
     /**
@@ -131,7 +133,7 @@ public class AsyncVertexFiller {
         // Fill dynamic vertex data (instance attributes)
         fillDynamicVertexData(vertexResource, batch, resources);
 
-        return new FilledVertexResource(vertexResource, batch);
+        return new FilledVertexResource(vertexResource, resources, batch);
     }
 
     /**
@@ -200,9 +202,6 @@ public class AsyncVertexFiller {
                 provider.fillVertexData(staticFiller);
             }
         }
-
-        // Upload static data to GPU
-        vertexResource.uploadStaticFromVertexFiller(staticFiller);
     }
 
     /**
@@ -232,9 +231,6 @@ public class AsyncVertexFiller {
                 fillInstanceDataChunked(dynamicFiller, instances);
             }
         }
-
-        // Upload dynamic data to GPU
-        vertexResource.uploadDynamicFromVertexFiller(dynamicFiller);
     }
 
     private void fillInstanceDataSync(VertexFiller dynamicFiller, List<GraphicsInformation> instances) {
@@ -420,21 +416,8 @@ public class AsyncVertexFiller {
         }
     }
 
-    private static class PreallocatedResources {
-        final VertexResource vertexResource;
-        final VertexFiller vertexFiller;
-        final VertexFiller staticFiller;
-        final VertexFiller dynamicFiller;
+    public record PreallocatedResources(VertexResource vertexResource, VertexFiller vertexFiller, VertexFiller staticFiller, VertexFiller dynamicFiller) {
 
-        public PreallocatedResources(VertexResource vertexResource,
-                                     VertexFiller vertexFiller,
-                                     VertexFiller staticFiller,
-                                     VertexFiller dynamicFiller) {
-            this.vertexResource = vertexResource;
-            this.vertexFiller = vertexFiller;
-            this.staticFiller = staticFiller;
-            this.dynamicFiller = dynamicFiller;
-        }
     }
 
     /**
@@ -442,15 +425,21 @@ public class AsyncVertexFiller {
      */
     public static class FilledVertexResource {
         private final VertexResource vertexResource;
+        private final PreallocatedResources resources;
         private final RenderList.RenderBatch batch;
 
-        public FilledVertexResource(VertexResource vertexResource, RenderList.RenderBatch batch) {
+        public FilledVertexResource(VertexResource vertexResource, PreallocatedResources resources, RenderList.RenderBatch batch) {
             this.vertexResource = vertexResource;
+            this.resources = resources;
             this.batch = batch;
         }
 
         public VertexResource getVertexResource() {
             return vertexResource;
+        }
+
+        public PreallocatedResources getResources() {
+            return resources;
         }
 
         public RenderList.RenderBatch getBatch() {
@@ -469,6 +458,7 @@ public class AsyncVertexFiller {
         public String toString() {
             return "FilledVertexResource{" +
                     "batch=" + batch +
+                    ", resources=" + resources +
                     ", vertexResource=" + vertexResource +
                     '}';
         }
