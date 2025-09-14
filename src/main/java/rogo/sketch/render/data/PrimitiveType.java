@@ -32,7 +32,7 @@ public enum PrimitiveType {
     /**
      * Get the OpenGL primitive type constant
      */
-    public int getGLType() {
+    public int glType() {
         return glType;
     }
 

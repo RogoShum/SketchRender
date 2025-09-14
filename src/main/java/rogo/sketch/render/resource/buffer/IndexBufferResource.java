@@ -3,6 +3,7 @@ package rogo.sketch.render.resource.buffer;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.BufferResourceObject;
+import rogo.sketch.render.data.IndexType;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.filler.VertexSorting;
 import rogo.sketch.render.data.format.DataFormat;
@@ -25,7 +26,7 @@ public class IndexBufferResource implements BufferResourceObject {
     private boolean isDirty;
 
     private ByteBuffer persistentBuffer;
-    private IndexType currentIndexType = IndexType.UINT;
+    private IndexType currentIndexType = IndexType.U_INT;
     private int bufferCapacity = 0;
 
     public IndexBufferResource() {
@@ -61,7 +62,7 @@ public class IndexBufferResource implements BufferResourceObject {
      * Ensure the persistent buffer has enough capacity
      */
     private void ensureBufferCapacity(int requiredIndices, IndexType indexType) {
-        int requiredBytes = requiredIndices * indexType.bytes;
+        int requiredBytes = requiredIndices * indexType.bytes();
 
         if (persistentBuffer == null || bufferCapacity < requiredBytes || currentIndexType != indexType) {
 
@@ -198,19 +199,19 @@ public class IndexBufferResource implements BufferResourceObject {
         ensureBufferCapacity(indexCount, indexType);
 
         switch (indexType) {
-            case UBYTE -> {
+            case U_BYTE -> {
                 for (int index : indices) {
                     persistentBuffer.put((byte) (index & 0xFF));
                 }
             }
-            case USHORT -> {
+            case U_SHORT -> {
                 ShortBuffer shortBuffer = persistentBuffer.asShortBuffer();
                 for (int index : indices) {
                     shortBuffer.put((short) (index & 0xFFFF));
                 }
                 persistentBuffer.position(persistentBuffer.position() + indexCount * 2);
             }
-            case UINT -> {
+            case U_INT -> {
                 IntBuffer intBuffer = persistentBuffer.asIntBuffer();
                 for (int index : indices) {
                     intBuffer.put(index);
@@ -255,17 +256,17 @@ public class IndexBufferResource implements BufferResourceObject {
      */
     public IndexType determineOptimalIndexType() {
         if (indices.isEmpty()) {
-            return IndexType.UINT;
+            return IndexType.U_INT;
         }
 
         int maxIndex = indices.stream().mapToInt(Integer::intValue).max().orElse(0);
 
         if (maxIndex <= 255) {
-            return IndexType.UBYTE;
+            return IndexType.U_BYTE;
         } else if (maxIndex <= 65535) {
-            return IndexType.USHORT;
+            return IndexType.U_SHORT;
         } else {
-            return IndexType.UINT;
+            return IndexType.U_INT;
         }
     }
 
@@ -324,27 +325,4 @@ public class IndexBufferResource implements BufferResourceObject {
         return disposed;
     }
 
-    public enum IndexType {
-        UBYTE(GL15.GL_UNSIGNED_BYTE, 1),
-        USHORT(GL15.GL_UNSIGNED_SHORT, 2),
-        UINT(GL15.GL_UNSIGNED_INT, 4);
-
-        public final int glType;
-        public final int bytes;
-
-        IndexType(int glType, int bytes) {
-            this.glType = glType;
-            this.bytes = bytes;
-        }
-
-        public static IndexType getOptimalType(int maxIndex) {
-            if (maxIndex < 256) {
-                return UBYTE;
-            } else if (maxIndex < 65536) {
-                return USHORT;
-            } else {
-                return UINT;
-            }
-        }
-    }
 }
