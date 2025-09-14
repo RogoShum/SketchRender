@@ -14,6 +14,6 @@ public class MultiMeshDrawCall implements DrawCall {
 
     @Override
     public void execute(PrimitiveType primitiveType, IndexType indexType) {
-        GL46.nglMultiDrawElementsIndirect(primitiveType.glType(), indexType.glType(), 0, subMeshCount, 20);
+        GL46.nglMultiDrawElements(primitiveType.glType(), indexType.glType(), 0, subMeshCount, 20);
     }
 }
