@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.util.Identifier;
 

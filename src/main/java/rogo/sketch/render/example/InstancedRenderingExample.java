@@ -2,8 +2,8 @@ package rogo.sketch.render.example;
 
 import org.joml.Matrix4f;
 import rogo.sketch.api.graphics.*;
-import rogo.sketch.render.RenderContext;
-import rogo.sketch.render.RenderSetting;
+import rogo.sketch.render.pipeline.RenderContext;
+import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.model.ModelMesh;

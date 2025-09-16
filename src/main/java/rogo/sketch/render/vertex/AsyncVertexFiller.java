@@ -3,8 +3,8 @@ package rogo.sketch.render.vertex;
 import rogo.sketch.api.graphics.InstancedLayoutProvider;
 import rogo.sketch.api.graphics.VertexDataProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
-import rogo.sketch.render.information.GraphicsInformation;
-import rogo.sketch.render.information.RenderList;
+import rogo.sketch.render.pipeline.information.GraphicsInformation;
+import rogo.sketch.render.pipeline.information.RenderList;
 import rogo.sketch.render.resource.buffer.VertexResource;
 
 import java.util.ArrayList;

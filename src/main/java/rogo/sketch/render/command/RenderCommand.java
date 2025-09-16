@@ -1,13 +1,13 @@
 package rogo.sketch.render.command;
 
-import rogo.sketch.render.RenderSetting;
+import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.information.GraphicsInformation;
-import rogo.sketch.render.information.RenderList;
+import rogo.sketch.render.pipeline.information.GraphicsInformation;
+import rogo.sketch.render.pipeline.information.RenderList;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexRenderer;
-import rogo.sketch.render.UniformBatchGroup;
+import rogo.sketch.render.pipeline.UniformBatchGroup;
 import rogo.sketch.util.Identifier;
 
 import java.util.ArrayList;

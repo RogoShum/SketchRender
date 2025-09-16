@@ -1,4 +1,4 @@
-package rogo.sketch.render;
+package rogo.sketch.render.pipeline;
 
 import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.render.resource.buffer.VertexResource;

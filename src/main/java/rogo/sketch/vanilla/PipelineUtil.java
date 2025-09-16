@@ -2,7 +2,7 @@ package rogo.sketch.vanilla;
 
 import net.minecraft.client.Minecraft;
 import rogo.sketch.api.LevelPipelineProvider;
-import rogo.sketch.render.GraphicsPipeline;
+import rogo.sketch.render.pipeline.GraphicsPipeline;
 import rogo.sketch.render.RenderHelper;
 
 public class PipelineUtil {

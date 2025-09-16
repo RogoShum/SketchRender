@@ -1,16 +1,16 @@
-package rogo.sketch.render;
+package rogo.sketch.render.pipeline;
 
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
-import rogo.sketch.render.async.AsyncRenderManager;
+import rogo.sketch.render.pipeline.async.AsyncRenderManager;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.filler.VertexFillerManager;
-import rogo.sketch.render.information.GraphicsInformation;
-import rogo.sketch.render.information.InfoCollector;
-import rogo.sketch.render.information.RenderList;
+import rogo.sketch.render.pipeline.information.GraphicsInformation;
+import rogo.sketch.render.pipeline.information.InfoCollector;
+import rogo.sketch.render.pipeline.information.RenderList;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;

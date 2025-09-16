@@ -1,10 +1,8 @@
-package rogo.sketch.render.information;
+package rogo.sketch.render.pipeline.information;
 
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.model.Mesh;
-import rogo.sketch.render.model.ModelMesh;
-import rogo.sketch.render.UniformBatchGroup;
+import rogo.sketch.render.pipeline.UniformBatchGroup;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.GraphicsInstance;
@@ -13,7 +11,6 @@ import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.state.gl.ShaderState;
 
 import java.util.*;
-import javax.annotation.Nullable;
 
 /**
  * Organizes graphics information into a render queue with calculated vertex offsets

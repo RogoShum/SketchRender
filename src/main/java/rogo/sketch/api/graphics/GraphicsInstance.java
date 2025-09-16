@@ -1,6 +1,6 @@
 package rogo.sketch.api.graphics;
 
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.Identifier;
 
 public interface GraphicsInstance {

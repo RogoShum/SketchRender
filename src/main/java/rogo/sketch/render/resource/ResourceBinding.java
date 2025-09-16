@@ -3,7 +3,7 @@ package rogo.sketch.render.resource;
 import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.api.ShaderProvider;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.Identifier;
 
 import java.util.HashMap;

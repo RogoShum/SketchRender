@@ -1,6 +1,6 @@
 package rogo.sketch.render.vertex;
 
-import rogo.sketch.render.information.RenderList;
+import rogo.sketch.render.pipeline.information.RenderList;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

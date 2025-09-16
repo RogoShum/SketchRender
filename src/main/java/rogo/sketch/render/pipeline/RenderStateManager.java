@@ -1,4 +1,4 @@
-package rogo.sketch.render;
+package rogo.sketch.render.pipeline;
 
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.resource.ResourceBinding;

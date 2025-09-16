@@ -2,7 +2,7 @@ package rogo.sketch.api;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.Identifier;
 
 public interface RenderStateComponent {

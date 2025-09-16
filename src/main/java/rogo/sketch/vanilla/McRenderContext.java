@@ -13,7 +13,7 @@ import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL13;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.Identifier;
 
 public class McRenderContext extends RenderContext {

@@ -1,7 +1,7 @@
 package rogo.sketch.api.graphics;
 
-import rogo.sketch.render.RenderContext;
-import rogo.sketch.render.RenderSetting;
+import rogo.sketch.render.pipeline.RenderContext;
+import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.model.ModelMesh;
 
 /**

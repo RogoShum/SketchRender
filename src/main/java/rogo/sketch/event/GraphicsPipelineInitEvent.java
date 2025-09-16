@@ -1,8 +1,7 @@
 package rogo.sketch.event;
 
 import rogo.sketch.event.bridge.RegistryEvent;
-import rogo.sketch.render.GraphicsPipeline;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.GraphicsPipeline;
 
 /**
  * Event fired when a GraphicsPipeline is initialized

@@ -1,7 +1,7 @@
 package rogo.sketch.render.instance;
 
-import rogo.sketch.render.DrawCommand;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.DrawCommand;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.util.Identifier;
 

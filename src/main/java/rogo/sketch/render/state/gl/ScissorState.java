@@ -3,7 +3,7 @@ package rogo.sketch.render.state.gl;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import rogo.sketch.api.RenderStateComponent;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.util.Identifier;
 

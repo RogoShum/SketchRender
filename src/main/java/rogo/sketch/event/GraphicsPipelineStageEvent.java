@@ -1,7 +1,7 @@
 package rogo.sketch.event;
 
-import rogo.sketch.render.GraphicsPipeline;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.GraphicsPipeline;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.Identifier;
 
 public class GraphicsPipelineStageEvent<C extends RenderContext> {

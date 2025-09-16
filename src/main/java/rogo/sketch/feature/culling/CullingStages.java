@@ -1,7 +1,7 @@
 package rogo.sketch.feature.culling;
 
 import rogo.sketch.SketchRender;
-import rogo.sketch.render.GraphicsStage;
+import rogo.sketch.render.pipeline.GraphicsStage;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OrderRequirement;
 import rogo.sketch.vanilla.MinecraftRenderStages;

@@ -1,6 +1,6 @@
 package rogo.sketch.render.data.filler;
 
-import rogo.sketch.render.RenderParameter;
+import rogo.sketch.render.pipeline.RenderParameter;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

@@ -2,11 +2,10 @@ package rogo.sketch.render.state.gl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.mojang.blaze3d.platform.GlDebug;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
 import rogo.sketch.api.RenderStateComponent;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.RenderTarget;
 import rogo.sketch.render.resource.ResourceReference;

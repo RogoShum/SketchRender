@@ -1,4 +1,4 @@
-package rogo.sketch.render.async;
+package rogo.sketch.render.pipeline.async;
 
 /**
  * Configuration for asynchronous rendering behavior

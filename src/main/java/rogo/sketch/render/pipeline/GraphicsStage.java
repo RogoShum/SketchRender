@@ -1,4 +1,4 @@
-package rogo.sketch.render;
+package rogo.sketch.render.pipeline;
 
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OrderRequirement;

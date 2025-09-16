@@ -1,7 +1,7 @@
 package rogo.sketch.vanilla;
 
-import rogo.sketch.render.GraphicsPipeline;
-import rogo.sketch.render.GraphicsStage;
+import rogo.sketch.render.pipeline.GraphicsPipeline;
+import rogo.sketch.render.pipeline.GraphicsStage;
 import rogo.sketch.util.OrderRequirement;
 
 import java.util.HashSet;

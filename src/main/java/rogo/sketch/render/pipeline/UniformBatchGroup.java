@@ -1,4 +1,4 @@
-package rogo.sketch.render;
+package rogo.sketch.render.pipeline;
 
 import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;

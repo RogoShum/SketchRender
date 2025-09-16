@@ -1,10 +1,10 @@
-package rogo.sketch.render.information;
+package rogo.sketch.render.pipeline.information;
 
 import org.joml.Matrix4f;
 import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.api.graphics.*;
-import rogo.sketch.render.RenderContext;
-import rogo.sketch.render.RenderSetting;
+import rogo.sketch.render.pipeline.RenderContext;
+import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.model.Mesh;
 import rogo.sketch.render.model.ModelMesh;
 import rogo.sketch.render.resource.ResourceBinding;

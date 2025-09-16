@@ -1,11 +1,11 @@
 package rogo.sketch.render.vertex;
 
-import rogo.sketch.render.RenderParameter;
+import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.filler.VertexFillerManager;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.information.RenderList;
+import rogo.sketch.render.pipeline.information.RenderList;
 import rogo.sketch.render.resource.buffer.VertexResource;
 
 import java.util.Map;

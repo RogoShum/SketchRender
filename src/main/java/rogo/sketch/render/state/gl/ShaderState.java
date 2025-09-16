@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL20;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.api.ShaderProvider;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;

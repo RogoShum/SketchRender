@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import rogo.sketch.api.RenderStateComponent;
-import rogo.sketch.render.PartialRenderSetting;
+import rogo.sketch.render.pipeline.PartialRenderSetting;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.state.FullRenderState;
 import rogo.sketch.render.state.RenderStateRegistry;

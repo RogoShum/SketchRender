@@ -1,4 +1,4 @@
-package rogo.sketch.render;
+package rogo.sketch.render.pipeline;
 
 import org.joml.Matrix4f;
 import rogo.sketch.api.ShaderProvider;

@@ -2,13 +2,11 @@ package rogo.sketch.render.command;
 
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.GraphicsInstance;
-import rogo.sketch.render.*;
-import rogo.sketch.render.resource.ResourceReference;
-import rogo.sketch.render.resource.ResourceTypes;
+import rogo.sketch.render.pipeline.RenderContext;
+import rogo.sketch.render.pipeline.RenderSetting;
+import rogo.sketch.render.pipeline.RenderStateManager;
+import rogo.sketch.render.pipeline.UniformBatchGroup;
 import rogo.sketch.render.resource.buffer.VertexResource;
-import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
-import rogo.sketch.render.state.gl.ShaderState;
-import rogo.sketch.render.vertex.VertexRenderer;
 import rogo.sketch.util.Identifier;
 
 import java.util.*;

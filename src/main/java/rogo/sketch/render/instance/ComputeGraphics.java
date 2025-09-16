@@ -3,7 +3,7 @@ package rogo.sketch.render.instance;
 import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.api.ResourceReloadable;
 import rogo.sketch.api.ShaderProvider;
-import rogo.sketch.render.RenderContext;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.shader.ComputeShader;
 import rogo.sketch.render.shader.Shader;
 import rogo.sketch.util.Identifier;
