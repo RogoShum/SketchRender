@@ -7,19 +7,19 @@ import rogo.sketch.api.DataResourceObject;
 
 public class IndirectCommandBuffer implements DataResourceObject {
     //                      ModelQuadFacing.COUNT * 256 + 1
-    public static final int REGION_COMMAND_SIZE = 7 * 256 + 1;
+    public static final long REGION_COMMAND_SIZE = 7 * 256 + 1;
     public static final int PASS_SIZE = 3;
-    public static final int REGION_PASS_COMMAND_SIZE = REGION_COMMAND_SIZE * PASS_SIZE;
+    public static final long REGION_PASS_COMMAND_SIZE = REGION_COMMAND_SIZE * PASS_SIZE;
     public static final IndirectCommandBuffer INSTANCE = new IndirectCommandBuffer(REGION_COMMAND_SIZE);
     private final int id = GL15.glGenBuffers();
     private long commandBuffer;
     private long iCapacity;
-    private int commandCount;
+    private long commandCount;
     public int maxElementCount;
-    public int position;
+    public long position;
     protected boolean disposed = false;
 
-    public IndirectCommandBuffer(int capacity) {
+    public IndirectCommandBuffer(long capacity) {
         iCapacity = capacity * getStride();
         commandCount = capacity;
         commandBuffer = MemoryUtil.nmemCalloc(1, iCapacity);
@@ -28,7 +28,7 @@ public class IndirectCommandBuffer implements DataResourceObject {
         unBind();
     }
 
-    public void resize(int capacity) {
+    public void resize(long capacity) {
         iCapacity = capacity * getStride();
         commandCount = capacity;
         MemoryUtil.nmemFree(this.commandBuffer);

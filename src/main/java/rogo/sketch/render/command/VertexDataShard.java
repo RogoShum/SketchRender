@@ -1,4 +1,4 @@
 package rogo.sketch.render.command;
 
-public record VertexDataShard(long pointer, long offset, long count) {
+public record VertexDataShard(long maybePointerButNotUsedYet, long vertexOffset, int indexCount, long indicesOffset) {
 }

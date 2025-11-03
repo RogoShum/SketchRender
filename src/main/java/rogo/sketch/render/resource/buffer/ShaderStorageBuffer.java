@@ -14,7 +14,7 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource 
     private long capacity;
     private long dataCount;
     private final long stride;
-    public int position;
+    public long position;
 
     public ShaderStorageBuffer(long dataCount, long stride, int usage) {
         this(dataCount, stride, MemoryUtil.nmemCalloc(dataCount, stride), usage);

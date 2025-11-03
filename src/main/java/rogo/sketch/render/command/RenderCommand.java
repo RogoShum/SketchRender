@@ -1,13 +1,13 @@
 package rogo.sketch.render.command;
 
-import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.pipeline.RenderSetting;
+import rogo.sketch.render.pipeline.UniformBatchGroup;
 import rogo.sketch.render.pipeline.information.GraphicsInformation;
 import rogo.sketch.render.pipeline.information.RenderList;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexRenderer;
-import rogo.sketch.render.pipeline.UniformBatchGroup;
 import rogo.sketch.util.Identifier;
 
 import java.util.ArrayList;
@@ -22,56 +22,48 @@ public class RenderCommand {
     private final RenderSetting renderSetting;
     private final ResourceBinding resourceBinding;
     private final Identifier stageId;
-    
+
     // GL rendering parameters
     private final PrimitiveType primitiveType;
-    private final int indexCount;
-    private final long indexOffset;  // byte offset in index buffer
-    private final int baseVertex;    // vertex offset in VBO
+    private final VertexDataShard vertexDataShard;    // vertex offset in VBO
     private final int instanceCount; // number of instances
     private final int baseInstance;  // instance offset in InstanceVBO
-    
+
     // Instance data for debugging/reference
     private final List<InstanceData> instances;
-    
+
     // Uniform batch groups for new pipeline
     private final List<UniformBatchGroup> uniformBatches;
-    
+
     public RenderCommand(VertexResource vertexResource,
-                        RenderSetting renderSetting,
-                        ResourceBinding resourceBinding,
-                        Identifier stageId,
-                        PrimitiveType primitiveType,
-                        int indexCount,
-                        long indexOffset,
-                        int baseVertex,
-                        int instanceCount,
-                        int baseInstance,
-                        List<InstanceData> instances) {
+                         RenderSetting renderSetting,
+                         ResourceBinding resourceBinding,
+                         Identifier stageId,
+                         PrimitiveType primitiveType,
+                         VertexDataShard vertexDataShard,
+                         int instanceCount,
+                         int baseInstance,
+                         List<InstanceData> instances) {
         this(vertexResource, renderSetting, resourceBinding, stageId, primitiveType,
-             indexCount, indexOffset, baseVertex, instanceCount, baseInstance, instances, new ArrayList<>());
+                vertexDataShard, instanceCount, baseInstance, instances, new ArrayList<>());
     }
-    
+
     public RenderCommand(VertexResource vertexResource,
-                        RenderSetting renderSetting,
-                        ResourceBinding resourceBinding,
-                        Identifier stageId,
-                        PrimitiveType primitiveType,
-                        int indexCount,
-                        long indexOffset,
-                        int baseVertex,
-                        int instanceCount,
-                        int baseInstance,
-                        List<InstanceData> instances,
-                        List<UniformBatchGroup> uniformBatches) {
+                         RenderSetting renderSetting,
+                         ResourceBinding resourceBinding,
+                         Identifier stageId,
+                         PrimitiveType primitiveType,
+                         VertexDataShard vertexDataShard,
+                         int instanceCount,
+                         int baseInstance,
+                         List<InstanceData> instances,
+                         List<UniformBatchGroup> uniformBatches) {
         this.vertexResource = vertexResource;
         this.renderSetting = renderSetting;
         this.resourceBinding = resourceBinding;
         this.stageId = stageId;
         this.primitiveType = primitiveType;
-        this.indexCount = indexCount;
-        this.indexOffset = indexOffset;
-        this.baseVertex = baseVertex;
+        this.vertexDataShard = vertexDataShard;
         this.instanceCount = instanceCount;
         this.baseInstance = baseInstance;
         this.instances = List.copyOf(instances);
@@ -82,7 +74,7 @@ public class RenderCommand {
      * Execute this render command using the unified GL call
      */
     public void execute() {
-        if (indexCount == 0 || instanceCount == 0) {
+        if (vertexDataShard.indexCount() == 0 || instanceCount == 0) {
             return;
         }
 
@@ -90,9 +82,9 @@ public class RenderCommand {
         VertexRenderer.renderWithOffsets(
                 vertexResource,
                 primitiveType,
-                indexCount,
-                indexOffset,
-                baseVertex,
+                vertexDataShard.indexCount(),
+                vertexDataShard.indicesOffset(),
+                vertexDataShard.vertexOffset(),
                 instanceCount,
                 baseInstance
         );
@@ -103,34 +95,64 @@ public class RenderCommand {
      * Useful for debugging or when instancing is not desired
      */
     public void executeSingleDraw() {
-        if (indexCount == 0) {
+        if (vertexDataShard.indexCount() == 0) {
             return;
         }
 
         VertexRenderer.renderElements(
                 vertexResource,
                 primitiveType,
-                indexCount,
-                indexOffset,
-                baseVertex
+                vertexDataShard.indexCount(),
+                vertexDataShard.indicesOffset(),
+                vertexDataShard.vertexOffset()
         );
     }
 
     // Getters for GL parameters
-    public VertexResource getVertexResource() { return vertexResource; }
-    public RenderSetting getRenderSetting() { return renderSetting; }
-    public ResourceBinding getResourceBinding() { return resourceBinding; }
-    public Identifier getStageId() { return stageId; }
-    public PrimitiveType getPrimitiveType() { return primitiveType; }
-    public int getIndexCount() { return indexCount; }
-    public long getIndexOffset() { return indexOffset; }
-    public int getBaseVertex() { return baseVertex; }
-    public int getInstanceCount() { return instanceCount; }
-    public int getBaseInstance() { return baseInstance; }
-    public List<InstanceData> getInstances() { return instances; }
-    public List<UniformBatchGroup> getUniformBatches() { return uniformBatches; }
+    public VertexResource getVertexResource() {
+        return vertexResource;
+    }
 
-    public int getGraphicsInstanceCount() { return instances.size(); }
+    public RenderSetting getRenderSetting() {
+        return renderSetting;
+    }
+
+    public ResourceBinding getResourceBinding() {
+        return resourceBinding;
+    }
+
+    public Identifier getStageId() {
+        return stageId;
+    }
+
+    public PrimitiveType getPrimitiveType() {
+        return primitiveType;
+    }
+
+    public VertexDataShard getVertexDataShard() {
+        return vertexDataShard;
+    }
+
+    public int getInstanceCount() {
+        return instanceCount;
+    }
+
+    public int getBaseInstance() {
+        return baseInstance;
+    }
+
+    public List<InstanceData> getInstances() {
+        return instances;
+    }
+
+    public List<UniformBatchGroup> getUniformBatches() {
+        return uniformBatches;
+    }
+
+    public int getGraphicsInstanceCount() {
+        return instances.size();
+    }
+
     public int getTotalVertexCount() {
         return instances.stream().mapToInt(InstanceData::getVertexCount).sum();
     }
@@ -140,9 +162,7 @@ public class RenderCommand {
         return "RenderCommand{" +
                 "stageId=" + stageId +
                 ", primitiveType=" + primitiveType +
-                ", indexCount=" + indexCount +
-                ", indexOffset=" + indexOffset +
-                ", baseVertex=" + baseVertex +
+                ", vertexDataShard=" + vertexDataShard +
                 ", instanceCount=" + instanceCount +
                 ", baseInstance=" + baseInstance +
                 ", graphicsInstances=" + instances.size() +
@@ -160,19 +180,30 @@ public class RenderCommand {
         private final int instanceIndex; // Index within the batch
 
         public InstanceData(GraphicsInformation graphicsInfo,
-                           int vertexOffset,
-                           int vertexCount,
-                           int instanceIndex) {
+                            int vertexOffset,
+                            int vertexCount,
+                            int instanceIndex) {
             this.graphicsInfo = graphicsInfo;
             this.vertexOffset = vertexOffset;
             this.vertexCount = vertexCount;
             this.instanceIndex = instanceIndex;
         }
 
-        public GraphicsInformation getGraphicsInfo() { return graphicsInfo; }
-        public int getVertexOffset() { return vertexOffset; }
-        public int getVertexCount() { return vertexCount; }
-        public int getInstanceIndex() { return instanceIndex; }
+        public GraphicsInformation getGraphicsInfo() {
+            return graphicsInfo;
+        }
+
+        public int getVertexOffset() {
+            return vertexOffset;
+        }
+
+        public int getVertexCount() {
+            return vertexCount;
+        }
+
+        public int getInstanceIndex() {
+            return instanceIndex;
+        }
 
         @Override
         public String toString() {
@@ -223,12 +254,12 @@ public class RenderCommand {
             this.graphicsInfos.addAll(infos);
             return this;
         }
-        
+
         public Builder addUniformBatch(UniformBatchGroup batch) {
             this.uniformBatches.add(batch);
             return this;
         }
-        
+
         public Builder addUniformBatches(List<UniformBatchGroup> batches) {
             this.uniformBatches.addAll(batches);
             return this;
@@ -258,7 +289,7 @@ public class RenderCommand {
 //                if (info.hasMesh()) {
 //                    totalIndexCount = Math.max(totalIndexCount, info.getMesh().getIndexCount());
 //                } else
-                    if (info.hasModelMesh()) {
+                if (info.hasModelMesh()) {
                     totalIndexCount = Math.max(totalIndexCount, info.getModelMesh().getTotalIndexCount());
                 } else {
                     // Estimate index count from vertex count (assuming triangles)
@@ -272,15 +303,15 @@ public class RenderCommand {
             int instanceCount = graphicsInfos.size();
             int baseInstance = 0; // Would need to be calculated based on instance positioning in InstanceVBO
 
+            VertexDataShard dataShard = new VertexDataShard(0L, baseVertex, totalIndexCount, indexOffset);
+
             return new RenderCommand(
                     vertexResource,
                     renderSetting,
                     resourceBinding,
                     stageId,
                     primitiveType,
-                    totalIndexCount,
-                    indexOffset,
-                    baseVertex,
+                    dataShard,
                     instanceCount,
                     baseInstance,
                     instances,
@@ -308,7 +339,7 @@ public class RenderCommand {
                 .addGraphicsInfos(instances)
                 .build();
     }
-    
+
     /**
      * Enhanced factory method to create render commands from RenderBatch
      * This provides access to UniformBatchGroup information
@@ -317,7 +348,7 @@ public class RenderCommand {
             VertexResource vertexResource,
             RenderList.RenderBatch renderBatch,
             Identifier stageId) {
-        
+
         List<GraphicsInformation> instances = renderBatch.getInstances();
         if (instances.isEmpty()) {
             throw new IllegalArgumentException("Cannot create render command with no instances");
@@ -365,15 +396,16 @@ public class RenderCommand {
             ));
         }
 
+        VertexDataShard dataShard = new VertexDataShard(0L, meshBaseVertex, meshIndexCount, meshIndexOffset);
+
+
         return new RenderCommand(
                 vertexResource,
                 renderSetting,
                 resourceBinding,
                 stageId,
                 primitiveType,
-                meshIndexCount,
-                meshIndexOffset,
-                meshBaseVertex,
+                dataShard,
                 instances.size(), // instanceCount
                 batchBaseInstance,
                 instanceDataList,

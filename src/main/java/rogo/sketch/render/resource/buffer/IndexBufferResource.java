@@ -27,7 +27,7 @@ public class IndexBufferResource implements BufferResourceObject {
 
     private ByteBuffer persistentBuffer;
     private IndexType currentIndexType = IndexType.U_INT;
-    private int bufferCapacity = 0;
+    private long bufferCapacity = 0;
 
     public IndexBufferResource() {
         this.indices = new ArrayList<>();

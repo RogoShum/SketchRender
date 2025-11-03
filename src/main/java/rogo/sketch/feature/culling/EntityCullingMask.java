@@ -121,11 +121,11 @@ public class EntityCullingMask {
             MemoryUtil.memPutFloat(bufferPointer + offset + 12, (float) aabb.getXsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 16, (float) aabb.getYsize());
             MemoryUtil.memPutFloat(bufferPointer + offset + 20, (float) aabb.getZsize());
-            entityDataShaderStorageBuffer.position = Math.max(entityDataShaderStorageBuffer.position, offset + 24);
+            entityDataShaderStorageBuffer.position = Math.max(entityDataShaderStorageBuffer.position, offset + 24L);
         }));
 
         entityDataShaderStorageBuffer.upload();
-        entityDataShaderStorageBuffer.position = 0;
+        entityDataShaderStorageBuffer.position = 0L;
     }
 
     public void swapBuffer(int tickCount) {

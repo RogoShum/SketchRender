@@ -11,7 +11,7 @@ import rogo.sketch.render.resource.buffer.VertexResource;
 /**
  * External renderer that uses VertexResource for rendering operations.
  * This class handles the actual drawing commands based on the vertex resource configuration.
- * 
+ * <p>
  * Unified rendering approach using glDrawElementsInstancedBaseVertexBaseInstance for all cases.
  */
 public class VertexRenderer {
@@ -21,12 +21,12 @@ public class VertexRenderer {
      * This is the preferred method that supports all offset types
      */
     public static void renderWithOffsets(VertexResource resource,
-                                        PrimitiveType primitiveType,
-                                        int indexCount,
-                                        long indexOffset,
-                                        int baseVertex,
-                                        int instanceCount,
-                                        int baseInstance) {
+                                         PrimitiveType primitiveType,
+                                         int indexCount,
+                                         long indexOffset,
+                                         long baseVertex,
+                                         int instanceCount,
+                                         int baseInstance) {
         if (indexCount == 0 || instanceCount == 0) {
             return;
         }
@@ -58,10 +58,10 @@ public class VertexRenderer {
      * Wrapper around the unified call for single-instance rendering
      */
     public static void renderElements(VertexResource resource,
-                                     PrimitiveType primitiveType,
-                                     int indexCount,
-                                     long indexOffset,
-                                     int baseVertex) {
+                                      PrimitiveType primitiveType,
+                                      int indexCount,
+                                      long indexOffset,
+                                      long baseVertex) {
         renderWithOffsets(resource, primitiveType, indexCount, indexOffset, baseVertex, 1, 0);
     }
 

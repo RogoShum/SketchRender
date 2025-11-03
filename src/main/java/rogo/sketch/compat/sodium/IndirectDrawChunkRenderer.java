@@ -101,7 +101,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
                 MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
                 MemoryUtil.memPutInt(ptr + offset + 12, MeshResource.MESH_MANAGER.indexOf(region));
             }
-            MeshResource.REGION_INDEX_BUFFER.position = (int) MeshResource.REGION_INDEX_BUFFER.getCapacity();
+            MeshResource.REGION_INDEX_BUFFER.position = MeshResource.REGION_INDEX_BUFFER.getCapacity();
             MeshResource.REGION_INDEX_BUFFER.upload();
         }
 
