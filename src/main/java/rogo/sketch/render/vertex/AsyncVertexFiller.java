@@ -3,7 +3,7 @@ package rogo.sketch.render.vertex;
 import rogo.sketch.api.graphics.InstancedLayoutProvider;
 import rogo.sketch.api.graphics.VertexDataProvider;
 import rogo.sketch.render.data.filler.VertexFiller;
-import rogo.sketch.render.pipeline.information.GraphicsInformation;
+import rogo.sketch.render.pipeline.information.GraphicsInstanceInformation;
 import rogo.sketch.render.pipeline.information.RenderList;
 import rogo.sketch.render.resource.buffer.VertexResource;
 
@@ -102,7 +102,7 @@ public class AsyncVertexFiller {
         filler.reset();
 
         // Fill vertex data for each instance with offset-based positioning
-        for (GraphicsInformation info : batch.getSortedInstances()) {
+        for (GraphicsInstanceInformation info : batch.getSortedInstances()) {
             fillInstanceVertexData(filler, info);
         }
 
@@ -139,7 +139,7 @@ public class AsyncVertexFiller {
     /**
      * Fill vertex data for a single graphics instance
      */
-    private void fillInstanceVertexData(VertexFiller filler, GraphicsInformation info) {
+    private void fillInstanceVertexData(VertexFiller filler, GraphicsInstanceInformation info) {
         int vertexOffset = info.getVertexOffset();
 
         // Set the filler position to the instance's vertex offset
@@ -159,7 +159,7 @@ public class AsyncVertexFiller {
     /**
      * Fill vertex data from a model mesh
      */
-    private void fillFromModelMesh(VertexFiller filler, GraphicsInformation info) {
+    private void fillFromModelMesh(VertexFiller filler, GraphicsInstanceInformation info) {
         // Fill vertex data from model mesh
         info.getModelMesh().fillVertexData(filler);
     }
@@ -167,7 +167,7 @@ public class AsyncVertexFiller {
     /**
      * Fill vertex data from a mesh
      */
-    private void fillFromMesh(VertexFiller filler, GraphicsInformation info) {
+    private void fillFromMesh(VertexFiller filler, GraphicsInstanceInformation info) {
         // Fill vertex data from mesh
         if (info.getMesh() instanceof VertexDataProvider provider) {
             provider.fillVertexData(filler);
@@ -177,7 +177,7 @@ public class AsyncVertexFiller {
     /**
      * Fill vertex data directly from the graphics instance
      */
-    private void fillFromInstance(VertexFiller filler, GraphicsInformation info) {
+    private void fillFromInstance(VertexFiller filler, GraphicsInstanceInformation info) {
         if (info.getInstance() instanceof VertexDataProvider provider) {
             provider.fillVertexData(filler);
         }
@@ -192,7 +192,7 @@ public class AsyncVertexFiller {
 
         // For instanced rendering, we typically only need one copy of the mesh geometry
         // Use the first instance to get the mesh data
-        GraphicsInformation firstInfo = batch.getInstances().get(0);
+        GraphicsInstanceInformation firstInfo = batch.getInstances().get(0);
 
         // Fill mesh geometry
         if (firstInfo.hasModelMesh()) {
@@ -209,7 +209,7 @@ public class AsyncVertexFiller {
      */
     private void fillDynamicVertexData(VertexResource vertexResource, RenderList.RenderBatch batch, PreallocatedResources resources) {
         // Get the instanced vertex layout from the first instance
-        GraphicsInformation firstInfo = batch.getInstances().get(0);
+        GraphicsInstanceInformation firstInfo = batch.getInstances().get(0);
         if (!firstInfo.hasInstancedData()) {
             return;
         }
@@ -218,7 +218,7 @@ public class AsyncVertexFiller {
         dynamicFiller.reset();
 
         // Fill instance data - use efficient async strategy based on batch size
-        List<GraphicsInformation> instances = batch.getInstances();
+        List<GraphicsInstanceInformation> instances = batch.getInstances();
 
         if (instances.size() < asyncThreshold) {
             // Use sequential filling mode - no mode setting needed
@@ -233,20 +233,20 @@ public class AsyncVertexFiller {
         }
     }
 
-    private void fillInstanceDataSync(VertexFiller dynamicFiller, List<GraphicsInformation> instances) {
+    private void fillInstanceDataSync(VertexFiller dynamicFiller, List<GraphicsInstanceInformation> instances) {
         for (int i = 0; i < instances.size(); i++) {
-            GraphicsInformation info = instances.get(i);
+            GraphicsInstanceInformation info = instances.get(i);
             if (info.getInstance() instanceof InstancedLayoutProvider provider) {
                 provider.fillInstanceVertexData(dynamicFiller, i);
             }
         }
     }
 
-    private void fillInstanceDataParallel(VertexFiller dynamicFiller, List<GraphicsInformation> instances) {
+    private void fillInstanceDataParallel(VertexFiller dynamicFiller, List<GraphicsInstanceInformation> instances) {
         IntStream.range(0, instances.size())
                 .parallel()
                 .forEach(i -> {
-                    GraphicsInformation info = instances.get(i);
+                    GraphicsInstanceInformation info = instances.get(i);
                     if (info.getInstance() instanceof InstancedLayoutProvider provider) {
                         // Direct random access filling - switch to vertex and fill
                         dynamicFiller.vertex(i);
@@ -255,7 +255,7 @@ public class AsyncVertexFiller {
                 });
     }
 
-    private void fillInstanceDataChunked(VertexFiller dynamicFiller, List<GraphicsInformation> instances) {
+    private void fillInstanceDataChunked(VertexFiller dynamicFiller, List<GraphicsInstanceInformation> instances) {
         int totalInstances = instances.size();
         List<CompletableFuture<Void>> chunkFutures = new ArrayList<>((totalInstances + chunkSize - 1) / chunkSize);
 
@@ -266,7 +266,7 @@ public class AsyncVertexFiller {
             CompletableFuture<Void> chunkFuture = CompletableFuture.runAsync(() -> {
                 for (int i = chunkStart; i < chunkEnd; i++) {
                     final int index = i; // Make effectively final
-                    GraphicsInformation info = instances.get(i);
+                    GraphicsInstanceInformation info = instances.get(i);
                     if (info.getInstance() instanceof InstancedLayoutProvider provider) {
                         // Direct random access filling - switch to vertex and fill
                         dynamicFiller.vertex(index);
@@ -346,7 +346,7 @@ public class AsyncVertexFiller {
 
             VertexFiller dynamicFiller = null;
             if (!batch.getInstances().isEmpty()) {
-                GraphicsInformation firstInfo = batch.getInstances().get(0);
+                GraphicsInstanceInformation firstInfo = batch.getInstances().get(0);
                 if (firstInfo.hasInstancedData() &&
                         firstInfo.getInstancedVertexLayout() != null) {
                     var mesh = firstInfo.getMesh();
@@ -416,7 +416,8 @@ public class AsyncVertexFiller {
         }
     }
 
-    public record PreallocatedResources(VertexResource vertexResource, VertexFiller vertexFiller, VertexFiller staticFiller, VertexFiller dynamicFiller) {
+    public record PreallocatedResources(VertexResource vertexResource, VertexFiller vertexFiller,
+                                        VertexFiller staticFiller, VertexFiller dynamicFiller) {
 
     }
 
@@ -426,12 +427,12 @@ public class AsyncVertexFiller {
     public static class FilledVertexResource {
         private final VertexResource vertexResource;
         private final PreallocatedResources resources;
-        private final RenderList.RenderBatch batch;
+        private final RenderList.RenderBatch renderBatch;
 
-        public FilledVertexResource(VertexResource vertexResource, PreallocatedResources resources, RenderList.RenderBatch batch) {
+        public FilledVertexResource(VertexResource vertexResource, PreallocatedResources resources, RenderList.RenderBatch renderBatch) {
             this.vertexResource = vertexResource;
             this.resources = resources;
-            this.batch = batch;
+            this.renderBatch = renderBatch;
         }
 
         public VertexResource getVertexResource() {
@@ -442,22 +443,22 @@ public class AsyncVertexFiller {
             return resources;
         }
 
-        public RenderList.RenderBatch getBatch() {
-            return batch;
+        public RenderList.RenderBatch getRenderBatch() {
+            return renderBatch;
         }
 
         public int getTotalVertexCount() {
-            return batch.getTotalVertexCount();
+            return renderBatch.getTotalVertexCount();
         }
 
         public int getDynamicVertexCount() {
-            return batch.getGraphicsInstanceCount();
+            return renderBatch.getGraphicsInstanceCount();
         }
 
         @Override
         public String toString() {
             return "FilledVertexResource{" +
-                    "batch=" + batch +
+                    "batch=" + renderBatch +
                     ", resources=" + resources +
                     ", vertexResource=" + vertexResource +
                     '}';

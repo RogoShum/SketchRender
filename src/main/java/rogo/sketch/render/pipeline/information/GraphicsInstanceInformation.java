@@ -14,7 +14,7 @@ import javax.annotation.Nullable;
  * Contains all rendering information for a graphics instance in a single frame
  * RenderSetting is provided by GraphicsPassGroup, not extracted from the instance
  */
-public class GraphicsInformation {
+public class GraphicsInstanceInformation {
     private final GraphicsInstance instance;
     private final RenderSetting renderSetting;
     private final ResourceBinding resourceBinding;
@@ -39,15 +39,15 @@ public class GraphicsInformation {
     // Instanced rendering flag
     private final boolean isInstancedRendering;
 
-    public GraphicsInformation(GraphicsInstance instance,
-                               RenderSetting renderSetting,
-                               ResourceBinding resourceBinding,
-                               @Nullable ModelMesh modelMesh,
-                               @Nullable Mesh mesh,
-                               Matrix4f meshMatrix,
-                               @Nullable InstancedVertexLayout instancedVertexLayout,
-                               int vertexCount,
-                               boolean isInstancedRendering) {
+    public GraphicsInstanceInformation(GraphicsInstance instance,
+                                       RenderSetting renderSetting,
+                                       ResourceBinding resourceBinding,
+                                       @Nullable ModelMesh modelMesh,
+                                       @Nullable Mesh mesh,
+                                       Matrix4f meshMatrix,
+                                       @Nullable InstancedVertexLayout instancedVertexLayout,
+                                       int vertexCount,
+                                       boolean isInstancedRendering) {
         this.instance = instance;
         this.renderSetting = renderSetting;
         this.resourceBinding = resourceBinding;

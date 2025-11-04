@@ -1,12 +1,11 @@
 package rogo.sketch.render.pipeline.information;
 
 import org.joml.Matrix4f;
-import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.api.graphics.*;
-import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.model.Mesh;
 import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.pipeline.RenderContext;
+import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.vertex.InstancedVertexLayout;
 
@@ -24,13 +23,12 @@ public class InfoCollector {
     /**
      * Collect render information from a collection of graphics instances with provided render setting
      */
-    public static <C extends RenderContext> List<GraphicsInformation> collectRenderInfo(
-            Collection<GraphicsInstance> instances, RenderSetting renderSetting, C context) {
-        List<GraphicsInformation> collected = new ArrayList<>();
+    public static <C extends RenderContext> List<GraphicsInstanceInformation> collectRenderInfo(Collection<GraphicsInstance> instances, RenderSetting renderSetting, C context) {
+        List<GraphicsInstanceInformation> collected = new ArrayList<>();
 
         for (GraphicsInstance instance : instances) {
             if (instance.shouldRender()) {
-                GraphicsInformation info = collectFromInstance(instance, renderSetting, context);
+                GraphicsInstanceInformation info = collectFromInstance(instance, renderSetting, context);
                 if (info != null) {
                     collected.add(info);
                 }
@@ -44,9 +42,7 @@ public class InfoCollector {
      * Collect render information from a single graphics instance with provided render setting
      */
     @Nullable
-    private static <C extends RenderContext> GraphicsInformation collectFromInstance(
-            GraphicsInstance instance, RenderSetting renderSetting, C context) {
-
+    private static <C extends RenderContext> GraphicsInstanceInformation collectFromInstance(GraphicsInstance instance, RenderSetting renderSetting, C context) {
         ResourceBinding resourceBinding = renderSetting.resourceBinding();
 
         // Extract mesh data
@@ -65,7 +61,7 @@ public class InfoCollector {
         // Check if this is instanced rendering
         boolean isInstancedRendering = instancedLayout != null;
 
-        return new GraphicsInformation(
+        return new GraphicsInstanceInformation(
                 instance,
                 renderSetting,
                 resourceBinding,

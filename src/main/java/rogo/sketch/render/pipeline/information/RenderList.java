@@ -27,21 +27,21 @@ public class RenderList {
     /**
      * Organize a list of graphics information into batched render queue
      */
-    public static RenderList organize(List<GraphicsInformation> graphicsInfoList) {
+    public static RenderList organize(List<GraphicsInstanceInformation> graphicsInfoList) {
         RenderList renderList = new RenderList();
         
         // Group by batch key (same primitive type, same vertex attributes)
-        Map<BatchKey, List<GraphicsInformation>> groups = new HashMap<>();
+        Map<BatchKey, List<GraphicsInstanceInformation>> groups = new HashMap<>();
         
-        for (GraphicsInformation info : graphicsInfoList) {
+        for (GraphicsInstanceInformation info : graphicsInfoList) {
             BatchKey key = createBatchKey(info);
             groups.computeIfAbsent(key, k -> new ArrayList<>()).add(info);
         }
         
         // Create batches and calculate offsets
-        for (Map.Entry<BatchKey, List<GraphicsInformation>> entry : groups.entrySet()) {
+        for (Map.Entry<BatchKey, List<GraphicsInstanceInformation>> entry : groups.entrySet()) {
             BatchKey key = entry.getKey();
-            List<GraphicsInformation> infos = entry.getValue();
+            List<GraphicsInstanceInformation> infos = entry.getValue();
             
             RenderBatch batch = new RenderBatch(key, infos);
             // Collect uniform batches for this render batch
@@ -56,7 +56,7 @@ public class RenderList {
      * Create a batch key for grouping compatible graphics instances
      * Compatible instances must have the same primitive type, data format, instanced flag, and mesh
      */
-    private static BatchKey createBatchKey(GraphicsInformation info) {
+    private static BatchKey createBatchKey(GraphicsInstanceInformation info) {
         PrimitiveType primitiveType = info.getRenderSetting().renderParameter().primitiveType();
         DataFormat dataFormat = info.getRenderSetting().renderParameter().dataFormat();
         boolean isInstanced = info.isInstancedRendering();
@@ -136,18 +136,18 @@ public class RenderList {
      */
     public static class RenderBatch {
         private final BatchKey key;
-        private final List<GraphicsInformation> instances;
+        private final List<GraphicsInstanceInformation> instances;
         private final int totalVertexCount;
         private final List<UniformBatchGroup> uniformBatches;
         
-        public RenderBatch(BatchKey key, List<GraphicsInformation> instances) {
+        public RenderBatch(BatchKey key, List<GraphicsInstanceInformation> instances) {
             this.key = key;
             this.instances = new ArrayList<>(instances);
             this.uniformBatches = new ArrayList<>();
             
             // Calculate vertex offsets for each instance
             int currentOffset = 0;
-            for (GraphicsInformation info : this.instances) {
+            for (GraphicsInstanceInformation info : this.instances) {
                 info.setVertexOffset(currentOffset);
                 currentOffset += info.getVertexCount();
             }
@@ -156,7 +156,7 @@ public class RenderList {
         }
         
         public BatchKey getKey() { return key; }
-        public List<GraphicsInformation> getInstances() { return new ArrayList<>(instances); }
+        public List<GraphicsInstanceInformation> getInstances() { return new ArrayList<>(instances); }
         public int getTotalVertexCount() { return totalVertexCount; }
         public int getGraphicsInstanceCount() { return instances.size(); }
         public List<UniformBatchGroup> getUniformBatches() { return new ArrayList<>(uniformBatches); }
@@ -178,7 +178,7 @@ public class RenderList {
             }
             
             // Get render setting and shader provider from the first instance
-            GraphicsInformation firstInfo = instances.get(0);
+            GraphicsInstanceInformation firstInfo = instances.get(0);
             ShaderProvider shaderProvider = extractShaderProvider(firstInfo);
             
             if (shaderProvider == null) {
@@ -188,7 +188,7 @@ public class RenderList {
             // Collect uniform batches using the same logic as the old pipeline
             Map<UniformValueSnapshot, UniformBatchGroup> batches = new HashMap<>();
             
-            for (GraphicsInformation info : instances) {
+            for (GraphicsInstanceInformation info : instances) {
                 GraphicsInstance instance = info.getInstance();
                 if (instance.shouldRender()) {
                     UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(
@@ -205,7 +205,7 @@ public class RenderList {
         /**
          * Extract shader provider from GraphicsInformation
          */
-        private ShaderProvider extractShaderProvider(GraphicsInformation info) {
+        private ShaderProvider extractShaderProvider(GraphicsInstanceInformation info) {
             try {
                 ResourceReference<ShaderProvider> reference = 
                     ((ShaderState) info.getRenderSetting().renderState().get(ResourceTypes.SHADER_PROGRAM)).shader();
@@ -221,9 +221,9 @@ public class RenderList {
         /**
          * Get instances sorted by vertex offset
          */
-        public List<GraphicsInformation> getSortedInstances() {
-            List<GraphicsInformation> sorted = new ArrayList<>(instances);
-            sorted.sort(Comparator.comparingInt(GraphicsInformation::getVertexOffset));
+        public List<GraphicsInstanceInformation> getSortedInstances() {
+            List<GraphicsInstanceInformation> sorted = new ArrayList<>(instances);
+            sorted.sort(Comparator.comparingInt(GraphicsInstanceInformation::getVertexOffset));
             return sorted;
         }
         

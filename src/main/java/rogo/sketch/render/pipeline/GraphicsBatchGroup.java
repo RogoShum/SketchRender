@@ -8,7 +8,7 @@ import rogo.sketch.render.pipeline.async.AsyncRenderManager;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.filler.VertexFillerManager;
-import rogo.sketch.render.pipeline.information.GraphicsInformation;
+import rogo.sketch.render.pipeline.information.GraphicsInstanceInformation;
 import rogo.sketch.render.pipeline.information.InfoCollector;
 import rogo.sketch.render.pipeline.information.RenderList;
 import rogo.sketch.render.pool.InstancePoolManager;
@@ -25,29 +25,29 @@ import rogo.sketch.util.Identifier;
 
 import java.util.*;
 
-public class GraphicsPassGroup<C extends RenderContext> {
+public class GraphicsBatchGroup<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
     private final Identifier stageIdentifier;
-    private final Map<RenderSetting, GraphicsPass<C>> groups = new LinkedHashMap<>();
+    private final Map<RenderSetting, GraphicsBatch<C>> groups = new LinkedHashMap<>();
     private final VertexResourceManager vertexResourceManager = VertexResourceManager.getInstance();
     private final VertexFillerManager vertexFillerManager = VertexFillerManager.getInstance();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     private final AsyncVertexFiller asyncVertexFiller = AsyncVertexFiller.getInstance();
 
-    public GraphicsPassGroup(GraphicsPipeline<C> graphicsPipeline, Identifier stageIdentifier) {
+    public GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, Identifier stageIdentifier) {
         this.graphicsPipeline = graphicsPipeline;
         this.stageIdentifier = stageIdentifier;
     }
 
     public void addGraphInstance(GraphicsInstance instance, RenderSetting setting) {
-        GraphicsPass<C> group = groups.computeIfAbsent(setting, s -> new GraphicsPass<>());
+        GraphicsBatch<C> group = groups.computeIfAbsent(setting, s -> new GraphicsBatch<>());
         group.addGraphInstance(instance);
     }
 
     public void tick(C context) {
         Collection<GraphicsInstance> allInstances = groups.values().stream()
-                .flatMap(pass -> pass.getAllInstances().stream())
+                .flatMap(graphicsBatch -> graphicsBatch.getAllInstances().stream())
                 .toList();
 
         if (asyncManager.shouldUseAsync(allInstances.size())) {
@@ -76,11 +76,11 @@ public class GraphicsPassGroup<C extends RenderContext> {
     }
 
     private void renderSharedResources(RenderStateManager manager, C context) {
-        for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
+        for (Map.Entry<RenderSetting, GraphicsBatch<C>> entry : groups.entrySet()) {
             RenderSetting setting = entry.getKey();
-            GraphicsPass<C> pass = entry.getValue();
+            GraphicsBatch<C> graphicsBatch = entry.getValue();
 
-            if (setting.renderParameter().isInvalid() || !pass.containsShared()) {
+            if (setting.renderParameter().isInvalid() || !graphicsBatch.containsShared()) {
                 continue;
             }
 
@@ -94,20 +94,20 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            List<UniformBatchGroup> uniformBatches = collectUniformBatches(pass, shaderProvider);
+            List<UniformBatchGroup> uniformBatches = collectUniformBatches(graphicsBatch, shaderProvider);
             if (setting.shouldSwitchRenderState() && !uniformBatches.isEmpty()) {
                 applyRenderSetting(manager, context, setting);
             }
             VertexResource resource = vertexResourceManager.getOrCreateVertexResource(setting.renderParameter());
 
             for (UniformBatchGroup batch : uniformBatches) {
-                renderUniformBatch(batch, resource, setting, pass, context);
+                renderUniformBatch(batch, resource, setting, graphicsBatch, context);
             }
         }
     }
 
-    private List<UniformBatchGroup> collectUniformBatches(GraphicsPass<C> pass, ShaderProvider shaderProvider) {
-        Collection<GraphicsInstance> instances = pass.getSharedInstances();
+    private List<UniformBatchGroup> collectUniformBatches(GraphicsBatch<C> graphicsBatch, ShaderProvider shaderProvider) {
+        Collection<GraphicsInstance> instances = graphicsBatch.getSharedInstances();
 
         try {
             return asyncManager.collectUniformsAsync(
@@ -137,8 +137,8 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
     // Note: collectUniformBatchesAsync method removed, using AsyncRenderManager instead
 
-    private List<UniformBatchGroup> collectIndependentUniformBatches(GraphicsPass<C> pass, ShaderProvider shaderProvider) {
-        Collection<GraphicsInstance> instances = pass.getIndependentInstances();
+    private List<UniformBatchGroup> collectIndependentUniformBatches(GraphicsBatch<C> graphicsBatch, ShaderProvider shaderProvider) {
+        Collection<GraphicsInstance> instances = graphicsBatch.getIndependentInstances();
 
         try {
             return asyncManager.collectUniformsAsync(
@@ -150,8 +150,8 @@ public class GraphicsPassGroup<C extends RenderContext> {
         }
     }
 
-    private List<UniformBatchGroup> collectCustomUniformBatches(GraphicsPass<C> pass, ShaderProvider shaderProvider) {
-        Collection<GraphicsInstance> instances = pass.getCustomInstances();
+    private List<UniformBatchGroup> collectCustomUniformBatches(GraphicsBatch<C> graphicsBatch, ShaderProvider shaderProvider) {
+        Collection<GraphicsInstance> instances = graphicsBatch.getCustomInstances();
 
         try {
             return asyncManager.collectUniformsAsync(
@@ -164,7 +164,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
     }
 
     private void renderUniformBatch(UniformBatchGroup batch, VertexResource resource,
-                                    RenderSetting setting, GraphicsPass<C> pass, C context) {
+                                    RenderSetting setting, GraphicsBatch<C> graphicsBatch, C context) {
         if (batch.isEmpty()) {
             return;
         }
@@ -174,7 +174,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
         VertexFiller filler = vertexFillerManager.getOrCreateVertexFiller(setting.renderParameter());
 
-        boolean hasData = pass.fillSharedVertexForBatch(filler, batch.getInstances());
+        boolean hasData = graphicsBatch.fillSharedVertexForBatch(filler, batch.getInstances());
 
         if (hasData) {
             resource.uploadFromVertexFiller(filler);
@@ -191,11 +191,11 @@ public class GraphicsPassGroup<C extends RenderContext> {
     }
 
     private void renderInstanceResources(RenderStateManager manager, C context) {
-        for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
+        for (Map.Entry<RenderSetting, GraphicsBatch<C>> entry : groups.entrySet()) {
             RenderSetting setting = entry.getKey();
-            GraphicsPass<C> pass = entry.getValue();
+            GraphicsBatch<C> graphicsBatch = entry.getValue();
 
-            if (setting.renderParameter().isInvalid() || !pass.containsIndependent()) {
+            if (setting.renderParameter().isInvalid() || !graphicsBatch.containsIndependent()) {
                 continue;
             }
 
@@ -209,19 +209,19 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            List<UniformBatchGroup> uniformBatches = collectIndependentUniformBatches(pass, shaderProvider);
+            List<UniformBatchGroup> uniformBatches = collectIndependentUniformBatches(graphicsBatch, shaderProvider);
             if (setting.shouldSwitchRenderState() && !uniformBatches.isEmpty()) {
                 applyRenderSetting(manager, context, setting);
             }
 
             for (UniformBatchGroup batch : uniformBatches) {
-                renderIndependentUniformBatch(batch, setting, pass, context);
+                renderIndependentUniformBatch(batch, setting, graphicsBatch, context);
             }
         }
     }
 
     private void renderIndependentUniformBatch(UniformBatchGroup batch, RenderSetting setting,
-                                               GraphicsPass<C> pass, C context) {
+                                               GraphicsBatch<C> graphicsBatch, C context) {
         if (batch.isEmpty()) {
             return;
         }
@@ -230,7 +230,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
         ShaderProvider shader = context.shaderProvider();
         batch.getUniformSnapshot().applyTo(shader.getUniformHookGroup());
 
-        List<VertexResourcePair> pairs = pass.fillIndependentVertexForBatch(batch.getInstances());
+        List<VertexResourcePair> pairs = graphicsBatch.fillIndependentVertexForBatch(batch.getInstances());
 
         for (VertexResourcePair pair : pairs) {
             pair.drawCommand().execute(pair.resource());
@@ -242,11 +242,11 @@ public class GraphicsPassGroup<C extends RenderContext> {
     }
 
     private void renderCustomResources(RenderStateManager manager, C context) {
-        for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
+        for (Map.Entry<RenderSetting, GraphicsBatch<C>> entry : groups.entrySet()) {
             RenderSetting setting = entry.getKey();
-            GraphicsPass<C> pass = entry.getValue();
+            GraphicsBatch<C> graphicsBatch = entry.getValue();
 
-            if (setting.renderParameter().isInvalid() || !pass.containsCustom()) {
+            if (setting.renderParameter().isInvalid() || !graphicsBatch.containsCustom()) {
                 continue;
             }
 
@@ -260,26 +260,26 @@ public class GraphicsPassGroup<C extends RenderContext> {
                 continue;
             }
 
-            List<UniformBatchGroup> uniformBatches = collectCustomUniformBatches(pass, shaderProvider);
+            List<UniformBatchGroup> uniformBatches = collectCustomUniformBatches(graphicsBatch, shaderProvider);
             if (setting.shouldSwitchRenderState() && !uniformBatches.isEmpty()) {
                 applyRenderSetting(manager, context, setting);
             }
 
             for (UniformBatchGroup batch : uniformBatches) {
-                renderCustomUniformBatch(batch, pass, context);
+                renderCustomUniformBatch(batch, graphicsBatch, context);
             }
         }
     }
 
-    private void renderCustomUniformBatch(UniformBatchGroup batch, GraphicsPass<C> pass, C context) {
-        if (batch.isEmpty()) {
+    private void renderCustomUniformBatch(UniformBatchGroup uniformBatch, GraphicsBatch<C> graphicsBatch, C context) {
+        if (uniformBatch.isEmpty()) {
             return;
         }
 
         context.set(Identifier.of("rendered"), true);
         ShaderProvider shader = context.shaderProvider();
-        batch.getUniformSnapshot().applyTo(shader.getUniformHookGroup());
-        pass.executeCustomBatch(batch.getInstances(), context);
+        uniformBatch.getUniformSnapshot().applyTo(shader.getUniformHookGroup());
+        graphicsBatch.executeCustomBatch(uniformBatch.getInstances(), context);
     }
 
     protected void applyRenderSetting(RenderStateManager manager, C context, RenderSetting setting) {
@@ -288,11 +288,11 @@ public class GraphicsPassGroup<C extends RenderContext> {
         shader.getUniformHookGroup().updateUniforms(context);
     }
 
-    public GraphicsPass<C> getPass(RenderSetting setting) {
+    public GraphicsBatch<C> getBatch(RenderSetting setting) {
         return groups.get(setting);
     }
 
-    public Collection<GraphicsPass<C>> getPasses() {
+    public Collection<GraphicsBatch<C>> getBatches() {
         return groups.values();
     }
 
@@ -304,15 +304,15 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
     public StageStats getStageStats() {
         int totalInstances = 0;
-        int totalPasses = groups.size();
+        int totalBatches = groups.size();
         int sharedInstances = 0;
         int independentInstances = 0;
         int customInstances = 0;
 
-        for (GraphicsPass<C> pass : groups.values()) {
-            Collection<GraphicsInstance> shared = pass.getSharedInstances();
-            Collection<GraphicsInstance> independent = pass.getIndependentInstances();
-            Collection<GraphicsInstance> custom = pass.getCustomInstances();
+        for (GraphicsBatch<C> graphicsBatch : groups.values()) {
+            Collection<GraphicsInstance> shared = graphicsBatch.getSharedInstances();
+            Collection<GraphicsInstance> independent = graphicsBatch.getIndependentInstances();
+            Collection<GraphicsInstance> custom = graphicsBatch.getCustomInstances();
 
             sharedInstances += shared.size();
             independentInstances += independent.size();
@@ -322,7 +322,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
         return new StageStats(
                 stageIdentifier,
-                totalPasses,
+                totalBatches,
                 totalInstances,
                 sharedInstances,
                 independentInstances,
@@ -332,7 +332,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
     public record StageStats(
             Identifier stageIdentifier,
-            int totalPasses,
+            int totalBatches,
             int totalInstances,
             int sharedInstances,
             int independentInstances,
@@ -341,8 +341,8 @@ public class GraphicsPassGroup<C extends RenderContext> {
         @Override
         public String toString() {
             return String.format(
-                    "Stage[%s]: %d passes, %d instances (shared=%d, independent=%d, custom=%d)",
-                    stageIdentifier, totalPasses, totalInstances,
+                    "Stage[%s]: %d batches, %d instances (shared=%d, independent=%d, custom=%d)",
+                    stageIdentifier, totalBatches, totalInstances,
                     sharedInstances, independentInstances, customInstances
             );
         }
@@ -352,29 +352,29 @@ public class GraphicsPassGroup<C extends RenderContext> {
      * Cleanup discarded instances and return them to the pool
      */
     public void cleanupDiscardedInstances() {
-        for (GraphicsPass<C> pass : groups.values()) {
-            pass.cleanupDiscardedInstances(poolManager);
+        for (GraphicsBatch<C> graphicsBatch : groups.values()) {
+            graphicsBatch.cleanupDiscardedInstances(poolManager);
         }
     }
 
     /**
      * Collect render information from all graphics instances in this stage
-     * This method provides the RenderSetting from the pass group
+     * This method provides the RenderSetting from the graphicsBatch group
      */
-    public List<GraphicsInformation> collectRenderData(C context) {
-        List<GraphicsInformation> allData = new ArrayList<>();
+    public List<GraphicsInstanceInformation> collectRenderData(C context) {
+        List<GraphicsInstanceInformation> allData = new ArrayList<>();
 
-        for (Map.Entry<RenderSetting, GraphicsPass<C>> entry : groups.entrySet()) {
+        for (Map.Entry<RenderSetting, GraphicsBatch<C>> entry : groups.entrySet()) {
             RenderSetting renderSetting = entry.getKey();
-            GraphicsPass<C> pass = entry.getValue();
+            GraphicsBatch<C> graphicsBatch = entry.getValue();
 
-            // Collect all instances from this pass
-            Collection<GraphicsInstance> allInstances = pass.getAllInstances();
+            // Collect all instances from this graphicsBatch
+            Collection<GraphicsInstance> allInstances = graphicsBatch.getAllInstances();
 
-            // Use InfoCollector with the RenderSetting from this pass group
-            List<GraphicsInformation> passData = InfoCollector.collectRenderInfo(
+            // Use InfoCollector with the RenderSetting from this graphicsBatch group
+            List<GraphicsInstanceInformation> graphicsBatchData = InfoCollector.collectRenderInfo(
                     allInstances, renderSetting, context);
-            allData.addAll(passData);
+            allData.addAll(graphicsBatchData);
         }
 
         return allData;
@@ -386,7 +386,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
     public List<RenderCommand> createRenderCommands(C context) {
         try {
             // Collect render data from this stage
-            List<GraphicsInformation> collectedData = collectRenderData(context);
+            List<GraphicsInstanceInformation> collectedData = collectRenderData(context);
 
             // Organize into batches
             RenderList renderList = RenderList.organize(collectedData);
@@ -411,7 +411,7 @@ public class GraphicsPassGroup<C extends RenderContext> {
 
                 RenderCommand command = RenderCommand.createFromRenderBatch(
                         filledResource.getVertexResource(),
-                        filledResource.getBatch(),
+                        filledResource.getRenderBatch(),
                         stageIdentifier
                 );
                 commands.add(command);

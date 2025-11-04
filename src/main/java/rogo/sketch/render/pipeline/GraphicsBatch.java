@@ -10,25 +10,25 @@ import rogo.sketch.util.Identifier;
 
 import java.util.*;
 
-public class GraphicsPass<C extends RenderContext> {
+public class GraphicsBatch<C extends RenderContext> {
     // Legacy mode: Simplified to use only GraphicsInstance for all types
     private final Map<Identifier, GraphicsInstance> allGraphics = new LinkedHashMap<>();
-    
+
     // Keep these for backward compatibility but deprecated
     @Deprecated
     private final Map<Identifier, SharedVertexGraphics> sharedGraphics = new LinkedHashMap<>();
-    @Deprecated 
+    @Deprecated
     private final Map<Identifier, IndependentVertexProvider> independentGraphics = new LinkedHashMap<>();
     @Deprecated
     private final Map<Identifier, GraphicsInstance> customGraphics = new LinkedHashMap<>();
 
-    public GraphicsPass() {
+    public GraphicsBatch() {
     }
 
     public void addGraphInstance(GraphicsInstance graph) {
         // Legacy mode: All graphics instances are treated uniformly
         allGraphics.put(graph.getIdentifier(), graph);
-        
+
         // Backward compatibility: Still populate the old maps for existing code
         if (graph instanceof SharedVertexGraphics sharedVertexGraphics) {
             sharedGraphics.put(graph.getIdentifier(), sharedVertexGraphics);
@@ -125,7 +125,7 @@ public class GraphicsPass<C extends RenderContext> {
             }
             return false;
         });
-        
+
         // Also cleanup the deprecated collections for consistency
         sharedGraphics.entrySet().removeIf(entry -> entry.getValue().shouldDiscard());
         independentGraphics.entrySet().removeIf(entry -> entry.getValue().shouldDiscard());

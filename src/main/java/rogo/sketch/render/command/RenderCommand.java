@@ -3,7 +3,7 @@ package rogo.sketch.render.command;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.UniformBatchGroup;
-import rogo.sketch.render.pipeline.information.GraphicsInformation;
+import rogo.sketch.render.pipeline.information.GraphicsInstanceInformation;
 import rogo.sketch.render.pipeline.information.RenderList;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.resource.buffer.VertexResource;
@@ -174,12 +174,12 @@ public class RenderCommand {
      * Simplified to track offsets for debugging purposes
      */
     public static class InstanceData {
-        private final GraphicsInformation graphicsInfo;
+        private final GraphicsInstanceInformation graphicsInfo;
         private final int vertexOffset;
         private final int vertexCount;
         private final int instanceIndex; // Index within the batch
 
-        public InstanceData(GraphicsInformation graphicsInfo,
+        public InstanceData(GraphicsInstanceInformation graphicsInfo,
                             int vertexOffset,
                             int vertexCount,
                             int instanceIndex) {
@@ -189,7 +189,7 @@ public class RenderCommand {
             this.instanceIndex = instanceIndex;
         }
 
-        public GraphicsInformation getGraphicsInfo() {
+        public GraphicsInstanceInformation getGraphicsInfo() {
             return graphicsInfo;
         }
 
@@ -225,7 +225,7 @@ public class RenderCommand {
         private ResourceBinding resourceBinding;
         private Identifier stageId;
         private PrimitiveType primitiveType;
-        private final List<GraphicsInformation> graphicsInfos = new ArrayList<>();
+        private final List<GraphicsInstanceInformation> graphicsInfos = new ArrayList<>();
         private final List<UniformBatchGroup> uniformBatches = new ArrayList<>();
 
         public Builder vertexResource(VertexResource vertexResource) {
@@ -245,12 +245,12 @@ public class RenderCommand {
             return this;
         }
 
-        public Builder addGraphicsInfo(GraphicsInformation info) {
+        public Builder addGraphicsInfo(GraphicsInstanceInformation info) {
             this.graphicsInfos.add(info);
             return this;
         }
 
-        public Builder addGraphicsInfos(List<GraphicsInformation> infos) {
+        public Builder addGraphicsInfos(List<GraphicsInstanceInformation> infos) {
             this.graphicsInfos.addAll(infos);
             return this;
         }
@@ -276,7 +276,7 @@ public class RenderCommand {
             int firstVertexOffset = graphicsInfos.get(0).getVertexOffset();
 
             for (int i = 0; i < graphicsInfos.size(); i++) {
-                GraphicsInformation info = graphicsInfos.get(i);
+                GraphicsInstanceInformation info = graphicsInfos.get(i);
                 instances.add(new InstanceData(
                         info,
                         info.getVertexOffset(),
@@ -325,7 +325,7 @@ public class RenderCommand {
      */
     public static RenderCommand createFromFilledResource(
             VertexResource vertexResource,
-            List<GraphicsInformation> instances,
+            List<GraphicsInstanceInformation> instances,
             Identifier stageId) {
 
         if (instances.isEmpty()) {
@@ -349,7 +349,7 @@ public class RenderCommand {
             RenderList.RenderBatch renderBatch,
             Identifier stageId) {
 
-        List<GraphicsInformation> instances = renderBatch.getInstances();
+        List<GraphicsInstanceInformation> instances = renderBatch.getInstances();
         if (instances.isEmpty()) {
             throw new IllegalArgumentException("Cannot create render command with no instances");
         }
@@ -369,7 +369,7 @@ public class RenderCommand {
      */
     public static RenderCommand createWithCalculatedOffsets(
             VertexResource vertexResource,
-            List<GraphicsInformation> instances,
+            List<GraphicsInstanceInformation> instances,
             Identifier stageId,
             int meshBaseVertex,
             long meshIndexOffset,
@@ -387,7 +387,7 @@ public class RenderCommand {
         // Create instance data
         List<InstanceData> instanceDataList = new ArrayList<>();
         for (int i = 0; i < instances.size(); i++) {
-            GraphicsInformation info = instances.get(i);
+            GraphicsInstanceInformation info = instances.get(i);
             instanceDataList.add(new InstanceData(
                     info,
                     info.getVertexOffset(),
@@ -397,7 +397,6 @@ public class RenderCommand {
         }
 
         VertexDataShard dataShard = new VertexDataShard(0L, meshBaseVertex, meshIndexCount, meshIndexOffset);
-
 
         return new RenderCommand(
                 vertexResource,

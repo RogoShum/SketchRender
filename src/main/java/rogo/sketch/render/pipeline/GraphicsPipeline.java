@@ -7,7 +7,7 @@ import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.pipeline.async.AsyncRenderManager;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.RenderCommandQueue;
-import rogo.sketch.render.pipeline.information.GraphicsInformation;
+import rogo.sketch.render.pipeline.information.GraphicsInstanceInformation;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.vertex.AsyncVertexFiller;
 import rogo.sketch.util.Identifier;
@@ -20,7 +20,7 @@ import java.util.Map;
 
 public class GraphicsPipeline<C extends RenderContext> {
     private final OrderedList<GraphicsStage> stages;
-    private final Map<GraphicsStage, GraphicsPassGroup<C>> passMap = new LinkedHashMap<>();
+    private final Map<GraphicsStage, GraphicsBatchGroup<C>> passMap = new LinkedHashMap<>();
     private final Map<Identifier, GraphicsStage> idToStage = new LinkedHashMap<>();
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
@@ -43,7 +43,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * @return true if added successfully, false if delayed
      */
     public boolean registerStage(GraphicsStage stage) {
-        boolean added = stages.add(stage, stage.getOrderRequirement(), (s, req) -> passMap.put(s, new GraphicsPassGroup<>(this, s.getIdentifier())));
+        boolean added = stages.add(stage, stage.getOrderRequirement(), (s, req) -> passMap.put(s, new GraphicsBatchGroup<>(this, s.getIdentifier())));
         if (added) {
             idToStage.put(stage.getIdentifier(), stage);
         }
@@ -83,7 +83,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      */
     private void renderAllStagesLegacy() {
         for (GraphicsStage stage : stages.getOrderedList()) {
-            GraphicsPassGroup<C> group = passMap.get(stage);
+            GraphicsBatchGroup<C> group = passMap.get(stage);
             group.render(renderStateManager, currentContext);
         }
     }
@@ -115,8 +115,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         int fromIdx = ordered.indexOf(fromStage);
         int toIdx = ordered.indexOf(toStage);
         for (int i = fromIdx + 1; i < toIdx; i++) {
-            GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
-            if (passGroup != null) passGroup.render(renderStateManager, currentContext);
+            GraphicsBatchGroup<C> batchGroup = passMap.get(ordered.get(i));
+            if (batchGroup != null) batchGroup.render(renderStateManager, currentContext);
         }
 
         renderStage(toId);
@@ -130,9 +130,9 @@ public class GraphicsPipeline<C extends RenderContext> {
 
         GraphicsStage stage = idToStage.get(id);
         if (stage != null) {
-            GraphicsPassGroup<C> passGroup = passMap.get(stage);
-            if (passGroup != null) {
-                passGroup.render(renderStateManager, currentContext);
+            GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
+            if (batchGroup != null) {
+                batchGroup.render(renderStateManager, currentContext);
             }
         }
     }
@@ -145,8 +145,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
         for (int i = 0; i < idx; i++) {
-            GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
-            if (passGroup != null) passGroup.render(renderStateManager, currentContext);
+            GraphicsBatchGroup<C> batchGroup = passMap.get(ordered.get(i));
+            if (batchGroup != null) batchGroup.render(renderStateManager, currentContext);
         }
 
         renderStage(id);
@@ -162,8 +162,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
         for (int i = idx + 1; i < ordered.size(); i++) {
-            GraphicsPassGroup<C> passGroup = passMap.get(ordered.get(i));
-            if (passGroup != null) passGroup.render(renderStateManager, currentContext);
+            GraphicsBatchGroup<C> batchGroup = passMap.get(ordered.get(i));
+            if (batchGroup != null) batchGroup.render(renderStateManager, currentContext);
         }
     }
 
@@ -225,7 +225,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      */
     public void tickAllStages() {
         for (GraphicsStage stage : stages.getOrderedList()) {
-            GraphicsPassGroup<C> group = passMap.get(stage);
+            GraphicsBatchGroup<C> group = passMap.get(stage);
             if (group != null) {
                 group.tick(currentContext);
             }
@@ -236,7 +236,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Cleanup discarded instances and return them to pools
      */
     public void cleanupInstances() {
-        for (GraphicsPassGroup<C> group : passMap.values()) {
+        for (GraphicsBatchGroup<C> group : passMap.values()) {
             group.cleanupDiscardedInstances();
         }
     }
@@ -278,7 +278,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         int totalStages = stages.getOrderedList().size();
         int pendingStages = stages.getPendingElements().size();
         int totalInstances = passMap.values().stream()
-                .mapToInt(group -> group.getPasses().stream()
+                .mapToInt(group -> group.getBatches().stream()
                         .mapToInt(pass -> pass.getAllInstances().size())
                         .sum())
                 .sum();
@@ -298,14 +298,14 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Collect render data from all stages - Stage 1 of three-stage pipeline
      */
-    private List<GraphicsInformation> collectRenderData() {
-        List<GraphicsInformation> allData = new ArrayList<>();
+    private List<GraphicsInstanceInformation> collectRenderData() {
+        List<GraphicsInstanceInformation> allData = new ArrayList<>();
 
         for (GraphicsStage stage : stages.getOrderedList()) {
-            GraphicsPassGroup<C> passGroup = passMap.get(stage);
-            if (passGroup != null) {
-                // Let GraphicsPassGroup collect its own render data
-                List<GraphicsInformation> stageData = passGroup.collectRenderData(currentContext);
+            GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
+            if (batchGroup != null) {
+                // Let GraphicsbatchGroup collect its own render data
+                List<GraphicsInstanceInformation> stageData = batchGroup.collectRenderData(currentContext);
                 allData.addAll(stageData);
             }
         }
@@ -320,10 +320,10 @@ public class GraphicsPipeline<C extends RenderContext> {
         List<RenderCommand> allCommands = new ArrayList<>();
 
         for (GraphicsStage stage : stages.getOrderedList()) {
-            GraphicsPassGroup<C> passGroup = passMap.get(stage);
-            if (passGroup != null) {
-                // Let GraphicsPassGroup create its own render commands
-                List<RenderCommand> stageCommands = passGroup.createRenderCommands(currentContext);
+            GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
+            if (batchGroup != null) {
+                // Let GraphicsbatchGroup create its own render commands
+                List<RenderCommand> stageCommands = batchGroup.createRenderCommands(currentContext);
                 allCommands.addAll(stageCommands);
             }
         }
