@@ -397,7 +397,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
 
             // Create render commands
             List<RenderCommand> commands = new ArrayList<>();
-            for (AsyncVertexFiller.FilledVertexResource filledResource : filledResources) {
+            for (AsyncVertexFiller.PreparedVertexResource filledResource : filledResources) {
                 AsyncVertexFiller.PreallocatedResources resources = filledResource.getResources();
                 if (resources.vertexFiller() != null) {
                     filledResource.getVertexResource().uploadFromVertexFiller(resources.vertexFiller());

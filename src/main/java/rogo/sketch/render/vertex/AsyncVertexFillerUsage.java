@@ -27,13 +27,13 @@ public class AsyncVertexFillerUsage {
         
         // 步骤2：异步填充vertex数据
         // 这一步可以在后台线程中执行，只进行CPU数据处理，不涉及OpenGL资源创建
-        CompletableFuture<List<AsyncVertexFiller.FilledVertexResource>> future = 
+        CompletableFuture<List<AsyncVertexFiller.PreparedVertexResource>> future =
             filler.fillVertexBuffersAsync(renderList);
             
         // 步骤3：等待异步处理完成并使用结果
         future.thenAccept(filledResources -> {
             // 在这里可以使用填充好的vertex资源进行渲染
-            for (AsyncVertexFiller.FilledVertexResource resource : filledResources) {
+            for (AsyncVertexFiller.PreparedVertexResource resource : filledResources) {
                 // 渲染这个resource
                 renderVertexResource(resource);
             }
@@ -89,7 +89,7 @@ public class AsyncVertexFillerUsage {
     /**
      * 渲染单个vertex资源
      */
-    private void renderVertexResource(AsyncVertexFiller.FilledVertexResource resource) {
+    private void renderVertexResource(AsyncVertexFiller.PreparedVertexResource resource) {
         // 这里实现实际的渲染逻辑
         // 例如：绑定VAO，设置shader参数，调用glDraw等
         System.out.println("Rendering " + resource);
@@ -98,8 +98,8 @@ public class AsyncVertexFillerUsage {
     /**
      * 处理填充完成的资源列表
      */
-    private void processFilledResources(List<AsyncVertexFiller.FilledVertexResource> resources) {
-        for (AsyncVertexFiller.FilledVertexResource resource : resources) {
+    private void processFilledResources(List<AsyncVertexFiller.PreparedVertexResource> resources) {
+        for (AsyncVertexFiller.PreparedVertexResource resource : resources) {
             renderVertexResource(resource);
         }
     }

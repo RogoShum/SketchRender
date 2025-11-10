@@ -17,7 +17,7 @@ import java.util.*;
  */
 public class RenderList {
     private final List<RenderBatch> batches;
-    private final Map<BatchKey, RenderBatch> batchMap;
+    private final Map<VertexFormatKey, RenderBatch> batchMap;
     
     public RenderList() {
         this.batches = new ArrayList<>();
@@ -31,16 +31,16 @@ public class RenderList {
         RenderList renderList = new RenderList();
         
         // Group by batch key (same primitive type, same vertex attributes)
-        Map<BatchKey, List<GraphicsInstanceInformation>> groups = new HashMap<>();
+        Map<VertexFormatKey, List<GraphicsInstanceInformation>> groups = new HashMap<>();
         
         for (GraphicsInstanceInformation info : graphicsInfoList) {
-            BatchKey key = createBatchKey(info);
+            VertexFormatKey key = createBatchKey(info);
             groups.computeIfAbsent(key, k -> new ArrayList<>()).add(info);
         }
         
         // Create batches and calculate offsets
-        for (Map.Entry<BatchKey, List<GraphicsInstanceInformation>> entry : groups.entrySet()) {
-            BatchKey key = entry.getKey();
+        for (Map.Entry<VertexFormatKey, List<GraphicsInstanceInformation>> entry : groups.entrySet()) {
+            VertexFormatKey key = entry.getKey();
             List<GraphicsInstanceInformation> infos = entry.getValue();
             
             RenderBatch batch = new RenderBatch(key, infos);
@@ -56,12 +56,12 @@ public class RenderList {
      * Create a batch key for grouping compatible graphics instances
      * Compatible instances must have the same primitive type, data format, instanced flag, and mesh
      */
-    private static BatchKey createBatchKey(GraphicsInstanceInformation info) {
+    private static VertexFormatKey createBatchKey(GraphicsInstanceInformation info) {
         PrimitiveType primitiveType = info.getRenderSetting().renderParameter().primitiveType();
         DataFormat dataFormat = info.getRenderSetting().renderParameter().dataFormat();
         boolean isInstanced = info.isInstancedRendering();
 
-        return new BatchKey(primitiveType, dataFormat, isInstanced);
+        return new VertexFormatKey(primitiveType, dataFormat, isInstanced);
     }
     
     private void addBatch(RenderBatch batch) {
@@ -73,7 +73,7 @@ public class RenderList {
         return new ArrayList<>(batches);
     }
     
-    public RenderBatch getBatch(BatchKey key) {
+    public RenderBatch getBatch(VertexFormatKey key) {
         return batchMap.get(key);
     }
     
@@ -89,13 +89,13 @@ public class RenderList {
      * Key for grouping compatible render instances
      * Instances with the same key can be batched together for efficient rendering
      */
-    public static class BatchKey {
+    public static class VertexFormatKey {
         private final PrimitiveType primitiveType;
         private final DataFormat dataFormat;
         private final boolean isInstanced;
         private final int hashCode;
         
-        public BatchKey(PrimitiveType primitiveType, DataFormat dataFormat, boolean isInstanced) {
+        public VertexFormatKey(PrimitiveType primitiveType, DataFormat dataFormat, boolean isInstanced) {
             this.primitiveType = primitiveType;
             this.dataFormat = dataFormat;
             this.isInstanced = isInstanced;
@@ -110,10 +110,10 @@ public class RenderList {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            BatchKey batchKey = (BatchKey) o;
-            return isInstanced == batchKey.isInstanced &&
-                   Objects.equals(primitiveType, batchKey.primitiveType) &&
-                   Objects.equals(dataFormat, batchKey.dataFormat);
+            VertexFormatKey vertexFormatKey = (VertexFormatKey) o;
+            return isInstanced == vertexFormatKey.isInstanced &&
+                   Objects.equals(primitiveType, vertexFormatKey.primitiveType) &&
+                   Objects.equals(dataFormat, vertexFormatKey.dataFormat);
         }
         
         @Override
@@ -135,12 +135,12 @@ public class RenderList {
      * A batch of graphics instances that can be rendered together
      */
     public static class RenderBatch {
-        private final BatchKey key;
+        private final VertexFormatKey key;
         private final List<GraphicsInstanceInformation> instances;
         private final int totalVertexCount;
         private final List<UniformBatchGroup> uniformBatches;
         
-        public RenderBatch(BatchKey key, List<GraphicsInstanceInformation> instances) {
+        public RenderBatch(VertexFormatKey key, List<GraphicsInstanceInformation> instances) {
             this.key = key;
             this.instances = new ArrayList<>(instances);
             this.uniformBatches = new ArrayList<>();
@@ -155,7 +155,7 @@ public class RenderList {
             this.totalVertexCount = currentOffset;
         }
         
-        public BatchKey getKey() { return key; }
+        public VertexFormatKey getKey() { return key; }
         public List<GraphicsInstanceInformation> getInstances() { return new ArrayList<>(instances); }
         public int getTotalVertexCount() { return totalVertexCount; }
         public int getGraphicsInstanceCount() { return instances.size(); }

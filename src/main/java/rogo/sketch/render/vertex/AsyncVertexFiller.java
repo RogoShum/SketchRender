@@ -48,12 +48,12 @@ public class AsyncVertexFiller {
         }
     }
 
-    public CompletableFuture<List<FilledVertexResource>> fillVertexBuffersAsync(RenderList renderList) {
+    public CompletableFuture<List<PreparedVertexResource>> fillVertexBuffersAsync(RenderList renderList) {
         List<RenderList.RenderBatch> batches = renderList.getBatches();
         preallocateResources(renderList);
 
         @SuppressWarnings("unchecked")
-        CompletableFuture<FilledVertexResource>[] futures = batches.stream()
+        CompletableFuture<PreparedVertexResource>[] futures = batches.stream()
                 .map(this::fillBatchAsync)
                 .toArray(CompletableFuture[]::new);
 
@@ -66,15 +66,15 @@ public class AsyncVertexFiller {
     /**
      * Fill vertex buffer asynchronously for a single batch
      */
-    private CompletableFuture<FilledVertexResource> fillBatchAsync(RenderList.RenderBatch batch) {
+    private CompletableFuture<PreparedVertexResource> fillBatchAsync(RenderList.RenderBatch batch) {
         return CompletableFuture.supplyAsync(() -> fillBatch(batch), executor);
     }
 
     /**
      * Fill vertex buffer for a single batch
      */
-    private FilledVertexResource fillBatch(RenderList.RenderBatch batch) {
-        RenderList.BatchKey key = batch.getKey();
+    private PreparedVertexResource fillBatch(RenderList.RenderBatch batch) {
+        RenderList.VertexFormatKey key = batch.getKey();
 
         if (key.isInstanced()) {
             return fillInstancedBatch(batch, key);
@@ -86,7 +86,7 @@ public class AsyncVertexFiller {
     /**
      * Fill vertex buffer for regular (non-instanced) batch
      */
-    private FilledVertexResource fillRegularBatch(RenderList.RenderBatch batch, RenderList.BatchKey key) {
+    private PreparedVertexResource fillRegularBatch(RenderList.RenderBatch batch, RenderList.VertexFormatKey key) {
         BatchResourceKey resourceKey = new BatchResourceKey(key, false);
         PreallocatedResources resources = preallocatedResources.get(resourceKey);
 
@@ -110,13 +110,13 @@ public class AsyncVertexFiller {
 //            vertexResource.uploadFromVertexFiller(filler);
 //        }
 
-        return new FilledVertexResource(vertexResource, resources, batch);
+        return new PreparedVertexResource(vertexResource, resources, batch);
     }
 
     /**
      * Fill vertex buffer for instanced batch
      */
-    private FilledVertexResource fillInstancedBatch(RenderList.RenderBatch batch, RenderList.BatchKey key) {
+    private PreparedVertexResource fillInstancedBatch(RenderList.RenderBatch batch, RenderList.VertexFormatKey key) {
         BatchResourceKey resourceKey = new BatchResourceKey(key, true);
         PreallocatedResources resources = preallocatedResources.get(resourceKey);
 
@@ -133,7 +133,7 @@ public class AsyncVertexFiller {
         // Fill dynamic vertex data (instance attributes)
         fillDynamicVertexData(vertexResource, batch, resources);
 
-        return new FilledVertexResource(vertexResource, resources, batch);
+        return new PreparedVertexResource(vertexResource, resources, batch);
     }
 
     /**
@@ -295,7 +295,7 @@ public class AsyncVertexFiller {
     }
 
     private void preallocateBatchResources(RenderList.RenderBatch batch) {
-        RenderList.BatchKey key = batch.getKey();
+        RenderList.VertexFormatKey key = batch.getKey();
 
         if (key.isInstanced()) {
             preallocateInstancedBatchResources(batch, key);
@@ -304,7 +304,7 @@ public class AsyncVertexFiller {
         }
     }
 
-    private void preallocateRegularBatchResources(RenderList.RenderBatch batch, RenderList.BatchKey key) {
+    private void preallocateRegularBatchResources(RenderList.RenderBatch batch, RenderList.VertexFormatKey key) {
         BatchResourceKey resourceKey = new BatchResourceKey(key, false);
 
         if (!preallocatedResources.containsKey(resourceKey)) {
@@ -328,7 +328,7 @@ public class AsyncVertexFiller {
         }
     }
 
-    private void preallocateInstancedBatchResources(RenderList.RenderBatch batch, RenderList.BatchKey key) {
+    private void preallocateInstancedBatchResources(RenderList.RenderBatch batch, RenderList.VertexFormatKey key) {
         BatchResourceKey resourceKey = new BatchResourceKey(key, true);
 
         if (!preallocatedResources.containsKey(resourceKey)) {
@@ -382,11 +382,11 @@ public class AsyncVertexFiller {
     }
 
     private static class BatchResourceKey {
-        private final RenderList.BatchKey batchKey;
+        private final RenderList.VertexFormatKey vertexFormatKey;
         private final boolean isInstanced;
 
-        public BatchResourceKey(RenderList.BatchKey batchKey, boolean isInstanced) {
-            this.batchKey = batchKey;
+        public BatchResourceKey(RenderList.VertexFormatKey vertexFormatKey, boolean isInstanced) {
+            this.vertexFormatKey = vertexFormatKey;
             this.isInstanced = isInstanced;
         }
 
@@ -397,12 +397,12 @@ public class AsyncVertexFiller {
 
             BatchResourceKey that = (BatchResourceKey) o;
             return isInstanced == that.isInstanced &&
-                    batchKey.equals(that.batchKey);
+                    vertexFormatKey.equals(that.vertexFormatKey);
         }
 
         @Override
         public int hashCode() {
-            int result = batchKey.hashCode();
+            int result = vertexFormatKey.hashCode();
             result = 31 * result + (isInstanced ? 1 : 0);
             return result;
         }
@@ -410,7 +410,7 @@ public class AsyncVertexFiller {
         @Override
         public String toString() {
             return "BatchResourceKey{" +
-                    "batchKey=" + batchKey +
+                    "batchKey=" + vertexFormatKey +
                     ", isInstanced=" + isInstanced +
                     '}';
         }
@@ -424,12 +424,12 @@ public class AsyncVertexFiller {
     /**
      * Result of filling a vertex resource
      */
-    public static class FilledVertexResource {
+    public static class PreparedVertexResource {
         private final VertexResource vertexResource;
         private final PreallocatedResources resources;
         private final RenderList.RenderBatch renderBatch;
 
-        public FilledVertexResource(VertexResource vertexResource, PreallocatedResources resources, RenderList.RenderBatch renderBatch) {
+        public PreparedVertexResource(VertexResource vertexResource, PreallocatedResources resources, RenderList.RenderBatch renderBatch) {
             this.vertexResource = vertexResource;
             this.resources = resources;
             this.renderBatch = renderBatch;
