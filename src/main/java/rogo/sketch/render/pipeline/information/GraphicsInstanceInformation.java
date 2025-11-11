@@ -3,7 +3,7 @@ package rogo.sketch.render.pipeline.information;
 import org.joml.Matrix4f;
 import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.render.pipeline.RenderSetting;
-import rogo.sketch.render.model.Mesh;
+import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.model.ModelMesh;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.vertex.InstancedVertexLayout;
@@ -23,7 +23,7 @@ public class GraphicsInstanceInformation {
     @Nullable
     private final ModelMesh modelMesh;
     @Nullable
-    private final Mesh mesh;
+    private final MeshGroup meshGroup;
 
     // Transformation data
     private final Matrix4f meshMatrix; // 4x4 transformation matrix
@@ -43,7 +43,7 @@ public class GraphicsInstanceInformation {
                                        RenderSetting renderSetting,
                                        ResourceBinding resourceBinding,
                                        @Nullable ModelMesh modelMesh,
-                                       @Nullable Mesh mesh,
+                                       @Nullable MeshGroup meshGroup,
                                        Matrix4f meshMatrix,
                                        @Nullable InstancedVertexLayout instancedVertexLayout,
                                        int vertexCount,
@@ -52,7 +52,7 @@ public class GraphicsInstanceInformation {
         this.renderSetting = renderSetting;
         this.resourceBinding = resourceBinding;
         this.modelMesh = modelMesh;
-        this.mesh = mesh;
+        this.meshGroup = meshGroup;
         this.meshMatrix = new Matrix4f(meshMatrix);
         this.instancedVertexLayout = instancedVertexLayout;
         this.vertexCount = vertexCount;
@@ -78,8 +78,8 @@ public class GraphicsInstanceInformation {
     }
 
     @Nullable
-    public Mesh getMesh() {
-        return mesh;
+    public MeshGroup getMesh() {
+        return meshGroup;
     }
 
     public Matrix4f getMeshMatrix() {
@@ -112,7 +112,7 @@ public class GraphicsInstanceInformation {
     }
 
     public boolean hasMesh() {
-        return mesh != null;
+        return meshGroup != null;
     }
 
     public boolean isInstancedRendering() {

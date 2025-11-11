@@ -2,12 +2,12 @@ package rogo.sketch.feature.culling.graphics;
 
 import rogo.sketch.api.graphics.MeshGraphicsInstance;
 import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.model.ModelMesh;
-import rogo.sketch.render.model.Mesh;
 import rogo.sketch.render.model.MeshBuilder;
 import rogo.sketch.render.model.MeshCompiler;
 import rogo.sketch.render.pipeline.PartialRenderSetting;
@@ -38,7 +38,7 @@ public class EntityCullingTestGraphics implements MeshGraphicsInstance {
     private ModelMesh createQuadMesh() {
         try {
             // Create a full-screen quad mesh for culling test rendering
-            Mesh mesh = MeshBuilder.create("culling_test_entity_quad", PrimitiveType.QUADS)
+            MeshGroup meshGroup = MeshBuilder.create("culling_test_entity_quad", PrimitiveType.QUADS)
                     .subMesh("quad", 0, 4, DefaultDataFormats.POSITION)
                     .vertices(-1.0f, -1.0f, 0.0f)
                     .vertices(1.0f, -1.0f, 0.0f)
@@ -48,7 +48,7 @@ public class EntityCullingTestGraphics implements MeshGraphicsInstance {
                     .build();
 
             // Compile to ModelMesh for GPU rendering
-            return MeshCompiler.compile(mesh, MeshCompiler.staticMeshOptions()).getModelMesh();
+            return MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions()).getModelMesh();
         } catch (Exception e) {
             // Fallback: return null and let legacy system handle it
             System.err.println("Failed to create entity culling test quad mesh: " + e.getMessage());

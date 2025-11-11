@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains the changes made to enable the legacy rendering mode and prepare for the new mesh-based three-stage pipeline.
+This guide explains the changes made to enable the legacy rendering mode and prepare for the new meshGroup-based three-stage pipeline.
 
 ## Changes Made
 
@@ -78,7 +78,7 @@ pipeline.addGraphInstance(stageId, new MyGraphics(id), renderSetting);
 ### For New Pipeline (Future)
 
 ```java
-// Create a mesh-based graphics instance
+// Create a meshGroup-based graphics instance
 public class MyMeshGraphics implements MeshGraphicsInstance {
     @Override
     public ModelMesh getModelMesh() {
@@ -101,7 +101,7 @@ pipeline.setUseNewPipeline(true);
 
 1. **Immediate (Legacy Mode)**: No changes needed for existing code
 2. **Phase 1**: Gradually implement `MeshGraphicsInstance` for new graphics
-3. **Phase 2**: Convert existing graphics to use mesh system
+3. **Phase 2**: Convert existing graphics to use meshGroup system
 4. **Phase 3**: Enable new pipeline (`setUseNewPipeline(true)`)
 5. **Phase 4**: Remove deprecated vertex provider interfaces
 
@@ -111,7 +111,7 @@ When ready to migrate to the new pipeline:
 
 - **Better Performance**: Multi-draw batching with `baseVertex` offsets
 - **Instanced Rendering**: Built-in support for instanced vertex attributes
-- **Mesh-Based**: Native support for mesh data and vertex offsets
+- **Mesh-Based**: Native support for meshGroup data and vertex offsets
 - **Async Processing**: Parallel vertex buffer filling for large batches
 
 ## Key Files Changed

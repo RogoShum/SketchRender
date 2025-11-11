@@ -1,11 +1,10 @@
 package rogo.sketch.render.model;
 
-import org.joml.Vector3f;
 import rogo.sketch.api.graphics.VertexDataProvider;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.data.vertex.Mesh;
 import rogo.sketch.render.resource.buffer.VertexResource;
-import rogo.sketch.render.vertex.AsyncVertexFiller;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -20,9 +19,9 @@ import java.util.Map;
  * ModelMesh stores vertex data in VertexResource and maintains offset information
  * for each sub-mesh to enable batch drawing commands.
  */
-public class ModelMesh implements AutoCloseable, VertexDataProvider {
+public class ModelMesh implements AutoCloseable, VertexDataProvider, Mesh {
     private final String name;
-    private final Mesh originalMesh;
+    private final MeshGroup originalMeshGroup;
     
     // GPU resources
     private final VertexResource vertexResource;
@@ -30,7 +29,7 @@ public class ModelMesh implements AutoCloseable, VertexDataProvider {
     // Sub-mesh instances with buffer offsets
     private final List<SubMeshInstance> subMeshInstances;
     private final Map<String, SubMeshInstance> subMeshInstancesByName;
-    
+
     // Bone data (copied from original mesh for animation)
     private final List<MeshBone> bones;
     private final Map<String, MeshBone> bonesByName;
@@ -41,10 +40,10 @@ public class ModelMesh implements AutoCloseable, VertexDataProvider {
     private final Map<String, Object> metadata;
     private boolean disposed = false;
     
-    public ModelMesh(String name, Mesh originalMesh, VertexResource vertexResource, 
+    public ModelMesh(String name, MeshGroup originalMeshGroup, VertexResource vertexResource,
                      List<SubMeshInstance> subMeshInstances) {
         this.name = name;
-        this.originalMesh = originalMesh;
+        this.originalMeshGroup = originalMeshGroup;
         this.vertexResource = vertexResource;
         this.subMeshInstances = new ArrayList<>(subMeshInstances);
         this.subMeshInstancesByName = new HashMap<>();
@@ -56,15 +55,15 @@ public class ModelMesh implements AutoCloseable, VertexDataProvider {
         }
         
         // Copy bone hierarchy (for animation support)
-        this.bones = new ArrayList<>(originalMesh.getAllBones());
+        this.bones = new ArrayList<>(originalMeshGroup.getAllBones());
         this.bonesByName = new HashMap<>();
         for (MeshBone bone : bones) {
             bonesByName.put(bone.getName(), bone);
         }
-        this.rootBone = originalMesh.getRootBone();
+        this.rootBone = originalMeshGroup.getRootBone();
         
         // Copy metadata
-        this.metadata.putAll(originalMesh.getMetadata());
+        this.metadata.putAll(originalMeshGroup.getMetadata());
     }
     
     // === Rendering Methods ===
@@ -113,7 +112,7 @@ public class ModelMesh implements AutoCloseable, VertexDataProvider {
      */
     public Map<PrimitiveType, List<SubMeshInstance>> getSubMeshesByPrimitiveType() {
         Map<PrimitiveType, List<SubMeshInstance>> byType = new HashMap<>();
-        PrimitiveType meshPrimitiveType = originalMesh.getPrimitiveType();
+        PrimitiveType meshPrimitiveType = originalMeshGroup.getPrimitiveType();
         
         // All sub-meshes in this model use the same primitive type
         byType.put(meshPrimitiveType, new ArrayList<>(subMeshInstances));
@@ -262,8 +261,8 @@ public class ModelMesh implements AutoCloseable, VertexDataProvider {
         return name;
     }
     
-    public Mesh getOriginalMesh() {
-        return originalMesh;
+    public MeshGroup getOriginalMesh() {
+        return originalMeshGroup;
     }
     
     public VertexResource getVertexResource() {
@@ -336,10 +335,30 @@ public class ModelMesh implements AutoCloseable, VertexDataProvider {
 
     @Override
     public void fillVertexData(VertexFiller filler) {
-        this.originalMesh.getSubMeshes().forEach(subMesh -> {
+        this.originalMeshGroup.getSubMeshes().forEach(subMesh -> {
             for (int i = 0; i < subMesh.getVertexCount(); ++i) {
                 filler.putVec3(subMesh.getVertexData()[i*3], subMesh.getVertexData()[i*3 + 1], subMesh.getVertexData()[i*3 + 2]);
             }
         });
+    }
+
+    @Override
+    public int getVertexCount() {
+        return 0;
+    }
+
+    @Override
+    public int getIndicesCount() {
+        return 0;
+    }
+
+    @Override
+    public void pushMeshVertex(long pointer, long vertexOffset, long indicesOffset) {
+
+    }
+
+    @Override
+    public boolean isBaked() {
+        return false;
     }
 }

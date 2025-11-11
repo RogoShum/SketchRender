@@ -89,19 +89,19 @@ public class MeshCompiler {
     /**
      * Compile a Mesh into a ModelMesh with default options
      */
-    public static ModelMesh compile(Mesh mesh) {
-        return compile(mesh, new CompilationOptions()).getModelMesh();
+    public static ModelMesh compile(MeshGroup meshGroup) {
+        return compile(meshGroup, new CompilationOptions()).getModelMesh();
     }
 
     /**
      * Compile a Mesh into a ModelMesh with custom options
      */
-    public static CompilationResult compile(Mesh mesh, CompilationOptions options) {
-        if (options.isValidateData() && !mesh.isValid()) {
-            throw new IllegalArgumentException("Mesh validation failed: " + mesh.getName());
+    public static CompilationResult compile(MeshGroup meshGroup, CompilationOptions options) {
+        if (options.isValidateData() && !meshGroup.isValid()) {
+            throw new IllegalArgumentException("Mesh validation failed: " + meshGroup.getName());
         }
 
-        CompilationContext context = new CompilationContext(mesh, options);
+        CompilationContext context = new CompilationContext(meshGroup, options);
 
         try {
             // Step 1: Analyze mesh structure
@@ -127,7 +127,7 @@ public class MeshCompiler {
         } catch (Exception e) {
             // Clean up any resources created during compilation
             context.cleanup();
-            throw new RuntimeException("Failed to compile mesh: " + mesh.getName(), e);
+            throw new RuntimeException("Failed to compile mesh: " + meshGroup.getName(), e);
         }
     }
 
@@ -135,7 +135,7 @@ public class MeshCompiler {
      * Internal compilation context
      */
     private static class CompilationContext {
-        final Mesh mesh;
+        final MeshGroup meshGroup;
         final CompilationOptions options;
         final Map<String, Object> compilationInfo;
 
@@ -147,8 +147,8 @@ public class MeshCompiler {
         final List<VertexResource> vertexResources;
         final List<SubMeshInstance> subMeshInstances;
 
-        CompilationContext(Mesh mesh, CompilationOptions options) {
-            this.mesh = mesh;
+        CompilationContext(MeshGroup meshGroup, CompilationOptions options) {
+            this.meshGroup = meshGroup;
             this.options = options;
             this.compilationInfo = new HashMap<>();
             this.subMeshesByFormat = new HashMap<>();
@@ -174,20 +174,20 @@ public class MeshCompiler {
      * Step 1: Analyze mesh structure
      */
     private static void analyzeMesh(CompilationContext context) {
-        context.compilationInfo.put("originalSubMeshCount", context.mesh.getSubMeshCount());
-        context.compilationInfo.put("originalVertexCount", context.mesh.getTotalVertexCount());
-        context.compilationInfo.put("originalIndexCount", context.mesh.getTotalIndexCount());
-        context.compilationInfo.put("boneCount", context.mesh.getBoneCount());
-        context.compilationInfo.put("hasAnimation", context.mesh.hasAnimation());
+        context.compilationInfo.put("originalSubMeshCount", context.meshGroup.getSubMeshCount());
+        context.compilationInfo.put("originalVertexCount", context.meshGroup.getTotalVertexCount());
+        context.compilationInfo.put("originalIndexCount", context.meshGroup.getTotalIndexCount());
+        context.compilationInfo.put("boneCount", context.meshGroup.getBoneCount());
+        context.compilationInfo.put("hasAnimation", context.meshGroup.hasAnimation());
     }
 
     /**
      * Step 2: Group sub-meshes by format and primitive type
      */
     private static void groupSubMeshes(CompilationContext context) {
-        PrimitiveType meshPrimitiveType = context.mesh.getPrimitiveType();
+        PrimitiveType meshPrimitiveType = context.meshGroup.getPrimitiveType();
 
-        for (SubMesh subMesh : context.mesh.getSubMeshes()) {
+        for (SubMesh subMesh : context.meshGroup.getSubMeshes()) {
             // Group by format
             DataFormat format = subMesh.getVertexFormat();
             context.subMeshesByFormat.computeIfAbsent(format, k -> new ArrayList<>()).add(subMesh);
@@ -207,7 +207,7 @@ public class MeshCompiler {
         // For simplicity, create one vertex resource per format
         // In a more advanced implementation, we could create resources per format+primitive combination
 
-        PrimitiveType meshPrimitiveType = context.mesh.getPrimitiveType();
+        PrimitiveType meshPrimitiveType = context.meshGroup.getPrimitiveType();
 
         for (Map.Entry<DataFormat, List<SubMesh>> entry : context.subMeshesByFormat.entrySet()) {
             DataFormat format = entry.getKey();
@@ -244,7 +244,7 @@ public class MeshCompiler {
             vertexResource.preAllocateStaticBuffer(totalVertices);
 
             // Create vertex filler
-            PrimitiveType primitiveType = context.mesh.getPrimitiveType();
+            PrimitiveType primitiveType = context.meshGroup.getPrimitiveType();
             VertexFiller vertexFiller = new VertexFiller(format, primitiveType, totalVertices);
 
             int currentVertexOffset = 0;
@@ -315,8 +315,8 @@ public class MeshCompiler {
         }
 
         return new ModelMesh(
-                context.mesh.getName() + "_compiled",
-                context.mesh,
+                context.meshGroup.getName() + "_compiled",
+                context.meshGroup,
                 primaryResource,
                 context.subMeshInstances
         );

@@ -13,8 +13,8 @@
 ```java
 private ModelMesh createQuadMesh() {
     try {
-        // Create a full-screen quad mesh for culling test rendering
-        Mesh mesh = MeshBuilder.create("culling_test_[type]_quad", PrimitiveType.QUADS)
+        // Create a full-screen quad meshGroup for culling test rendering
+        Mesh meshGroup = MeshBuilder.create("culling_test_[type]_quad", PrimitiveType.QUADS)
                 .subMesh("quad", 0, 4, DefaultDataFormats.POSITION)
                 .vertices(
                     // Full-screen quad vertices (NDC coordinates)
@@ -27,10 +27,10 @@ private ModelMesh createQuadMesh() {
                 .build();
 
         // Compile to ModelMesh for GPU rendering
-        return MeshCompiler.compile(mesh, MeshCompiler.staticMeshOptions());
+        return MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions());
     } catch (Exception e) {
         // Fallback: return null and let legacy system handle it
-        System.err.println("Failed to create [type] culling test quad mesh: " + e.getMessage());
+        System.err.println("Failed to create [type] culling test quad meshGroup: " + e.getMessage());
         return null;
     }
 }
@@ -95,17 +95,17 @@ public void dispose() {
 
 ### ChunkCullingTestGraphics
 - **Mesh名称**: `"culling_test_chunk_quad"`
-- **错误日志**: `"Failed to create chunk culling test quad mesh"`
+- **错误日志**: `"Failed to create chunk culling test quad meshGroup"`
 - **用途**: 渲染chunk区域的culling可视化
 
 ### EntityCullingTestGraphics  
 - **Mesh名称**: `"culling_test_entity_quad"`
-- **错误日志**: `"Failed to create entity culling test quad mesh"`
+- **错误日志**: `"Failed to create entity culling test quad meshGroup"`
 - **用途**: 渲染实体的culling可视化
 
 ### BlockEntityCullingTestGraphics
 - **Mesh名称**: `"culling_test_block_entity_quad"`  
-- **错误日志**: `"Failed to create block entity culling test quad mesh"`
+- **错误日志**: `"Failed to create block entity culling test quad meshGroup"`
 - **用途**: 渲染方块实体的culling可视化
 
 ## 新管线兼容性
@@ -126,11 +126,11 @@ public void dispose() {
 
 ### 验证mesh创建
 ```java
-ModelMesh mesh = chunkGraphics.getModelMesh();
-if (mesh != null) {
-    System.out.println("Mesh created successfully: " + mesh.getName());
-    System.out.println("Vertex count: " + mesh.getTotalVertexCount());
-    System.out.println("Valid: " + mesh.isValid());
+ModelMesh meshGroup = chunkGraphics.getModelMesh();
+if (meshGroup != null) {
+    System.out.println("Mesh created successfully: " + meshGroup.getName());
+    System.out.println("Vertex count: " + meshGroup.getTotalVertexCount());
+    System.out.println("Valid: " + meshGroup.isValid());
 }
 ```
 

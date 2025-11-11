@@ -15,7 +15,7 @@ import java.util.Map;
  * This is the logical representation that stores mesh, bone, and vertex information
  * before compilation to GPU resources.
  */
-public class Mesh implements ResourceObject {
+public class MeshGroup implements ResourceObject {
     private final String name;
     private final PrimitiveType primitiveType;
 
@@ -36,7 +36,7 @@ public class Mesh implements ResourceObject {
     // Resource management
     private boolean disposed = false;
 
-    public Mesh(String name, PrimitiveType primitiveType) {
+    public MeshGroup(String name, PrimitiveType primitiveType) {
         this.name = name;
         this.primitiveType = primitiveType;
         this.bonesByName = new HashMap<>();
@@ -351,7 +351,7 @@ public class Mesh implements ResourceObject {
 
     @Override
     public String toString() {
-        return "Mesh{" +
+        return "BakedMesh{" +
                 "name='" + name + '\'' +
                 ", primitiveType=" + primitiveType +
                 ", boneCount=" + allBones.size() +

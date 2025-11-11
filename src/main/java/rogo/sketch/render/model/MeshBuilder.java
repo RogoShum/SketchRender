@@ -9,12 +9,12 @@ import rogo.sketch.render.data.format.DataFormat;
  * Provides a fluent interface for constructing meshes with bones and sub-meshes.
  */
 public class MeshBuilder {
-    private final Mesh mesh;
+    private final MeshGroup meshGroup;
     private MeshBone currentBone;
     private SubMesh currentSubMesh;
     
     public MeshBuilder(String name, PrimitiveType primitiveType) {
-        this.mesh = new Mesh(name, primitiveType);
+        this.meshGroup = new MeshGroup(name, primitiveType);
     }
     
     /**
@@ -31,8 +31,8 @@ public class MeshBuilder {
      */
     public MeshBuilder rootBone(String name, int id) {
         MeshBone bone = new MeshBone(name, id);
-        mesh.addBone(bone);
-        mesh.setRootBone(bone);
+        meshGroup.addBone(bone);
+        meshGroup.setRootBone(bone);
         currentBone = bone;
         return this;
     }
@@ -46,7 +46,7 @@ public class MeshBuilder {
         }
         
         MeshBone bone = new MeshBone(name, id);
-        mesh.addBone(bone);
+        meshGroup.addBone(bone);
         currentBone.addChild(bone);
         currentBone = bone;
         return this;
@@ -57,10 +57,10 @@ public class MeshBuilder {
      */
     public MeshBuilder boneWithTransform(String name, int id, Matrix4f localTransform, Matrix4f inverseBindPose) {
         MeshBone bone = new MeshBone(name, id, localTransform, inverseBindPose);
-        mesh.addBone(bone);
+        meshGroup.addBone(bone);
         
-        if (mesh.getRootBone() == null) {
-            mesh.setRootBone(bone);
+        if (meshGroup.getRootBone() == null) {
+            meshGroup.setRootBone(bone);
         }
         
         currentBone = bone;
@@ -71,7 +71,7 @@ public class MeshBuilder {
      * Select an existing bone by name
      */
     public MeshBuilder selectBone(String name) {
-        currentBone = mesh.findBone(name);
+        currentBone = meshGroup.findBone(name);
         if (currentBone == null) {
             throw new IllegalArgumentException("Bone not found: " + name);
         }
@@ -94,7 +94,7 @@ public class MeshBuilder {
      * Add a sub-mesh
      */
     public MeshBuilder subMesh(String name, int id, int vertexCount, DataFormat vertexFormat) {
-        currentSubMesh = mesh.createSubMesh(name, id, vertexCount, vertexFormat);
+        currentSubMesh = meshGroup.createSubMesh(name, id, vertexCount, vertexFormat);
         return this;
     }
     
@@ -121,7 +121,7 @@ public class MeshBuilder {
             throw new IllegalStateException("No sub-mesh selected");
         }
         
-        MeshBone bone = mesh.findBone(boneName);
+        MeshBone bone = meshGroup.findBone(boneName);
         if (bone == null) {
             throw new IllegalArgumentException("Bone not found: " + boneName);
         }
@@ -182,7 +182,7 @@ public class MeshBuilder {
      * Select an existing sub-mesh by name
      */
     public MeshBuilder selectSubMesh(String name) {
-        currentSubMesh = mesh.findSubMesh(name);
+        currentSubMesh = meshGroup.findSubMesh(name);
         if (currentSubMesh == null) {
             throw new IllegalArgumentException("SubMesh not found: " + name);
         }
@@ -195,7 +195,7 @@ public class MeshBuilder {
      * Add metadata to the mesh
      */
     public MeshBuilder metadata(String key, Object value) {
-        mesh.setMetadata(key, value);
+        meshGroup.setMetadata(key, value);
         return this;
     }
     
@@ -204,27 +204,27 @@ public class MeshBuilder {
     /**
      * Build and return the mesh
      */
-    public Mesh build() {
-        if (!mesh.isValid()) {
+    public MeshGroup build() {
+        if (!meshGroup.isValid()) {
             throw new IllegalStateException("Mesh validation failed");
         }
-        return mesh;
+        return meshGroup;
     }
     
     /**
      * Build and immediately compile to ModelMesh
      */
     public ModelMesh buildAndCompile() {
-        Mesh builtMesh = build();
-        return MeshCompiler.compile(builtMesh);
+        MeshGroup builtMeshGroup = build();
+        return MeshCompiler.compile(builtMeshGroup);
     }
     
     /**
      * Build and compile with custom options
      */
     public ModelMesh buildAndCompile(MeshCompiler.CompilationOptions options) {
-        Mesh builtMesh = build();
-        return MeshCompiler.compile(builtMesh, options).getModelMesh();
+        MeshGroup builtMeshGroup = build();
+        return MeshCompiler.compile(builtMeshGroup, options).getModelMesh();
     }
     
     // === Convenience Methods ===
@@ -232,7 +232,7 @@ public class MeshBuilder {
     /**
      * Create a simple triangle mesh
      */
-    public static Mesh createTriangle(String name, DataFormat format) {
+    public static MeshGroup createTriangle(String name, DataFormat format) {
         return MeshBuilder.create(name, PrimitiveType.TRIANGLES)
                 .subMesh("triangle", 0, 3, format)
                 .vertices(
@@ -247,7 +247,7 @@ public class MeshBuilder {
     /**
      * Create a simple quad mesh
      */
-    public static Mesh createQuad(String name, DataFormat format) {
+    public static MeshGroup createQuad(String name, DataFormat format) {
         return MeshBuilder.create(name, PrimitiveType.QUADS)
                 .subMesh("quad", 0, 4, format)
                 .vertices(
@@ -263,7 +263,7 @@ public class MeshBuilder {
     /**
      * Create a skeletal mesh with a simple bone hierarchy
      */
-    public static Mesh createSkeletalExample(String name, DataFormat format) {
+    public static MeshGroup createSkeletalExample(String name, DataFormat format) {
         return MeshBuilder.create(name, PrimitiveType.TRIANGLES)
                 // Create bone hierarchy
                 .rootBone("root", 0)

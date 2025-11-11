@@ -3,7 +3,6 @@ package rogo.sketch.render.model;
 import org.joml.Matrix4f;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.data.DataType;
 
 /**
  * Example class demonstrating how to create and use Mesh and ModelMesh.
@@ -22,7 +21,7 @@ public class ModelMeshExample {
                 .build();
         
         // Create mesh using builder
-        Mesh mesh = MeshBuilder.create("textured_quad", PrimitiveType.QUADS)
+        MeshGroup meshGroup = MeshBuilder.create("textured_quad", PrimitiveType.QUADS)
                 .subMesh("quad", 0, 4, vertexFormat)
 
                 .indices(0, 1, 2, 3)
@@ -30,7 +29,7 @@ public class ModelMeshExample {
                 .build();
         
         // Compile to ModelMesh
-        ModelMesh modelMesh = MeshCompiler.compile(mesh, MeshCompiler.staticMeshOptions()).getModelMesh();
+        ModelMesh modelMesh = MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions()).getModelMesh();
         
         // Use for rendering
         demonstrateRendering(modelMesh);
@@ -53,7 +52,7 @@ public class ModelMeshExample {
                 .build();
         
         // Create bone hierarchy
-        Mesh characterMesh = MeshBuilder.create("character", PrimitiveType.QUADS)
+        MeshGroup characterMeshGroup = MeshBuilder.create("character", PrimitiveType.QUADS)
                 // Root bone
                 .rootBone("root", 0)
                 
@@ -119,7 +118,7 @@ public class ModelMeshExample {
         MeshCompiler.CompilationOptions options = MeshCompiler.defaultOptions()
                 .setVertexUsage(rogo.sketch.render.data.Usage.DYNAMIC_DRAW); // For animation
         
-        ModelMesh modelMesh = MeshCompiler.compile(characterMesh, options).getModelMesh();
+        ModelMesh modelMesh = MeshCompiler.compile(characterMeshGroup, options).getModelMesh();
         
         // Demonstrate animation
         demonstrateAnimation(modelMesh);
@@ -218,7 +217,7 @@ public class ModelMeshExample {
                 .vec3Attribute("color")
                 .build();
         
-        Mesh mixedMesh = MeshBuilder.create("mixed_primitives", PrimitiveType.TRIANGLES)
+        MeshGroup mixedMeshGroup = MeshBuilder.create("mixed_primitives", PrimitiveType.TRIANGLES)
                 .subMesh("triangles", 0, 6, format)
 
                 .indices(0, 1, 2, 3, 4, 5)
@@ -229,7 +228,7 @@ public class ModelMeshExample {
                 
                 .build();
         
-        ModelMesh modelMesh = MeshCompiler.compile(mixedMesh);
+        ModelMesh modelMesh = MeshCompiler.compile(mixedMeshGroup);
         
         // Group sub-meshes by primitive type for batch rendering
         var subMeshesByType = modelMesh.getSubMeshesByPrimitiveType();

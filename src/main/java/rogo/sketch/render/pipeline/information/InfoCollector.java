@@ -2,7 +2,7 @@ package rogo.sketch.render.pipeline.information;
 
 import org.joml.Matrix4f;
 import rogo.sketch.api.graphics.*;
-import rogo.sketch.render.model.Mesh;
+import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.model.ModelMesh;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
@@ -47,7 +47,7 @@ public class InfoCollector {
 
         // Extract mesh data
         ModelMesh modelMesh = extractModelMesh(instance);
-        Mesh mesh = extractMesh(instance);
+        MeshGroup meshGroup = extractMesh(instance);
 
         // Extract transformation matrix
         Matrix4f meshMatrix = extractMeshMatrix(instance);
@@ -56,7 +56,7 @@ public class InfoCollector {
         InstancedVertexLayout instancedLayout = extractInstancedVertexLayout(instance);
 
         // Calculate vertex count
-        int vertexCount = calculateVertexCount(modelMesh, mesh, instance);
+        int vertexCount = calculateVertexCount(modelMesh, meshGroup, instance);
 
         // Check if this is instanced rendering
         boolean isInstancedRendering = instancedLayout != null;
@@ -66,7 +66,7 @@ public class InfoCollector {
                 renderSetting,
                 resourceBinding,
                 modelMesh,
-                mesh,
+                meshGroup,
                 meshMatrix,
                 instancedLayout,
                 vertexCount,
@@ -90,7 +90,7 @@ public class InfoCollector {
      * Extract mesh from a graphics instance
      */
     @Nullable
-    private static Mesh extractMesh(GraphicsInstance instance) {
+    private static MeshGroup extractMesh(GraphicsInstance instance) {
         if (instance instanceof MeshProvider provider) {
             return provider.getMesh();
         }
@@ -122,12 +122,12 @@ public class InfoCollector {
     /**
      * Calculate vertex count from available mesh data
      */
-    private static int calculateVertexCount(ModelMesh modelMesh, Mesh mesh, GraphicsInstance instance) {
+    private static int calculateVertexCount(ModelMesh modelMesh, MeshGroup meshGroup, GraphicsInstance instance) {
         if (modelMesh != null) {
             return modelMesh.getTotalVertexCount();
         }
-        if (mesh != null) {
-            return mesh.getTotalVertexCount();
+        if (meshGroup != null) {
+            return meshGroup.getTotalVertexCount();
         }
         if (instance instanceof VertexCountProvider provider) {
             return provider.getVertexCount();

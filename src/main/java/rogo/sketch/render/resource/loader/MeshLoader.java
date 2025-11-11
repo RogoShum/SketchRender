@@ -5,7 +5,7 @@ import org.joml.Matrix4f;
 import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.model.Mesh;
+import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.model.MeshBone;
 import rogo.sketch.render.model.SubMesh;
 import rogo.sketch.util.Identifier;
@@ -19,10 +19,10 @@ import java.util.function.Function;
  * Loader for Mesh resources from JSON
  * Supports loading complete mesh definitions with bones and sub-meshes
  */
-public class MeshLoader implements ResourceLoader<Mesh> {
+public class MeshLoader implements ResourceLoader<MeshGroup> {
 
     @Override
-    public Mesh loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public MeshGroup loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
 
@@ -30,24 +30,24 @@ public class MeshLoader implements ResourceLoader<Mesh> {
             String name = json.has("name") ? json.get("name").getAsString() : identifier.toString();
             PrimitiveType primitiveType = parsePrimitiveType(json.get("primitiveType").getAsString());
 
-            Mesh mesh = new Mesh(name, primitiveType);
+            MeshGroup meshGroup = new MeshGroup(name, primitiveType);
 
             // Load bones if present
             if (json.has("bones")) {
-                loadBones(mesh, json.getAsJsonArray("bones"));
+                loadBones(meshGroup, json.getAsJsonArray("bones"));
             }
 
             // Load sub-meshes
             if (json.has("subMeshes")) {
-                loadSubMeshes(mesh, json.getAsJsonArray("subMeshes"));
+                loadSubMeshes(meshGroup, json.getAsJsonArray("subMeshes"));
             }
 
             // Load metadata if present
             if (json.has("metadata")) {
-                loadMetadata(mesh, json.getAsJsonObject("metadata"));
+                loadMetadata(meshGroup, json.getAsJsonObject("metadata"));
             }
 
-            return mesh;
+            return meshGroup;
 
         } catch (Exception e) {
             System.err.println("Failed to load mesh from JSON: " + e.getMessage());
@@ -70,7 +70,7 @@ public class MeshLoader implements ResourceLoader<Mesh> {
         };
     }
 
-    private void loadBones(Mesh mesh, JsonArray bonesArray) {
+    private void loadBones(MeshGroup meshGroup, JsonArray bonesArray) {
         // First pass: create all bones
         for (JsonElement element : bonesArray) {
             JsonObject boneObj = element.getAsJsonObject();
@@ -82,11 +82,11 @@ public class MeshLoader implements ResourceLoader<Mesh> {
             Matrix4f inverseBindPose = parseMatrix4f(boneObj, "inverseBindPose");
 
             MeshBone bone = new MeshBone(name, id, localTransform, inverseBindPose);
-            mesh.addBone(bone);
+            meshGroup.addBone(bone);
 
             // Set as root if specified
             if (boneObj.has("isRoot") && boneObj.get("isRoot").getAsBoolean()) {
-                mesh.setRootBone(bone);
+                meshGroup.setRootBone(bone);
             }
         }
 
@@ -95,11 +95,11 @@ public class MeshLoader implements ResourceLoader<Mesh> {
             JsonObject boneObj = element.getAsJsonObject();
 
             String boneName = boneObj.get("name").getAsString();
-            MeshBone bone = mesh.findBone(boneName);
+            MeshBone bone = meshGroup.findBone(boneName);
 
             if (boneObj.has("parent")) {
                 String parentName = boneObj.get("parent").getAsString();
-                MeshBone parent = mesh.findBone(parentName);
+                MeshBone parent = meshGroup.findBone(parentName);
                 if (parent != null) {
                     bone.setParent(parent);
                 }
@@ -127,7 +127,7 @@ public class MeshLoader implements ResourceLoader<Mesh> {
         return matrix;
     }
 
-    private void loadSubMeshes(Mesh mesh, JsonArray subMeshesArray) {
+    private void loadSubMeshes(MeshGroup meshGroup, JsonArray subMeshesArray) {
         for (JsonElement element : subMeshesArray) {
             JsonObject subMeshObj = element.getAsJsonObject();
 
@@ -174,13 +174,13 @@ public class MeshLoader implements ResourceLoader<Mesh> {
             // Bind to bone if specified
             if (subMeshObj.has("bone")) {
                 String boneName = subMeshObj.get("bone").getAsString();
-                MeshBone bone = mesh.findBone(boneName);
+                MeshBone bone = meshGroup.findBone(boneName);
                 if (bone != null) {
                     subMesh.bindToBone(bone);
                 }
             }
 
-            mesh.addSubMesh(subMesh);
+            meshGroup.addSubMesh(subMesh);
         }
     }
 
@@ -227,7 +227,7 @@ public class MeshLoader implements ResourceLoader<Mesh> {
         };
     }
 
-    private void loadMetadata(Mesh mesh, JsonObject metadataObj) {
+    private void loadMetadata(MeshGroup meshGroup, JsonObject metadataObj) {
         for (Map.Entry<String, JsonElement> entry : metadataObj.entrySet()) {
             String key = entry.getKey();
             JsonElement value = entry.getValue();
@@ -235,15 +235,15 @@ public class MeshLoader implements ResourceLoader<Mesh> {
             if (value.isJsonPrimitive()) {
                 JsonPrimitive primitive = value.getAsJsonPrimitive();
                 if (primitive.isString()) {
-                    mesh.setMetadata(key, primitive.getAsString());
+                    meshGroup.setMetadata(key, primitive.getAsString());
                 } else if (primitive.isNumber()) {
-                    mesh.setMetadata(key, primitive.getAsNumber());
+                    meshGroup.setMetadata(key, primitive.getAsNumber());
                 } else if (primitive.isBoolean()) {
-                    mesh.setMetadata(key, primitive.getAsBoolean());
+                    meshGroup.setMetadata(key, primitive.getAsBoolean());
                 }
             } else {
                 // Store complex objects as strings
-                mesh.setMetadata(key, value.toString());
+                meshGroup.setMetadata(key, value.toString());
             }
         }
     }

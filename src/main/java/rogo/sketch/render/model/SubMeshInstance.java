@@ -44,8 +44,8 @@ public class SubMeshInstance {
     /**
      * Get the primitive type for rendering (from parent mesh)
      */
-    public PrimitiveType getPrimitiveType(Mesh parentMesh) {
-        return parentMesh.getPrimitiveType();
+    public PrimitiveType getPrimitiveType(MeshGroup parentMeshGroup) {
+        return parentMeshGroup.getPrimitiveType();
     }
     
     /**

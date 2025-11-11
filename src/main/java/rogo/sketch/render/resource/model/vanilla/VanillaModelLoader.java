@@ -6,22 +6,17 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.BlockModel;
-import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.model.Mesh;
+import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.model.MeshBuilder;
 import rogo.sketch.render.model.ModelMesh;
 import rogo.sketch.render.model.MeshCompiler;
 
-import javax.annotation.Nullable;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -137,8 +132,8 @@ public class VanillaModelLoader {
         builder.indices(indexArray);
         
         // Build and compile
-        Mesh mesh = builder.build();
-        return MeshCompiler.compile(mesh, MeshCompiler.staticMeshOptions()).getModelMesh();
+        MeshGroup meshGroup = builder.build();
+        return MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions()).getModelMesh();
     }
     
     private static void addQuadsToMesh(List<BakedQuad> quads, List<Float> vertices, List<Integer> indices) {
@@ -230,8 +225,8 @@ public class VanillaModelLoader {
         builder.indices(indexArray);
         
         // Build and compile
-        Mesh mesh = builder.build();
-        return MeshCompiler.compile(mesh, MeshCompiler.staticMeshOptions()).getModelMesh();
+        MeshGroup meshGroup = builder.build();
+        return MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions()).getModelMesh();
     }
     
     private static void addCubeToMesh(MinecraftCube cube, List<Float> vertices, List<Integer> indices) {

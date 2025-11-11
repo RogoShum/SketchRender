@@ -90,7 +90,7 @@ DataFormat format = DataFormat.builder("PositionUV")
     .build();
 
 // 创建网格
-Mesh mesh = MeshBuilder.create("quad")
+Mesh meshGroup = MeshBuilder.create("quad")
     .subMesh("main", 0, 4, PrimitiveType.QUADS, format)
     .vertices(
         -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,
@@ -117,7 +117,7 @@ Mesh skeletalMesh = MeshBuilder.create("character")
 ### 3. 编译为ModelMesh
 ```java
 // 静态网格编译
-ModelMesh modelMesh = MeshCompiler.compile(mesh, 
+ModelMesh modelMesh = MeshCompiler.compile(meshGroup, 
     MeshCompiler.staticMeshOptions());
 
 // 动态网格编译（用于动画）

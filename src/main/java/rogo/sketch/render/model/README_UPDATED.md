@@ -29,14 +29,14 @@
 ### 1. 程序化创建Mesh
 ```java
 // 创建基础网格
-Mesh mesh = MeshBuilder.create("my_mesh", PrimitiveType.TRIANGLES)
+Mesh meshGroup = MeshBuilder.create("my_mesh", PrimitiveType.TRIANGLES)
     .subMesh("main", 0, 3, vertexFormat)
     .vertices(/* vertex data */)
     .indices(/* index data */)
     .build();
 
 // 编译为ModelMesh
-ModelMesh modelMesh = MeshCompiler.compile(mesh);
+ModelMesh modelMesh = MeshCompiler.compile(meshGroup);
 ```
 
 ### 2. 从JSON加载Mesh
@@ -87,7 +87,7 @@ VanillaModelResourceManager.getInstance().registerCommonBlockModels();
 ```java
 // 通过资源管理器获取
 GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
-Optional<Mesh> mesh = resourceManager.getResource(ResourceTypes.MESH, 
+Optional<Mesh> meshGroup = resourceManager.getResource(ResourceTypes.MESH, 
     Identifier.of("my_mesh"));
 
 // 动态注册Minecraft模型
@@ -126,12 +126,12 @@ src/main/java/rogo/sketch/render/
 
 网格资源文件应放置在以下路径：
 ```
-assets/[namespace]/render/resource/mesh/[mesh_name].json
+assets/[namespace]/render/resource/meshGroup/[mesh_name].json
 ```
 
 例如：
 ```
-assets/minecraft/render/resource/mesh/stone_block.json
+assets/minecraft/render/resource/meshGroup/stone_block.json
 ```
 
 ## 优势

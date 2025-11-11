@@ -8,7 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.model.Mesh;
+import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.model.MeshCompiler;
 import rogo.sketch.render.model.ModelMesh;
 import rogo.sketch.render.model.SubMesh;
@@ -114,32 +114,32 @@ public class MinecraftModelConverter {
 
     private ModelMesh convertBakedModel(ResourceLocation location, BakedModel bakedModel) {
         String meshName = location.getNamespace() + "_" + location.getPath().replace('/', '_');
-        Mesh mesh = new Mesh(meshName, PrimitiveType.QUADS);
+        MeshGroup meshGroup = new MeshGroup(meshName, PrimitiveType.QUADS);
 
         // Convert each face direction to a separate sub-mesh for better culling
         for (Direction direction : Direction.values()) {
             List<BakedQuad> quads = bakedModel.getQuads(null, direction, random);
             if (!quads.isEmpty()) {
-                createSubMeshFromQuads(mesh, direction.getName(), quads);
+                createSubMeshFromQuads(meshGroup, direction.getName(), quads);
             }
         }
 
         // Handle general quads (no specific direction)
         List<BakedQuad> generalQuads = bakedModel.getQuads(null, null, random);
         if (!generalQuads.isEmpty()) {
-            createSubMeshFromQuads(mesh, "general", generalQuads);
+            createSubMeshFromQuads(meshGroup, "general", generalQuads);
         }
 
         // Add metadata
-        mesh.setMetadata("source", "minecraft");
-        mesh.setMetadata("original_location", location.toString());
-        mesh.setMetadata("is_block_model", true);
+        meshGroup.setMetadata("source", "minecraft");
+        meshGroup.setMetadata("original_location", location.toString());
+        meshGroup.setMetadata("is_block_model", true);
 
         // Compile to ModelMesh
-        return MeshCompiler.compile(mesh, MeshCompiler.staticMeshOptions()).getModelMesh();
+        return MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions()).getModelMesh();
     }
 
-    private void createSubMeshFromQuads(Mesh mesh, String name, List<BakedQuad> quads) {
+    private void createSubMeshFromQuads(MeshGroup meshGroup, String name, List<BakedQuad> quads) {
         List<Float> vertices = new ArrayList<>();
         List<Integer> indices = new ArrayList<>();
 
@@ -155,7 +155,7 @@ public class MinecraftModelConverter {
 
         // Create sub-mesh
         int vertexCount = vertices.size() / getVertexStride();
-        SubMesh subMesh = mesh.createSubMesh(name, mesh.getSubMeshCount(), vertexCount, BLOCK_VERTEX_FORMAT);
+        SubMesh subMesh = meshGroup.createSubMesh(name, meshGroup.getSubMeshCount(), vertexCount, BLOCK_VERTEX_FORMAT);
 
         // Add vertices
         for (Float vertex : vertices) {
