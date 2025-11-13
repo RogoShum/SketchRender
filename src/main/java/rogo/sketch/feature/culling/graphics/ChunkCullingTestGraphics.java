@@ -12,7 +12,7 @@ import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.model.MeshBuilder;
 import rogo.sketch.render.model.MeshCompiler;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.vertex.DefaultDataFormats;
@@ -26,7 +26,7 @@ import java.util.Optional;
  */
 public class ChunkCullingTestGraphics implements MeshGraphicsInstance {
     private final Identifier identifier;
-    private final ModelMesh modelMesh;
+    private final BakedMesh modelMesh;
     private final RenderSetting renderSetting;
 
     public ChunkCullingTestGraphics(Identifier identifier) {
@@ -35,7 +35,7 @@ public class ChunkCullingTestGraphics implements MeshGraphicsInstance {
         this.renderSetting = createRenderSetting();
     }
 
-    private ModelMesh createQuadMesh() {
+    private BakedMesh createQuadMesh() {
         try {
             // Create a full-screen quad mesh for culling test rendering
             MeshGroup meshGroup = MeshBuilder.create("culling_test_chunk_quad", PrimitiveType.QUADS)
@@ -111,7 +111,7 @@ public class ChunkCullingTestGraphics implements MeshGraphicsInstance {
     }
 
     @Override
-    public ModelMesh getModelMesh() {
+    public BakedMesh getModelMesh() {
         return modelMesh;
     }
 

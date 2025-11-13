@@ -69,15 +69,15 @@ public class MeshCompiler {
      * Result of mesh compilation containing the ModelMesh and compilation info
      */
     public static class CompilationResult {
-        private final ModelMesh modelMesh;
+        private final BakedMesh modelMesh;
         private final Map<String, Object> compilationInfo;
 
-        public CompilationResult(ModelMesh modelMesh, Map<String, Object> compilationInfo) {
+        public CompilationResult(BakedMesh modelMesh, Map<String, Object> compilationInfo) {
             this.modelMesh = modelMesh;
             this.compilationInfo = compilationInfo;
         }
 
-        public ModelMesh getModelMesh() {
+        public BakedMesh getModelMesh() {
             return modelMesh;
         }
 
@@ -89,7 +89,7 @@ public class MeshCompiler {
     /**
      * Compile a Mesh into a ModelMesh with default options
      */
-    public static ModelMesh compile(MeshGroup meshGroup) {
+    public static BakedMesh compile(MeshGroup meshGroup) {
         return compile(meshGroup, new CompilationOptions()).getModelMesh();
     }
 
@@ -120,7 +120,7 @@ public class MeshCompiler {
             createSubMeshInstances(context);
 
             // Step 6: Create final ModelMesh
-            ModelMesh modelMesh = createModelMesh(context);
+            BakedMesh modelMesh = createModelMesh(context);
 
             return new CompilationResult(modelMesh, context.getCompilationInfo());
 
@@ -304,7 +304,7 @@ public class MeshCompiler {
     /**
      * Step 6: Create the final ModelMesh
      */
-    private static ModelMesh createModelMesh(CompilationContext context) {
+    private static BakedMesh createModelMesh(CompilationContext context) {
         // For simplicity, use the first vertex resource
         // In a more advanced implementation, we might merge multiple resources
         VertexResource primaryResource = context.vertexResources.get(0);
@@ -314,7 +314,7 @@ public class MeshCompiler {
             primaryResource = mergeVertexResources(context.vertexResources, context);
         }
 
-        return new ModelMesh(
+        return new BakedMesh(
                 context.meshGroup.getName() + "_compiled",
                 context.meshGroup,
                 primaryResource,

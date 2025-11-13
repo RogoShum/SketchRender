@@ -2,7 +2,7 @@ package rogo.sketch.api.graphics;
 
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 
 /**
  * A unified graphics instance interface for the new mesh-based rendering system.
@@ -19,7 +19,7 @@ public interface MeshGraphicsInstance extends GraphicsInstance,
      * This is the primary method for the new pipeline
      */
     @Override
-    ModelMesh getModelMesh();
+    BakedMesh getModelMesh();
     
     /**
      * Get the render setting for this graphics instance

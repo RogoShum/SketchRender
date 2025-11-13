@@ -2,7 +2,6 @@ package rogo.sketch.render.model;
 
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.data.vertex.Mesh;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;

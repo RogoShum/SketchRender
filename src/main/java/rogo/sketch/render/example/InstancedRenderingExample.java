@@ -6,7 +6,7 @@ import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.data.filler.VertexFiller;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.vertex.InstancedVertexLayout;
 import rogo.sketch.util.Identifier;
 
@@ -25,12 +25,12 @@ public class InstancedRenderingExample {
             InstancedLayoutProvider {
 
         private final Identifier identifier;
-        private final ModelMesh cubeModel;
+        private final BakedMesh cubeModel;
         private final InstancedVertexLayout instanceLayout;
         private final CubeInstance[] instances;
         private final Matrix4f baseTransform;
 
-        public InstancedCube(Identifier id, ModelMesh cubeModel, CubeInstance[] instances) {
+        public InstancedCube(Identifier id, BakedMesh cubeModel, CubeInstance[] instances) {
             this.identifier = id;
             this.cubeModel = cubeModel;
             this.instances = instances;
@@ -75,7 +75,7 @@ public class InstancedRenderingExample {
         }
 
         @Override
-        public ModelMesh getModelMesh() {
+        public BakedMesh getModelMesh() {
             return cubeModel;
         }
 
@@ -212,7 +212,7 @@ public class InstancedRenderingExample {
         };
 
         // Create model mesh for a cube (this would be loaded from your model system)
-        ModelMesh cubeModel = null; // TODO: Load or create cube model
+        BakedMesh cubeModel = null; // TODO: Load or create cube model
 
         // Create instanced graphics instance
         InstancedCube instancedCube = new InstancedCube(
@@ -244,7 +244,7 @@ public class InstancedRenderingExample {
         };
 
         // Create model mesh for a cube
-        ModelMesh cubeModel = null; // TODO: Load or create cube model
+        BakedMesh cubeModel = null; // TODO: Load or create cube model
 
         // Create instanced graphics instance
         InstancedCube instancedCube = new InstancedCube(

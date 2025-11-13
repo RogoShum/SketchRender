@@ -7,7 +7,7 @@ import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.model.MeshBuilder;
 import rogo.sketch.render.model.MeshCompiler;
 import rogo.sketch.render.pipeline.PartialRenderSetting;
@@ -26,7 +26,7 @@ import java.util.Optional;
  */
 public class EntityCullingTestGraphics implements MeshGraphicsInstance {
     private final Identifier identifier;
-    private final ModelMesh modelMesh;
+    private final BakedMesh modelMesh;
     private final RenderSetting renderSetting;
 
     public EntityCullingTestGraphics(Identifier identifier) {
@@ -35,7 +35,7 @@ public class EntityCullingTestGraphics implements MeshGraphicsInstance {
         this.renderSetting = createRenderSetting();
     }
 
-    private ModelMesh createQuadMesh() {
+    private BakedMesh createQuadMesh() {
         try {
             // Create a full-screen quad mesh for culling test rendering
             MeshGroup meshGroup = MeshBuilder.create("culling_test_entity_quad", PrimitiveType.QUADS)
@@ -110,7 +110,7 @@ public class EntityCullingTestGraphics implements MeshGraphicsInstance {
     }
 
     @Override
-    public ModelMesh getModelMesh() {
+    public BakedMesh getModelMesh() {
         return modelMesh;
     }
 

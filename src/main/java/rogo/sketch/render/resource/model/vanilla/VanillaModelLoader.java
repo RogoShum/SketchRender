@@ -14,7 +14,7 @@ import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.model.MeshBuilder;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.model.MeshCompiler;
 
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ public class VanillaModelLoader {
     /**
      * Load a block model and convert it to ModelMesh
      */
-    public static ModelMesh loadBlockModel(ResourceLocation modelLocation) {
+    public static BakedMesh loadBlockModel(ResourceLocation modelLocation) {
         try {
             // Get the baked model from Minecraft's model manager
             BakedModel bakedModel = Minecraft.getInstance()
@@ -61,7 +61,7 @@ public class VanillaModelLoader {
     /**
      * Load an item model and convert it to ModelMesh
      */
-    public static ModelMesh loadItemModel(ResourceLocation modelLocation) {
+    public static BakedMesh loadItemModel(ResourceLocation modelLocation) {
         // Items use the same system as blocks in modern Minecraft
         return loadBlockModel(modelLocation);
     }
@@ -69,7 +69,7 @@ public class VanillaModelLoader {
     /**
      * Load a model from JSON definition
      */
-    public static ModelMesh loadFromJson(String jsonContent, String modelName) {
+    public static BakedMesh loadFromJson(String jsonContent, String modelName) {
         try {
             JsonObject jsonModel = JsonParser.parseString(jsonContent).getAsJsonObject();
             
@@ -96,7 +96,7 @@ public class VanillaModelLoader {
     /**
      * Convert a Minecraft BakedModel to our ModelMesh
      */
-    private static ModelMesh convertBakedModelToMesh(String name, BakedModel bakedModel) {
+    private static BakedMesh convertBakedModelToMesh(String name, BakedModel bakedModel) {
         MeshBuilder builder = MeshBuilder.create(name, PrimitiveType.QUADS);
         
         List<Float> vertices = new ArrayList<>();
@@ -198,7 +198,7 @@ public class VanillaModelLoader {
     /**
      * Convert Minecraft cube definitions to mesh
      */
-    private static ModelMesh convertCubesToMesh(String name, List<MinecraftCube> cubes) {
+    private static BakedMesh convertCubesToMesh(String name, List<MinecraftCube> cubes) {
         MeshBuilder builder = MeshBuilder.create(name, PrimitiveType.QUADS);
         
         List<Float> vertices = new ArrayList<>();

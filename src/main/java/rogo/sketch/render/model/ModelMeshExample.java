@@ -29,7 +29,7 @@ public class ModelMeshExample {
                 .build();
         
         // Compile to ModelMesh
-        ModelMesh modelMesh = MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions()).getModelMesh();
+        BakedMesh modelMesh = MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions()).getModelMesh();
         
         // Use for rendering
         demonstrateRendering(modelMesh);
@@ -118,7 +118,7 @@ public class ModelMeshExample {
         MeshCompiler.CompilationOptions options = MeshCompiler.defaultOptions()
                 .setVertexUsage(rogo.sketch.render.data.Usage.DYNAMIC_DRAW); // For animation
         
-        ModelMesh modelMesh = MeshCompiler.compile(characterMeshGroup, options).getModelMesh();
+        BakedMesh modelMesh = MeshCompiler.compile(characterMeshGroup, options).getModelMesh();
         
         // Demonstrate animation
         demonstrateAnimation(modelMesh);
@@ -130,7 +130,7 @@ public class ModelMeshExample {
     /**
      * Demonstrate basic rendering workflow
      */
-    private static void demonstrateRendering(ModelMesh modelMesh) {
+    private static void demonstrateRendering(BakedMesh modelMesh) {
         System.out.println("=== Rendering " + modelMesh.getName() + " ===");
         
         // Bind vertex resource
@@ -161,7 +161,7 @@ public class ModelMeshExample {
     /**
      * Demonstrate animation workflow
      */
-    private static void demonstrateAnimation(ModelMesh modelMesh) {
+    private static void demonstrateAnimation(BakedMesh modelMesh) {
         System.out.println("=== Animating " + modelMesh.getName() + " ===");
         
         if (!modelMesh.hasAnimation()) {
@@ -228,7 +228,7 @@ public class ModelMeshExample {
                 
                 .build();
         
-        ModelMesh modelMesh = MeshCompiler.compile(mixedMeshGroup);
+        BakedMesh modelMesh = MeshCompiler.compile(mixedMeshGroup);
         
         // Group sub-meshes by primitive type for batch rendering
         var subMeshesByType = modelMesh.getSubMeshesByPrimitiveType();

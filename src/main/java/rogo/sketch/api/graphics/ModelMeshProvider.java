@@ -1,7 +1,7 @@
 package rogo.sketch.api.graphics;
 
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 
 public interface ModelMeshProvider {
-    ModelMesh getModelMesh();
+    BakedMesh getModelMesh();
 }

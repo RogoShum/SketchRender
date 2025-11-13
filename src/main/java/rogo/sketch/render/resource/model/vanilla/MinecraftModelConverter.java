@@ -10,7 +10,7 @@ import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.model.MeshCompiler;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.model.SubMesh;
 import rogo.sketch.util.Identifier;
 
@@ -33,7 +33,7 @@ public class MinecraftModelConverter {
             .build();
 
     private static MinecraftModelConverter instance;
-    private final Map<ResourceLocation, ModelMesh> modelCache = new HashMap<>();
+    private final Map<ResourceLocation, BakedMesh> modelCache = new HashMap<>();
     private final RandomSource random = RandomSource.create(0);
 
     private MinecraftModelConverter() {
@@ -49,18 +49,18 @@ public class MinecraftModelConverter {
     /**
      * Convert a Minecraft model to ModelMesh with caching
      */
-    public ModelMesh getOrCreateModelMesh(ResourceLocation modelLocation) {
+    public BakedMesh getOrCreateModelMesh(ResourceLocation modelLocation) {
         return modelCache.computeIfAbsent(modelLocation, this::convertModel);
     }
 
     /**
      * Convert multiple models in batch
      */
-    public Map<ResourceLocation, ModelMesh> convertModels(List<ResourceLocation> modelLocations) {
-        Map<ResourceLocation, ModelMesh> results = new HashMap<>();
+    public Map<ResourceLocation, BakedMesh> convertModels(List<ResourceLocation> modelLocations) {
+        Map<ResourceLocation, BakedMesh> results = new HashMap<>();
 
         for (ResourceLocation location : modelLocations) {
-            ModelMesh mesh = getOrCreateModelMesh(location);
+            BakedMesh mesh = getOrCreateModelMesh(location);
             if (mesh != null) {
                 results.put(location, mesh);
             }
@@ -74,7 +74,7 @@ public class MinecraftModelConverter {
      */
     public void clearCache() {
         // Dispose all cached models
-        modelCache.values().forEach(ModelMesh::dispose);
+        modelCache.values().forEach(BakedMesh::dispose);
         modelCache.clear();
     }
 
@@ -84,16 +84,16 @@ public class MinecraftModelConverter {
     public CacheStats getCacheStats() {
         int totalModels = modelCache.size();
         int totalVertices = modelCache.values().stream()
-                .mapToInt(ModelMesh::getTotalVertexCount)
+                .mapToInt(BakedMesh::getTotalVertexCount)
                 .sum();
         int totalIndices = modelCache.values().stream()
-                .mapToInt(ModelMesh::getTotalIndexCount)
+                .mapToInt(BakedMesh::getTotalIndexCount)
                 .sum();
 
         return new CacheStats(totalModels, totalVertices, totalIndices);
     }
 
-    private ModelMesh convertModel(ResourceLocation modelLocation) {
+    private BakedMesh convertModel(ResourceLocation modelLocation) {
         try {
             BakedModel bakedModel = Minecraft.getInstance()
                     .getModelManager()
@@ -112,7 +112,7 @@ public class MinecraftModelConverter {
         }
     }
 
-    private ModelMesh convertBakedModel(ResourceLocation location, BakedModel bakedModel) {
+    private BakedMesh convertBakedModel(ResourceLocation location, BakedModel bakedModel) {
         String meshName = location.getNamespace() + "_" + location.getPath().replace('/', '_');
         MeshGroup meshGroup = new MeshGroup(meshName, PrimitiveType.QUADS);
 
@@ -248,7 +248,7 @@ public class MinecraftModelConverter {
      * Register a Minecraft model as a resource in the GraphicsResourceManager
      */
     public void registerMinecraftModel(ResourceLocation mcLocation, Identifier resourceId) {
-        ModelMesh modelMesh = getOrCreateModelMesh(mcLocation);
+        BakedMesh modelMesh = getOrCreateModelMesh(mcLocation);
         if (modelMesh != null) {
             rogo.sketch.render.resource.GraphicsResourceManager.getInstance()
                     .registerDirect(rogo.sketch.render.resource.ResourceTypes.MESH, resourceId, modelMesh.getOriginalMesh());
@@ -276,7 +276,7 @@ public class MinecraftModelConverter {
 
         @Override
         public java.util.Optional<rogo.sketch.api.ResourceObject> get() {
-            ModelMesh modelMesh = getInstance().getOrCreateModelMesh(mcLocation);
+            BakedMesh modelMesh = getInstance().getOrCreateModelMesh(mcLocation);
             if (modelMesh != null) {
                 return java.util.Optional.of(modelMesh.getOriginalMesh());
             }

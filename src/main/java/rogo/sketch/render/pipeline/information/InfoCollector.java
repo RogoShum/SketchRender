@@ -3,7 +3,7 @@ package rogo.sketch.render.pipeline.information;
 import org.joml.Matrix4f;
 import rogo.sketch.api.graphics.*;
 import rogo.sketch.render.model.MeshGroup;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.resource.ResourceBinding;
@@ -46,7 +46,7 @@ public class InfoCollector {
         ResourceBinding resourceBinding = renderSetting.resourceBinding();
 
         // Extract mesh data
-        ModelMesh modelMesh = extractModelMesh(instance);
+        BakedMesh modelMesh = extractModelMesh(instance);
         MeshGroup meshGroup = extractMesh(instance);
 
         // Extract transformation matrix
@@ -79,7 +79,7 @@ public class InfoCollector {
      * Extract model mesh from a graphics instance
      */
     @Nullable
-    private static ModelMesh extractModelMesh(GraphicsInstance instance) {
+    private static BakedMesh extractModelMesh(GraphicsInstance instance) {
         if (instance instanceof ModelMeshProvider provider) {
             return provider.getModelMesh();
         }
@@ -122,7 +122,7 @@ public class InfoCollector {
     /**
      * Calculate vertex count from available mesh data
      */
-    private static int calculateVertexCount(ModelMesh modelMesh, MeshGroup meshGroup, GraphicsInstance instance) {
+    private static int calculateVertexCount(BakedMesh modelMesh, MeshGroup meshGroup, GraphicsInstance instance) {
         if (modelMesh != null) {
             return modelMesh.getTotalVertexCount();
         }

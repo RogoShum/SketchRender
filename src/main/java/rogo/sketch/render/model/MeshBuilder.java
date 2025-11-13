@@ -214,7 +214,7 @@ public class MeshBuilder {
     /**
      * Build and immediately compile to ModelMesh
      */
-    public ModelMesh buildAndCompile() {
+    public BakedMesh buildAndCompile() {
         MeshGroup builtMeshGroup = build();
         return MeshCompiler.compile(builtMeshGroup);
     }
@@ -222,7 +222,7 @@ public class MeshBuilder {
     /**
      * Build and compile with custom options
      */
-    public ModelMesh buildAndCompile(MeshCompiler.CompilationOptions options) {
+    public BakedMesh buildAndCompile(MeshCompiler.CompilationOptions options) {
         MeshGroup builtMeshGroup = build();
         return MeshCompiler.compile(builtMeshGroup, options).getModelMesh();
     }

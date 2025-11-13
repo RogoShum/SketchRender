@@ -4,7 +4,7 @@ import org.joml.Matrix4f;
 import rogo.sketch.api.graphics.GraphicsInstance;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.model.MeshGroup;
-import rogo.sketch.render.model.ModelMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.vertex.InstancedVertexLayout;
 
@@ -21,7 +21,7 @@ public class GraphicsInstanceInformation {
 
     // Mesh data
     @Nullable
-    private final ModelMesh modelMesh;
+    private final BakedMesh modelMesh;
     @Nullable
     private final MeshGroup meshGroup;
 
@@ -42,7 +42,7 @@ public class GraphicsInstanceInformation {
     public GraphicsInstanceInformation(GraphicsInstance instance,
                                        RenderSetting renderSetting,
                                        ResourceBinding resourceBinding,
-                                       @Nullable ModelMesh modelMesh,
+                                       @Nullable BakedMesh modelMesh,
                                        @Nullable MeshGroup meshGroup,
                                        Matrix4f meshMatrix,
                                        @Nullable InstancedVertexLayout instancedVertexLayout,
@@ -73,7 +73,7 @@ public class GraphicsInstanceInformation {
     }
 
     @Nullable
-    public ModelMesh getModelMesh() {
+    public BakedMesh getModelMesh() {
         return modelMesh;
     }
 
