@@ -1,15 +1,13 @@
 package rogo.sketch.render.pipeline;
 
-import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
 import rogo.sketch.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
-import rogo.sketch.render.pipeline.async.AsyncRenderManager;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.RenderCommandQueue;
-import rogo.sketch.render.pipeline.information.GraphicsInstanceInformation;
+import rogo.sketch.render.pipeline.async.AsyncRenderManager;
 import rogo.sketch.render.pool.InstancePoolManager;
-import rogo.sketch.render.vertex.AsyncVertexFiller;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OrderedList;
 
@@ -25,16 +23,27 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
-    private final AsyncVertexFiller vertexFiller = AsyncVertexFiller.getInstance();
-    private final RenderCommandQueue renderCommandQueue = new RenderCommandQueue();
+    private final RenderCommandQueue<C> renderCommandQueue = new RenderCommandQueue<>(this);
+    private final PipelineConfig config;
     private C currentContext;
     private boolean initialized = false;
     private boolean initializedStaticGraphics = false;
 
+    public GraphicsPipeline(PipelineConfig config, C defaultContext) {
+        this.config = config;
+        this.stages = new OrderedList<>(config.isThrowOnSortFail());
+        this.currentContext = defaultContext;
+    }
+
     public GraphicsPipeline(boolean throwOnSortFail, C defaultContext) {
+        this.config = new PipelineConfig();
+        this.config.setThrowOnSortFail(throwOnSortFail);
         this.stages = new OrderedList<>(throwOnSortFail);
         this.currentContext = defaultContext;
-        // Don't initialize immediately, wait for explicit call
+    }
+
+    public PipelineConfig getConfig() {
+        return config;
     }
 
     /**
@@ -43,7 +52,8 @@ public class GraphicsPipeline<C extends RenderContext> {
      * @return true if added successfully, false if delayed
      */
     public boolean registerStage(GraphicsStage stage) {
-        boolean added = stages.add(stage, stage.getOrderRequirement(), (s, req) -> passMap.put(s, new GraphicsBatchGroup<>(this, s.getIdentifier())));
+        boolean added = stages.add(stage, stage.getOrderRequirement(),
+                (s, req) -> passMap.put(s, new GraphicsBatchGroup<>(this, s.getIdentifier())));
         if (added) {
             idToStage.put(stage.getIdentifier(), stage);
         }
@@ -71,35 +81,39 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Add a GraphInstance to a specific stage.
      */
-    public void addGraphInstance(Identifier stageId, GraphicsInstance graph, RenderSetting renderSetting) {
+    public void addGraphInstance(Identifier stageId, Graphics graph, RenderSetting renderSetting) {
         GraphicsStage stage = idToStage.get(stageId);
         if (stage != null) {
             passMap.get(stage).addGraphInstance(graph, renderSetting);
         }
     }
 
-    /**
-     * Legacy direct rendering approach
-     */
-    private void renderAllStagesLegacy() {
-        for (GraphicsStage stage : stages.getOrderedList()) {
-            GraphicsBatchGroup<C> group = passMap.get(stage);
-            group.render(renderStateManager, currentContext);
-        }
-    }
-
     public void computeAllRenderCommand() {
         try {
-            // Create render commands from all stages (each stage handles its own data collection and vertex filling)
             List<RenderCommand> renderCommands = createRenderCommands();
-
-            // Clear previous commands and add new ones
             renderCommandQueue.clear();
             renderCommandQueue.addCommands(renderCommands);
         } catch (Exception e) {
-            // Fallback to legacy rendering if something goes wrong
-            renderAllStagesLegacy();
+            e.printStackTrace();
         }
+    }
+
+    /**
+     * Create render commands from all stages
+     */
+    private List<RenderCommand> createRenderCommands() {
+        List<RenderCommand> allCommands = new ArrayList<>();
+
+        for (GraphicsStage stage : stages.getOrderedList()) {
+            GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
+            if (batchGroup != null) {
+                // Let GraphicsbatchGroup create its own render commands
+                List<RenderCommand> stageCommands = batchGroup.createRenderCommands(currentContext);
+                allCommands.addAll(stageCommands);
+            }
+        }
+
+        return allCommands;
     }
 
     /**
@@ -107,16 +121,13 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Only renders the stages strictly between fromId and toId.
      */
     public void renderStagesBetween(Identifier fromId, Identifier toId) {
-        renderCommandQueue.executeStagesBetween(fromId, toId, this.renderStateManager, this.currentContext);
-
         List<GraphicsStage> ordered = stages.getOrderedList();
         GraphicsStage fromStage = idToStage.get(fromId);
         GraphicsStage toStage = idToStage.get(toId);
         int fromIdx = ordered.indexOf(fromStage);
         int toIdx = ordered.indexOf(toStage);
         for (int i = fromIdx + 1; i < toIdx; i++) {
-            GraphicsBatchGroup<C> batchGroup = passMap.get(ordered.get(i));
-            if (batchGroup != null) batchGroup.render(renderStateManager, currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
         }
 
         renderStage(toId);
@@ -127,43 +138,27 @@ public class GraphicsPipeline<C extends RenderContext> {
      */
     public void renderStage(Identifier id) {
         renderCommandQueue.executeStage(id, this.renderStateManager, this.currentContext);
-
-        GraphicsStage stage = idToStage.get(id);
-        if (stage != null) {
-            GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
-            if (batchGroup != null) {
-                batchGroup.render(renderStateManager, currentContext);
-            }
-        }
     }
 
     public void renderStagesBefore(Identifier id) {
-        renderCommandQueue.executeStagesBefore(id, this.renderStateManager, this.currentContext);
-        renderCommandQueue.executeStage(id, this.renderStateManager, this.currentContext);
-
         List<GraphicsStage> ordered = stages.getOrderedList();
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
         for (int i = 0; i < idx; i++) {
-            GraphicsBatchGroup<C> batchGroup = passMap.get(ordered.get(i));
-            if (batchGroup != null) batchGroup.render(renderStateManager, currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
         }
 
         renderStage(id);
     }
 
     public void renderStagesAfter(Identifier id) {
-        renderCommandQueue.executeStage(id, this.renderStateManager, this.currentContext);
-        renderCommandQueue.executeStagesAfter(id, this.renderStateManager, this.currentContext);
-
         renderStage(id);
 
         List<GraphicsStage> ordered = stages.getOrderedList();
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
         for (int i = idx + 1; i < ordered.size(); i++) {
-            GraphicsBatchGroup<C> batchGroup = passMap.get(ordered.get(i));
-            if (batchGroup != null) batchGroup.render(renderStateManager, currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
         }
     }
 
@@ -199,12 +194,13 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Add a GraphInstance from the instance pool to a specific stage
      */
-    public void addPooledGraphInstance(Identifier stageId, Class<? extends GraphicsInstance> instanceType, RenderSetting renderSetting) {
+    public void addPooledGraphInstance(Identifier stageId, Class<? extends Graphics> instanceType,
+                                       RenderSetting renderSetting) {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
         }
 
-        GraphicsInstance instance = poolManager.borrowInstance(instanceType);
+        Graphics instance = poolManager.borrowInstance(instanceType);
         addGraphInstance(stageId, instance, renderSetting);
     }
 
@@ -216,7 +212,7 @@ public class GraphicsPipeline<C extends RenderContext> {
             throw new IllegalStateException("Instance pooling is not enabled");
         }
 
-        GraphicsInstance instance = poolManager.borrowInstance(poolName);
+        Graphics instance = poolManager.borrowInstance(poolName);
         addGraphInstance(stageId, instance, renderSetting);
     }
 
@@ -270,22 +266,6 @@ public class GraphicsPipeline<C extends RenderContext> {
         return currentContext;
     }
 
-
-    /**
-     * Get pipeline statistics
-     */
-    public PipelineStats getStats() {
-        int totalStages = stages.getOrderedList().size();
-        int pendingStages = stages.getPendingElements().size();
-        int totalInstances = passMap.values().stream()
-                .mapToInt(group -> group.getBatches().stream()
-                        .mapToInt(pass -> pass.getAllInstances().size())
-                        .sum())
-                .sum();
-
-        return new PipelineStats(totalStages, pendingStages, totalInstances, initialized);
-    }
-
     public record PipelineStats(int totalStages, int pendingStages, int totalInstances,
                                 boolean initialized) {
         @Override
@@ -296,46 +276,9 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     /**
-     * Collect render data from all stages - Stage 1 of three-stage pipeline
-     */
-    private List<GraphicsInstanceInformation> collectRenderData() {
-        List<GraphicsInstanceInformation> allData = new ArrayList<>();
-
-        for (GraphicsStage stage : stages.getOrderedList()) {
-            GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
-            if (batchGroup != null) {
-                // Let GraphicsbatchGroup collect its own render data
-                List<GraphicsInstanceInformation> stageData = batchGroup.collectRenderData(currentContext);
-                allData.addAll(stageData);
-            }
-        }
-
-        return allData;
-    }
-
-    /**
-     * Create render commands from all stages - Stage 3 of three-stage pipeline
-     */
-    private List<RenderCommand> createRenderCommands() {
-        List<RenderCommand> allCommands = new ArrayList<>();
-
-        for (GraphicsStage stage : stages.getOrderedList()) {
-            GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
-            if (batchGroup != null) {
-                // Let GraphicsbatchGroup create its own render commands
-                List<RenderCommand> stageCommands = batchGroup.createRenderCommands(currentContext);
-                allCommands.addAll(stageCommands);
-            }
-        }
-
-        return allCommands;
-    }
-
-
-    /**
      * Get the render command queue (for new pipeline)
      */
-    public RenderCommandQueue getRenderCommandQueue() {
+    public RenderCommandQueue<C> getRenderCommandQueue() {
         return renderCommandQueue;
     }
 }

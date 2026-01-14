@@ -38,6 +38,7 @@ import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
+import rogo.sketch.event.RenderFlowRegisterEvent;
 import rogo.sketch.event.UniformHookRegisterEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.event.bridge.ForgeEventBusImplementation;
@@ -48,6 +49,7 @@ import rogo.sketch.feature.culling.aabb.AABBObject;
 import rogo.sketch.gui.ConfigScreen;
 import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.render.driver.MinecraftAPI;
+import rogo.sketch.render.pipeline.flow.RenderFlowRegistry;
 import rogo.sketch.render.shader.uniform.UniformHookRegistry;
 import rogo.sketch.render.state.RenderStateRegistry;
 import rogo.sketch.util.CommandCallTimer;
@@ -81,8 +83,12 @@ public class SketchRender {
         EventBusBridge.setImplementation(new ForgeEventBusImplementation());
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             MinecraftRenderStages.addStage(CullingStages.HIZ_STAGE);
-            FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(GraphicsPipelineInitEvent.class, VanillaPipelineEventHandler::onPipelineInit);
-            FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(UniformHookRegisterEvent.class, VanillaPipelineEventHandler::onUniformInit);
+            FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(GraphicsPipelineInitEvent.class,
+                    VanillaPipelineEventHandler::onPipelineInit);
+            FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(UniformHookRegisterEvent.class,
+                    VanillaPipelineEventHandler::onUniformInit);
+            FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(RenderFlowRegisterEvent.class,
+                    VanillaPipelineEventHandler::onBaseRenderFlowRegisterInit);
             MinecraftForge.EVENT_BUS.register(new VanillaPipelineEventHandler());
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
@@ -138,7 +144,8 @@ public class SketchRender {
                     DEBUG = 0;
             }
             if (TEST_CULL_KEY.isDown()) {
-                HitResult hitResult = ProjectileUtil.getHitResultOnViewVector(Minecraft.getInstance().player, Entity::isAlive, 999);
+                HitResult hitResult = ProjectileUtil.getHitResultOnViewVector(Minecraft.getInstance().player,
+                        Entity::isAlive, 999);
                 if (hitResult instanceof EntityHitResult entityHitResult) {
                     if (entityHitResult.getEntity() != testEntity) {
                         testEntity = entityHitResult.getEntity();
@@ -207,11 +214,13 @@ public class SketchRender {
     }
 
     public static boolean hasSodium() {
-        return FMLLoader.getLoadingModList().getMods().stream().anyMatch(modInfo -> modInfo.getModId().equals("sodium") || modInfo.getModId().equals("embeddium"));
+        return FMLLoader.getLoadingModList().getMods().stream()
+                .anyMatch(modInfo -> modInfo.getModId().equals("sodium") || modInfo.getModId().equals("embeddium"));
     }
 
     public static boolean hasIris() {
-        return FMLLoader.getLoadingModList().getMods().stream().anyMatch(modInfo -> modInfo.getModId().equals("iris") || modInfo.getModId().equals("oculus"));
+        return FMLLoader.getLoadingModList().getMods().stream()
+                .anyMatch(modInfo -> modInfo.getModId().equals("iris") || modInfo.getModId().equals("oculus"));
     }
 
     public static AABB getObjectAABB(Object o) {
@@ -233,10 +242,11 @@ public class SketchRender {
         if (event.getOverlay() == VanillaGuiOverlay.HELMET.type()) {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
-//            debugText.put("帧数", fps);
-//            long capacityInBytes = IndirectCommandBuffer.INSTANCE.getCapacity();
-//            double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
-//            debugText.put("IndirectCommandBuffer", String.format("%.2f MB", capacityInMB));
+            // debugText.put("帧数", fps);
+            // long capacityInBytes = IndirectCommandBuffer.INSTANCE.getCapacity();
+            // double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
+            // debugText.put("IndirectCommandBuffer", String.format("%.2f MB",
+            // capacityInMB));
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
             debugText.putAll(commandTimer.getResults());
@@ -254,8 +264,8 @@ public class SketchRender {
             String[] strings = debug.toString().split("\n");
 
             for (int i = 0; i < strings.length; ++i) {
-                event.getGuiGraphics().drawString(Minecraft.getInstance().font, strings[i], 0, Minecraft.getInstance().font.lineHeight * i
-                        , 16777215 + (255 << 24));
+                event.getGuiGraphics().drawString(Minecraft.getInstance().font, strings[i], 0,
+                        Minecraft.getInstance().font.lineHeight * i, 16777215 + (255 << 24));
             }
         }
     }
@@ -288,6 +298,7 @@ public class SketchRender {
     public void initClient(FMLClientSetupEvent event) {
         McPipelineRegister.initPipeline();
         UniformHookRegistry.getInstance().init();
+        RenderFlowRegistry.getInstance().init();
         RenderStateRegistry.init();
     }
 

@@ -30,16 +30,15 @@ import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
 import rogo.sketch.compat.sodium.api.TessellationDevice;
+import rogo.sketch.feature.culling.graphics.ComputeChunkCullingGraphics;
 import rogo.sketch.render.pipeline.PartialRenderSetting;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
-import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.util.GLFeatureChecker;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.vanilla.PipelineUtil;
-import rogo.sketch.feature.culling.graphics.ComputeChunkCullingGraphics;
 import rogo.sketch.feature.culling.graphics.CopyCounterGraphics;
 
 import java.util.ArrayList;
@@ -182,7 +181,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
         List<RenderRegion> regions = orderedRegions;
         if (!regions.isEmpty()) {
-            IndirectCommandBuffer.INSTANCE.bind();
+            MeshResource.CHUNK_COMMAND.bind();
             MeshResource.CULLING_COUNTER.bind();
         }
 

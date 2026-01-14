@@ -1,92 +1,47 @@
 package rogo.sketch.feature.culling.graphics;
 
-import rogo.sketch.api.graphics.MeshGraphicsInstance;
+import rogo.sketch.SketchRender;
+import rogo.sketch.api.model.PreparedMesh;
 import rogo.sketch.feature.culling.CullingStateManager;
-import rogo.sketch.render.model.MeshGroup;
-import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.render.pipeline.RenderParameter;
-import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.model.BakedMesh;
-import rogo.sketch.render.model.MeshBuilder;
-import rogo.sketch.render.model.MeshCompiler;
-import rogo.sketch.render.pipeline.PartialRenderSetting;
-import rogo.sketch.render.data.Usage;
-import rogo.sketch.render.resource.GraphicsResourceManager;
-import rogo.sketch.render.resource.ResourceTypes;
+import rogo.sketch.render.instance.MeshGraphics;
+import rogo.sketch.render.model.DynamicMesh;
 import rogo.sketch.render.vertex.DefaultDataFormats;
 import rogo.sketch.util.Identifier;
-import rogo.sketch.SketchRender;
-
-import java.util.Optional;
 
 /**
- * Entity culling test graphics instance for the new pipeline
- * Renders culling visualization for entities
+ * Entity culling test graphics instance using DynamicMesh
  */
-public class EntityCullingTestGraphics implements MeshGraphicsInstance {
-    private final Identifier identifier;
-    private final BakedMesh modelMesh;
-    private final RenderSetting renderSetting;
+public class EntityCullingTestGraphics extends MeshGraphics {
+    private final PreparedMesh mesh;
 
     public EntityCullingTestGraphics(Identifier identifier) {
-        this.identifier = identifier;
-        this.modelMesh = createQuadMesh();
-        this.renderSetting = createRenderSetting();
+        super(identifier);
+        // Use DynamicMesh for run-time generation (demonstration)
+        // In reality, a static quad could be a BakedMesh, but user requested
+        // DynamicMesh logic
+        this.mesh = createDynamicMesh();
     }
 
-    private BakedMesh createQuadMesh() {
-        try {
-            // Create a full-screen quad mesh for culling test rendering
-            MeshGroup meshGroup = MeshBuilder.create("culling_test_entity_quad", PrimitiveType.QUADS)
-                    .subMesh("quad", 0, 4, DefaultDataFormats.POSITION)
-                    .vertices(-1.0f, -1.0f, 0.0f)
-                    .vertices(1.0f, -1.0f, 0.0f)
-                    .vertices(1.0f, 1.0f, 0.0f)
-                    .vertices(-1.0f, 1.0f, 0.0f)
-                    .indices(0, 1, 2, 2, 3, 0)
-                    .build();
-
-            // Compile to ModelMesh for GPU rendering
-            return MeshCompiler.compile(meshGroup, MeshCompiler.staticMeshOptions()).getModelMesh();
-        } catch (Exception e) {
-            // Fallback: return null and let legacy system handle it
-            System.err.println("Failed to create entity culling test quad mesh: " + e.getMessage());
-            return null;
-        }
-    }
-
-    private RenderSetting createRenderSetting() {
-        Identifier settingId = Identifier.of(SketchRender.MOD_ID, "culling_test_entity");
-        Optional<PartialRenderSetting> partialSetting = GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
-
-        if (partialSetting.isPresent()) {
-            RenderParameter renderParameter = new RenderParameter(
-                    DefaultDataFormats.POSITION,
-                    PrimitiveType.QUADS, 
-                    Usage.DYNAMIC_DRAW, 
-                    false
-            );
-            return RenderSetting.fromPartial(partialSetting.get(), renderParameter);
-        }
-        
-        return null; // Fallback
-    }
-
-    @Override
-    public Identifier getIdentifier() {
-        return identifier;
+    private PreparedMesh createDynamicMesh() {
+        return new DynamicMesh(
+                DefaultDataFormats.POSITION,
+                PrimitiveType.QUADS,
+                4, // vertexCount
+                0, // indexCount (0 for non-indexed or auto-generated)
+                filler -> {
+                    // Full-screen quad vertices (NDC coordinates)
+                    // Dynamic generation every frame (or when requested)
+                    filler.put(-1.0f, -1.0f, 0.0f).endVertex()
+                            .put(1.0f, -1.0f, 0.0f).endVertex()
+                            .put(1.0f, 1.0f, 0.0f).endVertex()
+                            .put(-1.0f, 1.0f, 0.0f).endVertex();
+                });
     }
 
     @Override
     public boolean shouldTick() {
         return false;
-    }
-
-    @Override
-    public <C extends RenderContext> void tick(C context) {
-        // No ticking needed for static quad
     }
 
     @Override
@@ -96,50 +51,14 @@ public class EntityCullingTestGraphics implements MeshGraphicsInstance {
 
     @Override
     public boolean shouldRender() {
-        // Only render if culling is active and not currently checking cull, and entity test is enabled
         if (!CullingStateManager.anyCulling() || CullingStateManager.CHECKING_CULL) {
             return false;
         }
-        
         return CullingStateManager.DEBUG > 0 && SketchRender.testEntity != null;
     }
 
     @Override
-    public <C extends RenderContext> void afterDraw(C context) {
-        // Nothing to do after drawing
-    }
-
-    @Override
-    public BakedMesh getModelMesh() {
-        return modelMesh;
-    }
-
-    @Override
-    public <C extends RenderContext> RenderSetting getRenderSetting(C context) {
-        return renderSetting;
-    }
-
-    @Override
-    public boolean needsUpdate() {
-        return true; // Always update for dynamic culling tests
-    }
-
-    @Override
-    public int getRenderPriority() {
-        return 200; // Render entities after chunks
-    }
-
-    @Override
-    public boolean isVisible() {
-        return shouldRender();
-    }
-
-    /**
-     * Clean up resources when this graphics instance is no longer needed
-     */
-    public void dispose() {
-        if (modelMesh != null) {
-            modelMesh.dispose();
-        }
+    public PreparedMesh getPreparedMesh() {
+        return mesh;
     }
 }

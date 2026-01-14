@@ -8,62 +8,52 @@ import static org.lwjgl.opengl.GL11.*;
 public enum DataType {
     // Float types
     FLOAT(GL_FLOAT, 1, Float.BYTES),
-    VEC2(GL_FLOAT, 2, 2 * Float.BYTES),
-    VEC3(GL_FLOAT, 3, 3 * Float.BYTES),
-    VEC4(GL_FLOAT, 4, 4 * Float.BYTES),
-    
+    VEC2F(GL_FLOAT, 2, 2 * Float.BYTES),
+    VEC3F(GL_FLOAT, 3, 3 * Float.BYTES),
+    VEC4F(GL_FLOAT, 4, 4 * Float.BYTES),
+
     // Integer types
     INT(GL_INT, 1, Integer.BYTES),
     VEC2I(GL_INT, 2, 2 * Integer.BYTES),
     VEC3I(GL_INT, 3, 3 * Integer.BYTES),
     VEC4I(GL_INT, 4, 4 * Integer.BYTES),
-    
+
     // Unsigned integer types (GLSL: uint, uvec2, uvec3, uvec4)
     UINT(GL_UNSIGNED_INT, 1, Integer.BYTES),
-    UVEC2(GL_UNSIGNED_INT, 2, 2 * Integer.BYTES),
-    UVEC3(GL_UNSIGNED_INT, 3, 3 * Integer.BYTES),
-    UVEC4(GL_UNSIGNED_INT, 4, 4 * Integer.BYTES),
-    
-    // Integer vectors (GLSL: ivec2, ivec3, ivec4)
-    IVEC2(GL_INT, 2, 2 * Integer.BYTES),
-    IVEC3(GL_INT, 3, 3 * Integer.BYTES),
-    IVEC4(GL_INT, 4, 4 * Integer.BYTES),
-    
+    VEC2UI(GL_UNSIGNED_INT, 2, 2 * Integer.BYTES),
+    VEC3UI(GL_UNSIGNED_INT, 3, 3 * Integer.BYTES),
+    VEC4UI(GL_UNSIGNED_INT, 4, 4 * Integer.BYTES),
+
     // Byte types
     BYTE(GL_BYTE, 1, Byte.BYTES),
     VEC2B(GL_BYTE, 2, 2 * Byte.BYTES),
     VEC3B(GL_BYTE, 3, 3 * Byte.BYTES),
     VEC4B(GL_BYTE, 4, 4 * Byte.BYTES),
-    
+
     // Unsigned byte types
     UBYTE(GL_UNSIGNED_BYTE, 1, Byte.BYTES),
     VEC2UB(GL_UNSIGNED_BYTE, 2, 2 * Byte.BYTES),
     VEC3UB(GL_UNSIGNED_BYTE, 3, 3 * Byte.BYTES),
     VEC4UB(GL_UNSIGNED_BYTE, 4, 4 * Byte.BYTES),
-    
+
     // Short types
     SHORT(GL_SHORT, 1, Short.BYTES),
     VEC2S(GL_SHORT, 2, 2 * Short.BYTES),
     VEC3S(GL_SHORT, 3, 3 * Short.BYTES),
     VEC4S(GL_SHORT, 4, 4 * Short.BYTES),
-    
+
     // Unsigned short types
     USHORT(GL_UNSIGNED_SHORT, 1, Short.BYTES),
     VEC2US(GL_UNSIGNED_SHORT, 2, 2 * Short.BYTES),
     VEC3US(GL_UNSIGNED_SHORT, 3, 3 * Short.BYTES),
     VEC4US(GL_UNSIGNED_SHORT, 4, 4 * Short.BYTES),
-    
+
     // Double types
     DOUBLE(GL_DOUBLE, 1, Double.BYTES),
     VEC2D(GL_DOUBLE, 2, 2 * Double.BYTES),
     VEC3D(GL_DOUBLE, 3, 3 * Double.BYTES),
     VEC4D(GL_DOUBLE, 4, 4 * Double.BYTES),
-    
-    // Boolean vectors (GLSL: bvec2, bvec3, bvec4) - stored as bytes
-    BVEC2(GL_BYTE, 2, 2 * Byte.BYTES),
-    BVEC3(GL_BYTE, 3, 3 * Byte.BYTES),
-    BVEC4(GL_BYTE, 4, 4 * Byte.BYTES),
-    
+
     // Matrix types
     MAT2(GL_FLOAT, 4, 4 * Float.BYTES),
     MAT3(GL_FLOAT, 9, 9 * Float.BYTES),
@@ -159,17 +149,17 @@ public enum DataType {
      */
     public boolean isCompatibleWith(DataType other) {
         if (this == other) return true;
-        
+
         // Same GL type and component count
         if (this.glType == other.glType && this.componentCount == other.componentCount) {
             return true;
         }
-        
+
         // Float types can be compatible with normalized integer types
         if (this.isFloatType() && other.isIntegerType() && this.componentCount == other.componentCount) {
             return true;
         }
-        
+
         return false;
     }
 }

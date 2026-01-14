@@ -1,6 +1,6 @@
 package rogo.sketch.render.pipeline.async;
 
-import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pool.InstancePoolManager;
 
@@ -79,7 +79,7 @@ public class AsyncRenderManager {
     /**
      * Execute instance tick operations
      */
-    public CompletableFuture<Void> tickInstancesAsync(Collection<GraphicsInstance> instances, RenderContext context) {
+    public CompletableFuture<Void> tickInstancesAsync(Collection<Graphics> instances, RenderContext context) {
         if (!config.isAsyncTickEnabled() || 
             !config.shouldUseAsync(instances.size(), config.getAsyncThreshold())) {
             return executeSync(() -> {
@@ -121,7 +121,7 @@ public class AsyncRenderManager {
     /**
      * Execute instance update operations
      */
-    public CompletableFuture<Void> updateInstancesAsync(Collection<GraphicsInstance> instances, RenderContext context) {
+    public CompletableFuture<Void> updateInstancesAsync(Collection<Graphics> instances, RenderContext context) {
         if (!config.isAsyncInstanceUpdateEnabled() || 
             !config.shouldUseAsync(instances.size(), config.getInstanceUpdateThreshold())) {
             return executeSync(() -> {
@@ -251,18 +251,18 @@ public class AsyncRenderManager {
         }
     }
     
-    private void tickInstancesSync(Collection<GraphicsInstance> instances, RenderContext context) {
-        for (GraphicsInstance instance : instances) {
+    private void tickInstancesSync(Collection<Graphics> instances, RenderContext context) {
+        for (Graphics instance : instances) {
             if (instance.shouldTick()) {
                 instance.tick(context);
             }
         }
     }
     
-    private void updateInstancesSync(Collection<GraphicsInstance> instances, RenderContext context) {
+    private void updateInstancesSync(Collection<Graphics> instances, RenderContext context) {
         InstancePoolManager poolManager = InstancePoolManager.getInstance();
         
-        for (GraphicsInstance instance : instances) {
+        for (Graphics instance : instances) {
             try {
                 if (instance.shouldDiscard()) {
                     poolManager.returnInstance(instance);

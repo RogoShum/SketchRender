@@ -129,7 +129,7 @@ public class RenderSetting implements ResourceObject {
         return new RenderSetting(
                 partial.renderState(),
                 partial.resourceBinding(),
-                RenderParameter.EMPTY,
+                new ComputeParameter(),
                 partial.shouldSwitchRenderState(),
                 partial.getSourceIdentifier()
         );

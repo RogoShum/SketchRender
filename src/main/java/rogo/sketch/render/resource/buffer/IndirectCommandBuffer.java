@@ -5,12 +5,10 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.DataResourceObject;
 
+import java.nio.ByteBuffer;
+
 public class IndirectCommandBuffer implements DataResourceObject {
-    //                      ModelQuadFacing.COUNT * 256 + 1
-    public static final long REGION_COMMAND_SIZE = 7 * 256 + 1;
-    public static final int PASS_SIZE = 3;
-    public static final long REGION_PASS_COMMAND_SIZE = REGION_COMMAND_SIZE * PASS_SIZE;
-    public static final IndirectCommandBuffer INSTANCE = new IndirectCommandBuffer(REGION_COMMAND_SIZE);
+    public static final int COMMAND_SIZE = 20; // 5 ints * 4 bytes
     private final int id = GL15.glGenBuffers();
     private long commandBuffer;
     private long iCapacity;
@@ -29,12 +27,18 @@ public class IndirectCommandBuffer implements DataResourceObject {
     }
 
     public void resize(long capacity) {
+        if (capacity <= commandCount) return;
+        
+        if (commandBuffer != 0) {
+            MemoryUtil.nmemFree(this.commandBuffer);
+        }
+        
         iCapacity = capacity * getStride();
         commandCount = capacity;
-        MemoryUtil.nmemFree(this.commandBuffer);
         commandBuffer = MemoryUtil.nmemCalloc(1, iCapacity);
+        
         bind();
-        GL15.nglBufferData(GL43.GL_DRAW_INDIRECT_BUFFER, iCapacity, commandBuffer, GL15.GL_STATIC_DRAW);
+        GL15.nglBufferData(GL43.GL_DRAW_INDIRECT_BUFFER, iCapacity, commandBuffer, GL15.GL_DYNAMIC_DRAW);
         unBind();
     }
 
@@ -44,6 +48,16 @@ public class IndirectCommandBuffer implements DataResourceObject {
 
     public void upload() {
         GL15.nglBufferSubData(GL43.GL_DRAW_INDIRECT_BUFFER, 0, position, commandBuffer);
+    }
+    
+    /**
+     * Upload data from a ByteBuffer
+     */
+    public void upload(ByteBuffer buffer, int count) {
+        long size = (long) count * COMMAND_SIZE;
+        bind();
+        GL15.glBufferSubData(GL43.GL_DRAW_INDIRECT_BUFFER, 0, buffer);
+        unBind();
     }
 
     public int getHandle() {
@@ -62,14 +76,14 @@ public class IndirectCommandBuffer implements DataResourceObject {
 
     @Override
     public long getStride() {
-        return 20L;
+        return COMMAND_SIZE;
     }
 
     public long getMemoryAddress() {
         return commandBuffer;
     }
 
-    public void unBind() {
+    public static void unBind() {
         GL15.glBindBuffer(GL43.GL_DRAW_INDIRECT_BUFFER, 0);
     }
 
@@ -79,7 +93,10 @@ public class IndirectCommandBuffer implements DataResourceObject {
     }
 
     public void dispose() {
-        MemoryUtil.nmemFree(this.commandBuffer);
+        if (commandBuffer != 0) {
+            MemoryUtil.nmemFree(this.commandBuffer);
+            commandBuffer = 0;
+        }
         GL15.nglDeleteBuffers(GL43.GL_DRAW_INDIRECT_BUFFER, id);
         disposed = true;
     }
@@ -87,5 +104,50 @@ public class IndirectCommandBuffer implements DataResourceObject {
     @Override
     public boolean isDisposed() {
         return disposed;
+    }
+    
+    // === Static Helpers for writing commands ===
+    
+    public static void putArraysCommand(long address, int index, int count, int instanceCount, int first, int baseInstance) {
+        long offset = address + (long) index * COMMAND_SIZE;
+        MemoryUtil.memPutInt(offset + 0, count);
+        MemoryUtil.memPutInt(offset + 4, instanceCount);
+        MemoryUtil.memPutInt(offset + 8, first);
+        MemoryUtil.memPutInt(offset + 12, baseInstance);
+    }
+    
+    public static void putElementsCommand(long address, int index, int count, int instanceCount, int firstIndex, int baseVertex, int baseInstance) {
+        long offset = address + (long) index * COMMAND_SIZE;
+        MemoryUtil.memPutInt(offset + 0, count);
+        MemoryUtil.memPutInt(offset + 4, instanceCount);
+        MemoryUtil.memPutInt(offset + 8, firstIndex);
+        MemoryUtil.memPutInt(offset + 12, baseVertex);
+        MemoryUtil.memPutInt(offset + 16, baseInstance);
+    }
+
+    // === Dynamic Command Building ===
+
+    public int getCommandCount() {
+        return (int) (position / COMMAND_SIZE);
+    }
+
+    public void addDrawCommand(int count, int instanceCount, int first, int baseInstance) {
+        // Ensure capacity
+        if (position + COMMAND_SIZE > iCapacity) {
+            resize(commandCount * 2);
+        }
+
+        // Write directly to native memory or buffer
+        long addr = commandBuffer + position;
+
+        // DrawArraysIndirectCommand: { count, instanceCount, first, baseInstance }
+        // We write 5 ints (stride 20) to stay compatible with standard indirect buffers layout in this engine
+        MemoryUtil.memPutInt(addr + 0, count);
+        MemoryUtil.memPutInt(addr + 4, instanceCount);
+        MemoryUtil.memPutInt(addr + 8, first);
+        MemoryUtil.memPutInt(addr + 12, 0); // Reserved/BaseVertex
+        MemoryUtil.memPutInt(addr + 16, baseInstance);
+
+        position += COMMAND_SIZE;
     }
 }

@@ -4,12 +4,18 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.compat.sodium.api.ExtraRenderRegion;
+import rogo.sketch.render.data.builder.AddressBufferWriter;
+import rogo.sketch.render.data.builder.DataBufferWriter;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.MemoryLayout;
 import rogo.sketch.render.data.format.Std430DataFormat;
 import rogo.sketch.render.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.util.IndexPool;
 
+/**
+ * Manages mesh data for Sodium regions using SSBOs.
+ * Updated to use new DataBufferWriter and MemoryLayout tools.
+ */
 public class RegionMeshManager {
     private static final DataFormat SECTION_DATA_FORMAT = Std430DataFormat.std430Builder("SectionData")
             .intElement("mask")
@@ -32,9 +38,14 @@ public class RegionMeshManager {
     private MemoryLayout memoryLayout;
     private long meshDataPointer;
     private int currentCapacity;
+    
+    // Reuse a writer instance to avoid allocation, just update address/limit
+    private final AddressBufferWriter globalWriter;
 
     public RegionMeshManager() {
         currentCapacity = 1;
+        // Writer will be initialized after buffer
+        this.globalWriter = new AddressBufferWriter(0, 0); 
         initializeMemoryLayout();
         initializeBuffer();
     }
@@ -50,6 +61,13 @@ public class RegionMeshManager {
     private void initializeBuffer() {
         meshDataBuffer = new ShaderStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
         meshDataPointer = meshDataBuffer.getMemoryAddress();
+        updateWriter();
+    }
+    
+    private void updateWriter() {
+        if (meshDataBuffer != null) {
+            globalWriter.setAddress(meshDataBuffer.getMemoryAddress(), meshDataBuffer.getCapacity());
+        }
     }
 
     public int indexOf(RenderRegion region) {
@@ -92,8 +110,13 @@ public class RegionMeshManager {
         meshDataBuffer.resetUpload(GL15.GL_DYNAMIC_DRAW);
 
         initializeMemoryLayout();
+        updateWriter();
     }
 
+    /**
+     * Get the raw memory pointer for a section.
+     * Use getSectionWriter() for safer access.
+     */
     public long getSectionMemPointer(RenderRegion region, int passIndex, int sectionIndex) {
         int regionIdx = regionIndex.indexOf(region);
         long byteOffset = memoryLayout.calculateByteOffset(regionIdx, passIndex, sectionIndex);
@@ -104,6 +127,24 @@ public class RegionMeshManager {
 
         return meshDataPointer + byteOffset;
     }
+    
+    /**
+     * Get a DataBufferWriter pointed to the specific section.
+     * The writer is transient (new instance) but lightweight.
+     * Alternatively, we could return a shared writer positioned correctly, 
+     * but DataBufferWriter is sequential usually.
+     */
+    public DataBufferWriter getSectionWriter(RenderRegion region, int passIndex, int sectionIndex) {
+        long ptr = getSectionMemPointer(region, passIndex, sectionIndex);
+        return new AddressBufferWriter(ptr, SECTION_DATA_SIZE);
+    }
+    
+    /**
+     * Access the global writer for random access.
+     */
+    public DataBufferWriter getGlobalWriter() {
+        return globalWriter;
+    }
 
     public void uploadSectionData(int regionIndex, int passIndex, int sectionIndex) {
         long elementOffset = memoryLayout.calculateElementOffset(regionIndex, passIndex, sectionIndex);
@@ -112,7 +153,7 @@ public class RegionMeshManager {
 
     public void uploadRegionPassData(int regionIndex, int passIndex) {
         long passElementOffset = ((long) regionIndex * PASS_COUNT + (long) passIndex);
-        long passDataSize = memoryLayout.getDataSize("section");
+        long passDataSize = memoryLayout.getDataSize("pass");
 
         meshDataBuffer.upload(passElementOffset, (int) passDataSize);
     }
@@ -126,7 +167,7 @@ public class RegionMeshManager {
     }
 
     public long getSectionSize() {
-        return memoryLayout.getDataSize("section");
+        return SECTION_DATA_SIZE;
     }
 
     public int size() {

@@ -1,6 +1,6 @@
 package rogo.sketch.event;
 
-import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.pipeline.GraphicsPipeline;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.util.Identifier;
@@ -12,7 +12,7 @@ public class RegisterStaticGraphicsEvent {
         this.pipeline = pipeline;
     }
 
-    public void register(Identifier stage, GraphicsInstance graphics, RenderSetting renderSetting) {
+    public void register(Identifier stage, Graphics graphics, RenderSetting renderSetting) {
         this.pipeline.addGraphInstance(stage, graphics, renderSetting);
     }
 }

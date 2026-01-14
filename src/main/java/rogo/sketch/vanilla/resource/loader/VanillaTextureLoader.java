@@ -21,8 +21,11 @@ public class VanillaTextureLoader implements ResourceLoader<VanillaTexture> {
     private final TextureManager textureManager = Minecraft.getInstance().getTextureManager();
 
     @Override
-    public VanillaTexture loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public VanillaTexture load(Identifier identifier, rogo.sketch.render.resource.loader.ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
+            String jsonData = data.getString();
+            if (jsonData == null) return null;
+
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
 
             if (json.has("resourceLocation")) {

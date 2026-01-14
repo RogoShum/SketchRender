@@ -5,7 +5,7 @@ import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.BufferResourceObject;
 import rogo.sketch.render.data.IndexType;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.data.filler.VertexSorting;
+import rogo.sketch.render.data.builder.VertexSorting;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.sorting.PrimitiveSorter;
 

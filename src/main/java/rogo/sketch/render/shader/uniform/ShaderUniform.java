@@ -75,7 +75,7 @@ public class ShaderUniform<T> implements ShaderResource<T> {
                         GL20.glUniform1fv(location, floatValues);
                     };
                 }
-                case VEC2 -> {
+                case VEC2F -> {
                     return (value) -> {
                         Vector2f[] arr = (Vector2f[]) value;
                         floatValues.clear();
@@ -84,7 +84,7 @@ public class ShaderUniform<T> implements ShaderResource<T> {
                         GL20.glUniform2fv(location, floatValues);
                     };
                 }
-                case VEC3 -> {
+                case VEC3F -> {
                     return (value) -> {
                         Vector3f[] arr = (Vector3f[]) value;
                         floatValues.clear();
@@ -93,7 +93,7 @@ public class ShaderUniform<T> implements ShaderResource<T> {
                         GL20.glUniform3fv(location, floatValues);
                     };
                 }
-                case VEC4 -> {
+                case VEC4F -> {
                     return (value) -> {
                         Vector4f[] arr = (Vector4f[]) value;
                         floatValues.clear();
@@ -172,19 +172,19 @@ public class ShaderUniform<T> implements ShaderResource<T> {
                 case FLOAT -> {
                     return (value) -> GL20.glUniform1f(location, (Float) value);
                 }
-                case VEC2 -> {
+                case VEC2F -> {
                     return (value) -> {
                         Vector2f vec = (Vector2f) value;
                         GL20.glUniform2f(location, vec.x, vec.y);
                     };
                 }
-                case VEC3 -> {
+                case VEC3F -> {
                     return (value) -> {
                         Vector3f vec = (Vector3f) value;
                         GL20.glUniform3f(location, vec.x, vec.y, vec.z);
                     };
                 }
-                case VEC4 -> {
+                case VEC4F -> {
                     return (value) -> {
                         Vector4f vec = (Vector4f) value;
                         GL20.glUniform4f(location, vec.x, vec.y, vec.z, vec.w);

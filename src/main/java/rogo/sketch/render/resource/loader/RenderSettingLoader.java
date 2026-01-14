@@ -22,8 +22,11 @@ import java.util.function.Function;
 public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting> {
 
     @Override
-    public PartialRenderSetting loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public PartialRenderSetting load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
+            String jsonData = data.getString();
+            if (jsonData == null) return null;
+
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
             FullRenderState renderState = loadFullRenderState(json, gson);
             ResourceBinding resourceBinding = loadResourceBinding(json, gson);

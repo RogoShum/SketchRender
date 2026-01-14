@@ -3,6 +3,7 @@ package rogo.sketch.render.resource;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import rogo.sketch.api.ResourceObject;
+import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.resource.loader.*;
 import rogo.sketch.util.Identifier;
 
@@ -25,7 +26,7 @@ public class GraphicsResourceManager {
     private final Map<String, ResourceReference<?>> references = new ConcurrentHashMap<>();
 
     // Resource loaders for different types
-    private final ResourceLoaderRegistry loaderRegistry = new ResourceLoaderRegistry();
+    private final ResourceLoaderRegistry loaderRegistry = new ResourceLoaderRegistry<>();
 
     private final Map<Identifier, Map<Identifier, Set<ResourceReloadListener>>> reloadListeners = new ConcurrentHashMap<>();
 
@@ -72,6 +73,13 @@ public class GraphicsResourceManager {
      * Enhanced to properly handle reload listeners during resource reload cycles
      */
     public void registerJson(Identifier type, Identifier name, String jsonData, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+        registerResource(type, name, new ResourceData(jsonData), resourceProvider);
+    }
+
+    /**
+     * Register a generic resource (JSON or Binary)
+     */
+    public void registerResource(Identifier type, Identifier name, ResourceData data, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         // Check if there's an existing reload listener for this resource
         Set<ResourceReloadListener> existingListener = getReloadListener(type, name);
 
@@ -79,7 +87,7 @@ public class GraphicsResourceManager {
         Function<Identifier, Optional<BufferedReader>> actualProvider = resourceProvider != null ? resourceProvider : subResourceProvider;
 
         // Load the new resource
-        loadJsonResource(type, name, jsonData, actualProvider);
+        loadResource(type, name, data, actualProvider);
         invalidateReferences(type, name);
 
         // Get the newly loaded resource
@@ -229,9 +237,9 @@ public class GraphicsResourceManager {
     }
 
     /**
-     * Load a JSON resource
+     * Load a resource
      */
-    private void loadJsonResource(Identifier type, Identifier identifier, String jsonData, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    private void loadResource(Identifier type, Identifier identifier, ResourceData data, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         Set<ResourceLoader<ResourceObject>> loader = loaderRegistry.getLoader(type);
         if (loader == null) {
             System.err.println("No loader found for resource type: " + type);
@@ -240,14 +248,14 @@ public class GraphicsResourceManager {
 
         try {
             for (ResourceLoader<ResourceObject> resourceLoader : loader) {
-                ResourceObject resource = resourceLoader.loadFromJson(identifier, jsonData, gson, resourceProvider);
+                ResourceObject resource = resourceLoader.load(identifier, data, gson, resourceProvider);
                 if (resource != null) {
                     resources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
                             .put(identifier, resource);
                 }
             }
         } catch (Exception e) {
-            System.err.println("Failed to load JSON resource " + identifier + " of type " + type + ": " + e.getMessage());
+            System.err.println("Failed to load resource " + identifier + " of type " + type + ": " + e.getMessage());
         }
     }
 
@@ -450,6 +458,8 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader());
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
         registerLoader(ResourceTypes.MESH, new MeshLoader());
+        // Add support for OBJ files
+        registerLoader(ResourceTypes.MESH, new ObjLoader());
     }
 
     /**

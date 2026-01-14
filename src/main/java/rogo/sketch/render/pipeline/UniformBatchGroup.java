@@ -1,6 +1,6 @@
 package rogo.sketch.render.pipeline;
 
-import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 
 import java.util.ArrayList;
@@ -8,14 +8,14 @@ import java.util.List;
 
 public class UniformBatchGroup {
     private final UniformValueSnapshot uniformSnapshot;
-    private final List<GraphicsInstance> instances;
+    private final List<Graphics> instances;
 
     public UniformBatchGroup(UniformValueSnapshot uniformSnapshot) {
         this.uniformSnapshot = uniformSnapshot;
         this.instances = new ArrayList<>();
     }
 
-    public void addInstance(GraphicsInstance instance) {
+    public void addInstance(Graphics instance) {
         instances.add(instance);
     }
 
@@ -23,7 +23,7 @@ public class UniformBatchGroup {
         return uniformSnapshot;
     }
 
-    public List<GraphicsInstance> getInstances() {
+    public List<Graphics> getInstances() {
         return instances;
     }
 

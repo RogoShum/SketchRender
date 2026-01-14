@@ -5,12 +5,13 @@ import java.util.List;
 
 /**
  * Multi-level memory layout calculation tool
- * Supports nested memory structure definitions with flexible offset and size calculations
+ * Supports nested memory structure definitions with flexible offset and size calculations.
+ * Includes debugging utilities to visualize memory structure.
  */
 public class MemoryLayout {
     private final DataFormat baseFormat;
     private final List<Dimension> dimensions;
-    private final long[] strides;  // Element stride for each dimension
+    private final long[] strides;  // Element stride for each dimension (in base elements)
     private final long baseElementSize;  // Base element size in bytes
     
     /**
@@ -18,7 +19,7 @@ public class MemoryLayout {
      */
     public static class Dimension {
         public final String name;
-        public final long size;  // Size of this dimension
+        public final long size;  // Size of this dimension (number of elements of the inner dimension)
         
         public Dimension(String name, long size) {
             this.name = name;
@@ -113,15 +114,21 @@ public class MemoryLayout {
         
         // Calculate total element count from this dimension to innermost layer
         long elementCount = 1;
-        for (int i = dimensionIndex; i < dimensions.size(); i++) {
+        for (int i = dimensionIndex + 1; i < dimensions.size(); i++) {
             elementCount *= dimensions.get(i).size;
         }
         
         return elementCount * baseElementSize;
     }
     
+    public long getStride(String dimensionName) {
+        int index = findDimensionIndex(dimensionName);
+        if (index == -1) return -1;
+        return strides[index] * baseElementSize;
+    }
+    
     /**
-     * Get number of base elements contained in specified dimension
+     * Get number of base elements contained in specified dimension (Total Capacity)
      */
     public long getElementCount(String dimensionName) {
         int dimensionIndex = findDimensionIndex(dimensionName);
@@ -129,7 +136,6 @@ public class MemoryLayout {
             throw new IllegalArgumentException("Dimension not found: " + dimensionName);
         }
         
-        // Calculate total element count from this dimension to innermost layer
         long elementCount = 1;
         for (int i = dimensionIndex; i < dimensions.size(); i++) {
             elementCount *= dimensions.get(i).size;
@@ -251,17 +257,63 @@ public class MemoryLayout {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("MemoryLayout{\n");
-        sb.append("  baseFormat: ").append(baseFormat.getClass().getSimpleName())
-          .append(" (").append(baseElementSize).append(" bytes)\n");
+        sb.append("MemoryLayout Structure:\n");
+        sb.append("Base Format: ").append(baseFormat.getClass().getSimpleName())
+          .append(" (Size: ").append(baseElementSize).append(" bytes)\n");
         
+        sb.append("Hierarchy:\n");
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            sb.append("  ").append(dim.name).append(": size=").append(dim.size)
-              .append(", stride=").append(strides[i]).append("\n");
+            long stride = strides[i] * baseElementSize;
+            long total = getDataSize(dim.name);
+            
+            String indent = "  ".repeat(i);
+            sb.append(indent).append("└─ ").append(dim.name)
+              .append(" [Count: ").append(dim.size).append("]")
+              .append(" (Stride: ").append(stride).append(" bytes)")
+              .append(" (Total: ").append(total).append(" bytes)\n");
+        }
+        return sb.toString();
+    }
+    
+    public void printDebug() {
+        System.out.println(this.toString());
+    }
+
+    /**
+     * Generates a GLSL struct definition string that matches this layout's base format.
+     * Useful for verifying shader compatibility.
+     */
+    public String toGLSLStruct(String structName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("struct ").append(structName).append(" {\n");
+        
+        // This assumes baseFormat elements map 1:1 to struct members
+        // and doesn't handle nested structs or arrays within the base format itself
+        // (DataFormat is usually flat).
+        for (DataElement element : baseFormat.getElements()) {
+             sb.append("    ").append(getGLSLType(element)).append(" ")
+               .append(element.getName()).append(";\n");
         }
         
-        sb.append("}");
+        sb.append("};");
         return sb.toString();
+    }
+    
+    private String getGLSLType(DataElement element) {
+        // Simple mapping, can be expanded
+        return switch (element.getDataType()) {
+            case FLOAT -> "float";
+            case VEC2F -> "vec2";
+            case VEC3F -> "vec3";
+            case VEC4F -> "vec4";
+            case INT -> "int";
+            case VEC2I -> "ivec2";
+            case VEC3I -> "ivec3";
+            case VEC4I -> "ivec4";
+            case UINT, UBYTE, USHORT -> "uint"; // GLSL usually treats small uints as uint
+            case MAT4 -> "mat4";
+            default -> "float"; // Fallback
+        };
     }
 }

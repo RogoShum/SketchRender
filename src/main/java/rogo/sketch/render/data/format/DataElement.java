@@ -5,7 +5,8 @@ import rogo.sketch.render.data.DataType;
 import java.util.Objects;
 
 /**
- * Describes a single element within a data format (used for vertices, uniforms, SSBO, UBO, etc.)
+ * Describes a single element within a data format (used for vertices, uniforms,
+ * SSBO, UBO, etc.)
  */
 public class DataElement {
     private final String name;
@@ -66,8 +67,13 @@ public class DataElement {
         return dataType.getComponentSize();
     }
 
+    public DataElement copy(int index) {
+        return new DataElement(name, dataType, index, normalized);
+    }
+
     /**
-     * Check if this element is compatible with another element (for shader matching)
+     * Check if this element is compatible with another element (for shader
+     * matching)
      */
     public boolean isCompatibleWith(DataElement other) {
         // Name doesn't need to match for compatibility
@@ -77,19 +83,20 @@ public class DataElement {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         DataElement that = (DataElement) o;
         return index == that.index &&
                 normalized == that.normalized &&
                 offset == that.offset &&
-                Objects.equals(name, that.name) &&
                 dataType == that.dataType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, dataType, index, normalized, offset);
+        return Objects.hash(dataType, index, normalized, offset);
     }
 
     @Override

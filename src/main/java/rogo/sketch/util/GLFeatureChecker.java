@@ -56,7 +56,9 @@ public final class GLFeatureChecker {
 
     public static boolean supportsDSA() {
         ensureInitialized();
-        return cachedDSA45 || cachedDSA_ARB || cachedDSA_EXT;
+        //todo need to fix
+        //return cachedDSA45 || cachedDSA_ARB || cachedDSA_EXT;
+        return false;
     }
 
     public static boolean supportsDSA45() {

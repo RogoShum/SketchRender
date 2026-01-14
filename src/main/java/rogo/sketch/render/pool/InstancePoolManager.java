@@ -1,6 +1,6 @@
 package rogo.sketch.render.pool;
 
-import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.util.Identifier;
 
 import java.util.Map;
@@ -14,7 +14,7 @@ public class InstancePoolManager {
     private static final InstancePoolManager INSTANCE = new InstancePoolManager();
 
     private final Map<Class<?>, ObjectPool<?>> typePools = new ConcurrentHashMap<>();
-    private final Map<Identifier, ObjectPool<GraphicsInstance>> namedPools = new ConcurrentHashMap<>();
+    private final Map<Identifier, ObjectPool<Graphics>> namedPools = new ConcurrentHashMap<>();
     private boolean poolingEnabled = true;
 
     private InstancePoolManager() {
@@ -27,22 +27,22 @@ public class InstancePoolManager {
     /**
      * Register a pool for a specific GraphicsInstance type
      */
-    public <T extends GraphicsInstance> void registerTypePool(Class<T> type, Supplier<T> factory) {
+    public <T extends Graphics> void registerTypePool(Class<T> type, Supplier<T> factory) {
         registerTypePool(type, factory, 128);
     }
 
-    public <T extends GraphicsInstance> void registerTypePool(Class<T> type, Supplier<T> factory, int maxSize) {
+    public <T extends Graphics> void registerTypePool(Class<T> type, Supplier<T> factory, int maxSize) {
         typePools.put(type, new ObjectPool<>(factory, maxSize));
     }
 
     /**
      * Register a named pool for specific instance categories
      */
-    public void registerNamedPool(Identifier poolName, Supplier<GraphicsInstance> factory) {
+    public void registerNamedPool(Identifier poolName, Supplier<Graphics> factory) {
         registerNamedPool(poolName, factory, 128);
     }
 
-    public void registerNamedPool(Identifier poolName, Supplier<GraphicsInstance> factory, int maxSize) {
+    public void registerNamedPool(Identifier poolName, Supplier<Graphics> factory, int maxSize) {
         namedPools.put(poolName, new ObjectPool<>(factory, maxSize));
     }
 
@@ -50,7 +50,7 @@ public class InstancePoolManager {
      * Borrow instance from type-based pool
      */
     @SuppressWarnings("unchecked")
-    public <T extends GraphicsInstance> T borrowInstance(Class<T> type) {
+    public <T extends Graphics> T borrowInstance(Class<T> type) {
         if (!poolingEnabled) {
             throw new IllegalStateException("Pooling is disabled, create instances manually");
         }
@@ -66,12 +66,12 @@ public class InstancePoolManager {
     /**
      * Borrow instance from named pool
      */
-    public GraphicsInstance borrowInstance(Identifier poolName) {
+    public Graphics borrowInstance(Identifier poolName) {
         if (!poolingEnabled) {
             throw new IllegalStateException("Pooling is disabled, create instances manually");
         }
 
-        ObjectPool<GraphicsInstance> pool = namedPools.get(poolName);
+        ObjectPool<Graphics> pool = namedPools.get(poolName);
         if (pool == null) {
             throw new IllegalArgumentException("No pool registered for name: " + poolName);
         }
@@ -82,23 +82,23 @@ public class InstancePoolManager {
     /**
      * Return instance to appropriate pool
      */
-    public void returnInstance(GraphicsInstance instance) {
+    public void returnInstance(Graphics instance) {
         if (!poolingEnabled) {
             return; // Just ignore if pooling is disabled
         }
 
         // Try type-based pool first
         @SuppressWarnings("unchecked")
-        ObjectPool<GraphicsInstance> typePool = (ObjectPool<GraphicsInstance>) typePools.get(instance.getClass());
+        ObjectPool<Graphics> typePool = (ObjectPool<Graphics>) typePools.get(instance.getClass());
         if (typePool != null) {
             typePool.returnObject(instance);
             return;
         }
 
         // Check if instance has pooling hint
-        if (instance instanceof PoolableGraphicsInstance poolable) {
+        if (instance instanceof PoolableGraphics poolable) {
             Identifier poolName = poolable.getPoolIdentifier();
-            ObjectPool<GraphicsInstance> namedPool = namedPools.get(poolName);
+            ObjectPool<Graphics> namedPool = namedPools.get(poolName);
             if (namedPool != null) {
                 namedPool.returnObject(instance);
                 return;

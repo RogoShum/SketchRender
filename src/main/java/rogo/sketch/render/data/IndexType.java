@@ -1,12 +1,11 @@
 package rogo.sketch.render.data;
 
-import org.lwjgl.opengl.GL15;
-import rogo.sketch.render.resource.buffer.IndexBufferResource;
+import org.lwjgl.opengl.GL11;
 
 public enum IndexType {
-    U_BYTE(GL15.GL_UNSIGNED_BYTE, 1),
-    U_SHORT(GL15.GL_UNSIGNED_SHORT, 2),
-    U_INT(GL15.GL_UNSIGNED_INT, 4);
+    U_BYTE(GL11.GL_UNSIGNED_BYTE, 1),
+    U_SHORT(GL11.GL_UNSIGNED_SHORT, 2),
+    U_INT(GL11.GL_UNSIGNED_INT, 4);
 
     private final int glType;
     private final int bytes;

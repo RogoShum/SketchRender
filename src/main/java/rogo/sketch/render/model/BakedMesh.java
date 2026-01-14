@@ -1,359 +1,113 @@
 package rogo.sketch.render.model;
 
-import rogo.sketch.api.graphics.VertexDataProvider;
+import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL31;
 import rogo.sketch.api.model.BakedTypeMesh;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.data.filler.VertexFiller;
+import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.render.resource.buffer.IndexBufferResource;
 import rogo.sketch.render.resource.buffer.VertexResource;
 
-import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 /**
- * Represents a compiled mesh with data filled into GPU vertex buffers.
- * This is the GPU-ready version of a Mesh that can be used for efficient batch rendering.
- * <p>
- * ModelMesh stores vertex data in VertexResource and maintains offset information
- * for each sub-mesh to enable batch drawing commands.
+ * Implementation of a static mesh baked into a VertexResource.
+ * Uses GL_COPY_READ_BUFFER / GL_COPY_WRITE_BUFFER for efficient transfer.
  */
-public class BakedMesh implements AutoCloseable, VertexDataProvider, BakedTypeMesh {
-    private final String name;
-    private final MeshGroup originalMeshGroup;
+public class BakedMesh implements BakedTypeMesh {
+    private final VertexResource sourceResource;
+    private final DataFormat format;
+    private final PrimitiveType primitiveType;
 
-    // GPU resources
-    private final VertexResource vertexResource;
+    // Source offsets and counts
+    private final int srcVertexOffset; // in vertices
+    private final int srcIndexOffset;  // in indices
+    private final int vertexCount;
+    private final int indexCount;
 
-    // Sub-mesh instances with buffer offsets
-    private final List<SubMeshInstance> subMeshInstances;
-    private final Map<String, SubMeshInstance> subMeshInstancesByName;
+    public BakedMesh(VertexResource sourceResource, int srcVertexOffset, int srcIndexOffset, int vertexCount, int indexCount) {
+        this.sourceResource = sourceResource;
+        this.srcVertexOffset = srcVertexOffset;
+        this.srcIndexOffset = srcIndexOffset;
+        this.vertexCount = vertexCount;
+        this.indexCount = indexCount;
 
-    // Bone data (copied from original mesh for animation)
-    private final List<MeshBone> bones;
-    private final Map<String, MeshBone> bonesByName;
-    @Nullable
-    private final MeshBone rootBone;
-
-    // Metadata
-    private final Map<String, Object> metadata;
-    private boolean disposed = false;
-
-    public BakedMesh(String name, MeshGroup originalMeshGroup, VertexResource vertexResource,
-                     List<SubMeshInstance> subMeshInstances) {
-        this.name = name;
-        this.originalMeshGroup = originalMeshGroup;
-        this.vertexResource = vertexResource;
-        this.subMeshInstances = new ArrayList<>(subMeshInstances);
-        this.subMeshInstancesByName = new HashMap<>();
-        this.metadata = new HashMap<>();
-
-        // Build sub-mesh lookup map
-        for (SubMeshInstance instance : subMeshInstances) {
-            subMeshInstancesByName.put(instance.getName(), instance);
-        }
-
-        // Copy bone hierarchy (for animation support)
-        this.bones = new ArrayList<>(originalMeshGroup.getAllBones());
-        this.bonesByName = new HashMap<>();
-        for (MeshBone bone : bones) {
-            bonesByName.put(bone.getName(), bone);
-        }
-        this.rootBone = originalMeshGroup.getRootBone();
-
-        // Copy metadata
-        this.metadata.putAll(originalMeshGroup.getMetadata());
-    }
-
-    // === Rendering Methods ===
-
-    /**
-     * Bind the vertex resource for rendering
-     */
-    public void bind() {
-        if (disposed) {
-            throw new IllegalStateException("ModelMesh has been disposed");
-        }
-        vertexResource.bind();
-    }
-
-    /**
-     * Unbind the vertex resource
-     */
-    public void unbind() {
-        vertexResource.unbind();
-    }
-
-    /**
-     * Get sub-mesh instances sorted by render priority
-     */
-    public List<SubMeshInstance> getSortedSubMeshes() {
-        List<SubMeshInstance> sorted = new ArrayList<>(subMeshInstances);
-        sorted.sort((a, b) -> Integer.compare(a.getRenderPriority(), b.getRenderPriority()));
-        return sorted;
-    }
-
-    /**
-     * Get visible sub-mesh instances
-     */
-    public List<SubMeshInstance> getVisibleSubMeshes() {
-        List<SubMeshInstance> visible = new ArrayList<>();
-        for (SubMeshInstance instance : subMeshInstances) {
-            if (instance.isVisible()) {
-                visible.add(instance);
-            }
-        }
-        return visible;
-    }
-
-    /**
-     * Get sub-mesh instances by primitive type (for batch rendering)
-     */
-    public Map<PrimitiveType, List<SubMeshInstance>> getSubMeshesByPrimitiveType() {
-        Map<PrimitiveType, List<SubMeshInstance>> byType = new HashMap<>();
-        PrimitiveType meshPrimitiveType = originalMeshGroup.getPrimitiveType();
-
-        // All sub-meshes in this model use the same primitive type
-        byType.put(meshPrimitiveType, new ArrayList<>(subMeshInstances));
-
-        return byType;
-    }
-
-    /**
-     * Get sub-mesh instances bound to a specific bone
-     */
-    public List<SubMeshInstance> getSubMeshesForBone(MeshBone bone) {
-        List<SubMeshInstance> result = new ArrayList<>();
-        for (SubMeshInstance instance : subMeshInstances) {
-            if (instance.getBone() == bone) {
-                result.add(instance);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Get unbound sub-mesh instances
-     */
-    public List<SubMeshInstance> getUnboundSubMeshes() {
-        List<SubMeshInstance> result = new ArrayList<>();
-        for (SubMeshInstance instance : subMeshInstances) {
-            if (!instance.isBound()) {
-                result.add(instance);
-            }
-        }
-        return result;
-    }
-
-    // === Sub-Mesh Access ===
-
-    /**
-     * Find a sub-mesh instance by name
-     */
-    @Nullable
-    public SubMeshInstance findSubMesh(String name) {
-        return subMeshInstancesByName.get(name);
-    }
-
-    /**
-     * Find a sub-mesh instance by original sub-mesh
-     */
-    @Nullable
-    public SubMeshInstance findSubMesh(SubMesh originalSubMesh) {
-        for (SubMeshInstance instance : subMeshInstances) {
-            if (instance.getOriginalSubMesh() == originalSubMesh) {
-                return instance;
-            }
-        }
-        return null;
-    }
-
-    // === Bone Access ===
-
-    /**
-     * Find a bone by name
-     */
-    @Nullable
-    public MeshBone findBone(String name) {
-        return bonesByName.get(name);
-    }
-
-    /**
-     * Update bone transforms (for animation)
-     */
-    public void updateBoneTransforms() {
-        // Bone transforms are updated in the bone objects themselves
-        // This method can be used to trigger any necessary updates
-        for (MeshBone bone : bones) {
-            // Force update of global transforms
-            bone.getGlobalTransform();
-        }
-    }
-
-    // === Utility Methods ===
-
-    /**
-     * Check if the model mesh has animation support
-     */
-    public boolean hasAnimation() {
-        return !bones.isEmpty();
-    }
-
-    /**
-     * Check if the model mesh uses index buffers
-     */
-    public boolean usesIndexBuffer() {
-        return vertexResource.hasIndices();
-    }
-
-    /**
-     * Get total vertex count
-     */
-    public int getTotalVertexCount() {
-        return vertexResource.getStaticVertexCount();
-    }
-
-    /**
-     * Get total index count
-     */
-    public int getTotalIndexCount() {
-        if (vertexResource.getIndexBuffer() != null) {
-            return vertexResource.getIndexBuffer().getIndexCount();
-        }
-        return 0;
-    }
-
-    /**
-     * Validate that the model mesh is consistent
-     */
-    public boolean isValid() {
-        if (disposed) {
-            return false;
-        }
-
-        // Check that vertex resource is valid
-        if (vertexResource.isDisposed()) {
-            return false;
-        }
-
-        // Check that all sub-mesh instances have valid offsets
-        for (SubMeshInstance instance : subMeshInstances) {
-            if (instance.getVertexOffset() < 0 ||
-                    instance.getVertexOffset() + instance.getVertexCount() > getTotalVertexCount()) {
-                return false;
-            }
-
-            if (instance.usesIndexBuffer()) {
-                if (instance.getIndexOffset() < 0 ||
-                        instance.getIndexOffset() + instance.getIndexCount() > getTotalIndexCount()) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    // === Getters ===
-
-    public String getName() {
-        return name;
-    }
-
-    public MeshGroup getOriginalMesh() {
-        return originalMeshGroup;
-    }
-
-    public VertexResource getVertexResource() {
-        return vertexResource;
-    }
-
-    public List<SubMeshInstance> getSubMeshInstances() {
-        return new ArrayList<>(subMeshInstances);
-    }
-
-    public List<MeshBone> getBones() {
-        return new ArrayList<>(bones);
-    }
-
-    @Nullable
-    public MeshBone getRootBone() {
-        return rootBone;
-    }
-
-    public int getSubMeshCount() {
-        return subMeshInstances.size();
-    }
-
-    public int getBoneCount() {
-        return bones.size();
-    }
-
-    public Map<String, Object> getMetadata() {
-        return metadata;
-    }
-
-    public void setMetadata(String key, Object value) {
-        metadata.put(key, value);
-    }
-
-    @Nullable
-    public Object getMetadata(String key) {
-        return metadata.get(key);
-    }
-
-    public boolean isDisposed() {
-        return disposed;
-    }
-
-    // === Resource Management ===
-
-    @Override
-    public void close() {
-        dispose();
-    }
-
-    public void dispose() {
-        if (!disposed) {
-            vertexResource.dispose();
-            disposed = true;
-        }
+        this.format = sourceResource.getStaticFormat();
+        this.primitiveType = sourceResource.getPrimitiveType();
     }
 
     @Override
-    public String toString() {
-        return "ModelMesh{" +
-                "name='" + name + '\'' +
-                ", subMeshCount=" + subMeshInstances.size() +
-                ", boneCount=" + bones.size() +
-                ", totalVertices=" + getTotalVertexCount() +
-                ", totalIndices=" + getTotalIndexCount() +
-                ", disposed=" + disposed +
-                '}';
+    public void copyTo(VertexResource target, int targetVertexOffset, int targetIndexOffset) {
+        if (vertexCount == 0 || format == null) return;
+
+        // 1. Copy Vertex Data
+        int vertexStride = format.getStride();
+        long sizeBytes = (long) vertexCount * vertexStride;
+        long srcOffsetBytes = (long) srcVertexOffset * vertexStride;
+        long dstOffsetBytes = (long) targetVertexOffset * vertexStride;
+
+        GL15.glBindBuffer(GL31.GL_COPY_READ_BUFFER, sourceResource.getStaticVBO());
+        GL15.glBindBuffer(GL31.GL_COPY_WRITE_BUFFER, target.getStaticVBO());
+        GL31.glCopyBufferSubData(GL31.GL_COPY_READ_BUFFER, GL31.GL_COPY_WRITE_BUFFER, srcOffsetBytes, dstOffsetBytes, sizeBytes);
+
+        // 2. Copy Index Data (if exists)
+        if (indexCount > 0 && isIndexed() && target.getIndexBuffer() != null) {
+            IndexBufferResource srcIBO = sourceResource.getIndexBuffer();
+            IndexBufferResource dstIBO = target.getIndexBuffer();
+
+            if (srcIBO != null && dstIBO != null) {
+                int indexStride = 4; // Assuming 32-bit indices (GL_UNSIGNED_INT)
+                long indexSizeBytes = (long) indexCount * indexStride;
+                long srcIndexOffsetBytes = (long) srcIndexOffset * indexStride;
+                long dstIndexOffsetBytes = (long) targetIndexOffset * indexStride;
+
+                GL15.glBindBuffer(GL31.GL_COPY_READ_BUFFER, srcIBO.getHandle());
+                GL15.glBindBuffer(GL31.GL_COPY_WRITE_BUFFER, dstIBO.getHandle());
+                GL31.glCopyBufferSubData(GL31.GL_COPY_READ_BUFFER, GL31.GL_COPY_WRITE_BUFFER, srcIndexOffsetBytes, dstIndexOffsetBytes, indexSizeBytes);
+            }
+        }
+
+        // Restore state
+        GL15.glBindBuffer(GL31.GL_COPY_READ_BUFFER, 0);
+        GL15.glBindBuffer(GL31.GL_COPY_WRITE_BUFFER, 0);
     }
 
     @Override
-    public void fillVertexData(VertexFiller filler) {
-        this.originalMeshGroup.getSubMeshes().forEach(subMesh -> {
-            for (int i = 0; i < subMesh.getVertexCount(); ++i) {
-                filler.putVec3(subMesh.getVertexData()[i * 3], subMesh.getVertexData()[i * 3 + 1], subMesh.getVertexData()[i * 3 + 2]);
-            }
-        });
+    public PrimitiveType getPrimitiveType() {
+        return primitiveType;
+    }
+
+    @Override
+    public DataFormat getVertexFormat() {
+        return format;
     }
 
     @Override
     public int getVertexCount() {
-        return 0;
+        return vertexCount;
     }
 
     @Override
     public int getIndicesCount() {
-        return 0;
+        return indexCount;
+    }
+
+    public VertexResource getSourceResource() {
+        return sourceResource;
     }
 
     @Override
-    public void copyMeshVertex(long pointer, long vertexOffset, long indicesOffset) {
+    public int getVAOHandle() {
+        // Get VBO handle at binding 0 from source resource
+        var component = sourceResource.getComponent(0);
+        return component != null ? component.getVboHandle() : 0;
+    }
 
+    @Override
+    public int getSourceVertexOffset() {
+        return srcVertexOffset;
+    }
+
+    @Override
+    public int getSourceIndexOffset() {
+        return srcIndexOffset;
     }
 }

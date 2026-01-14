@@ -141,9 +141,9 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
     private DataType inferAttributeType(int glType) {
         return switch (glType) {
             case GL20.GL_FLOAT -> DataType.FLOAT;
-            case GL20.GL_FLOAT_VEC2 -> DataType.VEC2;
-            case GL20.GL_FLOAT_VEC3 -> DataType.VEC3;
-            case GL20.GL_FLOAT_VEC4 -> DataType.VEC4;
+            case GL20.GL_FLOAT_VEC2 -> DataType.VEC2F;
+            case GL20.GL_FLOAT_VEC3 -> DataType.VEC3F;
+            case GL20.GL_FLOAT_VEC4 -> DataType.VEC4F;
             case GL20.GL_INT -> DataType.INT;
             case GL20.GL_INT_VEC2 -> DataType.VEC2I;
             case GL20.GL_INT_VEC3 -> DataType.VEC3I;

@@ -5,9 +5,10 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.DataResourceObject;
+import rogo.sketch.api.Resizeable;
 import rogo.sketch.util.Identifier;
 
-public class ShaderStorageBuffer implements DataResourceObject, BindingResource {
+public class ShaderStorageBuffer implements DataResourceObject, BindingResource, Resizeable {
     private final int id;
     private boolean disposed = false;
     private long bufferPointer;
@@ -161,6 +162,38 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource 
 
     public void discardMemory() {
         MemoryUtil.nmemFree(bufferPointer);
+    }
+
+    @Override
+    public long resize(long newCapacity) {
+        checkDisposed();
+        
+        // Calculate new aligned capacity (optional, stride alignment)
+        if (newCapacity <= capacity) return bufferPointer;
+        
+        long newPointer = MemoryUtil.nmemCalloc(newCapacity, 1);
+        
+        // Copy old data
+        if (bufferPointer != 0) {
+            MemoryUtil.memCopy(bufferPointer, newPointer, Math.min(capacity, newCapacity));
+            MemoryUtil.nmemFree(bufferPointer);
+        }
+        
+        this.bufferPointer = newPointer;
+        this.capacity = newCapacity;
+        
+        // Re-upload/Reset buffer storage
+        // Note: For SSBO, usually we expand then upload.
+        // But if this is called during mapping/writing, we just update the pointer.
+        // The actual GPU upload happens later via upload().
+        // However, we must ensure the GL buffer is resized eventually.
+        // Here we just resize the client-side shadow copy.
+        // We should trigger GL resize now or mark dirty?
+        // Current design: ensureCapacity() calls resetUpload().
+        
+        resetUpload(GL15.GL_DYNAMIC_DRAW);
+        
+        return bufferPointer;
     }
 
     @Override

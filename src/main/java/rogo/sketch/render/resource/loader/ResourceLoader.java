@@ -1,7 +1,6 @@
 package rogo.sketch.render.resource.loader;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.util.Identifier;
 
@@ -10,20 +9,22 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Interface for loading resources from JSON data
+ * Interface for loading resources from generic data (JSON, Binary, etc.)
  */
 public interface ResourceLoader<T extends ResourceObject> {
 
     /**
-     * Load a resource from JSON data
+     * Load a resource from data
      *
-     * @param jsonData The JSON string containing resource definition
-     * @param gson     The Gson instance for parsing
+     * @param identifier       The identifier of the resource
+     * @param data            The resource data (String, Bytes, Stream)
+     * @param gson            The Gson instance for parsing (if needed)
+     * @param resourceProvider Provider for sub-resources
      * @return The loaded resource or null if failed
      */
-    T loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider);
+    T load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider);
 
-    default T loadFromJson(Identifier identifier, String jsonData, Gson gson) {
-        return loadFromJson(identifier, jsonData, gson, id -> Optional.empty());
+    default T load(Identifier identifier, ResourceData data, Gson gson) {
+        return load(identifier, data, gson, id -> Optional.empty());
     }
 }

@@ -2,7 +2,7 @@ package rogo.sketch.render.data.sorting;
 
 import org.joml.Vector3f;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.data.filler.VertexSorting;
+import rogo.sketch.render.data.builder.VertexSorting;
 import rogo.sketch.render.data.format.DataFormat;
 
 import java.nio.ByteBuffer;

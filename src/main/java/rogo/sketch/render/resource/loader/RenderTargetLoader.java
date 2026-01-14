@@ -19,8 +19,11 @@ import java.util.function.Function;
 public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
 
     @Override
-    public RenderTarget loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public RenderTarget load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
+            String jsonData = data.getString();
+            if (jsonData == null) return null;
+
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
 
             // Parse resolution mode

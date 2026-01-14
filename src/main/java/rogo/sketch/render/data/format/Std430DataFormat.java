@@ -50,8 +50,8 @@ public class Std430DataFormat extends DataFormat {
     private static int getStd430Alignment(DataType type) {
         return switch (type) {
             case FLOAT, INT, UINT -> 4;                              // scalar: 4-byte aligned
-            case VEC2, VEC2I, UVEC2 -> 8;                          // vec2: 8-byte aligned
-            case VEC3, VEC4, VEC3I, VEC4I, UVEC3, UVEC4 -> 16;    // vec3/4: 16-byte aligned
+            case VEC2F, VEC2I, VEC2UI -> 8;                          // vec2: 8-byte aligned
+            case VEC3F, VEC4F, VEC3I, VEC4I, VEC3UI, VEC4UI -> 16;    // vec3/4: 16-byte aligned
             case MAT2 -> 8;                                         // mat2: 8-byte aligned (column-major)
             case MAT3, MAT4 -> 16;                                  // mat3/4: 16-byte aligned (column-major)
             case BYTE, UBYTE -> 1;                                  // byte: 1-byte aligned
@@ -91,15 +91,15 @@ public class Std430DataFormat extends DataFormat {
         }
         
         public Std430Builder vec2Element(String name) {
-            return element(name, DataType.VEC2);
+            return element(name, DataType.VEC2F);
         }
         
         public Std430Builder vec3Element(String name) {
-            return element(name, DataType.VEC3);
+            return element(name, DataType.VEC3F);
         }
         
         public Std430Builder vec4Element(String name) {
-            return element(name, DataType.VEC4);
+            return element(name, DataType.VEC4F);
         }
         
         public Std430Builder mat4Element(String name) {

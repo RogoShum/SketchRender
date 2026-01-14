@@ -1,13 +1,12 @@
 package rogo.sketch.vanilla.graphics;
 
 import net.minecraft.world.entity.Entity;
-import rogo.sketch.render.pipeline.DrawCommand;
+import rogo.sketch.api.model.PreparedMesh;
+import rogo.sketch.render.instance.MeshGraphics;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.render.data.filler.VertexFiller;
-import rogo.sketch.render.instance.SharedVertexGraphics;
 import rogo.sketch.util.Identifier;
 
-public class EntityGraphicsInstance extends SharedVertexGraphics {
+public class EntityGraphicsInstance extends MeshGraphics {
     private final Entity entity;
 
     public EntityGraphicsInstance(Identifier identifier, Entity entity) {
@@ -19,11 +18,6 @@ public class EntityGraphicsInstance extends SharedVertexGraphics {
     @Override
     public boolean shouldTick() {
         return false;
-    }
-
-    @Override
-    public <C extends RenderContext> void tick(C context) {
-
     }
 
     @Override
@@ -42,17 +36,7 @@ public class EntityGraphicsInstance extends SharedVertexGraphics {
     }
 
     @Override
-    public boolean needsVertexUpdate() {
-        return false;
-    }
-
-    @Override
-    public void fillVertexData(VertexFiller filler) {
-
-    }
-
-    @Override
-    public DrawCommand getDrawCommand() {
+    public PreparedMesh getPreparedMesh() {
         return null;
     }
 }

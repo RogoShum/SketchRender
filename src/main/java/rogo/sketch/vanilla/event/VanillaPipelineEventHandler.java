@@ -10,29 +10,27 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.joml.*;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
-import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.compat.sodium.SodiumImplOptions;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
 import rogo.sketch.event.RegisterStaticGraphicsEvent;
+import rogo.sketch.event.RenderFlowRegisterEvent;
 import rogo.sketch.event.UniformHookRegisterEvent;
 import rogo.sketch.event.bridge.ProxyEvent;
 import rogo.sketch.event.bridge.ProxyModEvent;
 import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
-import rogo.sketch.feature.culling.graphics.ComputeEntityCullingGraphics;
-import rogo.sketch.feature.culling.graphics.ComputeHIZGraphics;
-import rogo.sketch.feature.culling.graphics.CullingTestGraphics;
-import rogo.sketch.feature.culling.graphics.ChunkCullingTestGraphics;
-import rogo.sketch.feature.culling.graphics.EntityCullingTestGraphics;
-import rogo.sketch.feature.culling.graphics.BlockEntityCullingTestGraphics;
+import rogo.sketch.feature.culling.graphics.*;
 import rogo.sketch.mixin.AccessorFrustum;
-import rogo.sketch.render.pipeline.PartialRenderSetting;
-import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.render.pipeline.RenderParameter;
-import rogo.sketch.render.pipeline.RenderSetting;
+import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.Usage;
+import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.render.data.format.VertexLayoutSpec;
+import rogo.sketch.render.pipeline.*;
+import rogo.sketch.render.pipeline.flow.impl.ComputeFlowStrategy;
+import rogo.sketch.render.pipeline.flow.impl.RasterizationFlowStrategy;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.ValueGetter;
@@ -48,19 +46,25 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 public class VanillaPipelineEventHandler {
-    public static final TempTexture mainColor = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(), false);
-    public static final TempTexture mainDepth = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(), true);
+    public static final TempTexture mainColor = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(),
+            false);
+    public static final TempTexture mainDepth = new TempTexture(() -> Minecraft.getInstance().getMainRenderTarget(),
+            true);
 
     public static void registerPersistentResource() {
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of(SketchRender.MOD_ID, "hiz_texture"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE,
+                Identifier.of(SketchRender.MOD_ID, "hiz_texture"),
                 () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET.texture()));
 
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_color"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE,
+                Identifier.of("minecraft", "main_color"),
                 () -> Optional.of(mainColor.getTexture()));
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE, Identifier.of("minecraft", "main_depth"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.TEXTURE,
+                Identifier.of("minecraft", "main_depth"),
                 () -> Optional.of(mainDepth.getTexture()));
 
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "entity_data"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER,
+                Identifier.of(SketchRender.MOD_ID, "entity_data"),
                 () -> {
                     if (CullingStateManager.ENTITY_CULLING_MASK != null) {
                         return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityDataSSBO());
@@ -68,7 +72,8 @@ public class VanillaPipelineEventHandler {
                         return Optional.empty();
                     }
                 });
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "entity_culling_result"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER,
+                Identifier.of(SketchRender.MOD_ID, "entity_culling_result"),
                 () -> {
                     if (CullingStateManager.ENTITY_CULLING_MASK != null) {
                         return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityCullingResult());
@@ -77,12 +82,14 @@ public class VanillaPipelineEventHandler {
                     }
                 });
 
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_section_mesh"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER,
+                Identifier.of(SketchRender.MOD_ID, "chunk_section_mesh"),
                 () -> {
                     return Optional.of(MeshResource.MESH_MANAGER.meshDataBuffer());
                 });
 
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "chunk_draw_command"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER,
+                Identifier.of(SketchRender.MOD_ID, "chunk_draw_command"),
                 () -> {
                     if (MeshResource.COMMAND_BUFFER != null) {
                         return Optional.of(MeshResource.COMMAND_BUFFER);
@@ -91,7 +98,8 @@ public class VanillaPipelineEventHandler {
                     }
                 });
 
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "mesh_counter"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER,
+                Identifier.of(SketchRender.MOD_ID, "mesh_counter"),
                 () -> {
                     if (MeshResource.BATCH_COUNTER != null) {
                         return Optional.of(MeshResource.BATCH_COUNTER);
@@ -99,7 +107,8 @@ public class VanillaPipelineEventHandler {
                         return Optional.empty();
                     }
                 });
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "region_pos"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER,
+                Identifier.of(SketchRender.MOD_ID, "region_pos"),
                 () -> {
                     if (MeshResource.REGION_INDEX_BUFFER != null) {
                         return Optional.of(MeshResource.REGION_INDEX_BUFFER);
@@ -108,7 +117,8 @@ public class VanillaPipelineEventHandler {
                     }
                 });
 
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "max_element_count"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER,
+                Identifier.of(SketchRender.MOD_ID, "max_element_count"),
                 () -> {
                     if (MeshResource.MAX_ELEMENT_BUFFER != null) {
                         return Optional.of(MeshResource.MAX_ELEMENT_BUFFER);
@@ -117,7 +127,8 @@ public class VanillaPipelineEventHandler {
                     }
                 });
 
-        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER, Identifier.of(SketchRender.MOD_ID, "persistent_max_element_count"),
+        GraphicsResourceManager.getInstance().registerMutable(ResourceTypes.SHADER_STORAGE_BUFFER,
+                Identifier.of(SketchRender.MOD_ID, "persistent_max_element_count"),
                 () -> {
                     if (MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER != null) {
                         return Optional.of(MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER);
@@ -183,7 +194,8 @@ public class VanillaPipelineEventHandler {
         uniformEvent.register(Identifier.of("sketch_cullingFrustum"), ValueGetter.create((instance) -> {
             McRenderContext context = (McRenderContext) instance;
             if (context.cullingFrustum() != null) {
-                return SketchRender.getFrustumPlanes(((AccessorFrustum) context.cullingFrustum()).frustumIntersection());
+                return SketchRender
+                        .getFrustumPlanes(((AccessorFrustum) context.cullingFrustum()).frustumIntersection());
             }
             return null;
         }, Vector4f[].class, McRenderContext.class));
@@ -199,7 +211,8 @@ public class VanillaPipelineEventHandler {
         }
 
         uniformEvent.register(Identifier.of("sketch_entityCount"), ValueGetter.create(() -> {
-            return CullingStateManager.ENTITY_CULLING_MASK == null ? 0 : CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size();
+            return CullingStateManager.ENTITY_CULLING_MASK == null ? 0
+                    : CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size();
         }, Integer.class));
 
         uniformEvent.register(Identifier.of("sketch_cullingTerrain"), ValueGetter.create(() -> {
@@ -228,7 +241,8 @@ public class VanillaPipelineEventHandler {
         uniformEvent.register(Identifier.of("sketch_cameraOffset"), ValueGetter.create((instance) -> {
             McRenderContext context = (McRenderContext) instance;
             Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-            BlockPos blockPos = new BlockPos((int) pos.x >> 4, context.<Integer>get(CullingStateManager.LEVEL_MIN_POS_ID) >> 4, (int) pos.z >> 4);
+            BlockPos blockPos = new BlockPos((int) pos.x >> 4,
+                    context.<Integer>get(CullingStateManager.LEVEL_MIN_POS_ID) >> 4, (int) pos.z >> 4);
             return new Vector3i(blockPos.getX(), blockPos.getY(), blockPos.getZ());
         }, Vector3i.class, McRenderContext.class));
 
@@ -293,7 +307,8 @@ public class VanillaPipelineEventHandler {
 
         uniformEvent.register(Identifier.of("sketch_testPos"), ValueGetter.create(() -> {
             if (SketchRender.testPos != null) {
-                return new Vector4f(SketchRender.testPos.getX(), SketchRender.testPos.getY(), SketchRender.testPos.getZ(), 1);
+                return new Vector4f(SketchRender.testPos.getX(), SketchRender.testPos.getY(),
+                        SketchRender.testPos.getZ(), 1);
             }
             return new Vector4f(0, 0, 0, 0);
         }, Vector4f.class));
@@ -301,7 +316,8 @@ public class VanillaPipelineEventHandler {
         // Separate uniforms for entities
         uniformEvent.register(Identifier.of("sketch_testEntityPos"), ValueGetter.create(() -> {
             if (SketchRender.testEntity != null) {
-                return new Vector4f((float) SketchRender.testEntity.position().x, (float) SketchRender.testEntity.position().y, (float) SketchRender.testEntity.position().z, 1);
+                return new Vector4f((float) SketchRender.testEntity.position().x,
+                        (float) SketchRender.testEntity.position().y, (float) SketchRender.testEntity.position().z, 1);
             } else {
                 return new Vector4f(0, 0, 0, 0);
             }
@@ -310,9 +326,7 @@ public class VanillaPipelineEventHandler {
         uniformEvent.register(Identifier.of("sketch_testEntityAABB"), ValueGetter.create(() -> {
             if (SketchRender.testEntity != null) {
                 AABB aabb = SketchRender.getObjectAABB(SketchRender.testEntity);
-                return new Vector3f((float) aabb.getXsize()
-                        , (float) aabb.getYsize()
-                        , (float) aabb.getZsize());
+                return new Vector3f((float) aabb.getXsize(), (float) aabb.getYsize(), (float) aabb.getZsize());
             }
             return new Vector3f(0, 0, 0);
         }, Vector3f.class));
@@ -320,7 +334,9 @@ public class VanillaPipelineEventHandler {
         // Separate uniforms for block entities
         uniformEvent.register(Identifier.of("sketch_testBlockEntityPos"), ValueGetter.create(() -> {
             if (SketchRender.testBlockEntity != null) {
-                return new Vector4f((float) SketchRender.testBlockEntity.getBlockPos().getX() + 0.5f, (float) SketchRender.testBlockEntity.getBlockPos().getY(), (float) SketchRender.testBlockEntity.getBlockPos().getZ() + 0.5f, 1);
+                return new Vector4f((float) SketchRender.testBlockEntity.getBlockPos().getX() + 0.5f,
+                        (float) SketchRender.testBlockEntity.getBlockPos().getY(),
+                        (float) SketchRender.testBlockEntity.getBlockPos().getZ() + 0.5f, 1);
             } else {
                 return new Vector4f(0, 0, 0, 0);
             }
@@ -329,9 +345,7 @@ public class VanillaPipelineEventHandler {
         uniformEvent.register(Identifier.of("sketch_testBlockEntityAABB"), ValueGetter.create(() -> {
             if (SketchRender.testBlockEntity != null) {
                 AABB aabb = SketchRender.getObjectAABB(SketchRender.testBlockEntity);
-                return new Vector3f((float) aabb.getXsize()
-                        , (float) aabb.getYsize()
-                        , (float) aabb.getZsize());
+                return new Vector3f((float) aabb.getXsize(), (float) aabb.getYsize(), (float) aabb.getZsize());
             }
             return new Vector3f(0, 0, 0);
         }, Vector3f.class));
@@ -355,7 +369,8 @@ public class VanillaPipelineEventHandler {
             case LATE -> {
                 GraphicsResourceManager.getInstance().registerLoader(ResourceTypes.TEXTURE, new VanillaTextureLoader());
                 if (!mcPipeline.getPendingStages().isEmpty()) {
-                    SketchRender.LOGGER.warn("Warning: {} stages are still pending", mcPipeline.getPendingStages().size());
+                    SketchRender.LOGGER.warn("Warning: {} stages are still pending",
+                            mcPipeline.getPendingStages().size());
                 }
             }
         }
@@ -368,80 +383,73 @@ public class VanillaPipelineEventHandler {
                 () -> new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true));
 
         registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":hierarchy_depth_buffer_second",
-                () -> new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"), false));
+                () -> new ComputeHIZGraphics(Identifier.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"),
+                        false));
 
         registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":cull_entity_batch",
                 () -> new ComputeEntityCullingGraphics(Identifier.of(SketchRender.MOD_ID, "cull_entity_batch")));
-
-        // Register legacy culling test graphics (original)
-        Identifier settingId = Identifier.of(SketchRender.MOD_ID, "culling_test");
-        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
-
-        if (renderSetting.isPresent()) {
-            PartialRenderSetting partialRenderSetting = renderSetting.get();
-            RenderParameter renderParameter = new RenderParameter(DefaultDataFormats.POSITION, PrimitiveType.QUADS, Usage.DYNAMIC_DRAW, false);
-            RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
-            CullingTestGraphics cullingTestGraphics = new CullingTestGraphics(Identifier.of(SketchRender.MOD_ID, "culling_test"));
-            registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), cullingTestGraphics, setting);
-        }
 
         RenderSystem.recordRenderCall(() -> {
             registerNewPipelineCullingGraphics(registerEvent);
         });
     }
 
+    public static void onBaseRenderFlowRegisterInit(ProxyModEvent<RenderFlowRegisterEvent> event) {
+        RenderFlowRegisterEvent registerEvent = event.getWrapped();
+        registerEvent.register(new ComputeFlowStrategy());
+        registerEvent.register(new RasterizationFlowStrategy());
+    }
+
     /**
-     * Register new pipeline culling test graphics instances for chunk, entity, and block entity
+     * Register new pipeline culling test graphics instances for chunk, entity, and
+     * block entity
      */
     private static void registerNewPipelineCullingGraphics(RegisterStaticGraphicsEvent registerEvent) {
         // Check if new pipeline should be used (for future activation)
         // For now, register them but they'll use MeshGraphicsInstance interface
-        
+
         // Register chunk culling graphics
         ChunkCullingTestGraphics chunkGraphics = new ChunkCullingTestGraphics(
-                Identifier.of(SketchRender.MOD_ID, "culling_test_chunk_new")
-        );
+                Identifier.of(SketchRender.MOD_ID, "culling_test_chunk_new"));
         // Since we don't have mesh yet, register as legacy for compatibility
         registerNewPipelineGraphicsAsLegacy(registerEvent, chunkGraphics, "culling_test_chunk");
-        
-        // Register entity culling graphics  
+
+        // Register entity culling graphics
         EntityCullingTestGraphics entityGraphics = new EntityCullingTestGraphics(
-                Identifier.of(SketchRender.MOD_ID, "culling_test_entity_new")
-        );
+                Identifier.of(SketchRender.MOD_ID, "culling_test_entity_new"));
         registerNewPipelineGraphicsAsLegacy(registerEvent, entityGraphics, "culling_test_entity");
-        
+
         // Register block entity culling graphics
         BlockEntityCullingTestGraphics blockEntityGraphics = new BlockEntityCullingTestGraphics(
-                Identifier.of(SketchRender.MOD_ID, "culling_test_block_entity_new")
-        );
+                Identifier.of(SketchRender.MOD_ID, "culling_test_block_entity_new"));
         registerNewPipelineGraphicsAsLegacy(registerEvent, blockEntityGraphics, "culling_test_block_entity");
     }
 
     /**
-     * Register a new pipeline graphics instance as legacy for backward compatibility
+     * Register a new pipeline graphics instance as legacy for backward
+     * compatibility
      */
-    private static void registerNewPipelineGraphicsAsLegacy(RegisterStaticGraphicsEvent registerEvent, 
-                                                           GraphicsInstance instance, 
-                                                           String settingName) {
+    private static void registerNewPipelineGraphicsAsLegacy(RegisterStaticGraphicsEvent registerEvent,
+            Graphics instance,
+            String settingName) {
         Identifier settingId = Identifier.of(SketchRender.MOD_ID, settingName);
         Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                 .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
 
         if (renderSetting.isPresent()) {
             PartialRenderSetting partialRenderSetting = renderSetting.get();
-            RenderParameter renderParameter = new RenderParameter(
-                    DefaultDataFormats.POSITION, 
-                    PrimitiveType.QUADS, 
-                    Usage.DYNAMIC_DRAW, 
-                    false
-            );
+            RenderParameter renderParameter = RasterizationParameter.create(
+                    DefaultDataFormats.POSITION,
+                    PrimitiveType.QUADS,
+                    Usage.DYNAMIC_DRAW,
+                    false);
             RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
             registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), instance, setting);
         }
     }
 
-    private static void registerReloadableComputeShader(RegisterStaticGraphicsEvent registerEvent, String settingIdString, Supplier<GraphicsInstance> instanceSupplier) {
+    private static void registerReloadableComputeShader(RegisterStaticGraphicsEvent registerEvent,
+            String settingIdString, Supplier<Graphics> instanceSupplier) {
         Identifier settingId = Identifier.of(settingIdString);
         Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                 .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);

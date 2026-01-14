@@ -1,0 +1,47 @@
+{
+  "name": "example_cube",
+  "primitiveType": "QUADS",
+  "vertexFormat": {
+    "name": "POS_UV_NORMAL",
+    "elements": [
+      { "name": "Position", "dataType": "FLOAT", "componentCount": 3, "offset": 0 },
+      { "name": "TexCoord", "dataType": "FLOAT", "componentCount": 2, "offset": 12 },
+      { "name": "Normal",   "dataType": "FLOAT", "componentCount": 3, "offset": 20 }
+    ]
+  },
+  "bones": [
+    {
+      "name": "root",
+      "id": 0,
+      "isRoot": true,
+      "localTransform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+      "inverseBindPose": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]
+    }
+  ],
+  "subMeshes": [
+    {
+      "name": "cube_geometry",
+      "vertexCount": 24,
+      "vertices": [
+        -0.5, -0.5,  0.5,  0.0, 0.0,  0.0, 0.0, 1.0,
+        0.5, -0.5,  0.5,  1.0, 0.0,  0.0, 0.0, 1.0,
+        0.5,  0.5,  0.5,  1.0, 1.0,  0.0, 0.0, 1.0,
+        -0.5,  0.5,  0.5,  0.0, 1.0,  0.0, 0.0, 1.0,
+        0.5, -0.5, -0.5,  0.0, 0.0,  0.0, 0.0, -1.0,
+        -0.5, -0.5, -0.5,  1.0, 0.0,  0.0, 0.0, -1.0,
+        -0.5,  0.5, -0.5,  1.0, 1.0,  0.0, 0.0, -1.0,
+        0.5,  0.5, -0.5,  0.0, 1.0,  0.0, 0.0, -1.0
+      ],
+      "indices": [
+        0, 1, 2, 3,
+        4, 5, 6, 7
+      ],
+      "bone": "root",
+      "material": "cube_mat"
+    }
+  ],
+  "metadata": {
+    "author": "SketchRender",
+    "version": 1.0
+  }
+}

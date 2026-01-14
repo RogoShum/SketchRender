@@ -1,28 +1,30 @@
 package rogo.sketch.render.vertex;
 
-import rogo.sketch.render.pipeline.RenderParameter;
+import rogo.sketch.api.DataResourceObject;
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.data.filler.VertexFiller;
-import rogo.sketch.render.data.filler.VertexFillerManager;
+import rogo.sketch.render.data.Usage;
+import rogo.sketch.render.data.builder.AddressBufferWriter;
+import rogo.sketch.render.data.builder.VertexDataBuilder;
+import rogo.sketch.render.data.format.ComponentSpec;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.pipeline.information.RenderList;
+import rogo.sketch.render.data.format.VertexBufferKey;
+import rogo.sketch.render.data.format.VertexLayoutSpec;
+import rogo.sketch.render.pipeline.RasterizationParameter;
+import rogo.sketch.render.resource.buffer.VertexBufferObject;
 import rogo.sketch.render.resource.buffer.VertexResource;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Manager for shared VertexResource instances based on RenderSetting
- * Provides efficient caching and reuse of vertex resources with the same parameters
- * 
- * Thread Safety: 
- * - Resource creation methods (getOrCreate*) must only be called from the OpenGL render thread
- * - Resource retrieval for async processing should use preallocated resources via AsyncVertexFiller
- * - ConcurrentHashMap provides thread-safe access to cached resources
+ * Manager for shared VertexResource instances.
+ * Caches and manages the lifecycle of VAO/VBO combinations based on format
+ * keys.
  */
 public class VertexResourceManager {
     private static VertexResourceManager instance;
-    private final Map<RenderParameter, VertexResource> resourceCache = new ConcurrentHashMap<>();
+    private final Map<VertexBufferKey, VertexResource> resourceCache = new ConcurrentHashMap<>();
 
     private VertexResourceManager() {
     }
@@ -35,143 +37,141 @@ public class VertexResourceManager {
     }
 
     /**
-     * Get or create a VertexResource for the given RenderSetting
-     * Returns a shared instance if one with the same parameters already exists
-     * 
-     * WARNING: Must only be called from the OpenGL render thread
+     * Get or create a VertexResource for the given key.
+     * Use this when the key might involve a shared source resource (e.g. BakedMesh)
+     * that is needed for creation.
      */
-    public VertexResource getOrCreateVertexResource(RenderParameter parameter) {
-        if (parameter.isInvalid()) {
-            throw new IllegalArgumentException("RenderSetting must have a valid RenderParameter");
-        }
+    public VertexResource get(VertexBufferKey key, @Nullable VertexResource sourceProvider) {
+        if (key == null)
+            return null;
 
-        return resourceCache.computeIfAbsent(parameter, k -> createVertexResource(parameter));
+        return resourceCache.computeIfAbsent(key, k -> createVertexResource(k, sourceProvider));
     }
 
     /**
-     * Create a new VertexResource based on RenderParameter
+     * Get or create a VertexResource for the given key (Static Format + Instance
+     * Layout).
+     * WARNING: Must only be called from the OpenGL render thread.
      */
-    private VertexResource createVertexResource(RenderParameter parameter) {
-        return new VertexResource(
-                parameter.dataFormat(),
-                null, // No dynamic format for shared resources
-                DrawMode.NORMAL,
-                parameter.primitiveType(),
-                parameter.usage()
-        );
+    public VertexResource get(VertexBufferKey key) {
+        return get(key, null);
     }
 
     /**
-     * Check if a VertexResource exists for the given RenderSetting
+     * Convenience method for non-instanced resources.
      */
-    public boolean hasVertexResource(RenderParameter renderParameter) {
-        if (renderParameter.isInvalid()) {
-            return false;
-        }
-
-        return resourceCache.containsKey(renderParameter);
+    public VertexResource get(RasterizationParameter parameter) {
+        return get(VertexBufferKey.fromParameter(parameter));
     }
 
-    /**
-     * Remove a VertexResource from cache and dispose it
-     */
-    public void removeVertexResource(RenderParameter renderParameter) {
-        if (renderParameter.isInvalid()) {
-            return;
+    private VertexResource createVertexResource(VertexBufferKey key, @Nullable VertexResource sourceProvider) {
+        RasterizationParameter param = key.staticParam();
+        PrimitiveType primitiveType = param.primitiveType();
+
+        // 1. Create Base VAO
+        VertexResource resource = new VertexResource(primitiveType, primitiveType.requiresIndexBuffer());
+
+        // 2. Handle Shared Components (if source provided and key matches)
+        if (key.sourceResourceID() != 0) {
+            if (sourceProvider != null) {
+                // Verify ID matches handle? (Assuming handle logic consistent)
+                // if (sourceProvider.getHandle() == key.sourceResourceID()) ...
+                // For now, trust the caller provided the correct source for this key.
+                resource.shareComponentsFrom(sourceProvider);
+            } else {
+                // Warning: Key expects source but none provided.
+                // This implies we are trying to create a shared-VAO but lost the source object.
+                // We might fail or create empty? Log warning.
+                System.err.println(
+                        "Warning: Creating VertexResource for shared key " + key + " but no source provider given.");
+            }
         }
 
-        VertexResource resource = resourceCache.remove(renderParameter);
+        // 3. Attach VBO components based on ComponentSpec list
+        // Note: shareComponentsFrom might have already attached static components.
+        // We only need to attach components that are NOT already there, or override?
+        // Actually, VertexBufferKey components list describes the FULL layout.
+        // If we shared from source, we got the Immutable/Static ones.
+        // We still need to create the Mutable/Dynamic ones.
+
+        for (ComponentSpec spec : key.components()) {
+            // shorter logic: check if component already exists (shared)?
+            if (resource.hasComponent(spec.getBindingPoint())) {
+                continue;
+            }
+
+            if (spec.isImmutable()) {
+                // Immutable component NOT provided by source?
+                // This means fallback to legacy creation or valid new static buffer
+                VertexBufferObject vbo = new VertexBufferObject(param.usage());
+                resource.attachVBO(spec.getBindingPoint(), vbo, spec.getFormat(), spec.isInstanced());
+            } else {
+                // Mutable component - create new VBO for data filling
+                Usage usage = spec.isInstanced() ? Usage.DYNAMIC_DRAW : param.usage();
+                VertexBufferObject vbo = new VertexBufferObject(usage);
+                resource.attachVBO(spec.getBindingPoint(), vbo, spec.getFormat(), spec.isInstanced());
+            }
+        }
+
+        return resource;
+    }
+
+    public void remove(VertexBufferKey key) {
+        VertexResource resource = resourceCache.remove(key);
         if (resource != null) {
             resource.dispose();
         }
     }
 
-    /**
-     * Clear all cached VertexResources
-     */
     public void clearAll() {
         resourceCache.values().forEach(VertexResource::dispose);
         resourceCache.clear();
     }
 
     /**
-     * Get cache statistics for debugging
+     * Create a VertexDataBuilder for a single DataFormat.
      */
+    public VertexDataBuilder createBuilder(DataFormat format, PrimitiveType primitiveType, int initialCapacity) {
+        return new VertexDataBuilder(format, primitiveType);
+    }
+
+    /**
+     * Create a VertexDataBuilder for a single ComponentSpec.
+     */
+    public VertexDataBuilder createBuilder(ComponentSpec spec, PrimitiveType primitiveType, int initialCapacity) {
+        return createBuilder(spec.getFormat(), primitiveType, initialCapacity);
+    }
+
+    /**
+     * Create builders for all MUTABLE components in a VertexLayoutSpec.
+     */
+    public Map<Integer, VertexDataBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType, int initialCapacity) {
+        Map<Integer, VertexDataBuilder> builders = new ConcurrentHashMap<>();
+        for (ComponentSpec component : spec.getDynamicSpecs()) {
+            builders.put(component.getBindingPoint(), createBuilder(component, primitiveType, initialCapacity));
+        }
+        return builders;
+    }
+
+    /**
+     * Create builders for a RasterizationParameter (based on its layout).
+     */
+    public Map<Integer, VertexDataBuilder> createBuilder(RasterizationParameter parameter, int initialCapacity) {
+        return createBuilder(parameter.getLayout(), parameter.primitiveType(), initialCapacity);
+    }
+
+    /**
+     * Create a builder that writes directly to a DataResourceObject (e.g. SSBO or
+     * Mapped Buffer).
+     * The builder will automatically handle resizing via the AddressBufferWriter
+     * mechanism.
+     */
+    public VertexDataBuilder createDirectBuilder(DataResourceObject resource, DataFormat format, PrimitiveType primitiveType) {
+        AddressBufferWriter writer = new AddressBufferWriter(resource);
+        return new VertexDataBuilder(writer, format, primitiveType);
+    }
+
     public String getCacheStats() {
         return String.format("VertexResourceManager: %d cached resources", resourceCache.size());
-    }
-
-    /**
-     * Overloaded method to create vertex resource with specific vertex count
-     * 
-     * WARNING: Must only be called from the OpenGL render thread
-     */
-    public VertexResource getOrCreateVertexResource(PrimitiveType primitiveType, DataFormat dataFormat, int vertexCount) {
-        RenderParameter parameter = RenderParameter.create(dataFormat, primitiveType);
-        VertexResource resource = getOrCreateVertexResource(parameter);
-
-        // Ensure the resource has enough capacity for the vertex count
-        if (resource.getStaticVertexCount() < vertexCount) {
-            // Create a new resource with the required capacity
-            // This is a simplified approach - in practice you might want to resize the existing resource
-            VertexResource newResource = new VertexResource(
-                    dataFormat,
-                    null,
-                    rogo.sketch.render.vertex.DrawMode.NORMAL,
-                    primitiveType,
-                    parameter.usage()
-            );
-            return newResource;
-        }
-
-        return resource;
-    }
-
-    /**
-     * Get or create a vertex filler for the given parameters
-     * 
-     * Thread-safe: VertexFiller creation is thread-safe as it doesn't create OpenGL resources
-     */
-    public VertexFiller getOrCreateVertexFiller(PrimitiveType primitiveType, DataFormat dataFormat) {
-        RenderParameter parameter = RenderParameter.create(dataFormat, primitiveType);
-        return VertexFillerManager.getInstance().getOrCreateVertexFiller(parameter);
-    }
-
-    /**
-     * Create an instanced vertex resource for the given batch
-     * 
-     * WARNING: Must only be called from the OpenGL render thread
-     */
-    public VertexResource getOrCreateInstancedVertexResource(PrimitiveType primitiveType,
-                                                             DataFormat staticFormat,
-                                                             RenderList.RenderBatch batch) {
-        // Get the dynamic format from the first instance's layout
-        DataFormat dynamicFormat = null;
-        if (!batch.getInstances().isEmpty()) {
-            var firstInfo = batch.getInstances().get(0);
-            if (firstInfo.hasInstancedData() && firstInfo.getInstancedVertexLayout() != null) {
-                dynamicFormat = firstInfo.getInstancedVertexLayout().dataFormat();
-            }
-        }
-
-        // Create vertex resource with both static and dynamic layouts
-        return new VertexResource(
-                staticFormat,           // Static vertex format (mesh geometry)
-                dynamicFormat,         // Dynamic vertex format (instance data)
-                DrawMode.INSTANCED,
-                primitiveType,
-                RenderParameter.create(staticFormat, primitiveType).usage()
-        );
-    }
-
-    /**
-     * Create a dynamic vertex filler for instance data
-     * 
-     * Thread-safe: VertexFiller creation is thread-safe as it doesn't create OpenGL resources
-     */
-    public VertexFiller getOrCreateDynamicVertexFiller(InstancedVertexLayout layout, PrimitiveType primitiveType) {
-        DataFormat dynamicFormat = layout.dataFormat();
-
-        return new VertexFiller(dynamicFormat, primitiveType);
     }
 }

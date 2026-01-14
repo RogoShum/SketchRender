@@ -1,53 +1,64 @@
 package rogo.sketch.render.pipeline;
 
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.data.Usage;
+import rogo.sketch.render.data.format.ComponentSpec;
 import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.render.data.format.VertexLayoutSpec;
+import rogo.sketch.render.pipeline.flow.RenderFlowType;
 
-public record RenderParameter(
-        DataFormat dataFormat,
-        PrimitiveType primitiveType,
-        Usage usage,
-        boolean enableSorting
-) {
+import javax.annotation.Nullable;
 
-    public static final RenderParameter EMPTY = new RenderParameter(
-            DataFormat.builder("EMPTY").build(),
-            PrimitiveType.QUADS,
-            Usage.STATIC_DRAW,
-            false
-    );
+public abstract class RenderParameter {
+    public static final RenderParameter INVALID = new InvalidParameter();
 
-    public static final RenderParameter INVALID = new RenderParameter(
-            DataFormat.builder("INVALID").build(),
-            PrimitiveType.QUADS,
-            Usage.STATIC_DRAW,
-            false
-    );
+    public abstract RenderFlowType getFlowType();
 
     public boolean isInvalid() {
-        return this == RenderParameter.INVALID;
+        return this == INVALID;
     }
 
-    /**
-     * Create a RenderParameter with default usage (STATIC_DRAW)
-     */
-    public static RenderParameter create(DataFormat dataFormat, PrimitiveType primitiveType) {
-        return new RenderParameter(dataFormat, primitiveType, Usage.STATIC_DRAW, false);
+    public boolean isRasterization() {
+        return this instanceof RasterizationParameter;
     }
 
-    /**
-     * Create a RenderParameter with specified usage
-     */
-    public static RenderParameter create(DataFormat dataFormat, PrimitiveType primitiveType, Usage usage) {
-        return new RenderParameter(dataFormat, primitiveType, usage, false);
+    @Nullable
+    public VertexLayoutSpec getLayout() {
+        return this instanceof RasterizationParameter rp ? rp.getLayout() : null;
     }
 
-    /**
-     * Create a RenderParameter with all options specified
-     */
-    public static RenderParameter create(DataFormat dataFormat, PrimitiveType primitiveType,
-                                         Usage usage, boolean enableSorting) {
-        return new RenderParameter(dataFormat, primitiveType, usage, enableSorting);
+    @Deprecated
+
+    @Nullable
+    public PrimitiveType primitiveType() {
+        return this instanceof RasterizationParameter rp ? rp.primitiveType() : null;
+    }
+
+    @Override
+    public abstract boolean equals(Object o);
+
+    @Override
+    public abstract int hashCode();
+
+    private static final class InvalidParameter extends RenderParameter {
+
+        @Override
+        public RenderFlowType getFlowType() {
+            return RenderFlowType.RASTERIZATION; // Default to rasterization
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return this == o;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
+        }
+
+        @Override
+        public String toString() {
+            return "RenderParameter.INVALID";
+        }
     }
 }

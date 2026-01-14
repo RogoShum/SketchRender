@@ -53,7 +53,7 @@ public class TextureHelper {
             if (textureObj.has("mcResourceLocation")) {
                 // Register as VanillaTexture
                 VanillaTextureLoader vanillaLoader = new VanillaTextureLoader();
-                VanillaTexture vanillaTexture = vanillaLoader.loadFromJson(textureId, textureJson, gson);
+                VanillaTexture vanillaTexture = vanillaLoader.load(textureId, new rogo.sketch.render.resource.loader.ResourceData(textureJson), gson);
                 if (vanillaTexture != null) {
                     resourceManager.registerDirect(ResourceTypes.TEXTURE, textureId, vanillaTexture);
                 }
@@ -134,7 +134,7 @@ public class TextureHelper {
 
         VanillaTextureLoader vanillaLoader = new VanillaTextureLoader();
         String textureJson = gson.toJson(textureObj);
-        VanillaTexture vanillaTexture = vanillaLoader.loadFromJson(textureId, textureJson, gson);
+        VanillaTexture vanillaTexture = vanillaLoader.load(textureId, new ResourceData(textureJson), gson);
 
         if (vanillaTexture != null) {
             resourceManager.registerDirect(ResourceTypes.TEXTURE, textureId, vanillaTexture);

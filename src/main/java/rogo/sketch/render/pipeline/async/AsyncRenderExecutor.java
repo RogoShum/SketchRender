@@ -1,6 +1,6 @@
 package rogo.sketch.render.pipeline.async;
 
-import rogo.sketch.api.graphics.GraphicsInstance;
+import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 
@@ -69,7 +69,7 @@ public class AsyncRenderExecutor {
      * Execute tick operations asynchronously in parallel
      */
     public <C extends RenderContext> CompletableFuture<Void> tickInstancesAsync(
-            Collection<GraphicsInstance> instances, C context) {
+            Collection<Graphics> instances, C context) {
         
         if (instances.isEmpty()) {
             return CompletableFuture.completedFuture(null);
@@ -78,12 +78,12 @@ public class AsyncRenderExecutor {
         long startTime = System.nanoTime();
         
         // Partition instances into batches
-        List<List<GraphicsInstance>> batches = partitionInstances(instances, BATCH_SIZE);
+        List<List<Graphics>> batches = partitionInstances(instances, BATCH_SIZE);
         
         // Create async tasks
         List<CompletableFuture<Void>> tickTasks = batches.stream()
                 .map(batch -> CompletableFuture.runAsync(() -> {
-                    for (GraphicsInstance instance : batch) {
+                    for (Graphics instance : batch) {
                         if (instance.shouldTick()) {
                             try {
                                 instance.tick(context);
@@ -109,8 +109,8 @@ public class AsyncRenderExecutor {
      * Collect uniform snapshots asynchronously in parallel
      */
     public <C extends RenderContext> CompletableFuture<List<UniformCollectionResult>> collectUniformsAsync(
-            Collection<GraphicsInstance> instances, 
-            Function<GraphicsInstance, UniformValueSnapshot> snapshotCollector) {
+            Collection<Graphics> instances,
+            Function<Graphics, UniformValueSnapshot> snapshotCollector) {
         
         if (instances.isEmpty()) {
             return CompletableFuture.completedFuture(List.of());
@@ -119,13 +119,13 @@ public class AsyncRenderExecutor {
         long startTime = System.nanoTime();
         
         // Partition instances into batches
-        List<List<GraphicsInstance>> batches = partitionInstances(instances, BATCH_SIZE);
+        List<List<Graphics>> batches = partitionInstances(instances, BATCH_SIZE);
         
         // Create async collection tasks
         List<CompletableFuture<List<UniformCollectionResult>>> collectionTasks = batches.stream()
                 .map(batch -> CompletableFuture.supplyAsync(() -> {
                     return batch.stream()
-                            .filter(GraphicsInstance::shouldRender)
+                            .filter(Graphics::shouldRender)
                             .map(instance -> {
                                 try {
                                     UniformValueSnapshot snapshot = snapshotCollector.apply(instance);
@@ -170,12 +170,12 @@ public class AsyncRenderExecutor {
     /**
      * Partition instance collection into batches
      */
-    private List<List<GraphicsInstance>> partitionInstances(Collection<GraphicsInstance> instances, int batchSize) {
-        List<GraphicsInstance> instanceList = instances instanceof List ? 
-                (List<GraphicsInstance>) instances : 
+    private List<List<Graphics>> partitionInstances(Collection<Graphics> instances, int batchSize) {
+        List<Graphics> instanceList = instances instanceof List ?
+                (List<Graphics>) instances :
                 List.copyOf(instances);
         
-        List<List<GraphicsInstance>> batches = new java.util.ArrayList<>();
+        List<List<Graphics>> batches = new java.util.ArrayList<>();
         for (int i = 0; i < instanceList.size(); i += batchSize) {
             int end = Math.min(i + batchSize, instanceList.size());
             batches.add(instanceList.subList(i, end));
@@ -230,7 +230,7 @@ public class AsyncRenderExecutor {
      * Uniform collection result
      */
     public record UniformCollectionResult(
-            GraphicsInstance instance,
+            Graphics instance,
             UniformValueSnapshot snapshot,
             Exception error
     ) {

@@ -20,6 +20,10 @@ public class MeshResource {
     public static int CURRENT_FRAME = 0;
     public static int ORDERED_REGION_SIZE = 0;
 
+    public static final long REGION_COMMAND_SIZE = 7 * 256 + 1;
+    public static final int PASS_SIZE = 3;
+    public static final long REGION_PASS_COMMAND_SIZE = REGION_COMMAND_SIZE * PASS_SIZE;
+
     public static ShaderStorageBuffer COMMAND_BUFFER;
     public static ShaderStorageBuffer BATCH_COUNTER;
     public static ShaderStorageBuffer REGION_INDEX_BUFFER;
@@ -28,10 +32,12 @@ public class MeshResource {
     public static CounterBuffer CULLING_COUNTER;
     public static CounterBuffer ELEMENT_COUNTER;
 
+    public static final IndirectCommandBuffer CHUNK_COMMAND = new IndirectCommandBuffer(REGION_COMMAND_SIZE);
+
     public static final RegionMeshManager MESH_MANAGER = new RegionMeshManager();
 
     static {
-        COMMAND_BUFFER = new ShaderStorageBuffer(IndirectCommandBuffer.INSTANCE);
+        COMMAND_BUFFER = new ShaderStorageBuffer(CHUNK_COMMAND);
         CULLING_COUNTER = new CounterBuffer(VertexFormatElement.Type.INT);
         BATCH_COUNTER = new ShaderStorageBuffer(CULLING_COUNTER);
         ELEMENT_COUNTER = new CounterBuffer(VertexFormatElement.Type.INT);
@@ -46,12 +52,12 @@ public class MeshResource {
 
         if (Config.getCullChunk()) {
             int regionSize = MESH_MANAGER.size();
-            int passSize = IndirectCommandBuffer.PASS_SIZE * regionSize;
+            int passSize = PASS_SIZE * regionSize;
 
-            if (regionSize * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE * 20L > IndirectCommandBuffer.INSTANCE.getCapacity()) {
-                IndirectCommandBuffer.INSTANCE.resize(MESH_MANAGER.size() * IndirectCommandBuffer.REGION_PASS_COMMAND_SIZE);
-                COMMAND_BUFFER.setBufferPointer(IndirectCommandBuffer.INSTANCE.getMemoryAddress());
-                COMMAND_BUFFER.setCapacity(IndirectCommandBuffer.INSTANCE.getCapacity());
+            if (regionSize * REGION_PASS_COMMAND_SIZE * 20L > CHUNK_COMMAND.getCapacity()) {
+                CHUNK_COMMAND.resize(MESH_MANAGER.size() * REGION_PASS_COMMAND_SIZE);
+                COMMAND_BUFFER.setBufferPointer(CHUNK_COMMAND.getMemoryAddress());
+                COMMAND_BUFFER.setCapacity(CHUNK_COMMAND.getCapacity());
                 COMMAND_BUFFER.resetUpload(GL15.GL_STATIC_DRAW);
             }
 
@@ -72,7 +78,7 @@ public class MeshResource {
 
     public static void clearRegions() {
         MESH_MANAGER.refresh();
-        IndirectCommandBuffer.INSTANCE.resize(IndirectCommandBuffer.REGION_COMMAND_SIZE);
+        CHUNK_COMMAND.resize(REGION_COMMAND_SIZE);
         CULLING_COUNTER.resize(1);
         REGION_INDEX_BUFFER.dispose();
         REGION_INDEX_BUFFER = new ShaderStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);

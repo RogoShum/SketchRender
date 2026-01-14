@@ -19,8 +19,11 @@ import java.util.function.Function;
 public class TextureLoader implements ResourceLoader<Texture> {
 
     @Override
-    public Texture loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public Texture load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
+            String jsonData = data.getString();
+            if (jsonData == null) return null;
+
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
             // This loader only handles basic textures, not MC textures
             if (json.has("mcResourceLocation")) {

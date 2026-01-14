@@ -32,8 +32,11 @@ public class ShaderProgramLoader implements ResourceLoader<ShaderProvider> {
     }
 
     @Override
-    public ShaderProvider loadFromJson(Identifier identifier, String jsonData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public ShaderProvider load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
+            String jsonData = data.getString();
+            if (jsonData == null) return null;
+
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
 
             // Load shader configuration if present

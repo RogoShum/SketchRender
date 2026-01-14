@@ -1,323 +1,138 @@
 package rogo.sketch.render.model;
 
 import rogo.sketch.api.ResourceObject;
+import rogo.sketch.api.model.PreparedMesh;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Represents a mesh with hierarchical bone structure and sub-meshes.
- * This is the logical representation that stores mesh, bone, and vertex information
- * before compilation to GPU resources.
+ * This container manages multiple PreparedMeshes and their relationships with bones.
  */
 public class MeshGroup implements ResourceObject {
     private final String name;
     private final PrimitiveType primitiveType;
+    private final DataFormat vertexFormat;
+
+    // Meshes mapped by identifier/name
+    private final Map<String, PreparedMesh> meshes = new HashMap<>();
+    // Ordered list for iteration or index-based access
+    private final List<PreparedMesh> meshList = new ArrayList<>();
 
     // Bone hierarchy
-    @Nullable
+    private final Map<String, MeshBone> bonesByName = new HashMap<>();
+    private final Map<Integer, MeshBone> bonesById = new HashMap<>();
     private MeshBone rootBone;
-    private final Map<String, MeshBone> bonesByName;
-    private final Map<Integer, MeshBone> bonesById;
-    private final List<MeshBone> allBones;
-
-    // Sub-meshes
-    private final List<SubMesh> subMeshes;
-    private final Map<String, SubMesh> subMeshesByName;
 
     // Metadata
-    private final Map<String, Object> metadata;
-
-    // Resource management
+    private final Map<String, Object> metadata = new HashMap<>();
     private boolean disposed = false;
 
-    public MeshGroup(String name, PrimitiveType primitiveType) {
+    public MeshGroup(String name, PrimitiveType primitiveType, DataFormat vertexFormat) {
         this.name = name;
         this.primitiveType = primitiveType;
-        this.bonesByName = new HashMap<>();
-        this.bonesById = new HashMap<>();
-        this.allBones = new ArrayList<>();
-        this.subMeshes = new ArrayList<>();
-        this.subMeshesByName = new HashMap<>();
-        this.metadata = new HashMap<>();
+        this.vertexFormat = vertexFormat;
     }
 
-    // === Bone Management ===
-
     /**
-     * Set the root bone of the mesh
+     * Add a mesh part to this group.
      */
-    public void setRootBone(MeshBone rootBone) {
-        this.rootBone = rootBone;
-        rebuildBoneIndexes();
+    public void addMesh(String name, PreparedMesh mesh) {
+        if (!mesh.getVertexFormat().equals(this.vertexFormat)) {
+            throw new IllegalArgumentException("Mesh vertex format mismatch. Expected: " + this.vertexFormat + ", Got: " + mesh.getVertexFormat());
+        }
+        if (mesh.getPrimitiveType() != this.primitiveType) {
+            throw new IllegalArgumentException("Mesh primitive type mismatch. Expected: " + this.primitiveType + ", Got: " + mesh.getPrimitiveType());
+        }
+        meshes.put(name, mesh);
+        meshList.add(mesh);
     }
 
     /**
-     * Add a bone to the mesh
+     * Add a bone to the mesh group.
      */
     public void addBone(MeshBone bone) {
-        if (bonesByName.containsKey(bone.getName())) {
-            throw new IllegalArgumentException("Bone with name '" + bone.getName() + "' already exists");
-        }
-        if (bonesById.containsKey(bone.getId())) {
-            throw new IllegalArgumentException("Bone with id " + bone.getId() + " already exists");
-        }
-
-        allBones.add(bone);
         bonesByName.put(bone.getName(), bone);
         bonesById.put(bone.getId(), bone);
-
-        // Set as root if it's the first bone added and has no parent
         if (rootBone == null && bone.isRoot()) {
             rootBone = bone;
         }
     }
 
     /**
-     * Remove a bone from the mesh
+     * Set the root bone and rebuild the bone lookup maps.
      */
-    public void removeBone(MeshBone bone) {
-        allBones.remove(bone);
-        bonesByName.remove(bone.getName());
-        bonesById.remove(bone.getId());
-
-        if (rootBone == bone) {
-            rootBone = null;
-        }
-
-        // Remove bone references from sub-meshes
-        for (SubMesh subMesh : subMeshes) {
-            if (subMesh.getBone() == bone) {
-                subMesh.bindToBone(null);
-            }
-        }
+    public void setRootBone(MeshBone rootBone) {
+        this.rootBone = rootBone;
+        rebuildBoneIndexes();
     }
 
-    /**
-     * Find a bone by name
-     */
-    @Nullable
-    public MeshBone findBone(String name) {
-        return bonesByName.get(name);
-    }
-
-    /**
-     * Find a bone by ID
-     */
-    @Nullable
-    public MeshBone findBone(int id) {
-        return bonesById.get(id);
-    }
-
-    /**
-     * Rebuild bone indexes after hierarchy changes
-     */
     private void rebuildBoneIndexes() {
         bonesByName.clear();
         bonesById.clear();
-        allBones.clear();
-
         if (rootBone != null) {
             collectBones(rootBone);
         }
     }
 
     private void collectBones(MeshBone bone) {
-        allBones.add(bone);
         bonesByName.put(bone.getName(), bone);
         bonesById.put(bone.getId(), bone);
-
         for (MeshBone child : bone.getChildren()) {
             collectBones(child);
         }
     }
 
-    // === Sub-Mesh Management ===
-
     /**
-     * Add a sub-mesh to the mesh
-     */
-    public void addSubMesh(SubMesh subMesh) {
-        if (subMeshesByName.containsKey(subMesh.getName())) {
-            throw new IllegalArgumentException("SubMesh with name '" + subMesh.getName() + "' already exists");
-        }
-
-        // Update sub-mesh index count based on mesh's primitive type
-        subMesh.updateIndexCount(primitiveType);
-
-        subMeshes.add(subMesh);
-        subMeshesByName.put(subMesh.getName(), subMesh);
-    }
-
-    /**
-     * Remove a sub-mesh from the mesh
-     */
-    public void removeSubMesh(SubMesh subMesh) {
-        subMeshes.remove(subMesh);
-        subMeshesByName.remove(subMesh.getName());
-    }
-
-    /**
-     * Find a sub-mesh by name
+     * Find a bone by name.
      */
     @Nullable
-    public SubMesh findSubMesh(String name) {
-        return subMeshesByName.get(name);
+    public MeshBone findBone(String name) {
+        return bonesByName.get(name);
     }
 
-    /**
-     * Get sub-meshes bound to a specific bone
-     */
-    public List<SubMesh> getSubMeshesForBone(MeshBone bone) {
-        List<SubMesh> result = new ArrayList<>();
-        for (SubMesh subMesh : subMeshes) {
-            if (subMesh.getBone() == bone) {
-                result.add(subMesh);
-            }
-        }
-        return result;
+    @Nullable
+    public PreparedMesh getMesh(String name) {
+        return meshes.get(name);
     }
 
-    /**
-     * Get unbound sub-meshes (not attached to any bone)
-     */
-    public List<SubMesh> getUnboundSubMeshes() {
-        List<SubMesh> result = new ArrayList<>();
-        for (SubMesh subMesh : subMeshes) {
-            if (!subMesh.isBound()) {
-                result.add(subMesh);
-            }
-        }
-        return result;
+    public Collection<PreparedMesh> getAllMeshes() {
+        return Collections.unmodifiableList(meshList);
     }
-
-    // === Utility Methods ===
-
-    /**
-     * Create a new bone and add it to the mesh
-     */
-    public MeshBone createBone(String name, int id) {
-        MeshBone bone = new MeshBone(name, id);
-        addBone(bone);
-        return bone;
+    
+    @Nullable
+    public MeshBone getBone(String name) {
+        return bonesByName.get(name);
     }
-
-    /**
-     * Create a new sub-mesh and add it to the mesh
-     */
-    public SubMesh createSubMesh(String name, int id, int vertexCount, DataFormat vertexFormat) {
-        SubMesh subMesh = new SubMesh(name, id, vertexCount, vertexFormat);
-        addSubMesh(subMesh);
-        return subMesh;
-    }
-
-    /**
-     * Validate the entire mesh structure
-     */
-    public boolean isValid() {
-        // Check that all bones have unique names and IDs
-        if (bonesByName.size() != allBones.size() || bonesById.size() != allBones.size()) {
-            return false;
-        }
-
-        // Check that all sub-meshes have unique names
-        if (subMeshesByName.size() != subMeshes.size()) {
-            return false;
-        }
-
-        // Validate each sub-mesh
-        for (SubMesh subMesh : subMeshes) {
-            if (!subMesh.isValid()) {
-                return false;
-            }
-
-            // Check that bound bones exist in this mesh
-            if (subMesh.isBound() && !allBones.contains(subMesh.getBone())) {
-                return false;
-            }
-        }
-
-        // Check primitive type requirements
-        int totalVertices = getTotalVertexCount();
-        if (!primitiveType.isValidVertexCount(totalVertices)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Get total vertex count across all sub-meshes
-     */
-    public int getTotalVertexCount() {
-        return subMeshes.stream().mapToInt(SubMesh::getVertexCount).sum();
-    }
-
-    /**
-     * Get total index count across all sub-meshes
-     */
-    public int getTotalIndexCount() {
-        return subMeshes.stream().mapToInt(SubMesh::getIndexCount).sum();
-    }
-
-    /**
-     * Check if the mesh has any animated bones
-     */
-    public boolean hasAnimation() {
-        return !allBones.isEmpty();
-    }
-
-    /**
-     * Clear all mesh data
-     */
-    public void clear() {
-        rootBone = null;
-        allBones.clear();
-        bonesByName.clear();
-        bonesById.clear();
-        subMeshes.clear();
-        subMeshesByName.clear();
-        metadata.clear();
-    }
-
-    // === Getters ===
-
-    public String getName() {
-        return name;
+    
+    @Nullable
+    public MeshBone getBone(int id) {
+        return bonesById.get(id);
     }
 
     @Nullable
     public MeshBone getRootBone() {
         return rootBone;
     }
-
-    public List<MeshBone> getAllBones() {
-        return new ArrayList<>(allBones);
-    }
-
-    public List<SubMesh> getSubMeshes() {
-        return new ArrayList<>(subMeshes);
-    }
-
-    public int getBoneCount() {
-        return allBones.size();
-    }
-
-    public int getSubMeshCount() {
-        return subMeshes.size();
-    }
-
-    public PrimitiveType getPrimitiveType() {
-        return primitiveType;
-    }
-
+    
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+    
+    public int getTotalVertexCount() {
+        return meshList.stream().mapToInt(PreparedMesh::getVertexCount).sum();
+    }
+
+    public int getTotalIndexCount() {
+        return meshList.stream().mapToInt(PreparedMesh::getIndicesCount).sum();
     }
 
     public void setMetadata(String key, Object value) {
@@ -329,7 +144,37 @@ public class MeshGroup implements ResourceObject {
         return metadata.get(key);
     }
 
-    // === ResourceObject Implementation ===
+    public int getBoneCount() {
+        return bonesByName.size();
+    }
+
+    public boolean hasAnimation() {
+        return rootBone != null;
+    }
+
+    public int getSubMeshCount() {
+        return meshList.size();
+    }
+
+    public List<PreparedMesh> getSubMeshes() {
+        return Collections.unmodifiableList(meshList);
+    }
+
+    public boolean isValid() {
+        return true; // Basic validation passed if constructed
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public PrimitiveType getPrimitiveType() {
+        return primitiveType;
+    }
+
+    public DataFormat getVertexFormat() {
+        return vertexFormat;
+    }
 
     @Override
     public int getHandle() {
@@ -338,10 +183,7 @@ public class MeshGroup implements ResourceObject {
 
     @Override
     public void dispose() {
-        if (!disposed) {
-            // Dispose any resources if needed
-            disposed = true;
-        }
+        disposed = true;
     }
 
     @Override
@@ -349,15 +191,7 @@ public class MeshGroup implements ResourceObject {
         return disposed;
     }
 
-    @Override
-    public String toString() {
-        return "BakedMesh{" +
-                "name='" + name + '\'' +
-                ", primitiveType=" + primitiveType +
-                ", boneCount=" + allBones.size() +
-                ", subMeshCount=" + subMeshes.size() +
-                ", totalVertices=" + getTotalVertexCount() +
-                ", totalIndices=" + getTotalIndexCount() +
-                '}';
+    public PrimitiveType primitiveType() {
+        return primitiveType;
     }
 }

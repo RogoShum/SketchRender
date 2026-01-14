@@ -196,7 +196,7 @@ public class CullingStateManager {
                 OcclusionCullerThread.notifyUpdate();
             } else if (event.getStage() == MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier()) {
                 updateDepthMap();
-            } else if (event.getStage() == MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier()) {
+            } else if (event.getStage() == MinecraftRenderStages.RENDER_START.getIdentifier()) {
                 checkShader();
             }
         }
