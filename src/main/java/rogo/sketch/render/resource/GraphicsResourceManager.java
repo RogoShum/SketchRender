@@ -459,7 +459,7 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
         registerLoader(ResourceTypes.MESH, new MeshLoader());
         // Add support for OBJ files
-        registerLoader(ResourceTypes.MESH, new ObjLoader());
+        //registerLoader(ResourceTypes.MESH, new ObjLoader());
     }
 
     /**

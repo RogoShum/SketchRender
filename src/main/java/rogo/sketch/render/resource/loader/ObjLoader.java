@@ -2,10 +2,14 @@ package rogo.sketch.render.resource.loader;
 
 import com.google.gson.Gson;
 import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.data.builder.VertexDataBuilder;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.model.DynamicMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.model.MeshGroup;
+import rogo.sketch.render.resource.buffer.VertexBufferObject;
+import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.DefaultDataFormats;
+import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.util.Identifier;
 
 import java.io.BufferedReader;
@@ -22,9 +26,11 @@ import java.util.function.Function;
 public class ObjLoader implements ResourceLoader<MeshGroup> {
 
     @Override
-    public MeshGroup load(Identifier identifier, ResourceData resourceData, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public MeshGroup load(Identifier identifier, ResourceData resourceData, Gson gson,
+                          Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         BufferedReader reader = resourceData.getReader();
-        if (reader == null) return null;
+        if (reader == null)
+            return null;
 
         try (reader) {
             List<Float> positions = new ArrayList<>();
@@ -36,7 +42,8 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] tokens = line.trim().split("\\s+");
-                if (tokens.length == 0) continue;
+                if (tokens.length == 0)
+                    continue;
 
                 switch (tokens[0]) {
                     case "v" -> {
@@ -69,35 +76,57 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             DataFormat format = DefaultDataFormats.OBJ;
             MeshGroup meshGroup = new MeshGroup(identifier.toString(), PrimitiveType.TRIANGLES, format);
 
-            // Convert List to array
-            float[] data = new float[finalVertices.size()];
-            for (int i = 0; i < finalVertices.size(); i++) data[i] = finalVertices.get(i);
+            // Create VertexResource
+            VertexResource resource = new VertexResource(
+                    PrimitiveType.TRIANGLES, false); // OBJ usually unindexed in this loader?
 
-            int vertexCount = data.length / 8; // 3+2+3 = 8 floats per vertex
+            // Note: The loader implementation below generates unindexed triangles (f v1 v2
+            // v3 -> 3 vertices)
+            // But BakedMesh can work with unindexed too.
 
-            final float[] finalData = data;
-            DynamicMesh mesh = new DynamicMesh(
-                    format,
-                    PrimitiveType.TRIANGLES,
+            // Create VBO
+            VertexBufferObject vbo = new VertexBufferObject(
+                    rogo.sketch.render.data.Usage.STATIC_DRAW);
+            resource.attachVBO(0, vbo, format, false);
+
+            int vertexCount = finalVertices.size() / 8; // 3+2+3 = 8 floats per vertex
+
+            // Upload
+            VertexResourceManager vrm = VertexResourceManager
+                    .getInstance();
+            VertexDataBuilder builder = vrm.createBuilder(format,
+                    PrimitiveType.TRIANGLES, finalVertices.size());
+
+            // Fill
+            float[] vData = new float[finalVertices.size()];
+            for (int i = 0; i < finalVertices.size(); i++)
+                vData[i] = finalVertices.get(i);
+
+            int strideFloats = 8;
+            for (int i = 0; i < vertexCount; i++) {
+                int base = i * strideFloats;
+                builder.putFloat(vData[base + 0]); // x
+                builder.putFloat(vData[base + 1]); // y
+                builder.putFloat(vData[base + 2]); // z
+                builder.putFloat(vData[base + 3]); // u
+                builder.putFloat(vData[base + 4]); // v
+                builder.putFloat(vData[base + 5]); // nx
+                builder.putFloat(vData[base + 6]); // ny
+                builder.putFloat(vData[base + 7]); // nz
+            }
+
+            resource.upload(0, builder);
+
+            // Create BakedMesh
+            BakedMesh bakedMesh = new BakedMesh(
+                    resource,
+                    0, // srcVertexOffset
+                    0, // srcIndexOffset
                     vertexCount,
-                    0, // Not indexed (unindexed array draw)
-                    filler -> {
-                        int stride = 8;
-                        for (int i = 0; i < vertexCount; i++) {
-                            int base = i * stride;
-                            filler.putFloat(finalData[base + 0]); // x
-                            filler.putFloat(finalData[base + 1]); // y
-                            filler.putFloat(finalData[base + 2]); // z
-                            filler.putFloat(finalData[base + 3]); // u
-                            filler.putFloat(finalData[base + 4]); // v
-                            filler.putFloat(finalData[base + 5]); // nx
-                            filler.putFloat(finalData[base + 6]); // ny
-                            filler.putFloat(finalData[base + 7]); // nz
-                        }
-                    }
+                    0 // indexCount (unindexed)
             );
 
-            meshGroup.addMesh("main", mesh);
+            meshGroup.addMesh("main", bakedMesh);
             return meshGroup;
 
         } catch (Exception e) {

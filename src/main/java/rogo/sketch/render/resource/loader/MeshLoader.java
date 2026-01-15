@@ -4,11 +4,16 @@ import com.google.gson.*;
 import org.joml.Matrix4f;
 import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.data.builder.VertexDataBuilder;
 import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.model.DynamicMesh;
+import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.model.MeshBone;
 import rogo.sketch.render.model.MeshGroup;
+import rogo.sketch.render.resource.buffer.IndexBufferResource;
+import rogo.sketch.render.resource.buffer.VertexBufferObject;
+import rogo.sketch.render.resource.buffer.VertexResource;
+import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.util.Identifier;
 
 import java.io.BufferedReader;
@@ -25,10 +30,12 @@ import java.util.function.Function;
 public class MeshLoader implements ResourceLoader<MeshGroup> {
 
     @Override
-    public MeshGroup load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public MeshGroup load(Identifier identifier, ResourceData data, Gson gson,
+                          Function<Identifier, Optional<BufferedReader>> resourceProvider) {
         try {
             String jsonData = data.getString();
-            if (jsonData == null) return null;
+            if (jsonData == null)
+                return null;
 
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
 
@@ -154,17 +161,25 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
     private void loadSubMeshes(MeshGroup meshGroup, JsonArray subMeshesArray) {
         DataFormat groupFormat = meshGroup.getVertexFormat();
 
+        // Staging data
+        List<Float> allVertices = new ArrayList<>();
+        List<Integer> allIndices = new ArrayList<>();
+        List<SubMeshEntry> entries = new ArrayList<>();
+
+        int currentVertexOffset = 0;
+        int currentIndexOffset = 0;
+
+        // 1. Parse all submeshes and accumulate data
         for (JsonElement element : subMeshesArray) {
             JsonObject subMeshObj = element.getAsJsonObject();
-
             String name = subMeshObj.get("name").getAsString();
-            // int id = subMeshObj.get("id").getAsInt(); // Optional ID
 
             // Validate vertex format if present
             if (subMeshObj.has("vertexFormat")) {
                 DataFormat subFormat = parseDataFormat(subMeshObj.getAsJsonObject("vertexFormat"));
                 if (!subFormat.equals(groupFormat)) {
-                    throw new IllegalArgumentException("SubMesh format mismatch in " + name + ". Group expects " + groupFormat);
+                    throw new IllegalArgumentException(
+                            "SubMesh format mismatch in " + name + ". Group expects " + groupFormat);
                 }
             }
 
@@ -186,61 +201,109 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
                     indices.add(indexElement.getAsInt());
                 }
             }
-
-            // Create DynamicMesh using generator
-            float[] vData = new float[vertices.size()];
-            for (int i = 0; i < vertices.size(); i++) vData[i] = vertices.get(i);
-
-            int[] iData = indices.stream().mapToInt(i -> i).toArray();
-
             int floatsPerVertex = groupFormat.getStride() / 4;
-            int vertexCount = vertices.size() / floatsPerVertex;
+            int subVertexCount = vertices.size() / floatsPerVertex;
+            int subIndexCount = indices.size();
 
-            // Create final variables for lambda
-            final float[] finalVData = vData;
+            entries.add(new SubMeshEntry(name, subMeshObj, currentVertexOffset, currentIndexOffset, subVertexCount,
+                    subIndexCount));
 
-            DynamicMesh mesh = new DynamicMesh(
-                    groupFormat,
-                    meshGroup.getPrimitiveType(),
-                    vertexCount,
-                    indices.size(),
-                    filler -> fillVertices(filler, finalVData, groupFormat)
-            );
+            allVertices.addAll(vertices);
+            // Adjust indices for global offset if we are merging?
+            // Actually, for multi-draw or separate draw calls, we usually use "BaseVertex"
+            // to handle offset.
+            // But BakedMesh stores "srcVertexOffset".
+            // If we use standard GL_ELEMENT_ARRAY_BUFFER, the indices are absolute or
+            // relative?
+            // Usually they are relative to the start of the VBO unless "BaseVertex" is
+            // used.
+            // BUT if we merge into one VBO/IBO, the indices from the file are 0-based local
+            // to that mesh.
+            // When we put them in a global buffer, should we offset them?
+            // If we use "DrawElementsBaseVertex", we don't need to offset indices.
+            // BakedMesh implementation implies we might use it as a source copy...
+            // BUT if we want to render it directly, we need correct indices.
+            // Let's assume we want to support rendering without BaseVertex for widest
+            // compatibility/simplicity where possible,
+            // OR we assume the renderer handles BaseVertex.
+            // BakedMesh tracks `srcVertexOffset`.
+            // If the renderer uses `glDrawElementsBaseVertex`, we keep 0-based indices.
+            // If the renderer merges, it might re-index.
+            // HOWEVER, BakedMesh is often used for "Copying" (Zero Copy) to a target.
+            // If we copy, we copy the indices AS IS.
+            // So we should NOT offset indices here. The vertices define the base.
 
-            // For DynamicMesh, indices are usually handled by the filler too, 
-            // but PreparedMesh interface separates indices count.
-            // DynamicMesh implementation might need a setIndices equivalent or 
-            // the generator should write them. 
-            // Our DynamicMesh.fill(VertexFiller) assumes VertexFiller handles indices if needed?
-            // VertexFiller doesn't seem to have 'indices()' method in the snippet, 
-            // but usually filler writes to VBO and IBO.
-            // Let's check VertexFiller. It generates indices automatically based on vertex count 
-            // IF primitive type requires it, but usually linear. 
-            // For indexed drawing, we need to write indices to index buffer.
-            // VertexFiller typically writes vertices. Indices management depends on implementation.
-            // If DynamicMesh is used for indexed drawing, we need a way to provide indices.
-            // Currently DynamicMesh doesn't seem to store indices array for upload. 
-            // It just calls generator.
-            // We'll assume for now DynamicMesh is simple or VertexFiller handles it. 
-            // Wait, VertexFiller.generateIndices does standard indexing.
-            // If we load custom indices from JSON, VertexFiller might not support it directly via 'vertex()' calls
-            // unless we use 'index()' method.
-            // Checking VertexFiller again... it doesn't have explicit index writing methods in the snippet.
-            // It assumes 'generateIndices' which usually means auto-generation 0,1,2...
-            // If JSON provides indices, we might need a custom IndexBuffer filler or just assume linear for now.
-            // Limitation: OBJ/JSON usually provides indices. 
-            // We might need to expand VertexFiller or DynamicMesh to support custom indices.
+            allIndices.addAll(indices);
 
-            // For this implementation, we'll ignore loaded indices if VertexFiller generates them, 
-            // OR we assume the user wants standard indexed drawing.
+            currentVertexOffset += subVertexCount;
+            currentIndexOffset += subIndexCount;
+        }
 
-            meshGroup.addMesh(name, mesh);
+        // 2. Create VertexResource and Fill
+        // Create unique VertexResource (bypassing cache or using it as a unique
+        // container)
+        // Since this is a specific asset, we create a new one.
+        VertexResourceManager vrm = VertexResourceManager
+                .getInstance();
+
+        // We manually create VertexResource to ensure it's not shared/cached (unless we
+        // used a unique key)
+        // Just use internal logic or access new VertexResource?
+        // VertexResourceManager doesn't expose public constructor of VertexResource
+        // easily (package private?)
+        // Let's check VertexResource visibility... it is public class but constructor?
+        // VertexResource constructor is public in the snippet I read earlier!
+        // "public class VertexResource ... public VertexResource(PrimitiveType...)"
+
+        VertexResource resource = new VertexResource(meshGroup.getPrimitiveType(), allIndices.size() > 0);
+
+        // Create VBO for Binding 0
+        VertexBufferObject vbo = new VertexBufferObject(Usage.STATIC_DRAW);
+        resource.attachVBO(0, vbo, groupFormat, false);
+
+        // Upload Vertices
+        VertexDataBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), allVertices.size());
+        int floatsPerVertex = groupFormat.getStride() / 4;
+
+        // Convert List to array for faster filling? Or just iterate.
+        // Direct fill
+        float[] vData = new float[allVertices.size()];
+        for (int i = 0; i < allVertices.size(); i++)
+            vData[i] = allVertices.get(i);
+
+        fillVertices(builder, vData, groupFormat);
+        resource.upload(0, builder);
+
+        // Upload Indices if present
+        if (allIndices.size() > 0) {
+            IndexBufferResource ibo = resource.getIndexBuffer();
+            ibo.clear();
+            for (int index : allIndices) {
+                ibo.addIndex(index);
+            }
+            ibo.upload();
+        }
+
+        // 3. Create BakedMeshes
+        for (SubMeshEntry entry : entries) {
+            BakedMesh bakedMesh = new BakedMesh(
+                    resource,
+                    entry.vertexOffset,
+                    entry.indexOffset,
+                    entry.vertexCount,
+                    entry.indexCount);
+
+            meshGroup.addMesh(entry.name, bakedMesh);
 
             // Metadata
-            if (subMeshObj.has("material")) {
-                meshGroup.setMetadata("material_" + name, subMeshObj.get("material").getAsString());
+            if (entry.jsonObj.has("material")) {
+                meshGroup.setMetadata("material_" + entry.name, entry.jsonObj.get("material").getAsString());
             }
         }
+    }
+
+    private record SubMeshEntry(String name, JsonObject jsonObj, int vertexOffset, int indexOffset, int vertexCount,
+                                int indexCount) {
     }
 
     private static void fillVertices(VertexDataBuilder filler, float[] data, DataFormat format) {
@@ -250,7 +313,6 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             for (int j = 0; j < strideFloats; j++) {
                 filler.putFloat(data[i * strideFloats + j]);
             }
-            // filler.endVertex() is implicit in nextVertex or vertex(i) setup
         }
     }
 

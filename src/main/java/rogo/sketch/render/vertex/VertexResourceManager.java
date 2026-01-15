@@ -78,6 +78,7 @@ public class VertexResourceManager {
                 // if (sourceProvider.getHandle() == key.sourceResourceID()) ...
                 // For now, trust the caller provided the correct source for this key.
                 resource.shareComponentsFrom(sourceProvider);
+                resource.setIndexBuffer(sourceProvider.getIndexBuffer());
             } else {
                 // Warning: Key expects source but none provided.
                 // This implies we are trying to create a shared-VAO but lost the source object.

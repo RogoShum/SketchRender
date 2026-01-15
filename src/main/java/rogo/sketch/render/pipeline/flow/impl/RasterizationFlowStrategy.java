@@ -331,7 +331,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                     // Identify if this component is instanced or vertex-based
                     boolean isCompInstanced = key.components().stream()
                             .filter(c -> c.getBindingPoint() == bindingPoint)
-                            .findFirst().map(rogo.sketch.render.data.format.ComponentSpec::isInstanced).orElse(false);
+                            .findFirst().map(ComponentSpec::isInstanced).orElse(false);
 
                     if (isCompInstanced) {
                         // Instanced Data

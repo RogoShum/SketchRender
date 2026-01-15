@@ -23,11 +23,10 @@ import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.feature.culling.graphics.*;
 import rogo.sketch.mixin.AccessorFrustum;
-import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.Usage;
-import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.VertexLayoutSpec;
+import rogo.sketch.render.instance.CubeTestGraphics;
 import rogo.sketch.render.pipeline.*;
 import rogo.sketch.render.pipeline.flow.impl.ComputeFlowStrategy;
 import rogo.sketch.render.pipeline.flow.impl.RasterizationFlowStrategy;
@@ -405,9 +404,6 @@ public class VanillaPipelineEventHandler {
      * block entity
      */
     private static void registerNewPipelineCullingGraphics(RegisterStaticGraphicsEvent registerEvent) {
-        // Check if new pipeline should be used (for future activation)
-        // For now, register them but they'll use MeshGraphicsInstance interface
-
         // Register chunk culling graphics
         ChunkCullingTestGraphics chunkGraphics = new ChunkCullingTestGraphics(
                 Identifier.of(SketchRender.MOD_ID, "culling_test_chunk_new"));
@@ -423,6 +419,26 @@ public class VanillaPipelineEventHandler {
         BlockEntityCullingTestGraphics blockEntityGraphics = new BlockEntityCullingTestGraphics(
                 Identifier.of(SketchRender.MOD_ID, "culling_test_block_entity_new"));
         registerNewPipelineGraphicsAsLegacy(registerEvent, blockEntityGraphics, "culling_test_block_entity");
+
+        Graphics cubeTestGraphics = new CubeTestGraphics(Identifier.of(SketchRender.MOD_ID, "cube_test"));
+        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
+                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "cube_test"));
+
+        if (renderSetting.isPresent()) {
+            PartialRenderSetting partialRenderSetting = renderSetting.get();
+            VertexLayoutSpec layout = VertexLayoutSpec.builder()
+                    .addStatic(0, DefaultDataFormats.POSITION_UV_NORMAL)
+                    .addDynamicInstanced(1, DefaultDataFormats.POSITION)
+                    .build();
+
+            RenderParameter renderParameter = RasterizationParameter.create(
+                    layout,
+                    PrimitiveType.QUADS,
+                    Usage.DYNAMIC_DRAW,
+                    false);
+            RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
+            registerEvent.register(MinecraftRenderStages.ENTITIES.getIdentifier(), cubeTestGraphics, setting);
+        }
     }
 
     /**
@@ -430,16 +446,20 @@ public class VanillaPipelineEventHandler {
      * compatibility
      */
     private static void registerNewPipelineGraphicsAsLegacy(RegisterStaticGraphicsEvent registerEvent,
-            Graphics instance,
-            String settingName) {
+                                                            Graphics instance,
+                                                            String settingName) {
         Identifier settingId = Identifier.of(SketchRender.MOD_ID, settingName);
         Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                 .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
 
         if (renderSetting.isPresent()) {
             PartialRenderSetting partialRenderSetting = renderSetting.get();
+            VertexLayoutSpec layout = VertexLayoutSpec.builder()
+                    .addDynamic(0, DefaultDataFormats.POSITION)
+                    .build();
+
             RenderParameter renderParameter = RasterizationParameter.create(
-                    DefaultDataFormats.POSITION,
+                    layout,
                     PrimitiveType.QUADS,
                     Usage.DYNAMIC_DRAW,
                     false);
@@ -449,7 +469,7 @@ public class VanillaPipelineEventHandler {
     }
 
     private static void registerReloadableComputeShader(RegisterStaticGraphicsEvent registerEvent,
-            String settingIdString, Supplier<Graphics> instanceSupplier) {
+                                                        String settingIdString, Supplier<Graphics> instanceSupplier) {
         Identifier settingId = Identifier.of(settingIdString);
         Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                 .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);

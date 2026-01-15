@@ -11,7 +11,6 @@ import rogo.sketch.render.data.builder.VertexDataBuilder;
 import rogo.sketch.render.data.format.DataElement;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.VBOComponent;
-import rogo.sketch.render.vertex.DrawMode;
 import rogo.sketch.util.GLFeatureChecker;
 
 import java.nio.ByteBuffer;
@@ -69,7 +68,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      * @param vertexOffset      The offset in vertices
      */
     public void attachExternalVBO(int bindingPoint, int externalVBOHandle,
-            DataFormat format, boolean instanced, int vertexOffset) {
+                                  DataFormat format, boolean instanced, int vertexOffset) {
         VBOComponent component = new VBOComponent(externalVBOHandle, format, bindingPoint, instanced, vertexOffset);
         components.put(bindingPoint, component);
         setupVBOComponent(component);
@@ -293,6 +292,15 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         return indexBuffer;
     }
 
+    public void setIndexBuffer(IndexBufferResource indexBuffer) {
+        if (this.indexBuffer != null) {
+            this.indexBuffer.dispose();
+        }
+
+        this.indexBuffer = indexBuffer;
+        attachIndexBuffer();
+    }
+
     public boolean hasIndices() {
         return indexBuffer != null && indexBuffer.getIndexCount() > 0;
     }
@@ -349,18 +357,4 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         VBOComponent component = components.get(0);
         return component != null ? component.getVboHandle() : 0;
     }
-
-    // ===== Constants for Legacy Compatibility =====
-
-    /**
-     * @deprecated Use explicit binding points instead.
-     */
-    @Deprecated
-    public static final int BINDING_MAIN = 0;
-
-    /**
-     * @deprecated Use explicit binding points instead.
-     */
-    @Deprecated
-    public static final int BINDING_INSTANCE = 1;
 }

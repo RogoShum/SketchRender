@@ -1,0 +1,4 @@
+{
+  "vertex": "sketch_render:cube_test.vsh",
+  "fragment": "sketch_render:cube_test.fsh"
+}

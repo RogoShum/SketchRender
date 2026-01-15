@@ -13,6 +13,7 @@ import java.util.Map;
 public final class ResourceTypes {
     public static final Identifier TEXTURE = Identifier.of("texture");
     public static final Identifier SHADER_STORAGE_BUFFER = Identifier.of("shader_storage_buffer");
+    public static final Identifier SHADER_TYPE = Identifier.of("shader_type");
     public static final Identifier UNIFORM_BLOCK = Identifier.of("uniform_block");
     public static final Identifier COUNTER_BUFFER = Identifier.of("counter_buffer");
     public static final Identifier IMAGE_BUFFER = Identifier.of("image_buffer");

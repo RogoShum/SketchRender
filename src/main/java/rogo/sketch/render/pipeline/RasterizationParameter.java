@@ -2,7 +2,6 @@ package rogo.sketch.render.pipeline;
 
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.Usage;
-import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.VertexLayoutSpec;
 import rogo.sketch.render.pipeline.flow.RenderFlowType;
 
@@ -96,19 +95,6 @@ public class RasterizationParameter extends RenderParameter {
                 ", usage=" + usage +
                 ", enableSorting=" + enableSorting +
                 '}';
-    }
-
-    public static RasterizationParameter create(
-            DataFormat dataFormat,
-            PrimitiveType primitiveType,
-            Usage usage,
-            boolean enableSorting) {
-
-        VertexLayoutSpec layout = VertexLayoutSpec.builder()
-                .addDynamic(0, dataFormat)
-                .build();
-
-        return new RasterizationParameter(layout, primitiveType, usage, enableSorting);
     }
 
     /**

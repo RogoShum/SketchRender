@@ -10,15 +10,6 @@ import rogo.sketch.render.resource.buffer.VertexResource;
  * without copying data, improving performance for static geometry.</p>
  */
 public non-sealed interface BakedTypeMesh extends PreparedMesh {
-    /**
-     * Copies this mesh's data to the target VertexResource at the specified offsets.
-     * Implementations should use efficient methods like glCopyBufferSubData if possible.
-     *
-     * @param target             The target resource to copy to.
-     * @param targetVertexOffset The vertex offset in the target buffer (in vertices).
-     * @param targetIndexOffset  The index offset in the target buffer (in indices).
-     */
-    void copyTo(VertexResource target, int targetVertexOffset, int targetIndexOffset);
 
     /**
      * Get the source VertexResource that contains this mesh's GPU data.
