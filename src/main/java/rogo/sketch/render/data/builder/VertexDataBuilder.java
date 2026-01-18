@@ -254,9 +254,8 @@ public class VertexDataBuilder {
                 p.onFinish(this);
             }
         }
-        
-        // If we used a staging buffer but NO sorter processed it (e.g. sorted disabled but staging allocated?),
-        // we should flush it manually. But currently staging is only allocated if sorting enabled.
+
+        vertexCount = 0;
     }
     
     public void reset() {

@@ -15,7 +15,8 @@ public class RenderStateRegistry {
     private static boolean initialized = false;
 
     public static void init() {
-        if (initialized) return;
+        if (initialized)
+            return;
 
         // Register GL default states with OpenGL default values
         registerDefault(new BlendState(false, GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA));
@@ -29,6 +30,9 @@ public class RenderStateRegistry {
         registerDefault(new ViewportState(0, 0, 1920, 1080));
         registerDefault(new ShaderState()); // No default shader
         registerDefault(RenderTargetState.defaultFramebuffer()); // Default framebuffer
+        registerDefault(new ColorMaskState(true, true, true, true));
+        registerDefault(new PolygonOffsetState(false, 0, 0));
+        registerDefault(new LogicOpState(false, GL11.GL_COPY));
 
         initialized = true;
     }
@@ -47,12 +51,14 @@ public class RenderStateRegistry {
     }
 
     /**
-     * Load a render state component from JSON using the default component as prototype
+     * Load a render state component from JSON using the default component as
+     * prototype
      */
     public static RenderStateComponent loadComponentFromJson(Identifier componentType, JsonObject json, Gson gson) {
         RenderStateComponent defaultComponent = defaultComponents.get(componentType);
         if (defaultComponent == null) {
-            throw new IllegalArgumentException("No default component found for render state component type: " + componentType);
+            throw new IllegalArgumentException(
+                    "No default component found for render state component type: " + componentType);
         }
 
         // Create new instance and deserialize
@@ -69,7 +75,8 @@ public class RenderStateRegistry {
     }
 
     /**
-     * Get all components with defaults applied, then override with provided components
+     * Get all components with defaults applied, then override with provided
+     * components
      */
     public static Map<Identifier, RenderStateComponent> buildStateMap(Map<Identifier, RenderStateComponent> overrides) {
         Map<Identifier, RenderStateComponent> result = new HashMap<>(getDefaults());

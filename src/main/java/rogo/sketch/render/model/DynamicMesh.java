@@ -61,4 +61,14 @@ public class DynamicMesh implements DynamicTypeMesh {
     public int getIndicesCount() {
         return indexCount;
     }
+
+    @Override
+    public int getVertexOffset() {
+        return 0;
+    }
+
+    @Override
+    public int getIndexOffset() {
+        return 0;
+    }
 }

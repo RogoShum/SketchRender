@@ -29,6 +29,10 @@ public sealed interface PreparedMesh permits BakedTypeMesh, DynamicTypeMesh {
      */
     int getIndicesCount();
 
+    int getVertexOffset();
+
+    int getIndexOffset();
+
     /**
      * Checks if this mesh has an index buffer.
      */

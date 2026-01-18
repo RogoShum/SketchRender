@@ -68,9 +68,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
 
                 if (RenderStateRegistry.hasComponent(componentType)) {
                     RenderStateComponent component = RenderStateRegistry.loadComponentFromJson(componentType, componentObj, gson);
-                    if (component != null) {
-                        overrideComponents.put(component.getIdentifier(), component);
-                    }
+                    overrideComponents.put(component.getIdentifier(), component);
                 } else {
                     System.err.println("No default component found for render state component: " + componentTypeName);
                 }

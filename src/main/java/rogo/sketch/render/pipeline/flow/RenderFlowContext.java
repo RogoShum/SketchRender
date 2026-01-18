@@ -3,8 +3,11 @@ package rogo.sketch.render.pipeline.flow;
 import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.vertex.VertexResourceManager;
+import rogo.sketch.util.Identifier;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Context object providing resources and utilities for render flow processing.
@@ -17,12 +20,14 @@ import java.util.Map;
 public class RenderFlowContext {
     private final VertexResourceManager vertexResourceManager;
     private final Map<RenderParameter, IndirectCommandBuffer> indirectBuffers;
+    private final Map<RenderParameter, AtomicInteger> instancedOffsets;
+    private final Map<Identifier, Object> extraContexts;
 
-    public RenderFlowContext(
-            VertexResourceManager vertexResourceManager,
-            Map<RenderParameter, IndirectCommandBuffer> indirectBuffers) {
+    public RenderFlowContext(VertexResourceManager vertexResourceManager, Map<RenderParameter, IndirectCommandBuffer> indirectBuffers, Map<RenderParameter, AtomicInteger> instancedOffsets) {
         this.vertexResourceManager = vertexResourceManager;
         this.indirectBuffers = indirectBuffers;
+        this.instancedOffsets = instancedOffsets;
+        this.extraContexts = new HashMap<>();
     }
 
     /**
@@ -59,8 +64,16 @@ public class RenderFlowContext {
      *
      * @return Map of render parameters to indirect buffers
      */
-    public Map<RenderParameter, IndirectCommandBuffer> getIndirectBuffers() {
+    public Map<RenderParameter, IndirectCommandBuffer> indirectBuffers() {
         return indirectBuffers;
+    }
+
+    public Map<RenderParameter, AtomicInteger> instancedOffsets() {
+        return instancedOffsets;
+    }
+
+    public Map<Identifier, Object> extraContext() {
+        return extraContexts;
     }
 
     /**

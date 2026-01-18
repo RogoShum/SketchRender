@@ -37,6 +37,7 @@ import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
+import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.event.GraphicsPipelineInitEvent;
 import rogo.sketch.event.RenderFlowRegisterEvent;
 import rogo.sketch.event.UniformHookRegisterEvent;
@@ -242,11 +243,11 @@ public class SketchRender {
         if (event.getOverlay() == VanillaGuiOverlay.HELMET.type()) {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
-            // debugText.put("帧数", fps);
-            // long capacityInBytes = IndirectCommandBuffer.INSTANCE.getCapacity();
-            // double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
-            // debugText.put("IndirectCommandBuffer", String.format("%.2f MB",
-            // capacityInMB));
+            debugText.put("帧数", fps);
+            long capacityInBytes = MeshResource.CHUNK_COMMAND.getCapacity();
+            double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
+            debugText.put("IndirectCommandBuffer", String.format("%.2f MB",
+                    capacityInMB));
 
             CommandCallTimer commandTimer = SketchRender.COMMAND_TIMER;
             debugText.putAll(commandTimer.getResults());

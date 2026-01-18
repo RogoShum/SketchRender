@@ -2,18 +2,17 @@ package rogo.sketch.render.data.format;
 
 import rogo.sketch.render.pipeline.RasterizationParameter;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class VertexBufferKey {
-    private final RasterizationParameter staticParam;
+    private final RasterizationParameter renderParameter;
     private final List<ComponentSpec> components;
     private final long sourceResourceID;
 
     private VertexBufferKey(RasterizationParameter staticParam, List<ComponentSpec> components, long sourceResourceID) {
-        this.staticParam = staticParam;
+        this.renderParameter = staticParam;
         this.components = components;
         this.sourceResourceID = sourceResourceID;
     }
@@ -45,8 +44,8 @@ public class VertexBufferKey {
 
     // ===== Getters =====
 
-    public RasterizationParameter staticParam() {
-        return staticParam;
+    public RasterizationParameter renderParameter() {
+        return renderParameter;
     }
 
     public List<ComponentSpec> components() {
@@ -92,19 +91,19 @@ public class VertexBufferKey {
             return false;
         VertexBufferKey that = (VertexBufferKey) o;
         return sourceResourceID == that.sourceResourceID &&
-                Objects.equals(staticParam, that.staticParam) &&
+                Objects.equals(renderParameter, that.renderParameter) &&
                 Objects.equals(components, that.components);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(staticParam, components, sourceResourceID);
+        return Objects.hash(renderParameter, components, sourceResourceID);
     }
 
     @Override
     public String toString() {
         return "VertexBufferKey{" +
-                "staticParam=" + staticParam +
+                "renderParameter=" + renderParameter +
                 ", sourceID=" + sourceResourceID +
                 ", components=" + components +
                 '}';

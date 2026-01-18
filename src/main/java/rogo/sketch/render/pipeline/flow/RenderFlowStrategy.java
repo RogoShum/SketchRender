@@ -10,6 +10,8 @@ import rogo.sketch.util.Identifier;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Strategy interface for processing graphics instances with different rendering
@@ -50,7 +52,7 @@ public interface RenderFlowStrategy {
      * @param context       The current render context
      * @param <C>           The render context type
      * @return The collected instance information, or null if the instance should be
-     * skipped
+     *         skipped
      */
     @Nullable
     <C extends RenderContext> InstanceInfo collectInstanceInfo(
@@ -65,15 +67,27 @@ public interface RenderFlowStrategy {
      * It should generate the appropriate render commands for the given instances.
      * </p>
      *
-     * @param infos       The collected instance information
-     * @param stageId     The identifier of the current render stage
-     * @param flowContext The flow processing context with access to resources
-     * @return List of render commands to execute
+     * @param infos         The collected instance information
+     * @param stageId       The identifier of the current render stage
+     * @param flowContext   The flow processing context with access to resources
+     * @param postProcessors Consumer to register post-processing tasks (e.g. data
+     *                      uploads)
+     * @return Map of render commands grouped by RenderSetting
      */
-    List<RenderCommand> createRenderCommands(
+    Map<RenderSetting, List<RenderCommand>> createRenderCommands(
             Collection<InstanceInfo> infos,
             Identifier stageId,
-            RenderFlowContext flowContext);
+            RenderFlowContext flowContext,
+            RenderPostProcessors postProcessors);
+
+    /**
+     * Create a post-processor for this strategy.
+     *
+     * @return The post-processor instance, or null if none needed.
+     */
+    default RenderPostProcessor createPostProcessor() {
+        return null;
+    }
 
     /**
      * Check if instances processed by this strategy can be batched together.

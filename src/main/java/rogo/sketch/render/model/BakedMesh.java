@@ -63,12 +63,12 @@ public class BakedMesh implements BakedTypeMesh {
     }
 
     @Override
-    public int getSourceVertexOffset() {
+    public int getVertexOffset() {
         return srcVertexOffset;
     }
 
     @Override
-    public int getSourceIndexOffset() {
+    public int getIndexOffset() {
         return srcIndexOffset;
     }
 }

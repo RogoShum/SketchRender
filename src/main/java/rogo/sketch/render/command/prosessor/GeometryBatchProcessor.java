@@ -3,10 +3,7 @@ package rogo.sketch.render.command.prosessor;
 import rogo.sketch.api.graphics.*;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.pipeline.RenderSetting;
-import rogo.sketch.render.pipeline.flow.RenderFlowContext;
-import rogo.sketch.render.pipeline.flow.RenderFlowRegistry;
-import rogo.sketch.render.pipeline.flow.RenderFlowStrategy;
-import rogo.sketch.render.pipeline.flow.RenderFlowType;
+import rogo.sketch.render.pipeline.flow.*;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.vertex.VertexResourceManager;
@@ -15,6 +12,7 @@ import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.Identifier;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Core processor for converting GraphicsInstances into RenderCommands.
@@ -28,11 +26,13 @@ import java.util.*;
  */
 public class GeometryBatchProcessor {
     private final Map<RenderParameter, IndirectCommandBuffer> indirectBuffers;
+    private final Map<RenderParameter, AtomicInteger> instancedOffsets;
     private final VertexResourceManager resourceManager = VertexResourceManager.getInstance();
     private final RenderFlowRegistry flowRegistry = RenderFlowRegistry.getInstance();
 
-    public GeometryBatchProcessor(Map<RenderParameter, IndirectCommandBuffer> indirectBuffers) {
+    public GeometryBatchProcessor(Map<RenderParameter, IndirectCommandBuffer> indirectBuffers, Map<RenderParameter, AtomicInteger> instancedOffsets) {
         this.indirectBuffers = indirectBuffers;
+        this.instancedOffsets = instancedOffsets;
     }
 
     /**
@@ -46,10 +46,11 @@ public class GeometryBatchProcessor {
      * @param <C>            The render context type
      * @return List of render commands
      */
-    public <C extends RenderContext> List<RenderCommand> createAllCommands(
+    public <C extends RenderContext> Map<RenderSetting, List<RenderCommand>> createAllCommands(
             Map<RenderSetting, Collection<Graphics>> instanceGroups,
             Identifier stageId,
-            C context) {
+            C context,
+            RenderPostProcessors postProcessors) {
 
         // 1. Collect instance info using flow strategies
         Map<RenderFlowType, List<InstanceInfo>> infosByFlowType = new HashMap<>();
@@ -75,8 +76,8 @@ public class GeometryBatchProcessor {
         }
 
         // 2. Create render commands for each flow type
-        List<RenderCommand> allCommands = new ArrayList<>();
-        RenderFlowContext flowContext = new RenderFlowContext(resourceManager, indirectBuffers);
+        Map<RenderSetting, List<RenderCommand>> allCommands = new LinkedHashMap<>();
+        RenderFlowContext flowContext = new RenderFlowContext(resourceManager, indirectBuffers, instancedOffsets);
 
         for (Map.Entry<RenderFlowType, List<InstanceInfo>> entry : infosByFlowType.entrySet()) {
             RenderFlowType flowType = entry.getKey();
@@ -87,7 +88,13 @@ public class GeometryBatchProcessor {
                 continue;
 
             RenderFlowStrategy strategy = strategyOpt.get();
-            allCommands.addAll(strategy.createRenderCommands(infos, stageId, flowContext));
+            Map<RenderSetting, List<RenderCommand>> strategyCommands = strategy.createRenderCommands(infos, stageId,
+                    flowContext, postProcessors);
+
+            // Merge into allCommands
+            for (Map.Entry<RenderSetting, List<RenderCommand>> cmdEntry : strategyCommands.entrySet()) {
+                allCommands.computeIfAbsent(cmdEntry.getKey(), k -> new ArrayList<>()).addAll(cmdEntry.getValue());
+            }
         }
 
         return allCommands;

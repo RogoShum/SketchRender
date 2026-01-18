@@ -7,14 +7,17 @@ import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.RenderCommandQueue;
 import rogo.sketch.render.pipeline.async.AsyncRenderManager;
+import rogo.sketch.render.pipeline.flow.RenderFlowRegistry;
+import rogo.sketch.render.pipeline.flow.RenderFlowStrategy;
+import rogo.sketch.render.pipeline.flow.RenderPostProcessor;
+import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pool.InstancePoolManager;
+import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.util.Identifier;
 import rogo.sketch.util.OrderedList;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class GraphicsPipeline<C extends RenderContext> {
     private final OrderedList<GraphicsStage> stages;
@@ -24,6 +27,8 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     private final RenderCommandQueue<C> renderCommandQueue = new RenderCommandQueue<>(this);
+    private final Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = new HashMap<>();
+    private final Map<RenderParameter, AtomicInteger> instancedOffsets = new HashMap<>();
     private final PipelineConfig config;
     private C currentContext;
     private boolean initialized = false;
@@ -90,9 +95,26 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void computeAllRenderCommand() {
         try {
-            List<RenderCommand> renderCommands = createRenderCommands();
+            for (IndirectCommandBuffer commandBuffer : indirectBuffers.values()) {
+                commandBuffer.clear();
+            }
+
+            instancedOffsets.clear();
+
+            RenderPostProcessors postProcessors = new RenderPostProcessors();
+            for (RenderFlowStrategy strategy : RenderFlowRegistry.getInstance().getAllStrategies()) {
+                RenderPostProcessor processor = strategy.createPostProcessor();
+                if (processor != null) {
+                    postProcessors.register(strategy.getFlowType(), processor);
+                }
+            }
+
+            Map<RenderSetting, List<RenderCommand>> renderCommands = createRenderCommands(postProcessors);
+
             renderCommandQueue.clear();
             renderCommandQueue.addCommands(renderCommands);
+
+            postProcessors.executeAll();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -101,15 +123,20 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Create render commands from all stages
      */
-    private List<RenderCommand> createRenderCommands() {
-        List<RenderCommand> allCommands = new ArrayList<>();
+    private Map<RenderSetting, List<RenderCommand>> createRenderCommands(
+            RenderPostProcessors postProcessors) {
+        Map<RenderSetting, List<RenderCommand>> allCommands = new LinkedHashMap<>();
 
         for (GraphicsStage stage : stages.getOrderedList()) {
             GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
             if (batchGroup != null) {
-                // Let GraphicsbatchGroup create its own render commands
-                List<RenderCommand> stageCommands = batchGroup.createRenderCommands(currentContext);
-                allCommands.addAll(stageCommands);
+                Map<RenderSetting, List<RenderCommand>> stageCommands = batchGroup.createRenderCommands(currentContext,
+                        postProcessors);
+
+                // Merge into allCommands
+                for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
+                    allCommands.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).addAll(entry.getValue());
+                }
             }
         }
 
@@ -127,7 +154,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         int fromIdx = ordered.indexOf(fromStage);
         int toIdx = ordered.indexOf(toStage);
         for (int i = fromIdx + 1; i < toIdx; i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
+                    this.currentContext);
         }
 
         renderStage(toId);
@@ -145,7 +173,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
         for (int i = 0; i < idx; i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
+                    this.currentContext);
         }
 
         renderStage(id);
@@ -158,7 +187,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
         for (int i = idx + 1; i < ordered.size(); i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
+                    this.currentContext);
         }
     }
 
@@ -280,5 +310,13 @@ public class GraphicsPipeline<C extends RenderContext> {
      */
     public RenderCommandQueue<C> getRenderCommandQueue() {
         return renderCommandQueue;
+    }
+
+    public Map<RenderParameter, IndirectCommandBuffer> indirectBuffers() {
+        return indirectBuffers;
+    }
+
+    public Map<RenderParameter, AtomicInteger> instancedOffsets() {
+        return instancedOffsets;
     }
 }

@@ -38,6 +38,7 @@ public class RenderStateManager {
                 comp.apply(context);
             }
         }
+
         if (currentResourceBinding != null) {
             currentResourceBinding.bind(context);
         }
@@ -69,10 +70,12 @@ public class RenderStateManager {
         if (defaultState == null) {
             defaultState = RenderStateRegistry.createDefaultFullRenderState();
         }
+
+        currentState = null;
         changeState(defaultState, context);
     }
 
-    private void changeState(FullRenderState newState, RenderContext context) {
+    public void changeState(FullRenderState newState, RenderContext context) {
         if (currentState == null) {
             // First time, apply all components
             for (RenderStateComponent comp : newState.getComponentTypes().stream().map(newState::get).toList()) {

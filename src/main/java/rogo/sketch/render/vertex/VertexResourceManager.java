@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VertexResourceManager {
     private static VertexResourceManager instance;
     private final Map<VertexBufferKey, VertexResource> resourceCache = new ConcurrentHashMap<>();
+    private final Map<BuilderKey, VertexDataBuilder> builderCache = new ConcurrentHashMap<>();
 
     private VertexResourceManager() {
     }
@@ -65,7 +66,7 @@ public class VertexResourceManager {
     }
 
     private VertexResource createVertexResource(VertexBufferKey key, @Nullable VertexResource sourceProvider) {
-        RasterizationParameter param = key.staticParam();
+        RasterizationParameter param = key.renderParameter();
         PrimitiveType primitiveType = param.primitiveType();
 
         // 1. Create Base VAO
@@ -133,7 +134,8 @@ public class VertexResourceManager {
      * Create a VertexDataBuilder for a single DataFormat.
      */
     public VertexDataBuilder createBuilder(DataFormat format, PrimitiveType primitiveType, int initialCapacity) {
-        return new VertexDataBuilder(format, primitiveType);
+        return builderCache.computeIfAbsent(new BuilderKey(format, primitiveType),
+                k -> new VertexDataBuilder(format, primitiveType));
     }
 
     /**
@@ -146,7 +148,8 @@ public class VertexResourceManager {
     /**
      * Create builders for all MUTABLE components in a VertexLayoutSpec.
      */
-    public Map<Integer, VertexDataBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType, int initialCapacity) {
+    public Map<Integer, VertexDataBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType,
+            int initialCapacity) {
         Map<Integer, VertexDataBuilder> builders = new ConcurrentHashMap<>();
         for (ComponentSpec component : spec.getDynamicSpecs()) {
             builders.put(component.getBindingPoint(), createBuilder(component, primitiveType, initialCapacity));
@@ -167,12 +170,19 @@ public class VertexResourceManager {
      * The builder will automatically handle resizing via the AddressBufferWriter
      * mechanism.
      */
-    public VertexDataBuilder createDirectBuilder(DataResourceObject resource, DataFormat format, PrimitiveType primitiveType) {
+    public VertexDataBuilder createDirectBuilder(DataResourceObject resource, DataFormat format,
+            PrimitiveType primitiveType) {
         AddressBufferWriter writer = new AddressBufferWriter(resource);
         return new VertexDataBuilder(writer, format, primitiveType);
     }
 
     public String getCacheStats() {
         return String.format("VertexResourceManager: %d cached resources", resourceCache.size());
+    }
+
+    /**
+     * Create a VertexDataBuilder for a single DataFormat.
+     */
+    private record BuilderKey(DataFormat format, PrimitiveType primitiveType) {
     }
 }

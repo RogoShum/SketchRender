@@ -17,6 +17,7 @@ import rogo.sketch.render.pipeline.*;
 import rogo.sketch.render.pipeline.flow.RenderFlowContext;
 import rogo.sketch.render.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.render.pipeline.flow.RenderFlowType;
+import rogo.sketch.render.pipeline.flow.RenderPostProcessor;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
 import rogo.sketch.render.pipeline.information.RasterizationInstanceInfo;
 import rogo.sketch.render.resource.ResourceBinding;
@@ -24,9 +25,9 @@ import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.util.Identifier;
-
 import javax.annotation.Nullable;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Flow strategy for rasterization rendering pipeline.
@@ -41,6 +42,11 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
     @Override
     public RenderFlowType getFlowType() {
         return RenderFlowType.RASTERIZATION;
+    }
+
+    @Override
+    public RenderPostProcessor createPostProcessor() {
+        return new RasterizationPostProcessor();
     }
 
     @Override
@@ -88,10 +94,11 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
     }
 
     @Override
-    public List<RenderCommand> createRenderCommands(
+    public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
             Collection<InstanceInfo> infos,
             Identifier stageId,
-            RenderFlowContext flowContext) {
+            RenderFlowContext flowContext,
+            rogo.sketch.render.pipeline.flow.RenderPostProcessors postProcessors) {
         // Filter to only RasterizationInstanceInfo
         List<RasterizationInstanceInfo> rasterInfos = infos.stream()
                 .filter(info -> info instanceof RasterizationInstanceInfo)
@@ -99,7 +106,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                 .toList();
 
         if (rasterInfos.isEmpty()) {
-            return new ArrayList<>();
+            return java.util.Collections.emptyMap();
         }
 
         // Calculate vertex offsets for dynamic meshes
@@ -130,32 +137,35 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         Map<VertexBufferKey, List<RenderBatch<RasterizationInstanceInfo>>> keyGroups = groupByVertexBufferKey(batches);
 
         // Process each group and create commands
-        List<RenderCommand> commands = new ArrayList<>();
-        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = flowContext.getIndirectBuffers();
-        indirectBuffers.values().forEach(IndirectCommandBuffer::clear);
+        Map<RenderSetting, List<RenderCommand>> commandsMap = new LinkedHashMap<>();
+        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = flowContext.indirectBuffers();
+
+        RasterizationPostProcessor processor = postProcessors.get(getFlowType());
 
         for (Map.Entry<VertexBufferKey, List<RenderBatch<RasterizationInstanceInfo>>> entry : keyGroups.entrySet()) {
             VertexBufferKey key = entry.getKey();
             List<RenderBatch<RasterizationInstanceInfo>> keyBatches = entry.getValue();
 
-            ProcessorResult result = processBatches(key, keyBatches, flowContext);
+            ProcessorResult result = processBatches(key, keyBatches, flowContext, processor);
             if (result == null)
                 continue;
 
             VertexResource resource = result.resource();
-            IndirectCommandBuffer indirectBuffer = indirectBuffers.get(key.staticParam());
+            IndirectCommandBuffer indirectBuffer = indirectBuffers.get(key.renderParameter());
 
             for (RenderBatch<? extends RasterizationInstanceInfo> batch : keyBatches) {
                 DrawRange range = result.ranges().get(batch);
                 if (range != null && range.count() > 0) {
-                    commands.add(new MultiDrawRenderCommand(
+                    RenderCommand command = new MultiDrawRenderCommand(
                             resource,
                             indirectBuffer,
                             batch.getRenderSetting(),
                             stageId,
                             range.count(),
                             (long) range.startCommandIndex() * indirectBuffer.getStride(),
-                            batch));
+                            batch);
+
+                    commandsMap.computeIfAbsent(batch.getRenderSetting(), k -> new ArrayList<>()).add(command);
                 }
             }
         }
@@ -166,7 +176,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         });
         IndirectCommandBuffer.unBind();
 
-        return commands;
+        return commandsMap;
     }
 
     @Override
@@ -265,12 +275,14 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
     private ProcessorResult processBatches(
             VertexBufferKey key,
             List<RenderBatch<RasterizationInstanceInfo>> batches,
-            RenderFlowContext context) {
+            RenderFlowContext context,
+            RasterizationPostProcessor accumulator) {
         if (batches.isEmpty())
             return null;
 
         VertexResourceManager resourceManager = context.getResourceManager();
-        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = context.getIndirectBuffers();
+        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = context.indirectBuffers();
+        Map<RenderParameter, AtomicInteger> instancedOffsets = context.instancedOffsets();
 
         // 1. Calculate totals for builders
         int totalInstances = 0;
@@ -299,16 +311,31 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             }
         }
         VertexResource resource = resourceManager.get(key, source);
-        IndirectCommandBuffer indirectBuffer = indirectBuffers.computeIfAbsent(
-                key.staticParam(), k -> new IndirectCommandBuffer(1280));
+        IndirectCommandBuffer indirectBuffer = indirectBuffers.computeIfAbsent(key.renderParameter(), k -> new IndirectCommandBuffer(1280));
+        AtomicInteger batchCurrentInstancedCount = instancedOffsets.computeIfAbsent(key.renderParameter(), k -> new AtomicInteger(0));
 
         // Create builders for MUTABLE components
         int builderCapacity = Math.max(totalVertices, totalInstances);
-        Map<Integer, VertexDataBuilder> builders = resourceManager.createBuilder(key.staticParam(), builderCapacity);
+        Map<Integer, VertexDataBuilder> builders = resourceManager.createBuilder(key.renderParameter(), builderCapacity);
 
         Map<RenderBatch<?>, DrawRange> ranges = new HashMap<>();
         boolean isInstancedDraw = key.hasInstancing();
         int currentVertexOffset = 0; // For Standard/Dynamic Vertex Buffer accumulation
+
+        // Use the current vertex count from the first non-instanced builder as the
+        // start offset
+        // This ensures correct offset when builders are reused across batches
+        for (ComponentSpec spec : key.components()) {
+            if (!spec.isInstanced() && builders.containsKey(spec.getBindingPoint())) {
+                currentVertexOffset = builders.get(spec.getBindingPoint()).getVertexCount();
+                RenderParameter param = key.renderParameter();
+                if (param instanceof RasterizationParameter rasterParam
+                        && rasterParam.primitiveType().requiresIndexBuffer()) {
+                    currentVertexOffset = rasterParam.primitiveType().calculateIndexCount(currentVertexOffset);
+                }
+                break;
+            }
+        }
 
         // 3. Process Batches
         for (RenderBatch<RasterizationInstanceInfo> batch : batches) {
@@ -376,7 +403,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                 // Determine vertex count from mesh (Shared)
                 int vCount = 0;
                 if (!batch.getInstances().isEmpty() && batch.getInstances().get(0).hasMesh()) {
-                    vCount = batch.getInstances().get(0).getMesh().getIndicesCount() > 0
+                    vCount = key.renderParameter().primitiveType().requiresIndexBuffer()
                             ? batch.getInstances().get(0).getMesh().getIndicesCount()
                             : batch.getInstances().get(0).getMesh().getVertexCount();
                 }
@@ -384,7 +411,9 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                 indirectBuffer.addDrawCommand(
                         vCount,
                         batchInstanceCount, // Draw all valid instances in batch
-                        0, // Vertex Offset?
+                        key.renderParameter().primitiveType().requiresIndexBuffer()
+                                ? batch.getInstances().get(0).getMesh().getIndexOffset()
+                                : batch.getInstances().get(0).getMesh().getVertexOffset(), // Vertex Offset?
                            // If BakedMesh, offset is 0 relative to VBO start (handled by VAO binding
                            // usually?
                            // Or Resource handles sharing).
@@ -394,7 +423,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                            // If sub-allocated, we need baseVertex.
                            // But currently VBOComponent assumes 0 offset or handled in VertexResource?
                            // Let's assume 0 for shared/baked VBOs for now.
-                        0); // BaseInstance
+                        batchCurrentInstancedCount.getAndAdd(batchInstanceCount)); // BaseInstance
             }
 
             ranges.put(batch, new DrawRange(
@@ -402,9 +431,10 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                     indirectBuffer.getCommandCount() - batchStartCommand));
         }
 
-        // 4. Upload Data
-        for (Map.Entry<Integer, rogo.sketch.render.data.builder.VertexDataBuilder> entry : builders.entrySet()) {
-            resource.upload(entry.getKey(), entry.getValue());
+        // 4. Deferred Upload Data (Handled by createRenderCommands registration)
+        // accumulator.uploadAll() will be called once per frame.
+        if (accumulator != null) {
+            accumulator.add(resource, builders);
         }
 
         return new ProcessorResult(resource, ranges);

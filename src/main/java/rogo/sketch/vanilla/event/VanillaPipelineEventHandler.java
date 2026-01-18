@@ -42,6 +42,8 @@ import rogo.sketch.vanilla.resource.TempTexture;
 import rogo.sketch.vanilla.resource.loader.VanillaTextureLoader;
 
 import java.util.Optional;
+import java.util.Random;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 public class VanillaPipelineEventHandler {
@@ -420,31 +422,14 @@ public class VanillaPipelineEventHandler {
                 Identifier.of(SketchRender.MOD_ID, "culling_test_block_entity_new"));
         registerNewPipelineGraphicsAsLegacy(registerEvent, blockEntityGraphics, "culling_test_block_entity");
 
-        Graphics cubeTestGraphics = new CubeTestGraphics(Identifier.of(SketchRender.MOD_ID, "cube_test"));
-        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "cube_test"));
-
-        if (renderSetting.isPresent()) {
-            PartialRenderSetting partialRenderSetting = renderSetting.get();
-            VertexLayoutSpec layout = VertexLayoutSpec.builder()
-                    .addStatic(0, DefaultDataFormats.POSITION_UV_NORMAL)
-                    .addDynamicInstanced(1, DefaultDataFormats.POSITION)
-                    .build();
-
-            RenderParameter renderParameter = RasterizationParameter.create(
-                    layout,
-                    PrimitiveType.QUADS,
-                    Usage.DYNAMIC_DRAW,
-                    false);
-            RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
-            registerEvent.register(MinecraftRenderStages.ENTITIES.getIdentifier(), cubeTestGraphics, setting);
-        }
+        registerTestCube(registerEvent, true, new Vector3f(0, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0) , MinecraftRenderStages.ENTITIES.getIdentifier());
+        registerTestCube(registerEvent, true, new Vector3f(0.5f, 0, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
+        registerTestCube(registerEvent, true, new Vector3f(-0.5f, 0, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
+        registerTestCube(registerEvent, true, new Vector3f(0, 0.5f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier());
+        registerTestCube(registerEvent, false, new Vector3f(0.5f, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier());
+        registerTestCube(registerEvent, false, new Vector3f(-0.5f, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.BLOCK_OUTLINE.getIdentifier());
     }
 
-    /**
-     * Register a new pipeline graphics instance as legacy for backward
-     * compatibility
-     */
     private static void registerNewPipelineGraphicsAsLegacy(RegisterStaticGraphicsEvent registerEvent,
                                                             Graphics instance,
                                                             String settingName) {
@@ -465,6 +450,34 @@ public class VanillaPipelineEventHandler {
                     false);
             RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
             registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), instance, setting);
+        }
+    }
+
+    private static void registerTestCube(RegisterStaticGraphicsEvent registerEvent,
+                                                            boolean attachHead,
+                                                            Vector3f offset,
+                                                            Vector3f scale,
+                                                            Vector3f rotation,
+                                                            Identifier stage) {
+        Graphics cubeTestGraphics = new CubeTestGraphics(Identifier.of(SketchRender.MOD_ID, "cube_test_" + UUID.randomUUID()), attachHead, offset, scale, rotation);
+        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
+                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "cube_test"));
+
+        if (renderSetting.isPresent()) {
+            PartialRenderSetting partialRenderSetting = renderSetting.get();
+            VertexLayoutSpec layout = VertexLayoutSpec.builder()
+                    .addStatic(0, DefaultDataFormats.POSITION_UV_NORMAL)
+                    .addDynamicInstanced(1, DefaultDataFormats.POSITION)
+                    .addDynamicInstanced(2, DefaultDataFormats.TRANSFORM)
+                    .build();
+
+            RenderParameter renderParameter = RasterizationParameter.create(
+                    layout,
+                    PrimitiveType.QUADS,
+                    Usage.DYNAMIC_DRAW,
+                    false);
+            RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
+            registerEvent.register(stage, cubeTestGraphics, setting);
         }
     }
 

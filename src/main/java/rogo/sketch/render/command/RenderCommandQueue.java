@@ -1,10 +1,13 @@
 package rogo.sketch.render.command;
 
+import rogo.sketch.SketchRender;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.event.GraphicsPipelineStageEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.pipeline.*;
+import rogo.sketch.render.state.FullRenderState;
+import rogo.sketch.render.state.RenderStateSnapshotUtils;
 import rogo.sketch.util.Identifier;
 
 import java.util.*;
@@ -47,6 +50,30 @@ public class RenderCommandQueue<C extends RenderContext> {
     }
 
     /**
+     * Add multiple render commands grouped by RenderSetting
+     */
+    public void addCommands(Map<RenderSetting, List<RenderCommand>> commands) {
+        for (Map.Entry<RenderSetting, List<RenderCommand>> entry : commands.entrySet()) {
+            RenderSetting setting = entry.getKey();
+            List<RenderCommand> cmdList = entry.getValue();
+
+            // Add to vertex resource grouping directly
+            commandsByVertexResource.computeIfAbsent(setting, k -> new ArrayList<>()).addAll(cmdList);
+
+            // Add to stage grouping
+            // Since all commands in the list should share the same Stage ID (as per
+            // createRenderCommands contract usually),
+            // we can optimization this. However, to be safe and strictly correct per
+            // command:
+            for (RenderCommand command : cmdList) {
+                Identifier stageId = command.getStageId();
+                commandsByStage.computeIfAbsent(stageId, k -> new HashMap<>())
+                        .computeIfAbsent(setting, r -> new ArrayList<>()).add(command);
+            }
+        }
+    }
+
+    /**
      * Execute render commands for a specific stage
      */
     public void executeStage(Identifier stageId, RenderStateManager manager, C context) {
@@ -57,6 +84,9 @@ public class RenderCommandQueue<C extends RenderContext> {
         context.preStage(stageId);
 
         if (stageCommands != null && !stageCommands.isEmpty()) {
+            FullRenderState snapshot = RenderStateSnapshotUtils.createSnapshot();
+            manager.changeState(snapshot, context);
+
             for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
                 RenderSetting setting = entry.getKey();
                 List<RenderCommand> commands = entry.getValue();
@@ -75,6 +105,8 @@ public class RenderCommandQueue<C extends RenderContext> {
                     executeRenderCommand(command, context);
                 }
             }
+
+            manager.changeState(snapshot, context);
         }
 
         context.postStage(stageId);
@@ -86,7 +118,8 @@ public class RenderCommandQueue<C extends RenderContext> {
      * Execute a render command immediately (skipping the queue).
      * Useful for immediate rendering scenarios.
      */
-    public void executeImmediate(RenderCommand command, RenderSetting setting, RenderStateManager manager, RenderContext context) {
+    public void executeImmediate(RenderCommand command, RenderSetting setting, RenderStateManager manager,
+            RenderContext context) {
         if (setting.renderParameter().isInvalid()) {
             return;
         }

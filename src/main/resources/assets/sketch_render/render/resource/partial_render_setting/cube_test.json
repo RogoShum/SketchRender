@@ -9,10 +9,10 @@
       "dstFactor": "ONE_MINUS_SRC_ALPHA"
     },
     "depth_test": {
-      "enabled": false
+      "enabled": true
     },
     "depth_mask": {
-      "writable": false
+      "writable": true
     }
   },
   "resourceBinding": {

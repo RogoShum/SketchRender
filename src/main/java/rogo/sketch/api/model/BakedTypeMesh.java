@@ -20,8 +20,4 @@ public non-sealed interface BakedTypeMesh extends PreparedMesh {
     VertexResource getSourceResource();
 
     int getVAOHandle();
-
-    int getSourceVertexOffset();
-
-    int getSourceIndexOffset();
 }

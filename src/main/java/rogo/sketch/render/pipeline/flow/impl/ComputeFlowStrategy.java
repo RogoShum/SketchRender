@@ -10,6 +10,7 @@ import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.flow.RenderFlowContext;
 import rogo.sketch.render.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.render.pipeline.flow.RenderFlowType;
+import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pipeline.information.ComputeInstanceInfo;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
 import rogo.sketch.render.resource.ResourceBinding;
@@ -20,6 +21,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
@@ -62,10 +64,11 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
     }
 
     @Override
-    public List<RenderCommand> createRenderCommands(
+    public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
             Collection<InstanceInfo> infos,
             Identifier stageId,
-            RenderFlowContext flowContext) {
+            RenderFlowContext flowContext,
+            RenderPostProcessors postProcessors) {
         // Filter to ComputeInstanceInfo
         List<ComputeInstanceInfo> computeInfos = infos.stream()
                 .filter(info -> info instanceof ComputeInstanceInfo)
@@ -73,14 +76,17 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
                 .toList();
 
         if (computeInfos.isEmpty()) {
-            return new ArrayList<>();
+            return java.util.Collections.emptyMap();
         }
 
         // Create batches to handle uniform grouping
         List<RenderBatch<ComputeInstanceInfo>> batches = RenderBatch.organize(computeInfos);
-        List<RenderCommand> commands = new ArrayList<>();
+        Map<RenderSetting, List<RenderCommand>> commandsMap = new java.util.LinkedHashMap<>();
 
         for (RenderBatch<ComputeInstanceInfo> batch : batches) {
+            RenderSetting setting = batch.getRenderSetting();
+            List<RenderCommand> commands = commandsMap.computeIfAbsent(setting, k -> new ArrayList<>());
+
             for (ComputeInstanceInfo info : batch.getInstances()) {
                 // Pass the batch to the command so it can process uniforms if needed
                 commands.add(new ComputeRenderCommand.Builder()
@@ -94,7 +100,7 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
             }
         }
 
-        return commands;
+        return commandsMap;
     }
 
     @Override

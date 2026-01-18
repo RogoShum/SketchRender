@@ -4,6 +4,7 @@ import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.prosessor.GeometryBatchProcessor;
 import rogo.sketch.render.pipeline.async.AsyncRenderManager;
+import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.util.Identifier;
@@ -39,8 +40,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         this.graphicsPipeline = graphicsPipeline;
         this.stageIdentifier = stageIdentifier;
         // Indirect buffers managed here but used by processor
-        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = new HashMap<>();
-        this.batchProcessor = new GeometryBatchProcessor(indirectBuffers);
+        this.batchProcessor = new GeometryBatchProcessor(graphicsPipeline.indirectBuffers(), graphicsPipeline.instancedOffsets());
     }
 
     /**
@@ -98,27 +98,19 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         return stageIdentifier;
     }
 
-    /**
-     * Create render commands for all instances in this group.
-     * <p>
-     * This delegates to {@link GeometryBatchProcessor#createAllCommands} which uses
-     * the flow-based architecture to process instances by their render flow type.
-     * </p>
-     *
-     * @param context The render context
-     * @return List of render commands
-     */
-    public List<RenderCommand> createRenderCommands(C context) {
+    public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
+            C context,
+            RenderPostProcessors postProcessors) {
         try {
             Map<RenderSetting, Collection<Graphics>> instanceGroups = getInstanceGroups();
             if (instanceGroups.isEmpty()) {
-                return Collections.emptyList();
+                return Collections.emptyMap();
             }
 
-            return batchProcessor.createAllCommands(instanceGroups, stageIdentifier, context);
+            return batchProcessor.createAllCommands(instanceGroups, stageIdentifier, context, postProcessors);
         } catch (Exception e) {
             e.printStackTrace();
-            return new ArrayList<>();
+            return Collections.emptyMap();
         }
     }
 
