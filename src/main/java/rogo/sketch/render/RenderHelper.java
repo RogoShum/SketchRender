@@ -6,31 +6,31 @@ import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.prosessor.GeometryBatchProcessor;
 import rogo.sketch.render.pipeline.GraphicsPipeline;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.flow.RenderFlowType;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pipeline.flow.impl.RasterizationPostProcessor;
-import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
+import rogo.sketch.render.pipeline.data.IndirectBufferData;
+import rogo.sketch.render.pipeline.data.InstancedOffsetData;
+import rogo.sketch.render.pipeline.data.PipelineDataStore;
 import rogo.sketch.util.KeyId;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class RenderHelper {
     private static final KeyId IMMEDIATE_STAGE_ID = KeyId.of("sketch_render", "immediate");
 
     private final GraphicsPipeline<?> pipeline;
-    private final Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = new HashMap<>();
-    private final Map<RenderParameter, AtomicInteger> instancedOffsets = new HashMap<>();
+    private final PipelineDataStore pipelineDataRegistry = new PipelineDataStore();
     private final GeometryBatchProcessor batchProcessor;
 
     public RenderHelper(GraphicsPipeline<?> pipeline) {
         this.pipeline = pipeline;
-        this.batchProcessor = new GeometryBatchProcessor(this.indirectBuffers, this.instancedOffsets);
+        pipelineDataRegistry.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
+        pipelineDataRegistry.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
+        this.batchProcessor = new GeometryBatchProcessor(pipelineDataRegistry);
     }
 
     public void renderInstanceImmediately(Graphics instance, RenderSetting setting) {
@@ -55,6 +55,7 @@ public class RenderHelper {
         RasterizationPostProcessor rasterProcessor = new RasterizationPostProcessor();
         postProcessors.register(RenderFlowType.RASTERIZATION, rasterProcessor);
 
+        pipelineDataRegistry.reset();
         Map<RenderSetting, List<RenderCommand>> commandMap = batchProcessor.createAllCommands(instanceGroups,
                 IMMEDIATE_STAGE_ID, context, postProcessors); // Execute immediately via custom postProcessor
 
@@ -75,8 +76,7 @@ public class RenderHelper {
         // Clearing is safer to release memory if not reused.
         // However, IndirectCommandBuffer manages its own memory and grows.
         // Clearing it just resets counters.
-        indirectBuffers.values().forEach(IndirectCommandBuffer::clear);
-        instancedOffsets.clear();
+        pipelineDataRegistry.reset();
     }
 
     public void addGraphicsInstance(Graphics instance, RenderSetting setting) {

@@ -14,6 +14,8 @@ import rogo.sketch.render.data.format.ComponentSpec;
 import rogo.sketch.render.data.format.VertexLayoutSpec;
 import rogo.sketch.render.data.format.VertexBufferKey;
 import rogo.sketch.render.pipeline.*;
+import rogo.sketch.render.pipeline.data.IndirectBufferData;
+import rogo.sketch.render.pipeline.data.InstancedOffsetData;
 import rogo.sketch.render.pipeline.flow.RenderFlowContext;
 import rogo.sketch.render.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.render.pipeline.flow.RenderFlowType;
@@ -139,7 +141,8 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
 
         // Process each group and create commands
         Map<RenderSetting, List<RenderCommand>> commandsMap = new LinkedHashMap<>();
-        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = flowContext.indirectBuffers();
+        IndirectBufferData indirectBufferData = flowContext.getPipelineData(KeyId.of("indirect_buffers"));
+        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = indirectBufferData.getAll();
 
         RasterizationPostProcessor processor = postProcessors.get(getFlowType());
 
@@ -171,7 +174,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             }
         }
 
-        indirectBuffers.values().forEach(buffer -> {
+        indirectBufferData.getAll().values().forEach(buffer -> {
             buffer.bind();
             buffer.upload();
         });
@@ -282,8 +285,10 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             return null;
 
         VertexResourceManager resourceManager = context.getResourceManager();
-        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = context.indirectBuffers();
-        Map<RenderParameter, AtomicInteger> instancedOffsets = context.instancedOffsets();
+        IndirectBufferData indirectBufferData = context.getPipelineData(KeyId.of("indirect_buffers"));
+        InstancedOffsetData instancedOffsetData = context.getPipelineData(KeyId.of("instanced_offsets"));
+        Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = indirectBufferData.getAll();
+        Map<RenderParameter, AtomicInteger> instancedOffsets = instancedOffsetData.getAll();
 
         // 1. Calculate totals for builders
         int totalInstances = 0;
@@ -312,12 +317,15 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             }
         }
         VertexResource resource = resourceManager.get(key, source);
-        IndirectCommandBuffer indirectBuffer = indirectBuffers.computeIfAbsent(key.renderParameter(), k -> new IndirectCommandBuffer(1280));
-        AtomicInteger batchCurrentInstancedCount = instancedOffsets.computeIfAbsent(key.renderParameter(), k -> new AtomicInteger(0));
+        IndirectCommandBuffer indirectBuffer = indirectBuffers.computeIfAbsent(key.renderParameter(),
+                k -> new IndirectCommandBuffer(1280));
+        AtomicInteger batchCurrentInstancedCount = instancedOffsets.computeIfAbsent(key.renderParameter(),
+                k -> new AtomicInteger(0));
 
         // Create builders for MUTABLE components
         int builderCapacity = Math.max(totalVertices, totalInstances);
-        Map<Integer, VertexDataBuilder> builders = resourceManager.createBuilder(key.renderParameter(), builderCapacity);
+        Map<Integer, VertexDataBuilder> builders = resourceManager.createBuilder(key.renderParameter(),
+                builderCapacity);
 
         Map<RenderBatch<?>, DrawRange> ranges = new HashMap<>();
         boolean isInstancedDraw = key.hasInstancing();
@@ -415,15 +423,15 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                         key.renderParameter().primitiveType().requiresIndexBuffer()
                                 ? batch.getInstances().get(0).getMesh().getIndexOffset()
                                 : batch.getInstances().get(0).getMesh().getVertexOffset(), // Vertex Offset?
-                           // If BakedMesh, offset is 0 relative to VBO start (handled by VAO binding
-                           // usually?
-                           // Or Resource handles sharing).
-                           // If VertexResource.share from source, the VBO is bound.
-                           // Does Source have offset?
-                           // BakedTypeMesh usually is its own VBO or sub-allocated.
-                           // If sub-allocated, we need baseVertex.
-                           // But currently VBOComponent assumes 0 offset or handled in VertexResource?
-                           // Let's assume 0 for shared/baked VBOs for now.
+                        // If BakedMesh, offset is 0 relative to VBO start (handled by VAO binding
+                        // usually?
+                        // Or Resource handles sharing).
+                        // If VertexResource.share from source, the VBO is bound.
+                        // Does Source have offset?
+                        // BakedTypeMesh usually is its own VBO or sub-allocated.
+                        // If sub-allocated, we need baseVertex.
+                        // But currently VBOComponent assumes 0 offset or handled in VertexResource?
+                        // Let's assume 0 for shared/baked VBOs for now.
                         batchCurrentInstancedCount.getAndAdd(batchInstanceCount)); // BaseInstance
             }
 

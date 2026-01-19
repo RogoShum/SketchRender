@@ -2,17 +2,15 @@ package rogo.sketch.render.command.prosessor;
 
 import rogo.sketch.api.graphics.*;
 import rogo.sketch.render.command.RenderCommand;
+import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
+import rogo.sketch.render.pipeline.data.PipelineDataStore;
 import rogo.sketch.render.pipeline.flow.*;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
-import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.vertex.VertexResourceManager;
-import rogo.sketch.render.pipeline.RenderParameter;
-import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.KeyId;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Core processor for converting GraphicsInstances into RenderCommands.
@@ -25,14 +23,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </p>
  */
 public class GeometryBatchProcessor {
-    private final Map<RenderParameter, IndirectCommandBuffer> indirectBuffers;
-    private final Map<RenderParameter, AtomicInteger> instancedOffsets;
+    private final PipelineDataStore backendDataRegistry;
     private final VertexResourceManager resourceManager = VertexResourceManager.getInstance();
     private final RenderFlowRegistry flowRegistry = RenderFlowRegistry.getInstance();
 
-    public GeometryBatchProcessor(Map<RenderParameter, IndirectCommandBuffer> indirectBuffers, Map<RenderParameter, AtomicInteger> instancedOffsets) {
-        this.indirectBuffers = indirectBuffers;
-        this.instancedOffsets = instancedOffsets;
+    public GeometryBatchProcessor(PipelineDataStore backendDataRegistry) {
+        this.backendDataRegistry = backendDataRegistry;
     }
 
     /**
@@ -77,7 +73,7 @@ public class GeometryBatchProcessor {
 
         // 2. Create render commands for each flow type
         Map<RenderSetting, List<RenderCommand>> allCommands = new LinkedHashMap<>();
-        RenderFlowContext flowContext = new RenderFlowContext(resourceManager, indirectBuffers, instancedOffsets);
+        RenderFlowContext flowContext = new RenderFlowContext(resourceManager, backendDataRegistry);
 
         for (Map.Entry<RenderFlowType, List<InstanceInfo>> entry : infosByFlowType.entrySet()) {
             RenderFlowType flowType = entry.getKey();
@@ -104,9 +100,5 @@ public class GeometryBatchProcessor {
 
     public VertexResourceManager getResourceManager() {
         return resourceManager;
-    }
-
-    public Map<RenderParameter, IndirectCommandBuffer> getIndirectBuffers() {
-        return indirectBuffers;
     }
 }

@@ -12,12 +12,13 @@ import rogo.sketch.render.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessor;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pool.InstancePoolManager;
-import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
+import rogo.sketch.render.pipeline.data.IndirectBufferData;
+import rogo.sketch.render.pipeline.data.InstancedOffsetData;
+import rogo.sketch.render.pipeline.data.PipelineDataStore;
 import rogo.sketch.util.KeyId;
 import rogo.sketch.util.OrderedList;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class GraphicsPipeline<C extends RenderContext> {
     private final OrderedList<GraphicsStage> stages;
@@ -27,8 +28,9 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     private final RenderCommandQueue<C> renderCommandQueue = new RenderCommandQueue<>(this);
-    private final Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = new HashMap<>();
-    private final Map<RenderParameter, AtomicInteger> instancedOffsets = new HashMap<>();
+
+    private final PipelineDataStore pipelineDataRegistry = new PipelineDataStore();
+
     private final PipelineConfig config;
     private C currentContext;
     private boolean initialized = false;
@@ -38,6 +40,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         this.config = config;
         this.stages = new OrderedList<>(config.isThrowOnSortFail());
         this.currentContext = defaultContext;
+        initPipelineData();
     }
 
     public GraphicsPipeline(boolean throwOnSortFail, C defaultContext) {
@@ -45,6 +48,12 @@ public class GraphicsPipeline<C extends RenderContext> {
         this.config.setThrowOnSortFail(throwOnSortFail);
         this.stages = new OrderedList<>(throwOnSortFail);
         this.currentContext = defaultContext;
+        initPipelineData();
+    }
+
+    private void initPipelineData() {
+        pipelineDataRegistry.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
+        pipelineDataRegistry.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
     }
 
     public PipelineConfig getConfig() {
@@ -95,11 +104,7 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void computeAllRenderCommand() {
         try {
-            for (IndirectCommandBuffer commandBuffer : indirectBuffers.values()) {
-                commandBuffer.clear();
-            }
-
-            instancedOffsets.clear();
+            pipelineDataRegistry.reset();
 
             RenderPostProcessors postProcessors = new RenderPostProcessors();
             for (RenderFlowStrategy strategy : RenderFlowRegistry.getInstance().getAllStrategies()) {
@@ -225,7 +230,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Add a GraphInstance from the instance pool to a specific stage
      */
     public void addPooledGraphInstance(KeyId stageId, Class<? extends Graphics> instanceType,
-                                       RenderSetting renderSetting) {
+            RenderSetting renderSetting) {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
         }
@@ -297,7 +302,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public record PipelineStats(int totalStages, int pendingStages, int totalInstances,
-                                boolean initialized) {
+            boolean initialized) {
         @Override
         public String toString() {
             return String.format("Pipeline[stages=%d, pending=%d, instances=%d, init=%s]",
@@ -312,11 +317,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         return renderCommandQueue;
     }
 
-    public Map<RenderParameter, IndirectCommandBuffer> indirectBuffers() {
-        return indirectBuffers;
-    }
-
-    public Map<RenderParameter, AtomicInteger> instancedOffsets() {
-        return instancedOffsets;
+    public PipelineDataStore getPipelineDataRegistry() {
+        return pipelineDataRegistry;
     }
 }
