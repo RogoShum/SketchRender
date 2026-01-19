@@ -1,6 +1,7 @@
 package rogo.sketch.render.pipeline.data;
 
 import rogo.sketch.render.pipeline.RenderParameter;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Manages instance offsets for different render parameters.
  */
 public class InstancedOffsetData implements RenderPipelineData {
+    public static final KeyId KEY = KeyId.of("instanced_offsets");
     private final Map<RenderParameter, AtomicInteger> offsets = new HashMap<>();
 
     /**

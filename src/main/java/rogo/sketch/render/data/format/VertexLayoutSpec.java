@@ -8,6 +8,7 @@ import java.util.List;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.DataElement;
 import java.util.stream.Collectors;
+import rogo.sketch.util.KeyId;
 
 /**
  * Defines the complete layout specification for a Vertex Resource.
@@ -70,75 +71,69 @@ public class VertexLayoutSpec {
 
     public static class Builder {
         private final List<ComponentSpec> specs = new ArrayList<>();
-        private final List<Integer> usedBindings = new ArrayList<>();
+        private final List<KeyId> usedKeys = new ArrayList<>();
         private int nextAttributeIndex = 0;
+        private int nextBindingIndex = 0;
 
         /**
          * Add a component spec.
-         * Automatically adjusts attribute indices to avoid collisions with previous
-         * components.
-         * Throws IllegalArgumentException if binding point is already used.
+         * Automatically assigns binding point and adjusts attribute indices.
+         * Throws IllegalArgumentException if KeyId is already used.
          */
-        public Builder add(ComponentSpec spec) {
-            // 1. Validation: Check Binding Collision
-            if (usedBindings.contains(spec.getBindingPoint())) {
+        public Builder add(KeyId id, DataFormat format, boolean instanced, boolean mutable) {
+            // 1. Validation: Check Key Collision
+            if (usedKeys.contains(id)) {
                 throw new IllegalArgumentException(
-                        "Binding point " + spec.getBindingPoint() + " is already used in this layout.");
+                        "KeyId " + id + " is already used in this layout.");
             }
-            usedBindings.add(spec.getBindingPoint());
-
-            DataFormat format = spec.getFormat();
-            if (format.getElementCount() == 0) {
-                specs.add(spec);
-                return this;
-            }
+            usedKeys.add(id);
 
             // 2. Auto-Indexing: Calculate shift
             // Find the lowest index in the new format
             int minIndex = Integer.MAX_VALUE;
             int maxIndex = Integer.MIN_VALUE;
 
-            for (DataElement element : format.getElements()) {
-                minIndex = Math.min(minIndex, element.getIndex());
-                maxIndex = Math.max(maxIndex, element.getIndex());
+            boolean hasElements = format.getElementCount() > 0;
+
+            if (hasElements) {
+                for (DataElement element : format.getElements()) {
+                    minIndex = Math.min(minIndex, element.getIndex());
+                    maxIndex = Math.max(maxIndex, element.getIndex());
+                }
+
+                // Calculate shift needed to place minIndex at nextAttributeIndex
+                int shift = nextAttributeIndex - minIndex;
+
+                if (shift != 0) {
+                    format = format.withAttributeIndexOffset(shift);
+                    // Update maxIndex for tracking
+                    maxIndex += shift;
+                }
+
+                nextAttributeIndex = maxIndex + 1;
             }
 
-            // Calculate shift needed to place minIndex at nextAttributeIndex
-            int shift = nextAttributeIndex - minIndex;
-
-            ComponentSpec finalSpec = spec;
-            if (shift != 0) {
-                DataFormat newFormat = format.withAttributeIndexOffset(shift);
-                finalSpec = new ComponentSpec(
-                        spec.getBindingPoint(),
-                        newFormat,
-                        spec.isInstanced(),
-                        spec.isMutable());
-
-                // Update maxIndex for tracking
-                maxIndex += shift;
-            }
-
-            specs.add(finalSpec);
-            nextAttributeIndex = maxIndex + 1;
+            int bindingPoint = nextBindingIndex++;
+            ComponentSpec spec = new ComponentSpec(id, bindingPoint, format, instanced, mutable);
+            specs.add(spec);
 
             return this;
         }
 
-        public Builder addStatic(int binding, DataFormat format) {
-            return add(ComponentSpec.immutable(binding, format, false));
+        public Builder addStatic(KeyId id, DataFormat format) {
+            return add(id, format, false, false);
         }
 
-        public Builder addDynamic(int binding, DataFormat format) {
-            return add(ComponentSpec.mutable(binding, format, false));
+        public Builder addDynamic(KeyId id, DataFormat format) {
+            return add(id, format, false, true);
         }
 
-        public Builder addStaticInstanced(int binding, DataFormat format) {
-            return add(ComponentSpec.immutable(binding, format, true));
+        public Builder addStaticInstanced(KeyId id, DataFormat format) {
+            return add(id, format, true, false);
         }
 
-        public Builder addDynamicInstanced(int binding, DataFormat format) {
-            return add(ComponentSpec.mutable(binding, format, true));
+        public Builder addDynamicInstanced(KeyId id, DataFormat format) {
+            return add(id, format, true, true);
         }
 
         public VertexLayoutSpec build() {

@@ -15,19 +15,23 @@ import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.KeyId;
 
 public class CubeTestGraphics extends MeshGraphics implements InstanceDataProvider {
+    public static final KeyId ENTITY_POS = KeyId.of("entity_pos");
+    public static final KeyId ENTITY_TRANSFORM = KeyId.of("entity_transform");
     private final ResourceReference<MeshGroup> cube = GraphicsResourceManager.getInstance().getReference(ResourceTypes.MESH, KeyId.of(SketchRender.MOD_ID, "cube"));
     private Vector3f cubePos = new Vector3f();
     private final Vector3f offset;
     private final Vector3f scale;
     private final Vector3f rotation;
     private final boolean attachHead;
+    private final KeyId meshName;
 
-    public CubeTestGraphics(KeyId keyId, boolean attachHead, Vector3f offset, Vector3f scale, Vector3f rotation) {
+    public CubeTestGraphics(KeyId keyId, boolean attachHead, KeyId meshName, Vector3f offset, Vector3f scale, Vector3f rotation) {
         super(keyId);
         this.attachHead = attachHead;
         this.offset = offset;
         this.scale = scale;
         this.rotation = rotation;
+        this.meshName = meshName;
     }
 
     @Override
@@ -58,12 +62,12 @@ public class CubeTestGraphics extends MeshGraphics implements InstanceDataProvid
 
     @Override
     public PreparedMesh getPreparedMesh() {
-        return cube.get().getMesh("cube_geometry");
+        return cube.get().getMesh(meshName);
     }
 
     @Override
-    public void fillInstanceData(int bindingPoint, VertexDataBuilder builder) {
-        if (bindingPoint == 1) {
+    public void fillInstanceData(KeyId componentKey, VertexDataBuilder builder) {
+        if (componentKey.equals(ENTITY_POS)) {
             Entity player = Minecraft.getInstance().player;
             if (player != null) {
                 Vec3 playerPos = attachHead ? player.getEyePosition(Minecraft.getInstance().getPartialTick()) : player.getPosition(Minecraft.getInstance().getPartialTick());
@@ -71,7 +75,7 @@ public class CubeTestGraphics extends MeshGraphics implements InstanceDataProvid
             }
 
             builder.put(cubePos.x(), cubePos.y(), cubePos.z()).endVertex();
-        } else if (bindingPoint == 2) {
+        } else if (componentKey.equals(ENTITY_TRANSFORM)) {
             builder.put(offset.x(), offset.y(), offset.z()).endVertex();
             builder.put(scale.x(), scale.y(), scale.z()).endVertex();
             Vector3f playerDir = Minecraft.getInstance().player.getForward().toVector3f().add(rotation).normalize();

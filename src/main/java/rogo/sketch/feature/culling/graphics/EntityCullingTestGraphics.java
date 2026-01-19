@@ -25,6 +25,7 @@ public class EntityCullingTestGraphics extends MeshGraphics {
 
     private PreparedMesh createDynamicMesh() {
         return new DynamicMesh(
+                KeyId.of("mesh"),
                 DefaultDataFormats.POSITION,
                 PrimitiveType.QUADS,
                 4, // vertexCount

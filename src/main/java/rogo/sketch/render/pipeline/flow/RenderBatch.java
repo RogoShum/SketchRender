@@ -1,7 +1,9 @@
-package rogo.sketch.render.pipeline;
+package rogo.sketch.render.pipeline.flow;
 
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.Graphics;
+import rogo.sketch.render.pipeline.RenderSetting;
+import rogo.sketch.render.pipeline.UniformBatchGroup;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
@@ -9,7 +11,6 @@ import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.render.state.gl.ShaderState;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Represents a batch of graphics instances that share the same render settings.
@@ -42,25 +43,6 @@ public class RenderBatch<T extends InstanceInfo> {
 
     public List<UniformBatchGroup> getUniformBatches() {
         return new ArrayList<>(uniformBatches);
-    }
-
-    /**
-     * Organize instances into batches based on RenderSetting.
-     */
-    public static <T extends InstanceInfo> List<RenderBatch<T>> organize(Collection<T> allData) {
-        if (allData.isEmpty())
-            return List.of();
-
-        // Group by RenderSetting
-        Map<RenderSetting, List<T>> grouped = allData.stream()
-                .collect(Collectors.groupingBy(InstanceInfo::getRenderSetting));
-
-        List<RenderBatch<T>> batches = new ArrayList<>();
-        for (Map.Entry<RenderSetting, List<T>> entry : grouped.entrySet()) {
-            batches.add(new RenderBatch<>(entry.getKey(), entry.getValue()));
-        }
-
-        return batches;
     }
 
     /**

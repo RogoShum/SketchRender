@@ -3,7 +3,7 @@ package rogo.sketch.render.command;
 import org.lwjgl.opengl.GL43;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.vertex.VertexDataShard;
-import rogo.sketch.render.pipeline.RenderBatch;
+import rogo.sketch.render.pipeline.flow.RenderBatch;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.information.RasterizationInstanceInfo;

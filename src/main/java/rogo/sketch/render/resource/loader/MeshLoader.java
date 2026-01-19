@@ -2,10 +2,12 @@ package rogo.sketch.render.resource.loader;
 
 import com.google.gson.*;
 import org.joml.Matrix4f;
+import rogo.sketch.api.model.BakedTypeMesh;
 import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.data.builder.VertexDataBuilder;
+import rogo.sketch.render.data.format.ComponentSpec;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.model.MeshBone;
@@ -197,10 +199,19 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             // Load index data
             if (subMeshObj.has("indices")) {
                 JsonArray indicesArray = subMeshObj.getAsJsonArray("indices");
-                for (JsonElement indexElement : indicesArray) {
-                    indices.add(indexElement.getAsInt());
+                boolean recalculateIndices = subMeshObj.has("recalculateIndices") && subMeshObj.get("recalculateIndices").getAsBoolean();
+
+                if (recalculateIndices) {
+                    for (JsonElement indexElement : indicesArray) {
+                        indices.add(indexElement.getAsInt() + currentVertexOffset);
+                    }
+                } else {
+                    for (JsonElement indexElement : indicesArray) {
+                        indices.add(indexElement.getAsInt());
+                    }
                 }
             }
+
             int floatsPerVertex = groupFormat.getStride() / 4;
             int subVertexCount = vertices.size() / floatsPerVertex;
             int subIndexCount = indices.size();
@@ -259,7 +270,7 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
 
         // Create VBO for Binding 0
         VertexBufferObject vbo = new VertexBufferObject(Usage.STATIC_DRAW);
-        resource.attachVBO(0, vbo, groupFormat, false);
+        resource.attachVBO(ComponentSpec.immutable(BakedTypeMesh.BAKED_MESH, 0, groupFormat, false), vbo);
 
         // Upload Vertices
         VertexDataBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), allVertices.size());
@@ -272,7 +283,7 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             vData[i] = allVertices.get(i);
 
         fillVertices(builder, vData, groupFormat);
-        resource.upload(0, builder);
+        resource.upload(BakedTypeMesh.BAKED_MESH, builder);
 
         // Upload Indices if present
         if (allIndices.size() > 0) {
@@ -288,12 +299,13 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
         for (SubMeshEntry entry : entries) {
             BakedMesh bakedMesh = new BakedMesh(
                     resource,
+                    KeyId.of(entry.name),
                     entry.vertexOffset,
                     entry.indexOffset,
                     entry.vertexCount,
                     entry.indexCount);
 
-            meshGroup.addMesh(entry.name, bakedMesh);
+            meshGroup.addMesh(KeyId.of(entry.name), bakedMesh);
 
             // Metadata
             if (entry.jsonObj.has("material")) {

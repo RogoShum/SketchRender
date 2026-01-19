@@ -1,6 +1,7 @@
 package rogo.sketch.render.data.format;
 
 import rogo.sketch.render.resource.buffer.VertexBufferObject;
+import rogo.sketch.util.KeyId;
 
 /**
  * A VBO component that combines a VertexBufferObject with its DataFormat and
@@ -42,8 +43,8 @@ public class VBOComponent {
      * Create a mutable internal VBO component (owned by VertexResource, needs
      * filling).
      */
-    public VBOComponent(VertexBufferObject vbo, DataFormat format, int bindingPoint, boolean instanced) {
-        this(vbo, ComponentSpec.mutable(bindingPoint, format, instanced), false, 0, 0);
+    public VBOComponent(VertexBufferObject vbo, KeyId id, DataFormat format, int bindingPoint, boolean instanced) {
+        this(vbo, ComponentSpec.mutable(id, bindingPoint, format, instanced), false, 0, 0);
     }
 
     /**
@@ -51,9 +52,9 @@ public class VBOComponent {
      * filling).
      * Used for BakedMesh zero-copy integration.
      */
-    public static VBOComponent immutable(VertexBufferObject vbo, DataFormat format,
+    public static VBOComponent immutable(VertexBufferObject vbo, KeyId id, DataFormat format,
             int bindingPoint, boolean instanced) {
-        return new VBOComponent(vbo, ComponentSpec.immutable(bindingPoint, format, instanced), false, 0, 0);
+        return new VBOComponent(vbo, ComponentSpec.immutable(id, bindingPoint, format, instanced), false, 0, 0);
     }
 
     /**
@@ -61,9 +62,9 @@ public class VBOComponent {
      * Used for zero-copy BakedMesh integration where the VBO is referenced from
      * elsewhere.
      */
-    public VBOComponent(int externalVboHandle, DataFormat format, int bindingPoint,
+    public VBOComponent(int externalVboHandle, KeyId id, DataFormat format, int bindingPoint,
             boolean instanced, int vertexOffset) {
-        this(null, ComponentSpec.immutable(bindingPoint, format, instanced), true, vertexOffset, externalVboHandle);
+        this(null, ComponentSpec.immutable(id, bindingPoint, format, instanced), true, vertexOffset, externalVboHandle);
     }
 
     /**
@@ -74,9 +75,8 @@ public class VBOComponent {
         return new VBOComponent(null, other.getSpec(), true, other.getVertexOffset(), other.getVboHandle());
     }
 
-    private VBOComponent(VertexBufferObject vbo, ComponentSpec spec,
-            boolean external,
-            int vertexOffset, int externalVboHandle) {
+    private VBOComponent(VertexBufferObject vbo, ComponentSpec spec, boolean external, int vertexOffset,
+            int externalVboHandle) {
         this.vbo = vbo;
         this.spec = spec;
         this.external = external;

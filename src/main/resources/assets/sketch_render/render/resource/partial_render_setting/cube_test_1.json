@@ -1,0 +1,18 @@
+{
+  "renderState": {
+    "shader_program": {
+      "identifier": "sketch_render:cube_test_1"
+    },
+    "blend_state": {
+      "enabled": true,
+      "srcFactor": "SRC_ALPHA",
+      "dstFactor": "ONE_MINUS_SRC_ALPHA"
+    }
+  },
+  "resourceBinding": {
+    "texture": {
+      "Sampler0": "sketch_render:hiz_texture"
+    }
+  },
+  "shouldSwitchRenderState": true
+}

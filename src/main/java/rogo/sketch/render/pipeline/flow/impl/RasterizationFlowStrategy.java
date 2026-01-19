@@ -11,15 +11,15 @@ import rogo.sketch.render.command.prosessor.DrawRange;
 import rogo.sketch.render.command.prosessor.ProcessorResult;
 import rogo.sketch.render.data.builder.VertexDataBuilder;
 import rogo.sketch.render.data.format.ComponentSpec;
-import rogo.sketch.render.data.format.VertexLayoutSpec;
 import rogo.sketch.render.data.format.VertexBufferKey;
-import rogo.sketch.render.pipeline.*;
+import rogo.sketch.render.data.format.VertexLayoutSpec;
+import rogo.sketch.render.pipeline.RasterizationParameter;
+import rogo.sketch.render.pipeline.RenderContext;
+import rogo.sketch.render.pipeline.RenderParameter;
+import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.data.IndirectBufferData;
 import rogo.sketch.render.pipeline.data.InstancedOffsetData;
-import rogo.sketch.render.pipeline.flow.RenderFlowContext;
-import rogo.sketch.render.pipeline.flow.RenderFlowStrategy;
-import rogo.sketch.render.pipeline.flow.RenderFlowType;
-import rogo.sketch.render.pipeline.flow.RenderPostProcessor;
+import rogo.sketch.render.pipeline.flow.*;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
 import rogo.sketch.render.pipeline.information.RasterizationInstanceInfo;
 import rogo.sketch.render.resource.ResourceBinding;
@@ -137,18 +137,18 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         List<RenderBatch<RasterizationInstanceInfo>> batches = organizeToBatches(rasterInfos);
 
         // Group by VertexBufferKey
-        Map<VertexBufferKey, List<RenderBatch<RasterizationInstanceInfo>>> keyGroups = groupByVertexBufferKey(batches);
+        Map<VertexBufferKey, RenderBatchList> keyGroups = groupByVertexBufferKey(batches);
 
         // Process each group and create commands
         Map<RenderSetting, List<RenderCommand>> commandsMap = new LinkedHashMap<>();
-        IndirectBufferData indirectBufferData = flowContext.getPipelineData(KeyId.of("indirect_buffers"));
+        IndirectBufferData indirectBufferData = flowContext.getPipelineData(IndirectBufferData.KEY);
         Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = indirectBufferData.getAll();
 
         RasterizationPostProcessor processor = postProcessors.get(getFlowType());
 
-        for (Map.Entry<VertexBufferKey, List<RenderBatch<RasterizationInstanceInfo>>> entry : keyGroups.entrySet()) {
+        for (Map.Entry<VertexBufferKey, RenderBatchList> entry : keyGroups.entrySet()) {
             VertexBufferKey key = entry.getKey();
-            List<RenderBatch<RasterizationInstanceInfo>> keyBatches = entry.getValue();
+            RenderBatchList keyBatches = entry.getValue();
 
             ProcessorResult result = processBatches(key, keyBatches, flowContext, processor);
             if (result == null)
@@ -157,7 +157,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             VertexResource resource = result.resource();
             IndirectCommandBuffer indirectBuffer = indirectBuffers.get(key.renderParameter());
 
-            for (RenderBatch<? extends RasterizationInstanceInfo> batch : keyBatches) {
+            for (RenderBatch<? extends RasterizationInstanceInfo> batch : keyBatches.meshBatches()) {
                 DrawRange range = result.ranges().get(batch);
                 if (range != null && range.count() > 0) {
                     RenderCommand command = new MultiDrawRenderCommand(
@@ -203,11 +203,11 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         // No, RenderSetting doesn't include Mesh.
         // We must split by Source ID (for BakedMeshes).
 
-        Map<RenderSetting, Map<Long, List<RasterizationInstanceInfo>>> grouped = new LinkedHashMap<>();
+        Map<RenderSetting, Map<MeshHolder, List<RasterizationInstanceInfo>>> grouped = new LinkedHashMap<>();
 
         for (RasterizationInstanceInfo info : infos) {
             RenderSetting setting = info.getRenderSetting();
-            long sourceId = getSourceId(info);
+            MeshHolder sourceId = getSourceId(info);
 
             grouped.computeIfAbsent(setting, k -> new LinkedHashMap<>())
                     .computeIfAbsent(sourceId, k -> new ArrayList<>())
@@ -215,32 +215,35 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         }
 
         List<RenderBatch<RasterizationInstanceInfo>> batches = new ArrayList<>();
-        for (Map.Entry<RenderSetting, Map<Long, List<RasterizationInstanceInfo>>> settingEntry : grouped.entrySet()) {
+        for (Map.Entry<RenderSetting, Map<MeshHolder, List<RasterizationInstanceInfo>>> settingEntry : grouped.entrySet()) {
             RenderSetting setting = settingEntry.getKey();
-            for (Map.Entry<Long, List<RasterizationInstanceInfo>> sourceEntry : settingEntry.getValue().entrySet()) {
-                batches.add(new RenderBatch<>(setting, sourceEntry.getValue()));
+            for (Map.Entry<MeshHolder, List<RasterizationInstanceInfo>> sourceEntry : settingEntry.getValue().entrySet()) {
+                if (sourceEntry.getKey().bakedTypeMesh() == null) {
+                    batches.add(new RenderBatch<>(setting, sourceEntry.getValue()));
+                } else {
+                    batches.add(new MeshRenderBatch(setting, sourceEntry.getKey().bakedTypeMesh(), sourceEntry.getValue()));
+                }
+
             }
         }
+
         return batches;
     }
 
-    private long getSourceId(RasterizationInstanceInfo info) {
+    private MeshHolder getSourceId(RasterizationInstanceInfo info) {
         if (info.hasMesh()) {
             PreparedMesh mesh = info.getMesh();
-            if (mesh instanceof BakedTypeMesh baked) {
-                // Use the handle of the source VAO/VBO container as the ID
-                return baked.getVAOHandle();
-            }
+            return new MeshHolder(mesh);
         }
-        return 0; // Dynamic or no mesh
+
+        return MeshHolder.EMPTY;
     }
 
     /**
      * Group render batches by their VertexBufferKey.
      */
-    private Map<VertexBufferKey, List<RenderBatch<RasterizationInstanceInfo>>> groupByVertexBufferKey(
-            List<RenderBatch<RasterizationInstanceInfo>> batches) {
-        Map<VertexBufferKey, List<RenderBatch<RasterizationInstanceInfo>>> keyGroups = new HashMap<>();
+    private Map<VertexBufferKey, RenderBatchList> groupByVertexBufferKey(List<RenderBatch<RasterizationInstanceInfo>> batches) {
+        Map<VertexBufferKey, RenderBatchList> keyGroups = new HashMap<>();
 
         for (RenderBatch<RasterizationInstanceInfo> batch : batches) {
             RenderSetting setting = batch.getRenderSetting();
@@ -254,15 +257,18 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             // Determine Source ID from the first instance in the batch
             // Since organizeToBatches guarantees all instances in a batch share the same
             // SourceID
-            long sourceId = 0;
-            if (!batch.getInstances().isEmpty()) {
-                sourceId = getSourceId(batch.getInstances().get(0));
+            long sourceId = -1;
+            BakedTypeMesh mesh;
+            if (!batch.getInstances().isEmpty() && batch instanceof MeshRenderBatch meshRenderBatch) {
+                sourceId = meshRenderBatch.mesh().getVAOHandle();
+                mesh = meshRenderBatch.mesh();
+            } else {
+                mesh = null;
             }
 
             // Build key with source ID
             VertexBufferKey key = VertexBufferKey.fromParameter(rasterParam, sourceId);
-
-            keyGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(batch);
+            keyGroups.computeIfAbsent(key, k -> new RenderBatchList((RasterizationParameter) param, mesh)).add(batch);
         }
 
         return keyGroups;
@@ -276,24 +282,17 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
      * Process a group of batches that share the same VertexBufferKey.
      * Implements unified batch processing logic.
      */
-    private ProcessorResult processBatches(
-            VertexBufferKey key,
-            List<RenderBatch<RasterizationInstanceInfo>> batches,
-            RenderFlowContext context,
-            RasterizationPostProcessor accumulator) {
-        if (batches.isEmpty())
-            return null;
-
+    private ProcessorResult processBatches(VertexBufferKey key, RenderBatchList batches, RenderFlowContext context, RasterizationPostProcessor accumulator) {
         VertexResourceManager resourceManager = context.getResourceManager();
-        IndirectBufferData indirectBufferData = context.getPipelineData(KeyId.of("indirect_buffers"));
-        InstancedOffsetData instancedOffsetData = context.getPipelineData(KeyId.of("instanced_offsets"));
+        IndirectBufferData indirectBufferData = context.getPipelineData(IndirectBufferData.KEY);
+        InstancedOffsetData instancedOffsetData = context.getPipelineData(InstancedOffsetData.KEY);
         Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = indirectBufferData.getAll();
         Map<RenderParameter, AtomicInteger> instancedOffsets = instancedOffsetData.getAll();
 
         // 1. Calculate totals for builders
         int totalInstances = 0;
         int totalVertices = 0;
-        for (RenderBatch<RasterizationInstanceInfo> batch : batches) {
+        for (RenderBatch<RasterizationInstanceInfo> batch : batches.meshBatches()) {
             totalInstances += batch.getInstances().size();
             for (RasterizationInstanceInfo info : batch.getInstances()) {
                 if (info.getInstance().shouldRender()) {
@@ -307,25 +306,20 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
 
         // 2. Prepare Builders and Source Resource
         VertexResource source = null;
-        if (key.sourceResourceID() != 0) {
+        if (key.sourceResourceID() > 0) {
             // Attempt to get source from first baked mesh in batches
-            if (!batches.isEmpty() && !batches.get(0).getInstances().isEmpty()) {
-                RasterizationInstanceInfo first = batches.get(0).getInstances().get(0);
-                if (first.getMesh() instanceof BakedTypeMesh baked) {
-                    source = baked.getSourceResource();
-                }
+            if (!batches.empty() && batches.mesh() != null) {
+                source = batches.mesh().getSourceResource();
             }
         }
+
         VertexResource resource = resourceManager.get(key, source);
-        IndirectCommandBuffer indirectBuffer = indirectBuffers.computeIfAbsent(key.renderParameter(),
-                k -> new IndirectCommandBuffer(1280));
-        AtomicInteger batchCurrentInstancedCount = instancedOffsets.computeIfAbsent(key.renderParameter(),
-                k -> new AtomicInteger(0));
+        IndirectCommandBuffer indirectBuffer = indirectBuffers.computeIfAbsent(key.renderParameter(), k -> new IndirectCommandBuffer(1280));
+        AtomicInteger batchCurrentInstancedCount = instancedOffsets.computeIfAbsent(key.renderParameter(), k -> new AtomicInteger(0));
 
         // Create builders for MUTABLE components
         int builderCapacity = Math.max(totalVertices, totalInstances);
-        Map<Integer, VertexDataBuilder> builders = resourceManager.createBuilder(key.renderParameter(),
-                builderCapacity);
+        Map<KeyId, VertexDataBuilder> builders = resourceManager.createBuilder(key.renderParameter(), builderCapacity);
 
         Map<RenderBatch<?>, DrawRange> ranges = new HashMap<>();
         boolean isInstancedDraw = key.hasInstancing();
@@ -335,11 +329,10 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         // start offset
         // This ensures correct offset when builders are reused across batches
         for (ComponentSpec spec : key.components()) {
-            if (!spec.isInstanced() && builders.containsKey(spec.getBindingPoint())) {
-                currentVertexOffset = builders.get(spec.getBindingPoint()).getVertexCount();
+            if (!spec.isInstanced() && builders.containsKey(spec.getId())) {
+                currentVertexOffset = builders.get(spec.getId()).getVertexCount();
                 RenderParameter param = key.renderParameter();
-                if (param instanceof RasterizationParameter rasterParam
-                        && rasterParam.primitiveType().requiresIndexBuffer()) {
+                if (param instanceof RasterizationParameter rasterParam && rasterParam.primitiveType().requiresIndexBuffer()) {
                     currentVertexOffset = rasterParam.primitiveType().calculateIndexCount(currentVertexOffset);
                 }
                 break;
@@ -347,7 +340,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         }
 
         // 3. Process Batches
-        for (RenderBatch<RasterizationInstanceInfo> batch : batches) {
+        for (RenderBatch<RasterizationInstanceInfo> batch : batches.meshBatches()) {
             int batchStartCommand = indirectBuffer.getCommandCount();
             int batchInstanceCount = 0;
             int validInstanceCount = 0;
@@ -361,12 +354,12 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                 batchInstanceCount++;
 
                 // Fill Data
-                for (Map.Entry<Integer, VertexDataBuilder> entry : builders
+                for (Map.Entry<KeyId, VertexDataBuilder> entry : builders
                         .entrySet()) {
-                    int bindingPoint = entry.getKey();
+                    KeyId vboKey = entry.getKey();
                     // Identify if this component is instanced or vertex-based
                     boolean isCompInstanced = key.components().stream()
-                            .filter(c -> c.getBindingPoint() == bindingPoint)
+                            .filter(c -> c.getId().equals(vboKey))
                             .findFirst().map(ComponentSpec::isInstanced).orElse(false);
 
                     if (isCompInstanced) {
@@ -408,21 +401,21 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             }
 
             // Generate Commands (Per Batch if Instanced)
-            if (isInstancedDraw && validInstanceCount > 0) {
+            if (isInstancedDraw && validInstanceCount > 0 && batch instanceof MeshRenderBatch meshBatch) {
                 // Determine vertex count from mesh (Shared)
                 int vCount = 0;
-                if (!batch.getInstances().isEmpty() && batch.getInstances().get(0).hasMesh()) {
+                if (!batch.getInstances().isEmpty()) {
                     vCount = key.renderParameter().primitiveType().requiresIndexBuffer()
-                            ? batch.getInstances().get(0).getMesh().getIndicesCount()
-                            : batch.getInstances().get(0).getMesh().getVertexCount();
+                            ? meshBatch.mesh().getIndicesCount()
+                            : meshBatch.mesh().getVertexCount();
                 }
 
                 indirectBuffer.addDrawCommand(
                         vCount,
                         batchInstanceCount, // Draw all valid instances in batch
                         key.renderParameter().primitiveType().requiresIndexBuffer()
-                                ? batch.getInstances().get(0).getMesh().getIndexOffset()
-                                : batch.getInstances().get(0).getMesh().getVertexOffset(), // Vertex Offset?
+                                ? meshBatch.mesh().getIndexOffset()
+                                : meshBatch.mesh().getVertexOffset(), // Vertex Offset?
                         // If BakedMesh, offset is 0 relative to VBO start (handled by VAO binding
                         // usually?
                         // Or Resource handles sharing).
@@ -462,5 +455,87 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             return provider.getMeshMatrix();
         }
         return new Matrix4f();
+    }
+
+    protected static class MeshHolder {
+        protected static final MeshHolder EMPTY = new MeshHolder(null);
+        protected final BakedTypeMesh mesh;
+        protected final long meshHandle;
+        protected final KeyId meshId;
+
+        public MeshHolder(@Nullable PreparedMesh mesh) {
+            if (mesh instanceof BakedTypeMesh baked) {
+                meshHandle = baked.getVAOHandle();
+                meshId = baked.getKetId();
+                this.mesh = (BakedTypeMesh) mesh;
+            } else {
+                meshHandle = -1;
+                this.mesh = null;
+                this.meshId = null;
+            }
+        }
+
+        @Nullable
+        public BakedTypeMesh bakedTypeMesh() {
+            return mesh;
+        }
+
+        @Nullable
+        public KeyId meshId() {
+            return meshId;
+        }
+
+        public long getMeshHandle() {
+            return meshHandle;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            MeshHolder that = (MeshHolder) o;
+            return meshHandle == that.meshHandle && Objects.equals(meshId, that.meshId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(meshHandle, meshId);
+        }
+    }
+
+    protected static class RenderBatchList {
+        protected final List<RenderBatch<RasterizationInstanceInfo>> meshBatches = new ArrayList<>();
+        protected final RasterizationParameter renderParameter;
+        protected final BakedTypeMesh mesh;
+        protected boolean empty = true;
+
+        protected RenderBatchList(RasterizationParameter renderParameter, BakedTypeMesh mesh) {
+            this.renderParameter = renderParameter;
+            this.mesh = mesh;
+        }
+
+        public void add(RenderBatch<RasterizationInstanceInfo> batch) {
+            meshBatches.add(batch);
+            if (empty && batch.getInstanceCount() > 0) {
+                empty = false;
+            }
+        }
+
+        public List<RenderBatch<RasterizationInstanceInfo>> meshBatches() {
+            return meshBatches;
+        }
+
+        public boolean empty() {
+            return empty;
+        }
+
+        @Nullable
+        public BakedTypeMesh mesh() {
+            return mesh;
+        }
+
+        public RasterizationParameter renderParameter() {
+            return renderParameter;
+        }
     }
 }

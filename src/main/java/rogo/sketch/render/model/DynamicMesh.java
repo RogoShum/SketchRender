@@ -5,6 +5,7 @@ import rogo.sketch.api.model.DynamicTypeMesh;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.builder.VertexDataBuilder;
 import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.util.KeyId;
 
 import java.util.function.Consumer;
 
@@ -17,14 +18,16 @@ public class DynamicMesh implements DynamicTypeMesh {
     private final int vertexCount;
     private final int indexCount;
     private final Consumer<VertexDataBuilder> generator;
+    private final KeyId id;
     private int[] indices;
 
-    public DynamicMesh(DataFormat format, PrimitiveType primitiveType, int vertexCount, int indexCount, Consumer<VertexDataBuilder> generator) {
+    public DynamicMesh(KeyId id, DataFormat format, PrimitiveType primitiveType, int vertexCount, int indexCount, Consumer<VertexDataBuilder> generator) {
         this.format = format;
         this.primitiveType = primitiveType;
         this.vertexCount = vertexCount;
         this.indexCount = indexCount;
         this.generator = generator;
+        this.id = id;
     }
 
     public void setIndices(int[] indices) {
@@ -36,10 +39,15 @@ public class DynamicMesh implements DynamicTypeMesh {
     }
 
     @Override
-    public void fill(int bindingPoint, VertexDataBuilder builder, Matrix4f transform) {
+    public void fill(KeyId componentKey, VertexDataBuilder builder, Matrix4f transform) {
         if (generator != null) {
             generator.accept(builder);
         }
+    }
+
+    @Override
+    public KeyId getKetId() {
+        return id;
     }
 
     @Override

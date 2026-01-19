@@ -4,6 +4,7 @@ import rogo.sketch.api.model.BakedTypeMesh;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.resource.buffer.VertexResource;
+import rogo.sketch.util.KeyId;
 
 /**
  * Implementation of a static mesh baked into a VertexResource.
@@ -13,6 +14,7 @@ public class BakedMesh implements BakedTypeMesh {
     private final VertexResource sourceResource;
     private final DataFormat format;
     private final PrimitiveType primitiveType;
+    private final KeyId keyId;
 
     // Source offsets and counts
     private final int srcVertexOffset; // in vertices
@@ -20,7 +22,7 @@ public class BakedMesh implements BakedTypeMesh {
     private final int vertexCount;
     private final int indexCount;
 
-    public BakedMesh(VertexResource sourceResource, int srcVertexOffset, int srcIndexOffset, int vertexCount, int indexCount) {
+    public BakedMesh(VertexResource sourceResource, KeyId keyId, int srcVertexOffset, int srcIndexOffset, int vertexCount, int indexCount) {
         this.sourceResource = sourceResource;
         this.srcVertexOffset = srcVertexOffset;
         this.srcIndexOffset = srcIndexOffset;
@@ -29,6 +31,12 @@ public class BakedMesh implements BakedTypeMesh {
 
         this.format = sourceResource.getStaticFormat();
         this.primitiveType = sourceResource.getPrimitiveType();
+        this.keyId = keyId;
+    }
+
+    @Override
+    public KeyId getKetId() {
+        return keyId;
     }
 
     @Override
@@ -58,7 +66,7 @@ public class BakedMesh implements BakedTypeMesh {
     @Override
     public int getVAOHandle() {
         // Get VBO handle at binding 0 from source resource
-        var component = sourceResource.getComponent(0);
+        var component = sourceResource.getComponent(BakedTypeMesh.BAKED_MESH);
         return component != null ? component.getVboHandle() : 0;
     }
 

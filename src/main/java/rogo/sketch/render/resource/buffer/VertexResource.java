@@ -8,10 +8,12 @@ import rogo.sketch.api.BufferResourceObject;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.builder.MemoryBufferWriter;
 import rogo.sketch.render.data.builder.VertexDataBuilder;
+import rogo.sketch.render.data.format.ComponentSpec;
 import rogo.sketch.render.data.format.DataElement;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.VBOComponent;
 import rogo.sketch.util.GLFeatureChecker;
+import rogo.sketch.util.KeyId;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
@@ -21,8 +23,8 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     private final int vao;
     private final PrimitiveType primitiveType;
 
-    // Components: binding point -> VBO component
-    private final Map<Integer, VBOComponent> components = new LinkedHashMap<>();
+    // Components: KeyId -> VBO component
+    private final Map<KeyId, VBOComponent> components = new LinkedHashMap<>();
     private IndexBufferResource indexBuffer;
     private boolean disposed = false;
 
@@ -44,16 +46,14 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     // ===== VBO Attachment =====
 
     /**
-     * Attach a VBO component at a specific binding point.
+     * Attach a VBO component.
      *
-     * @param bindingPoint The binding point (0, 1, 2, ...)
-     * @param vbo          The vertex buffer object (owned by this resource)
-     * @param format       The data format
-     * @param instanced    Whether this is an instanced attribute
+     * @param spec The component spec (containing KeyId and binding)
+     * @param vbo  The vertex buffer object (owned by this resource)
      */
-    public void attachVBO(int bindingPoint, VertexBufferObject vbo, DataFormat format, boolean instanced) {
-        VBOComponent component = new VBOComponent(vbo, format, bindingPoint, instanced);
-        components.put(bindingPoint, component);
+    public void attachVBO(ComponentSpec spec, VertexBufferObject vbo) {
+        VBOComponent component = new VBOComponent(vbo, spec);
+        components.put(spec.getId(), component);
         setupVBOComponent(component);
     }
 
@@ -61,16 +61,14 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      * Attach an external VBO by reference (zero-copy).
      * The VBO is not owned by this resource and won't be disposed.
      *
-     * @param bindingPoint      The binding point
+     * @param spec              The component spec
      * @param externalVBOHandle The external VBO handle
-     * @param format            The data format
-     * @param instanced         Whether this is an instanced attribute
      * @param vertexOffset      The offset in vertices
      */
-    public void attachExternalVBO(int bindingPoint, int externalVBOHandle,
-                                  DataFormat format, boolean instanced, int vertexOffset) {
-        VBOComponent component = new VBOComponent(externalVBOHandle, format, bindingPoint, instanced, vertexOffset);
-        components.put(bindingPoint, component);
+    public void attachExternalVBO(ComponentSpec spec, int externalVBOHandle, int vertexOffset) {
+        VBOComponent component = new VBOComponent(externalVBOHandle, spec.getId(), spec.getFormat(),
+                spec.getBindingPoint(), spec.isInstanced(), vertexOffset);
+        components.put(spec.getId(), component);
         setupVBOComponent(component);
     }
 
@@ -93,7 +91,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     public void shareComponentsFrom(VertexResource other) {
         for (VBOComponent otherComp : other.getAllComponents().values()) {
             VBOComponent shared = VBOComponent.external(otherComp);
-            components.put(shared.getBindingPoint(), shared);
+            components.put(shared.getSpec().getId(), shared);
             setupVBOComponent(shared);
         }
     }
@@ -190,26 +188,26 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     // ===== Data Upload =====
 
     /**
-     * Upload data from a VertexDataBuilder to the specified binding point.
+     * Upload data from a VertexDataBuilder to the specified VBO.
      *
-     * @param bindingPoint The binding point
-     * @param builder      The vertex data builder
+     * @param id      The KeyId of the component
+     * @param builder The vertex data builder
      */
-    public void upload(int bindingPoint, VertexDataBuilder builder) {
+    public void upload(KeyId id, VertexDataBuilder builder) {
         builder.finish();
 
-        VBOComponent component = components.get(bindingPoint);
+        VBOComponent component = components.get(id);
         if (component == null) {
-            throw new IllegalStateException("No VBO component attached at binding " + bindingPoint);
+            throw new IllegalStateException("No VBO component attached for id " + id);
         }
 
         if (component.isExternal()) {
-            throw new IllegalStateException("Cannot upload to external VBO at binding " + bindingPoint);
+            throw new IllegalStateException("Cannot upload to external VBO at id " + id);
         }
 
         VertexBufferObject vbo = component.getVBO();
         if (vbo == null) {
-            throw new IllegalStateException("No VBO available at binding " + bindingPoint);
+            throw new IllegalStateException("No VBO available for id " + id);
         }
 
         if (builder.getWriter() instanceof MemoryBufferWriter memWriter) {
@@ -220,8 +218,10 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
             throw new UnsupportedOperationException("Only MemoryBufferWriter backed builders supported for now");
         }
 
-        // Generate indices if needed (only for binding 0)
-        if (bindingPoint == 0 && indexBuffer != null && builder.getPrimitiveType().requiresIndexBuffer()) {
+        // Generate indices if needed (only for binding 0 - assuming binding 0 is
+        // primary vertex buffer)
+        // If automatic binding is used, we check if this component is binding 0?
+        if (component.getBindingPoint() == 0 && indexBuffer != null && builder.getPrimitiveType().requiresIndexBuffer()) {
             generateIndices(builder);
         }
     }
@@ -306,31 +306,31 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     }
 
     /**
-     * Get the VBO component at a binding point.
+     * Get the VBO component for a key.
      *
-     * @param bindingPoint The binding point
+     * @param id The KeyId
      * @return The VBO component, or null if not attached
      */
-    public VBOComponent getComponent(int bindingPoint) {
-        return components.get(bindingPoint);
+    public VBOComponent getComponent(KeyId id) {
+        return components.get(id);
     }
 
     /**
-     * Check if a VBO component is attached at the given binding point.
+     * Check if a VBO component is attached for the given key.
      *
-     * @param bindingPoint The binding point
+     * @param id The KeyId
      * @return true if a component is attached
      */
-    public boolean hasComponent(int bindingPoint) {
-        return components.containsKey(bindingPoint);
+    public boolean hasComponent(KeyId id) {
+        return components.containsKey(id);
     }
 
     /**
      * Get all attached components.
      *
-     * @return Map of binding point to component
+     * @return Map of KeyId to component
      */
-    public Map<Integer, VBOComponent> getAllComponents() {
+    public Map<KeyId, VBOComponent> getAllComponents() {
         return new LinkedHashMap<>(components);
     }
 
@@ -343,8 +343,12 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      */
     @Deprecated
     public DataFormat getStaticFormat() {
-        VBOComponent component = components.get(0);
-        return component != null ? component.getFormat() : null;
+        for (VBOComponent comp : components.values()) {
+            if (comp.getBindingPoint() == 0) {
+                return comp.getFormat();
+            }
+        }
+        return null;
     }
 
     /**
@@ -354,7 +358,11 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      */
     @Deprecated
     public int getStaticVBO() {
-        VBOComponent component = components.get(0);
-        return component != null ? component.getVboHandle() : 0;
+        for (VBOComponent comp : components.values()) {
+            if (comp.getBindingPoint() == 0) {
+                return comp.getVboHandle();
+            }
+        }
+        return 0;
     }
 }

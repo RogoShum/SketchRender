@@ -1,8 +1,11 @@
 package rogo.sketch.render.resource.loader;
 
 import com.google.gson.Gson;
+import rogo.sketch.api.model.BakedTypeMesh;
 import rogo.sketch.render.data.PrimitiveType;
+import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.data.builder.VertexDataBuilder;
+import rogo.sketch.render.data.format.ComponentSpec;
 import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.model.BakedMesh;
 import rogo.sketch.render.model.MeshGroup;
@@ -85,9 +88,8 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             // But BakedMesh can work with unindexed too.
 
             // Create VBO
-            VertexBufferObject vbo = new VertexBufferObject(
-                    rogo.sketch.render.data.Usage.STATIC_DRAW);
-            resource.attachVBO(0, vbo, format, false);
+            VertexBufferObject vbo = new VertexBufferObject(Usage.STATIC_DRAW);
+            resource.attachVBO(ComponentSpec.immutable(BakedTypeMesh.BAKED_MESH, 0, format, false), vbo);
 
             int vertexCount = finalVertices.size() / 8; // 3+2+3 = 8 floats per vertex
 
@@ -115,20 +117,20 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
                 builder.putFloat(vData[base + 7]); // nz
             }
 
-            resource.upload(0, builder);
+            resource.upload(BakedTypeMesh.BAKED_MESH, builder);
 
             // Create BakedMesh
             BakedMesh bakedMesh = new BakedMesh(
                     resource,
+                    KeyId.of("main"),
                     0, // srcVertexOffset
                     0, // srcIndexOffset
                     vertexCount,
                     0 // indexCount (unindexed)
             );
 
-            meshGroup.addMesh("main", bakedMesh);
+            meshGroup.addMesh(KeyId.of("main"), bakedMesh);
             return meshGroup;
-
         } catch (Exception e) {
             e.printStackTrace();
             return null;

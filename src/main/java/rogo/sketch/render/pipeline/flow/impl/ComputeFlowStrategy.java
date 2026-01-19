@@ -4,7 +4,7 @@ import rogo.sketch.api.graphics.DispatchProvider;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.ComputeRenderCommand;
 import rogo.sketch.render.command.RenderCommand;
-import rogo.sketch.render.pipeline.RenderBatch;
+import rogo.sketch.render.pipeline.flow.RenderBatch;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.flow.RenderFlowContext;
@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Flow strategy for compute shader operations.
@@ -80,7 +81,7 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
         }
 
         // Create batches to handle uniform grouping
-        List<RenderBatch<ComputeInstanceInfo>> batches = RenderBatch.organize(computeInfos);
+        List<RenderBatch<ComputeInstanceInfo>> batches = organize(computeInfos);
         Map<RenderSetting, List<RenderCommand>> commandsMap = new java.util.LinkedHashMap<>();
 
         for (RenderBatch<ComputeInstanceInfo> batch : batches) {
@@ -101,6 +102,25 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
         }
 
         return commandsMap;
+    }
+
+    /**
+     * Organize instances into batches based on RenderSetting.
+     */
+    public <T extends InstanceInfo> List<RenderBatch<T>> organize(Collection<T> allData) {
+        if (allData.isEmpty())
+            return List.of();
+
+        // Group by RenderSetting
+        Map<RenderSetting, List<T>> grouped = allData.stream()
+                .collect(Collectors.groupingBy(InstanceInfo::getRenderSetting));
+
+        List<RenderBatch<T>> batches = new ArrayList<>();
+        for (Map.Entry<RenderSetting, List<T>> entry : grouped.entrySet()) {
+            batches.add(new RenderBatch<>(entry.getKey(), entry.getValue()));
+        }
+
+        return batches;
     }
 
     @Override

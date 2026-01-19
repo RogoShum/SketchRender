@@ -1,6 +1,7 @@
 package rogo.sketch.api.graphics;
 
 import rogo.sketch.render.data.builder.VertexDataBuilder;
+import rogo.sketch.util.KeyId;
 
 /**
  * Provides instance data for graphics components.
@@ -12,8 +13,8 @@ public interface InstanceDataProvider { // Renamed from InstancedLayoutProvider
     /**
      * Fill instance vertex data for a specific binding point.
      *
-     * @param bindingPoint The binding point
+     * @param componentKey The binding point
      * @param builder      The vertex builder to write data to
      */
-    void fillInstanceData(int bindingPoint, VertexDataBuilder builder);
+    void fillInstanceData(KeyId componentKey, VertexDataBuilder builder);
 }

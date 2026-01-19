@@ -4,6 +4,7 @@ import rogo.sketch.api.ResourceObject;
 import rogo.sketch.api.model.PreparedMesh;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.util.KeyId;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ public class MeshGroup implements ResourceObject {
     private final DataFormat vertexFormat;
 
     // Meshes mapped by identifier/name
-    private final Map<String, PreparedMesh> meshes = new HashMap<>();
+    private final Map<KeyId, PreparedMesh> meshes = new HashMap<>();
     // Ordered list for iteration or index-based access
     private final List<PreparedMesh> meshList = new ArrayList<>();
 
@@ -45,7 +46,7 @@ public class MeshGroup implements ResourceObject {
     /**
      * Add a mesh part to this group.
      */
-    public void addMesh(String name, PreparedMesh mesh) {
+    public void addMesh(KeyId name, PreparedMesh mesh) {
         if (!mesh.getVertexFormat().equals(this.vertexFormat)) {
             throw new IllegalArgumentException("Mesh vertex format mismatch. Expected: " + this.vertexFormat + ", Got: " + mesh.getVertexFormat());
         }
@@ -100,7 +101,7 @@ public class MeshGroup implements ResourceObject {
     }
 
     @Nullable
-    public PreparedMesh getMesh(String name) {
+    public PreparedMesh getMesh(KeyId name) {
         return meshes.get(name);
     }
 

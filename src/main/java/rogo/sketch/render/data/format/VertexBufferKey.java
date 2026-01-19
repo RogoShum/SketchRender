@@ -22,7 +22,7 @@ public class VertexBufferKey {
      * The parameter's VertexLayoutSpec defines the components.
      */
     public static VertexBufferKey fromParameter(RasterizationParameter param) {
-        return fromParameter(param, 0);
+        return fromParameter(param, -1);
     }
 
     /**
@@ -31,14 +31,6 @@ public class VertexBufferKey {
      */
     public static VertexBufferKey fromParameter(RasterizationParameter param, long sourceResourceID) {
         VertexLayoutSpec layout = param.getLayout();
-        if (layout == null) {
-            // Fallback: This path should theoretically be unreachable if
-            // RasterizationParameter
-            // is constructed correctly, but we handle it just in case.
-            // We can't access dataFormat() anymore, so we assume a default or empty layout?
-            // Or throw error?
-            throw new IllegalArgumentException("RasterizationParameter must have a valid VertexLayoutSpec");
-        }
         return new VertexBufferKey(param, layout.getComponents(), sourceResourceID);
     }
 

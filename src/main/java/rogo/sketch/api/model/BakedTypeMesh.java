@@ -1,6 +1,7 @@
 package rogo.sketch.api.model;
 
 import rogo.sketch.render.resource.buffer.VertexResource;
+import rogo.sketch.util.KeyId;
 
 /**
  * Represents a static mesh that is resident in GPU memory or backed by a resource.
@@ -10,6 +11,7 @@ import rogo.sketch.render.resource.buffer.VertexResource;
  * without copying data, improving performance for static geometry.</p>
  */
 public non-sealed interface BakedTypeMesh extends PreparedMesh {
+    KeyId BAKED_MESH = KeyId.of("baked_mesh");
 
     /**
      * Get the source VertexResource that contains this mesh's GPU data.

@@ -12,6 +12,7 @@ import rogo.sketch.render.data.format.VertexLayoutSpec;
 import rogo.sketch.render.pipeline.RasterizationParameter;
 import rogo.sketch.render.resource.buffer.VertexBufferObject;
 import rogo.sketch.render.resource.buffer.VertexResource;
+import rogo.sketch.util.KeyId;
 
 import javax.annotation.Nullable;
 import java.util.Map;
@@ -73,7 +74,7 @@ public class VertexResourceManager {
         VertexResource resource = new VertexResource(primitiveType, primitiveType.requiresIndexBuffer());
 
         // 2. Handle Shared Components (if source provided and key matches)
-        if (key.sourceResourceID() != 0) {
+        if (key.sourceResourceID() > 0) {
             if (sourceProvider != null) {
                 // Verify ID matches handle? (Assuming handle logic consistent)
                 // if (sourceProvider.getHandle() == key.sourceResourceID()) ...
@@ -98,7 +99,7 @@ public class VertexResourceManager {
 
         for (ComponentSpec spec : key.components()) {
             // shorter logic: check if component already exists (shared)?
-            if (resource.hasComponent(spec.getBindingPoint())) {
+            if (resource.hasComponent(spec.getId())) {
                 continue;
             }
 
@@ -106,12 +107,12 @@ public class VertexResourceManager {
                 // Immutable component NOT provided by source?
                 // This means fallback to legacy creation or valid new static buffer
                 VertexBufferObject vbo = new VertexBufferObject(param.usage());
-                resource.attachVBO(spec.getBindingPoint(), vbo, spec.getFormat(), spec.isInstanced());
+                resource.attachVBO(spec, vbo);
             } else {
                 // Mutable component - create new VBO for data filling
                 Usage usage = spec.isInstanced() ? Usage.DYNAMIC_DRAW : param.usage();
                 VertexBufferObject vbo = new VertexBufferObject(usage);
-                resource.attachVBO(spec.getBindingPoint(), vbo, spec.getFormat(), spec.isInstanced());
+                resource.attachVBO(spec, vbo);
             }
         }
 
@@ -148,11 +149,11 @@ public class VertexResourceManager {
     /**
      * Create builders for all MUTABLE components in a VertexLayoutSpec.
      */
-    public Map<Integer, VertexDataBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType,
-            int initialCapacity) {
-        Map<Integer, VertexDataBuilder> builders = new ConcurrentHashMap<>();
+    public Map<KeyId, VertexDataBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType,
+                                                       int initialCapacity) {
+        Map<KeyId, VertexDataBuilder> builders = new ConcurrentHashMap<>();
         for (ComponentSpec component : spec.getDynamicSpecs()) {
-            builders.put(component.getBindingPoint(), createBuilder(component, primitiveType, initialCapacity));
+            builders.put(component.getId(), createBuilder(component, primitiveType, initialCapacity));
         }
         return builders;
     }
@@ -160,7 +161,7 @@ public class VertexResourceManager {
     /**
      * Create builders for a RasterizationParameter (based on its layout).
      */
-    public Map<Integer, VertexDataBuilder> createBuilder(RasterizationParameter parameter, int initialCapacity) {
+    public Map<KeyId, VertexDataBuilder> createBuilder(RasterizationParameter parameter, int initialCapacity) {
         return createBuilder(parameter.getLayout(), parameter.primitiveType(), initialCapacity);
     }
 
@@ -171,7 +172,7 @@ public class VertexResourceManager {
      * mechanism.
      */
     public VertexDataBuilder createDirectBuilder(DataResourceObject resource, DataFormat format,
-            PrimitiveType primitiveType) {
+                                                 PrimitiveType primitiveType) {
         AddressBufferWriter writer = new AddressBufferWriter(resource);
         return new VertexDataBuilder(writer, format, primitiveType);
     }

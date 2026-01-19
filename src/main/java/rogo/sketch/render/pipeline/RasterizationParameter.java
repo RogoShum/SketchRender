@@ -5,6 +5,7 @@ import rogo.sketch.render.data.Usage;
 import rogo.sketch.render.data.format.VertexLayoutSpec;
 import rogo.sketch.render.pipeline.flow.RenderFlowType;
 
+import javax.annotation.Nonnull;
 import java.util.Objects;
 
 /**
@@ -54,10 +55,13 @@ public class RasterizationParameter extends RenderParameter {
     }
 
     @Override
+    @Nonnull
     public VertexLayoutSpec getLayout() {
         return layout;
     }
 
+    @Override
+    @Nonnull
     public PrimitiveType primitiveType() {
         return primitiveType;
     }

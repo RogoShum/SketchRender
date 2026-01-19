@@ -1,8 +1,6 @@
 package rogo.sketch.render.pipeline;
 
 import rogo.sketch.render.data.PrimitiveType;
-import rogo.sketch.render.data.format.ComponentSpec;
-import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.format.VertexLayoutSpec;
 import rogo.sketch.render.pipeline.flow.RenderFlowType;
 
@@ -25,8 +23,6 @@ public abstract class RenderParameter {
     public VertexLayoutSpec getLayout() {
         return this instanceof RasterizationParameter rp ? rp.getLayout() : null;
     }
-
-    @Deprecated
 
     @Nullable
     public PrimitiveType primitiveType() {

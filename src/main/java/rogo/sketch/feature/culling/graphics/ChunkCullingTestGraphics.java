@@ -22,6 +22,7 @@ public class ChunkCullingTestGraphics extends MeshGraphics {
 
     private PreparedMesh createDynamicMesh() {
         return new DynamicMesh(
+                KeyId.of("mesh"),
                 DefaultDataFormats.POSITION,
                 PrimitiveType.QUADS,
                 4,

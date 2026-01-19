@@ -2,12 +2,15 @@ package rogo.sketch.api.model;
 
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.format.DataFormat;
+import rogo.sketch.util.KeyId;
 
 /**
  * The base interface for all mesh types in the rendering pipeline.
  * Represents a collection of vertices and indices ready for rendering.
  */
 public sealed interface PreparedMesh permits BakedTypeMesh, DynamicTypeMesh {
+
+    KeyId getKetId();
 
     /**
      * @return The primitive type (TRIANGLES, LINES, etc.)

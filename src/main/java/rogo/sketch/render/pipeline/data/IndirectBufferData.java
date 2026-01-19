@@ -2,6 +2,7 @@ package rogo.sketch.render.pipeline.data;
 
 import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,6 +11,7 @@ import java.util.Map;
  * Manages indirect command buffers for different render parameters.
  */
 public class IndirectBufferData implements RenderPipelineData {
+    public static final KeyId KEY = KeyId.of("indirect_buffers");
     private final Map<RenderParameter, IndirectCommandBuffer> buffers = new HashMap<>();
     private final int defaultBufferSize;
 
