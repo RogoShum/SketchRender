@@ -1,23 +1,23 @@
 package rogo.sketch.render.pipeline;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 import rogo.sketch.util.OrderRequirement;
 
 public class GraphicsStage {
-    private final Identifier identifier;
+    private final KeyId keyId;
     private final OrderRequirement<GraphicsStage> orderRequirement;
 
     public GraphicsStage(String identifier, OrderRequirement<GraphicsStage> orderRequirement) {
-        this(Identifier.valueOf(identifier), orderRequirement);
+        this(KeyId.valueOf(identifier), orderRequirement);
     }
 
-    public GraphicsStage(Identifier identifier, OrderRequirement<GraphicsStage> orderRequirement) {
-        this.identifier = identifier;
+    public GraphicsStage(KeyId keyId, OrderRequirement<GraphicsStage> orderRequirement) {
+        this.keyId = keyId;
         this.orderRequirement = orderRequirement;
     }
 
-    public Identifier getIdentifier() {
-        return identifier;
+    public KeyId getIdentifier() {
+        return keyId;
     }
 
     public OrderRequirement<GraphicsStage> getOrderRequirement() {
@@ -29,18 +29,18 @@ public class GraphicsStage {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         GraphicsStage that = (GraphicsStage) obj;
-        return identifier.equals(that.identifier);
+        return keyId.equals(that.keyId);
     }
 
     @Override
     public int hashCode() {
-        return identifier.hashCode();
+        return keyId.hashCode();
     }
 
     @Override
     public String toString() {
         return "GraphicsStage{" +
-                "identifier=" + identifier +
+                "identifier=" + keyId +
                 '}';
     }
 }

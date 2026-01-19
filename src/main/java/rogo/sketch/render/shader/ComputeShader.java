@@ -3,7 +3,7 @@ package rogo.sketch.render.shader;
 import org.lwjgl.opengl.GL43;
 import rogo.sketch.api.ResourceReloadable;
 import rogo.sketch.render.shader.preprocessor.ShaderPreprocessor;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -22,31 +22,31 @@ public class ComputeShader extends Shader implements ResourceReloadable<Shader> 
     /**
      * Create a compute shader from GLSL source code
      */
-    public ComputeShader(Identifier identifier, String computeShaderSource) throws IOException {
-        super(identifier, ShaderType.COMPUTE, computeShaderSource);
+    public ComputeShader(KeyId keyId, String computeShaderSource) throws IOException {
+        super(keyId, ShaderType.COMPUTE, computeShaderSource);
         this.reloadableSupport = null; // Non-reloadable by default
     }
     
     /**
      * Create a reloadable compute shader with preprocessing support
      */
-    public ComputeShader(Identifier identifier, 
-                        String computeShaderSource,
-                        ShaderPreprocessor preprocessor,
-                        Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
+    public ComputeShader(KeyId keyId,
+                         String computeShaderSource,
+                         ShaderPreprocessor preprocessor,
+                         Function<KeyId, Optional<BufferedReader>> resourceProvider) throws IOException {
         // Use parent class preprocessing constructor
-        super(identifier, ShaderType.COMPUTE, computeShaderSource, preprocessor, resourceProvider);
+        super(keyId, ShaderType.COMPUTE, computeShaderSource, preprocessor, resourceProvider);
         
         // Create reloadable support with original source
         this.reloadableSupport = new ReloadableShader(
-            identifier, 
+                keyId,
             Map.of(ShaderType.COMPUTE, computeShaderSource),
             preprocessor,
             resourceProvider
         ) {
             @Override
             protected Shader createShaderInstance(Map<ShaderType, String> processedSources) throws IOException {
-                return new ComputeShader(identifier, processedSources.get(ShaderType.COMPUTE));
+                return new ComputeShader(keyId, processedSources.get(ShaderType.COMPUTE));
             }
         };
         
@@ -149,11 +149,11 @@ public class ComputeShader extends Shader implements ResourceReloadable<Shader> 
     /**
      * Create a reloadable compute shader from source code
      */
-    public static ComputeShader reloadable(Identifier identifier, 
-                                          String computeSource,
-                                          ShaderPreprocessor preprocessor,
-                                          Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
-        return new ComputeShader(identifier, computeSource, preprocessor, resourceProvider);
+    public static ComputeShader reloadable(KeyId keyId,
+                                           String computeSource,
+                                           ShaderPreprocessor preprocessor,
+                                           Function<KeyId, Optional<BufferedReader>> resourceProvider) throws IOException {
+        return new ComputeShader(keyId, computeSource, preprocessor, resourceProvider);
     }
     
     // ResourceReloadable implementation
@@ -183,12 +183,12 @@ public class ComputeShader extends Shader implements ResourceReloadable<Shader> 
     }
     
     @Override
-    public Identifier getResourceIdentifier() {
-        return identifier;
+    public KeyId getResourceIdentifier() {
+        return keyId;
     }
     
     @Override
-    public java.util.Set<Identifier> getDependencies() {
+    public java.util.Set<KeyId> getDependencies() {
         return reloadableSupport != null ? reloadableSupport.getDependencies() : java.util.Collections.emptySet();
     }
     

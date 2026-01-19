@@ -6,10 +6,10 @@ import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.driver.GraphicsDriver;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class BlendState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("blend_state");
+    public static final KeyId TYPE = KeyId.of("blend_state");
 
     private boolean enabled;
     private int srcFactor, dstFactor;
@@ -27,7 +27,7 @@ public class BlendState implements RenderStateComponent {
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 

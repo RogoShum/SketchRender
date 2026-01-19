@@ -6,10 +6,10 @@ import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.driver.GraphicsDriver;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class CullState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("cull_face");
+    public static final KeyId TYPE = KeyId.of("cull_face");
     
     private boolean enabled;
     private int face;
@@ -28,7 +28,7 @@ public class CullState implements RenderStateComponent {
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 

@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 import rogo.sketch.vanilla.resource.VanillaTexture;
 import rogo.sketch.vanilla.resource.loader.VanillaTextureLoader;
 
@@ -24,10 +24,10 @@ public class TextureHelper {
      * @param resourceManager Resource manager instance
      * @return Texture identifier that can be used to reference the texture
      */
-    public static Identifier loadTextureFromElement(JsonElement element, GraphicsResourceManager resourceManager) {
+    public static KeyId loadTextureFromElement(JsonElement element, GraphicsResourceManager resourceManager) {
         if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
             // Simple string identifier - texture should already exist
-            return Identifier.of(element.getAsString());
+            return KeyId.of(element.getAsString());
 
         } else if (element.isJsonObject()) {
             JsonObject textureObj = element.getAsJsonObject();
@@ -39,7 +39,7 @@ public class TextureHelper {
             }
 
             String identifier = textureObj.get("identifier").getAsString();
-            Identifier textureId = Identifier.of(identifier);
+            KeyId textureId = KeyId.of(identifier);
 
             // Check if texture already exists
             if (resourceManager.hasResource(ResourceTypes.TEXTURE, textureId)) {
@@ -73,13 +73,13 @@ public class TextureHelper {
      * Load texture array from JSON array
      * Each element can be either a string identifier or inline texture definition
      */
-    public static Identifier[] loadTextureArray(JsonElement arrayElement, GraphicsResourceManager resourceManager) {
+    public static KeyId[] loadTextureArray(JsonElement arrayElement, GraphicsResourceManager resourceManager) {
         if (!arrayElement.isJsonArray()) {
             throw new IllegalArgumentException("Expected JSON array for texture array");
         }
 
         var array = arrayElement.getAsJsonArray();
-        Identifier[] textureIds = new Identifier[array.size()];
+        KeyId[] textureIds = new KeyId[array.size()];
 
         for (int i = 0; i < array.size(); i++) {
             textureIds[i] = loadTextureFromElement(array.get(i), resourceManager);
@@ -113,10 +113,10 @@ public class TextureHelper {
     /**
      * Convenience method to create and register a basic texture
      */
-    public static Identifier registerBasicTexture(GraphicsResourceManager resourceManager,
-                                                  String identifier, String format, String filter, String wrap) {
+    public static KeyId registerBasicTexture(GraphicsResourceManager resourceManager,
+                                             String identifier, String format, String filter, String wrap) {
         JsonObject textureObj = createColorTexture(identifier, format, filter, wrap);
-        Identifier textureId = Identifier.of(identifier);
+        KeyId textureId = KeyId.of(identifier);
 
         String textureJson = gson.toJson(textureObj);
         resourceManager.registerJson(ResourceTypes.TEXTURE, textureId, textureJson);
@@ -127,10 +127,10 @@ public class TextureHelper {
     /**
      * Convenience method to create and register a MC texture
      */
-    public static Identifier registerMCTexture(GraphicsResourceManager resourceManager,
-                                               String identifier, String mcResourceLocation) {
+    public static KeyId registerMCTexture(GraphicsResourceManager resourceManager,
+                                          String identifier, String mcResourceLocation) {
         JsonObject textureObj = createMCTexture(identifier, mcResourceLocation);
-        Identifier textureId = Identifier.of(identifier);
+        KeyId textureId = KeyId.of(identifier);
 
         VanillaTextureLoader vanillaLoader = new VanillaTextureLoader();
         String textureJson = gson.toJson(textureObj);

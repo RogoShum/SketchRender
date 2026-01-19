@@ -1,6 +1,6 @@
 package rogo.sketch.render.shader.config;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 /**
  * 展示配置属性的实际工作流程
@@ -99,7 +99,7 @@ public class ConfigurationWorkflowExample {
     private static void demonstrateDynamicConfiguration() {
         System.out.println("3. 运行时动态配置调整");
         
-        Identifier shaderId = Identifier.of("lighting:main");
+        KeyId shaderId = KeyId.of("lighting:main");
         ShaderConfigurationManager manager = ShaderConfigurationManager.getInstance();
         
         // 初始配置
@@ -154,7 +154,7 @@ public class ConfigurationWorkflowExample {
         
         // 预设配置（中等优先级）
         System.out.println("应用质量预设：");
-        Identifier shaderId = Identifier.of("test:shader");
+        KeyId shaderId = KeyId.of("test:shader");
         ShaderConfiguration qualityPreset = ShaderConfigurationManager.createPreset("quality");
         manager.setConfiguration(shaderId, qualityPreset);
         

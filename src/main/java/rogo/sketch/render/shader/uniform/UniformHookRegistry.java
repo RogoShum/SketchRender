@@ -4,14 +4,14 @@ import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.ShaderResource;
 import rogo.sketch.event.UniformHookRegisterEvent;
 import rogo.sketch.event.bridge.EventBusBridge;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class UniformHookRegistry {
     private static final UniformHookRegistry INSTANCE = new UniformHookRegistry();
-    private final Map<Identifier, ValueGetter<?>> pendingHooks = new HashMap<>();
+    private final Map<KeyId, ValueGetter<?>> pendingHooks = new HashMap<>();
 
     private UniformHookRegistry() {
     }
@@ -30,9 +30,9 @@ public class UniformHookRegistry {
             String uniformName = entry.getKey();
             ShaderResource<T> uniform = (ShaderResource<T>) entry.getValue();
 
-            Identifier identifier = Identifier.of(uniformName);
-            if (pendingHooks.containsKey(identifier)) {
-                UniformHook<?> uniformHook = new UniformHook<>(identifier, uniform, (ValueGetter<T>) pendingHooks.get(identifier));
+            KeyId keyId = KeyId.of(uniformName);
+            if (pendingHooks.containsKey(keyId)) {
+                UniformHook<?> uniformHook = new UniformHook<>(keyId, uniform, (ValueGetter<T>) pendingHooks.get(keyId));
                 provider.getUniformHookGroup().addUniform(uniformName, uniformHook);
             }
         }

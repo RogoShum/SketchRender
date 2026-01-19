@@ -5,12 +5,12 @@ import org.lwjgl.opengl.GL13;
 import rogo.sketch.Config;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.instance.ComputeGraphics;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class ComputeEntityCullingGraphics extends ComputeGraphics {
 
-    public ComputeEntityCullingGraphics(Identifier identifier) {
-        super(identifier, (c) -> {
+    public ComputeEntityCullingGraphics(KeyId keyId) {
+        super(keyId, (c) -> {
         }, (c, shader) -> {
             CullingStateManager.ENTITY_CULLING_MASK.updateEntityData();
             shader.dispatch((CullingStateManager.ENTITY_CULLING_MASK.getEntityMap().size() / 64 + 1), 1, 1);

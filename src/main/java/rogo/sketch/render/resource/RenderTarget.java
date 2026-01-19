@@ -3,7 +3,7 @@ package rogo.sketch.render.resource;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import rogo.sketch.api.ResourceObject;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,11 +12,11 @@ import java.util.Map;
 
 public class RenderTarget implements ResourceObject {
     private final int handle;
-    private final Identifier identifier;
-    private final List<Identifier> colorAttachmentIds = new ArrayList<>();
-    private final List<Identifier> keepSizeAttachmentIds = new ArrayList<>();
-    private Identifier depthAttachmentId;
-    private Identifier stencilAttachmentId;
+    private final KeyId keyId;
+    private final List<KeyId> colorAttachmentIds = new ArrayList<>();
+    private final List<KeyId> keepSizeAttachmentIds = new ArrayList<>();
+    private KeyId depthAttachmentId;
+    private KeyId stencilAttachmentId;
     private int clearColor; // ARGB format
     private boolean disposed = false;
 
@@ -27,7 +27,7 @@ public class RenderTarget implements ResourceObject {
     private int currentWidth, currentHeight;
 
     // Texture resize tracking
-    private static final Map<Identifier, ResizeInfo> globalTextureResizeTracker = new HashMap<>();
+    private static final Map<KeyId, ResizeInfo> globalTextureResizeTracker = new HashMap<>();
 
     // Clear settings
     private boolean shouldClearColor = true;
@@ -35,10 +35,10 @@ public class RenderTarget implements ResourceObject {
     private boolean shouldClearStencil = false;
     private int clearBuffers = GL30.GL_COLOR_BUFFER_BIT | GL30.GL_DEPTH_BUFFER_BIT;
 
-    public RenderTarget(int handle, Identifier identifier, ResolutionMode mode, int baseWidth, int baseHeight,
+    public RenderTarget(int handle, KeyId keyId, ResolutionMode mode, int baseWidth, int baseHeight,
                         float scaleX, float scaleY, int clearColor) {
         this.handle = handle;
-        this.identifier = identifier;
+        this.keyId = keyId;
         this.resolutionMode = mode;
         this.baseWidth = baseWidth;
         this.baseHeight = baseHeight;
@@ -53,8 +53,8 @@ public class RenderTarget implements ResourceObject {
     /**
      * Convenience constructor for fixed resolution
      */
-    public RenderTarget(int handle, Identifier identifier, int width, int height, int clearColor) {
-        this(handle, identifier, ResolutionMode.FIXED, width, height, 1.0f, 1.0f, clearColor);
+    public RenderTarget(int handle, KeyId keyId, int width, int height, int clearColor) {
+        this(handle, keyId, ResolutionMode.FIXED, width, height, 1.0f, 1.0f, clearColor);
     }
 
     /**
@@ -104,7 +104,7 @@ public class RenderTarget implements ResourceObject {
         GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
 
         // Resize color attachments
-        for (Identifier textureId : colorAttachmentIds) {
+        for (KeyId textureId : colorAttachmentIds) {
             if (textureId != null) {
                 resizeTextureIfNeeded(resourceManager, textureId, newWidth, newHeight);
             }
@@ -124,7 +124,7 @@ public class RenderTarget implements ResourceObject {
     /**
      * Intelligently resize texture, avoiding conflicts and duplicates
      */
-    private void resizeTextureIfNeeded(GraphicsResourceManager resourceManager, Identifier textureId, int targetWidth, int targetHeight) {
+    private void resizeTextureIfNeeded(GraphicsResourceManager resourceManager, KeyId textureId, int targetWidth, int targetHeight) {
         if (keepSizeAttachmentIds.contains(textureId)) {
             return;
         }
@@ -159,13 +159,13 @@ public class RenderTarget implements ResourceObject {
     /**
      * Set color attachment by index
      */
-    public void setColorAttachment(int index, Identifier textureId) {
+    public void setColorAttachment(int index, KeyId textureId) {
         while (colorAttachmentIds.size() <= index) {
             colorAttachmentIds.add(null);
         }
 
         // Remove old texture reference
-        Identifier oldTextureId = colorAttachmentIds.get(index);
+        KeyId oldTextureId = colorAttachmentIds.get(index);
         if (oldTextureId != null) {
             decrementTextureReference(oldTextureId);
         }
@@ -182,7 +182,7 @@ public class RenderTarget implements ResourceObject {
     /**
      * Set depth attachment
      */
-    public void setDepthAttachment(Identifier textureId) {
+    public void setDepthAttachment(KeyId textureId) {
         if (depthAttachmentId != null) {
             decrementTextureReference(depthAttachmentId);
         }
@@ -198,7 +198,7 @@ public class RenderTarget implements ResourceObject {
     /**
      * Set stencil attachment
      */
-    public void setStencilAttachment(Identifier textureId) {
+    public void setStencilAttachment(KeyId textureId) {
         if (stencilAttachmentId != null) {
             decrementTextureReference(stencilAttachmentId);
         }
@@ -211,14 +211,14 @@ public class RenderTarget implements ResourceObject {
         }
     }
 
-    public void keepTextureSize(Identifier identifier) {
-        keepSizeAttachmentIds.add(identifier);
+    public void keepTextureSize(KeyId keyId) {
+        keepSizeAttachmentIds.add(keyId);
     }
 
     /**
      * Attach a texture to the framebuffer
      */
-    private void attachTextureToFramebuffer(Identifier textureId, int attachment) {
+    private void attachTextureToFramebuffer(KeyId textureId, int attachment) {
         GraphicsResourceManager.getInstance().getResource(ResourceTypes.TEXTURE, textureId)
                 .ifPresent(texture -> {
                     int previousFB = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
@@ -232,7 +232,7 @@ public class RenderTarget implements ResourceObject {
     /**
      * Decrement texture reference count and cleanup if needed
      */
-    private void decrementTextureReference(Identifier textureId) {
+    private void decrementTextureReference(KeyId textureId) {
         ResizeInfo resizeInfo = globalTextureResizeTracker.get(textureId);
         if (resizeInfo != null) {
             resizeInfo.referenceCount--;
@@ -280,8 +280,8 @@ public class RenderTarget implements ResourceObject {
         return handle;
     }
 
-    public Identifier getIdentifier() {
-        return identifier;
+    public KeyId getIdentifier() {
+        return keyId;
     }
 
     public int getCurrentWidth() {
@@ -332,22 +332,22 @@ public class RenderTarget implements ResourceObject {
         if (clearStencil) this.clearBuffers |= GL30.GL_STENCIL_BUFFER_BIT;
     }
 
-    public List<Identifier> getColorAttachmentIds() {
+    public List<KeyId> getColorAttachmentIds() {
         return new ArrayList<>(colorAttachmentIds);
     }
 
-    public Identifier getDepthAttachmentId() {
+    public KeyId getDepthAttachmentId() {
         return depthAttachmentId;
     }
 
-    public Identifier getStencilAttachmentId() {
+    public KeyId getStencilAttachmentId() {
         return stencilAttachmentId;
     }
 
     @Override
     public void dispose() {
         // Decrement all texture references
-        for (Identifier textureId : colorAttachmentIds) {
+        for (KeyId textureId : colorAttachmentIds) {
             if (textureId != null) {
                 decrementTextureReference(textureId);
             }

@@ -1,7 +1,5 @@
 package rogo.sketch.render.shader.config;
 
-import rogo.sketch.util.Identifier;
-
 /**
  * 详细展示ShaderConfiguration各项属性的含义和工作原理
  */

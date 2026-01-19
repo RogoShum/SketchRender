@@ -1,9 +1,9 @@
 package rogo.sketch.api;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public interface ShaderResource<T> {
-    Identifier id();
+    KeyId id();
 
     void set(T value);
 }

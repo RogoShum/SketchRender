@@ -1,7 +1,7 @@
 package rogo.sketch.render.pipeline.flow;
 
 import rogo.sketch.SketchRender;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.Objects;
 
@@ -21,22 +21,22 @@ public class RenderFlowType {
      * Standard rasterization rendering pipeline.
      * Used for traditional vertex/fragment shader rendering with geometry batching.
      */
-    public static final RenderFlowType RASTERIZATION = new RenderFlowType(Identifier.of(SketchRender.MOD_ID, "rasterization"));
+    public static final RenderFlowType RASTERIZATION = new RenderFlowType(KeyId.of(SketchRender.MOD_ID, "rasterization"));
 
     /**
      * Compute shader processing pipeline.
      * Used for compute shader dispatch operations without geometry batching.
      */
-    public static final RenderFlowType COMPUTE = new RenderFlowType(Identifier.of(SketchRender.MOD_ID, "compute"));
+    public static final RenderFlowType COMPUTE = new RenderFlowType(KeyId.of(SketchRender.MOD_ID, "compute"));
 
-    private final Identifier id;
+    private final KeyId id;
 
     /**
      * Create a new render flow type.
      *
      * @param id Unique identifier for this flow type
      */
-    protected RenderFlowType(Identifier id) {
+    protected RenderFlowType(KeyId id) {
         this.id = Objects.requireNonNull(id, "RenderFlowType id cannot be null");
     }
 
@@ -45,7 +45,7 @@ public class RenderFlowType {
      *
      * @return The flow type identifier
      */
-    public Identifier getId() {
+    public KeyId getId() {
         return id;
     }
 

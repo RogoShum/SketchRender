@@ -2,7 +2,7 @@ package rogo.sketch.render.resource.loader;
 
 import com.google.gson.Gson;
 import rogo.sketch.api.ResourceObject;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.util.Optional;
@@ -16,15 +16,15 @@ public interface ResourceLoader<T extends ResourceObject> {
     /**
      * Load a resource from data
      *
-     * @param identifier       The identifier of the resource
+     * @param keyId       The identifier of the resource
      * @param data            The resource data (String, Bytes, Stream)
      * @param gson            The Gson instance for parsing (if needed)
      * @param resourceProvider Provider for sub-resources
      * @return The loaded resource or null if failed
      */
-    T load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider);
+    T load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<BufferedReader>> resourceProvider);
 
-    default T load(Identifier identifier, ResourceData data, Gson gson) {
-        return load(identifier, data, gson, id -> Optional.empty());
+    default T load(KeyId keyId, ResourceData data, Gson gson) {
+        return load(keyId, data, gson, id -> Optional.empty());
     }
 }

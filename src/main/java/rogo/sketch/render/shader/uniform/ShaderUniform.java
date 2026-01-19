@@ -5,7 +5,7 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.ShaderResource;
 import rogo.sketch.render.data.DataType;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.lang.Math;
 import java.nio.FloatBuffer;
@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 public class ShaderUniform<T> implements ShaderResource<T> {
-    private final Identifier identifier;
+    private final KeyId keyId;
     private final int location;
     private final DataType dataType;
     private final int dataCount;
@@ -24,8 +24,8 @@ public class ShaderUniform<T> implements ShaderResource<T> {
     private final FloatBuffer floatValues;
     private T currentValue;
 
-    public ShaderUniform(Identifier identifier, int location, DataType dataType, int dataCount, int program) {
-        this.identifier = identifier;
+    public ShaderUniform(KeyId keyId, int location, DataType dataType, int dataCount, int program) {
+        this.keyId = keyId;
         this.location = location;
         this.dataType = dataType;
         this.dataCount = dataCount * dataType.getComponentCount();
@@ -41,8 +41,8 @@ public class ShaderUniform<T> implements ShaderResource<T> {
     }
 
     @Override
-    public Identifier id() {
-        return identifier;
+    public KeyId id() {
+        return keyId;
     }
 
     @Override
@@ -282,7 +282,7 @@ public class ShaderUniform<T> implements ShaderResource<T> {
     @Override
     public String toString() {
         return "ShaderUniform{" +
-                "identifier=" + identifier +
+                "identifier=" + keyId +
                 ", location=" + location +
                 ", dataType=" + dataType +
                 ", currentValue=" + currentValue +
@@ -296,12 +296,12 @@ public class ShaderUniform<T> implements ShaderResource<T> {
         ShaderUniform<?> that = (ShaderUniform<?>) o;
         return location == that.location &&
                 program == that.program &&
-                Objects.equals(identifier, that.identifier) &&
+                Objects.equals(keyId, that.keyId) &&
                 dataType == that.dataType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(identifier, location, dataType, program);
+        return Objects.hash(keyId, location, dataType, program);
     }
 }

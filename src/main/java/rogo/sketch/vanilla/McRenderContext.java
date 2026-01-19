@@ -14,7 +14,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL13;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class McRenderContext extends RenderContext {
     private final PoseStack vanillaModelView;
@@ -80,19 +80,19 @@ public class McRenderContext extends RenderContext {
     }
 
     @Override
-    public void preStage(Identifier stage) {
-        this.set(Identifier.of("rendered"), false);
+    public void preStage(KeyId stage) {
+        this.set(KeyId.of("rendered"), false);
     }
 
     @Override
-    public void postStage(Identifier stage) {
-        if (get(Identifier.of("rendered")) instanceof Boolean rendered && rendered) {
+    public void postStage(KeyId stage) {
+        if (get(KeyId.of("rendered")) instanceof Boolean rendered && rendered) {
             RenderSystem.activeTexture(GL13.GL_TEXTURE1);
             RenderSystem.activeTexture(GL13.GL_TEXTURE0);
             TextureManager texturemanager = Minecraft.getInstance().getTextureManager();
             AbstractTexture abstracttexture = texturemanager.getTexture(TextureAtlas.LOCATION_BLOCKS);
             RenderSystem.bindTexture(abstracttexture.getId());
-            this.set(Identifier.of("rendered"), false);
+            this.set(KeyId.of("rendered"), false);
         }
     }
 }

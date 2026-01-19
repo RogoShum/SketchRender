@@ -24,7 +24,8 @@ import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
+
 import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -96,7 +97,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
     @Override
     public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
             Collection<InstanceInfo> infos,
-            Identifier stageId,
+            KeyId stageId,
             RenderFlowContext flowContext,
             rogo.sketch.render.pipeline.flow.RenderPostProcessors postProcessors) {
         // Filter to only RasterizationInstanceInfo

@@ -1,6 +1,6 @@
 package rogo.sketch.render.resource;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,22 +11,22 @@ import java.util.Map;
  * Predefined resource type constants with inheritance hierarchy support
  */
 public final class ResourceTypes {
-    public static final Identifier TEXTURE = Identifier.of("texture");
-    public static final Identifier SHADER_STORAGE_BUFFER = Identifier.of("shader_storage_buffer");
-    public static final Identifier SHADER_TYPE = Identifier.of("shader_type");
-    public static final Identifier UNIFORM_BLOCK = Identifier.of("uniform_block");
-    public static final Identifier COUNTER_BUFFER = Identifier.of("counter_buffer");
-    public static final Identifier IMAGE_BUFFER = Identifier.of("image_buffer");
-    public static final Identifier RENDER_TARGET = Identifier.of("render_target");
-    public static final Identifier FRAMEBUFFER = Identifier.of("framebuffer");
-    public static final Identifier SHADER_PROGRAM = Identifier.of("shader_program");
-    public static final Identifier RENDER_SETTING = Identifier.of("render_setting");
-    public static final Identifier PARTIAL_RENDER_SETTING = Identifier.of("partial_render_setting");
-    public static final Identifier VERTEX_BUFFER = Identifier.of("vertex_buffer");
-    public static final Identifier MESH = Identifier.of("mesh");
+    public static final KeyId TEXTURE = KeyId.of("texture");
+    public static final KeyId SHADER_STORAGE_BUFFER = KeyId.of("shader_storage_buffer");
+    public static final KeyId SHADER_TYPE = KeyId.of("shader_type");
+    public static final KeyId UNIFORM_BLOCK = KeyId.of("uniform_block");
+    public static final KeyId COUNTER_BUFFER = KeyId.of("counter_buffer");
+    public static final KeyId IMAGE_BUFFER = KeyId.of("image_buffer");
+    public static final KeyId RENDER_TARGET = KeyId.of("render_target");
+    public static final KeyId FRAMEBUFFER = KeyId.of("framebuffer");
+    public static final KeyId SHADER_PROGRAM = KeyId.of("shader_program");
+    public static final KeyId RENDER_SETTING = KeyId.of("render_setting");
+    public static final KeyId PARTIAL_RENDER_SETTING = KeyId.of("partial_render_setting");
+    public static final KeyId VERTEX_BUFFER = KeyId.of("vertex_buffer");
+    public static final KeyId MESH = KeyId.of("mesh");
 
     // Resource type inheritance mapping: child -> parent
-    private static final Map<Identifier, Identifier> TYPE_INHERITANCE = new HashMap<>();
+    private static final Map<KeyId, KeyId> TYPE_INHERITANCE = new HashMap<>();
 
     static {
         // IMAGE_BUFFER inherits from TEXTURE
@@ -42,7 +42,7 @@ public final class ResourceTypes {
      * @param type the child resource type
      * @return the parent resource type, or null if no parent exists
      */
-    public static Identifier getParentType(Identifier type) {
+    public static KeyId getParentType(KeyId type) {
         return TYPE_INHERITANCE.get(type);
     }
 
@@ -52,9 +52,9 @@ public final class ResourceTypes {
      * @param type the resource type to get parents for
      * @return list of parent types in order (immediate parent first, root ancestor last)
      */
-    public static List<Identifier> getInheritanceChain(Identifier type) {
-        List<Identifier> chain = new ArrayList<>();
-        Identifier current = type;
+    public static List<KeyId> getInheritanceChain(KeyId type) {
+        List<KeyId> chain = new ArrayList<>();
+        KeyId current = type;
 
         while ((current = getParentType(current)) != null) {
             chain.add(current);
@@ -70,8 +70,8 @@ public final class ResourceTypes {
      * @param type the resource type
      * @return list of types to search, starting with the requested type
      */
-    public static List<Identifier> getSearchOrder(Identifier type) {
-        List<Identifier> searchOrder = new ArrayList<>();
+    public static List<KeyId> getSearchOrder(KeyId type) {
+        List<KeyId> searchOrder = new ArrayList<>();
         searchOrder.add(type); // Start with the requested type
         searchOrder.addAll(getInheritanceChain(type)); // Add parent types
         return searchOrder;
@@ -84,7 +84,7 @@ public final class ResourceTypes {
      * @param parentType the potential parent type
      * @return true if childType is the same as or inherits from parentType
      */
-    public static boolean isCompatible(Identifier childType, Identifier parentType) {
+    public static boolean isCompatible(KeyId childType, KeyId parentType) {
         if (childType.equals(parentType)) {
             return true;
         }

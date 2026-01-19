@@ -1,10 +1,10 @@
 package rogo.sketch.api.graphics;
 
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public interface Graphics {
-    Identifier getIdentifier();
+    KeyId getIdentifier();
 
     boolean shouldTick();
 

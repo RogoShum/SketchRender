@@ -8,7 +8,7 @@ import rogo.sketch.render.data.format.DataFormat;
 import rogo.sketch.render.data.DataType;
 import rogo.sketch.render.shader.preprocessor.ShaderPreprocessor;
 import rogo.sketch.render.shader.uniform.UniformHookGroup;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -33,31 +33,31 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
     /**
      * Create a graphics shader program from GLSL sources
      */
-    public GraphicsShader(Identifier identifier, Map<ShaderType, String> shaderSources) throws IOException {
-        super(identifier, shaderSources);
+    public GraphicsShader(KeyId keyId, Map<ShaderType, String> shaderSources) throws IOException {
+        super(keyId, shaderSources);
         this.reloadableSupport = null; // Non-reloadable by default
     }
     
     /**
      * Create a reloadable graphics shader with preprocessing support
      */
-    public GraphicsShader(Identifier identifier, 
-                         Map<ShaderType, String> shaderSources,
-                         ShaderPreprocessor preprocessor,
-                         Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
+    public GraphicsShader(KeyId keyId,
+                          Map<ShaderType, String> shaderSources,
+                          ShaderPreprocessor preprocessor,
+                          Function<KeyId, Optional<BufferedReader>> resourceProvider) throws IOException {
         // Use parent class preprocessing constructor
-        super(identifier, shaderSources, preprocessor, resourceProvider);
+        super(keyId, shaderSources, preprocessor, resourceProvider);
         
         // Create reloadable support with original sources
         this.reloadableSupport = new ReloadableShader(
-            identifier, 
+                keyId,
             shaderSources,
             preprocessor,
             resourceProvider
         ) {
             @Override
             protected Shader createShaderInstance(Map<ShaderType, String> processedSources) throws IOException {
-                return new GraphicsShader(identifier, processedSources);
+                return new GraphicsShader(keyId, processedSources);
             }
         };
         
@@ -130,9 +130,9 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
         elements.sort((a, b) -> Integer.compare(a.getIndex(), b.getIndex()));
 
         // Build the vertex format
-        this.vertexFormat = new DataFormat("ShaderVertexFormat_" + identifier.toString(), elements);
+        this.vertexFormat = new DataFormat("ShaderVertexFormat_" + keyId.toString(), elements);
 
-        System.out.println("Collected vertex format for shader " + identifier + ": " + vertexFormat);
+        System.out.println("Collected vertex format for shader " + keyId + ": " + vertexFormat);
     }
 
     /**
@@ -185,8 +185,8 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
 
     // ShaderProvider interface implementation
     @Override
-    public Identifier getIdentifier() {
-        return Identifier.of(identifier.toString());
+    public KeyId getIdentifier() {
+        return KeyId.of(keyId.toString());
     }
 
     @Override
@@ -253,10 +253,10 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
      */
     public static class Builder {
         private final Map<ShaderType, String> shaderSources = new HashMap<>();
-        private final Identifier identifier;
+        private final KeyId keyId;
 
-        public Builder(Identifier identifier) {
-            this.identifier = identifier;
+        public Builder(KeyId keyId) {
+            this.keyId = keyId;
         }
 
         public Builder vertex(String source) {
@@ -285,30 +285,30 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
         }
 
         public GraphicsShader build() throws IOException {
-            return new GraphicsShader(identifier, shaderSources);
+            return new GraphicsShader(keyId, shaderSources);
         }
         
         /**
          * Build a reloadable graphics shader
          */
         public GraphicsShader buildReloadable(ShaderPreprocessor preprocessor,
-                                            Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
-            return new GraphicsShader(identifier, shaderSources, preprocessor, resourceProvider);
+                                            Function<KeyId, Optional<BufferedReader>> resourceProvider) throws IOException {
+            return new GraphicsShader(keyId, shaderSources, preprocessor, resourceProvider);
         }
     }
 
     /**
      * Create a graphics shader program builder
      */
-    public static Builder builder(Identifier identifier) {
-        return new Builder(identifier);
+    public static Builder builder(KeyId keyId) {
+        return new Builder(keyId);
     }
 
     /**
      * Create a simple graphics shader program with vertex and fragment shaders
      */
-    public static GraphicsShader create(Identifier identifier, String vertexShader, String fragmentShader) throws IOException {
-        return builder(identifier)
+    public static GraphicsShader create(KeyId keyId, String vertexShader, String fragmentShader) throws IOException {
+        return builder(keyId)
                 .vertex(vertexShader)
                 .fragment(fragmentShader)
                 .build();
@@ -317,11 +317,11 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
     /**
      * Create a reloadable graphics shader program
      */
-    public static GraphicsShader reloadable(Identifier identifier, 
-                                           Map<ShaderType, String> shaderSources,
-                                           ShaderPreprocessor preprocessor,
-                                           Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
-        return new GraphicsShader(identifier, shaderSources, preprocessor, resourceProvider);
+    public static GraphicsShader reloadable(KeyId keyId,
+                                            Map<ShaderType, String> shaderSources,
+                                            ShaderPreprocessor preprocessor,
+                                            Function<KeyId, Optional<BufferedReader>> resourceProvider) throws IOException {
+        return new GraphicsShader(keyId, shaderSources, preprocessor, resourceProvider);
     }
     
     // ResourceReloadable implementation
@@ -351,12 +351,12 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
     }
     
     @Override
-    public Identifier getResourceIdentifier() {
-        return identifier;
+    public KeyId getResourceIdentifier() {
+        return keyId;
     }
     
     @Override
-    public java.util.Set<Identifier> getDependencies() {
+    public java.util.Set<KeyId> getDependencies() {
         return reloadableSupport != null ? reloadableSupport.getDependencies() : java.util.Collections.emptySet();
     }
     

@@ -1,6 +1,6 @@
 package rogo.sketch.api;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.IOException;
 import java.util.Set;
@@ -36,12 +36,12 @@ public interface ResourceReloadable<T extends ResourceObject> {
     /**
      * Get the identifier of this resource
      */
-    Identifier getResourceIdentifier();
+    KeyId getResourceIdentifier();
     
     /**
      * Get the set of dependencies this resource depends on
      */
-    Set<Identifier> getDependencies();
+    Set<KeyId> getDependencies();
     
     /**
      * Check if any dependencies have changed
@@ -74,14 +74,14 @@ public interface ResourceReloadable<T extends ResourceObject> {
     record ReloadMetadata(
         boolean successful,
         String errorMessage,
-        Set<Identifier> dependencies,
+        Set<KeyId> dependencies,
         long timestamp
     ) {
-        public static ReloadMetadata success(Set<Identifier> dependencies) {
+        public static ReloadMetadata success(Set<KeyId> dependencies) {
             return new ReloadMetadata(true, null, dependencies, System.currentTimeMillis());
         }
         
-        public static ReloadMetadata failure(String errorMessage, Set<Identifier> dependencies) {
+        public static ReloadMetadata failure(String errorMessage, Set<KeyId> dependencies) {
             return new ReloadMetadata(false, errorMessage, dependencies, System.currentTimeMillis());
         }
     }

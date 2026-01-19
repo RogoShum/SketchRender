@@ -3,7 +3,7 @@ package rogo.sketch.render.pipeline;
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.state.FullRenderState;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.Objects;
 
@@ -17,13 +17,13 @@ public class PartialRenderSetting implements ResourceObject {
     protected final boolean shouldSwitchRenderState;
     private boolean disposed = false;
 
-    private final Identifier sourceIdentifier;
+    private final KeyId sourceKeyId;
 
-    public PartialRenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState, Identifier sourceIdentifier) {
+    public PartialRenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState, KeyId sourceKeyId) {
         this.renderState = renderState;
         this.resourceBinding = resourceBinding;
         this.shouldSwitchRenderState = shouldSwitchRenderState;
-        this.sourceIdentifier = sourceIdentifier;
+        this.sourceKeyId = sourceKeyId;
     }
 
     @Override
@@ -31,12 +31,12 @@ public class PartialRenderSetting implements ResourceObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PartialRenderSetting that = (PartialRenderSetting) o;
-        return shouldSwitchRenderState == that.shouldSwitchRenderState && Objects.equals(renderState, that.renderState) && Objects.equals(resourceBinding, that.resourceBinding) && Objects.equals(sourceIdentifier, that.sourceIdentifier);
+        return shouldSwitchRenderState == that.shouldSwitchRenderState && Objects.equals(renderState, that.renderState) && Objects.equals(resourceBinding, that.resourceBinding) && Objects.equals(sourceKeyId, that.sourceKeyId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(renderState, resourceBinding, shouldSwitchRenderState, sourceIdentifier);
+        return Objects.hash(renderState, resourceBinding, shouldSwitchRenderState, sourceKeyId);
     }
 
     @Override
@@ -70,21 +70,21 @@ public class PartialRenderSetting implements ResourceObject {
      * Create a reloadable partial render setting with source tracking
      */
     public static PartialRenderSetting reloadable(FullRenderState renderState, ResourceBinding resourceBinding,
-                                                  boolean shouldSwitchRenderState, Identifier sourceIdentifier) {
-        return new PartialRenderSetting(renderState, resourceBinding, shouldSwitchRenderState, sourceIdentifier);
+                                                  boolean shouldSwitchRenderState, KeyId sourceKeyId) {
+        return new PartialRenderSetting(renderState, resourceBinding, shouldSwitchRenderState, sourceKeyId);
     }
 
     /**
      * Get the source identifier for this setting
      */
-    public Identifier getSourceIdentifier() {
-        return sourceIdentifier;
+    public KeyId getSourceIdentifier() {
+        return sourceKeyId;
     }
 
     /**
      * Check if this setting supports automatic reloading
      */
     public boolean isReloadable() {
-        return sourceIdentifier != null;
+        return sourceKeyId != null;
     }
 }

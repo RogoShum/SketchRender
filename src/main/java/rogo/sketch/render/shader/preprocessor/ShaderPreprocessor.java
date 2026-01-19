@@ -1,6 +1,6 @@
 package rogo.sketch.render.shader.preprocessor;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.*;
 
@@ -13,20 +13,20 @@ public interface ShaderPreprocessor {
      * Process a shader source with imports and macros
      * 
      * @param source The raw shader source code
-     * @param shaderIdentifier Identifier for the shader being processed
+     * @param shaderKeyId Identifier for the shader being processed
      * @param macros Map of macro definitions to apply
      * @return Processed shader source code
      * @throws ShaderPreprocessorException if preprocessing fails
      */
-    PreprocessorResult process(String source, Identifier shaderIdentifier, Map<String, String> macros) 
+    PreprocessorResult process(String source, KeyId shaderKeyId, Map<String, String> macros)
             throws ShaderPreprocessorException;
     
     /**
      * Process shader source with default empty macros
      */
-    default PreprocessorResult process(String source, Identifier shaderIdentifier) 
+    default PreprocessorResult process(String source, KeyId shaderKeyId)
             throws ShaderPreprocessorException {
-        return process(source, shaderIdentifier, Collections.emptyMap());
+        return process(source, shaderKeyId, Collections.emptyMap());
     }
     
     /**
@@ -37,7 +37,7 @@ public interface ShaderPreprocessor {
     /**
      * Get all imported file identifiers from the last processing operation
      */
-    Set<Identifier> getLastImportedFiles();
+    Set<KeyId> getLastImportedFiles();
     
     /**
      * Clear any cached data

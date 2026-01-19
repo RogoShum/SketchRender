@@ -4,7 +4,7 @@ import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,7 +13,7 @@ import java.util.Set;
 
 public class ResourceBinding {
     // Map: ResourceType -> (BindingName -> ResourceIdentifier)
-    private final Map<Identifier, Map<Identifier, Identifier>> bindings = new HashMap<>();
+    private final Map<KeyId, Map<KeyId, KeyId>> bindings = new HashMap<>();
 
     public ResourceBinding() {
     }
@@ -23,48 +23,48 @@ public class ResourceBinding {
      *
      * @param resourceType       Type of resource (e.g., "texture", "ssbo", "ubo")
      * @param bindingName        Name used in shader to reference this resource
-     * @param resourceIdentifier Identifier of the actual resource
+     * @param resourceKeyId Identifier of the actual resource
      */
-    public void addBinding(Identifier resourceType, Identifier bindingName, Identifier resourceIdentifier) {
+    public void addBinding(KeyId resourceType, KeyId bindingName, KeyId resourceKeyId) {
         bindings.computeIfAbsent(resourceType, k -> new HashMap<>())
-                .put(bindingName, resourceIdentifier);
+                .put(bindingName, resourceKeyId);
     }
 
     /**
      * Get resource identifier by type and binding name
      */
-    public Identifier getResourceIdentifier(Identifier resourceType, Identifier bindingName) {
-        Map<Identifier, Identifier> typeBindings = bindings.get(resourceType);
+    public KeyId getResourceIdentifier(KeyId resourceType, KeyId bindingName) {
+        Map<KeyId, KeyId> typeBindings = bindings.get(resourceType);
         return typeBindings != null ? typeBindings.get(bindingName) : null;
     }
 
     /**
      * Get all bindings for a specific resource type
      */
-    public Map<Identifier, Identifier> getBindingsForType(Identifier resourceType) {
+    public Map<KeyId, KeyId> getBindingsForType(KeyId resourceType) {
         return bindings.getOrDefault(resourceType, new HashMap<>());
     }
 
     /**
      * Get all resource types that have bindings
      */
-    public Set<Identifier> getResourceTypes() {
+    public Set<KeyId> getResourceTypes() {
         return bindings.keySet();
     }
 
     /**
      * Check if a binding exists
      */
-    public boolean hasBinding(Identifier resourceType, Identifier bindingName) {
-        Map<Identifier, Identifier> typeBindings = bindings.get(resourceType);
+    public boolean hasBinding(KeyId resourceType, KeyId bindingName) {
+        Map<KeyId, KeyId> typeBindings = bindings.get(resourceType);
         return typeBindings != null && typeBindings.containsKey(bindingName);
     }
 
     /**
      * Remove a binding
      */
-    public void removeBinding(Identifier resourceType, Identifier bindingName) {
-        Map<Identifier, Identifier> typeBindings = bindings.get(resourceType);
+    public void removeBinding(KeyId resourceType, KeyId bindingName) {
+        Map<KeyId, KeyId> typeBindings = bindings.get(resourceType);
         if (typeBindings != null) {
             typeBindings.remove(bindingName);
             if (typeBindings.isEmpty()) {
@@ -83,7 +83,7 @@ public class ResourceBinding {
     /**
      * Get all bindings as a map
      */
-    public Map<Identifier, Map<Identifier, Identifier>> getAllBindings() {
+    public Map<KeyId, Map<KeyId, KeyId>> getAllBindings() {
         return new HashMap<>(bindings);
     }
 
@@ -91,11 +91,11 @@ public class ResourceBinding {
      * Merge another ResourceBinding into this one
      */
     public void merge(ResourceBinding other) {
-        for (Map.Entry<Identifier, Map<Identifier, Identifier>> typeEntry : other.bindings.entrySet()) {
-            Identifier resourceType = typeEntry.getKey();
-            Map<Identifier, Identifier> otherBindings = typeEntry.getValue();
+        for (Map.Entry<KeyId, Map<KeyId, KeyId>> typeEntry : other.bindings.entrySet()) {
+            KeyId resourceType = typeEntry.getKey();
+            Map<KeyId, KeyId> otherBindings = typeEntry.getValue();
 
-            Map<Identifier, Identifier> currentBindings = bindings.computeIfAbsent(resourceType, k -> new HashMap<>());
+            Map<KeyId, KeyId> currentBindings = bindings.computeIfAbsent(resourceType, k -> new HashMap<>());
             currentBindings.putAll(otherBindings);
         }
     }
@@ -108,18 +108,18 @@ public class ResourceBinding {
         ShaderProvider shader = context.shaderProvider();
 
         if (shader != null) {
-            for (Map.Entry<Identifier, Map<Identifier, Identifier>> typeEntry : bindings.entrySet()) {
-                Identifier resourceType = typeEntry.getKey();
+            for (Map.Entry<KeyId, Map<KeyId, KeyId>> typeEntry : bindings.entrySet()) {
+                KeyId resourceType = typeEntry.getKey();
                 if (shader.getResourceBindings().containsKey(resourceType)) {
-                    Map<Identifier, Identifier> typeBindings = typeEntry.getValue();
+                    Map<KeyId, KeyId> typeBindings = typeEntry.getValue();
 
-                    for (Map.Entry<Identifier, Identifier> bindingEntry : typeBindings.entrySet()) {
-                        Identifier bindingName = bindingEntry.getKey();
-                        Identifier resourceIdentifier = bindingEntry.getValue();
+                    for (Map.Entry<KeyId, KeyId> bindingEntry : typeBindings.entrySet()) {
+                        KeyId bindingName = bindingEntry.getKey();
+                        KeyId resourceKeyId = bindingEntry.getValue();
 
                         if (shader.getResourceBindings().get(resourceType).containsKey(bindingName)) {
                             int binding = shader.getResourceBindings().get(resourceType).get(bindingName);
-                            bindResource(resourceType, binding, resourceIdentifier);
+                            bindResource(resourceType, binding, resourceKeyId);
                         }
                     }
                 }
@@ -130,8 +130,8 @@ public class ResourceBinding {
     /**
      * Bind a single resource to the context using cached ResourceReference
      */
-    private void bindResource(Identifier resourceType, int binding, Identifier resourceIdentifier) {
-        ResourceReference<? extends ResourceObject> reference = GraphicsResourceManager.getInstance().getReference(resourceType, resourceIdentifier);
+    private void bindResource(KeyId resourceType, int binding, KeyId resourceKeyId) {
+        ResourceReference<? extends ResourceObject> reference = GraphicsResourceManager.getInstance().getReference(resourceType, resourceKeyId);
 
         reference.ifPresent(resource -> {
             if (resource instanceof BindingResource bindingResource) {

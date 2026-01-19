@@ -1,7 +1,5 @@
 package rogo.sketch.render.shader.config;
 
-import rogo.sketch.util.Identifier;
-
 import java.util.*;
 
 /**

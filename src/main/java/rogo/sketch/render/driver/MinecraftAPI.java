@@ -1,5 +1,6 @@
 package rogo.sketch.render.driver;
 
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import org.lwjgl.opengl.GL11;
 
@@ -108,5 +109,40 @@ public class MinecraftAPI extends GraphicsAPI {
     @Override
     public void viewport(int x, int y, int w, int h) {
         RenderSystem.viewport(x, y, w, h);
+    }
+
+    @Override
+    public void enablePolygonOffset() {
+        RenderSystem.enablePolygonOffset();
+    }
+
+    @Override
+    public void disablePolygonOffset() {
+        RenderSystem.disablePolygonOffset();
+    }
+
+    @Override
+    public void polygonOffset(float factor, float units) {
+        RenderSystem.polygonOffset(factor, units);
+    }
+
+    @Override
+    public void enableLogicOp() {
+        RenderSystem.enableColorLogicOp();
+    }
+
+    @Override
+    public void disableLogicOp() {
+        RenderSystem.disableColorLogicOp();
+    }
+
+    @Override
+    public void logicOp(int opcode) {
+
+    }
+
+    @Override
+    public void colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+        RenderSystem.colorMask(red, green, blue, alpha);
     }
 }

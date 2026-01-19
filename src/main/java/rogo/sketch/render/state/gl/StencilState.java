@@ -6,10 +6,10 @@ import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.driver.GraphicsDriver;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class StencilState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("stencil_test");
+    public static final KeyId TYPE = KeyId.of("stencil_test");
 
     private boolean enabled;
     private int func, ref, mask, fail, zfail, zpass;
@@ -35,7 +35,7 @@ public class StencilState implements RenderStateComponent {
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 

@@ -2,7 +2,7 @@ package rogo.sketch.render.state;
 
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.state.gl.*;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,7 +18,7 @@ public class RenderStateSnapshotUtils {
      * approximated.
      */
     public static FullRenderState createSnapshot() {
-        Map<Identifier, RenderStateComponent> components = new HashMap<>();
+        Map<KeyId, RenderStateComponent> components = new HashMap<>();
 
         // Blend State
         components.put(BlendState.TYPE, new BlendState(

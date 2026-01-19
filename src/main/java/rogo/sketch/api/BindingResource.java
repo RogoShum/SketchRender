@@ -1,7 +1,7 @@
 package rogo.sketch.api;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public interface BindingResource {
-    void bind(Identifier resourceType, int binding);
+    void bind(KeyId resourceType, int binding);
 }

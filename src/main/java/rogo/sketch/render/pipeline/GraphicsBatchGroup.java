@@ -6,8 +6,7 @@ import rogo.sketch.render.command.prosessor.GeometryBatchProcessor;
 import rogo.sketch.render.pipeline.async.AsyncRenderManager;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pool.InstancePoolManager;
-import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.*;
 
@@ -29,16 +28,16 @@ import java.util.*;
  */
 public class GraphicsBatchGroup<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
-    private final Identifier stageIdentifier;
+    private final KeyId stageKeyId;
     private final Map<RenderSetting, GraphicsBatch<C>> groups = new LinkedHashMap<>();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
 
     private final GeometryBatchProcessor batchProcessor;
 
-    public GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, Identifier stageIdentifier) {
+    public GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, KeyId stageKeyId) {
         this.graphicsPipeline = graphicsPipeline;
-        this.stageIdentifier = stageIdentifier;
+        this.stageKeyId = stageKeyId;
         // Indirect buffers managed here but used by processor
         this.batchProcessor = new GeometryBatchProcessor(graphicsPipeline.indirectBuffers(), graphicsPipeline.instancedOffsets());
     }
@@ -94,8 +93,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      *
      * @return The stage identifier
      */
-    public Identifier getStageIdentifier() {
-        return stageIdentifier;
+    public KeyId getStageIdentifier() {
+        return stageKeyId;
     }
 
     public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
@@ -107,7 +106,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
                 return Collections.emptyMap();
             }
 
-            return batchProcessor.createAllCommands(instanceGroups, stageIdentifier, context, postProcessors);
+            return batchProcessor.createAllCommands(instanceGroups, stageKeyId, context, postProcessors);
         } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyMap();

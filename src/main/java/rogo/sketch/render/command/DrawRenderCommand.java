@@ -9,7 +9,7 @@ import rogo.sketch.render.pipeline.UniformBatchGroup;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.resource.buffer.IndexBufferResource;
 import rogo.sketch.render.resource.buffer.VertexResource;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +34,7 @@ public class DrawRenderCommand extends RenderCommand {
             VertexResource vertexResource,
             RenderSetting renderSetting,
             ResourceBinding resourceBinding,
-            Identifier stageId,
+            KeyId stageId,
             PrimitiveType primitiveType,
             VertexDataShard vertexDataShard,
             int instanceCount,
@@ -47,7 +47,7 @@ public class DrawRenderCommand extends RenderCommand {
             VertexResource vertexResource,
             RenderSetting renderSetting,
             ResourceBinding resourceBinding,
-            Identifier stageId,
+            KeyId stageId,
             PrimitiveType primitiveType,
             VertexDataShard vertexDataShard,
             int instanceCount,

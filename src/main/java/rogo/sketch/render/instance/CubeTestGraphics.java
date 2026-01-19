@@ -12,18 +12,18 @@ import rogo.sketch.render.model.MeshGroup;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class CubeTestGraphics extends MeshGraphics implements InstanceDataProvider {
-    private final ResourceReference<MeshGroup> cube = GraphicsResourceManager.getInstance().getReference(ResourceTypes.MESH, Identifier.of(SketchRender.MOD_ID, "cube"));
+    private final ResourceReference<MeshGroup> cube = GraphicsResourceManager.getInstance().getReference(ResourceTypes.MESH, KeyId.of(SketchRender.MOD_ID, "cube"));
     private Vector3f cubePos = new Vector3f();
     private final Vector3f offset;
     private final Vector3f scale;
     private final Vector3f rotation;
     private final boolean attachHead;
 
-    public CubeTestGraphics(Identifier identifier, boolean attachHead, Vector3f offset, Vector3f scale, Vector3f rotation) {
-        super(identifier);
+    public CubeTestGraphics(KeyId keyId, boolean attachHead, Vector3f offset, Vector3f scale, Vector3f rotation) {
+        super(keyId);
         this.attachHead = attachHead;
         this.offset = offset;
         this.scale = scale;

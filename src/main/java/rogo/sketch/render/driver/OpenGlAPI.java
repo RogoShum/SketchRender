@@ -109,4 +109,39 @@ public class OpenGlAPI extends GraphicsAPI {
     public void viewport(int x, int y, int w, int h) {
         GL11.glViewport(x, y, w, h);
     }
+
+    @Override
+    public void enablePolygonOffset() {
+        GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
+    }
+
+    @Override
+    public void disablePolygonOffset() {
+        GL11.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
+    }
+
+    @Override
+    public void polygonOffset(float factor, float units) {
+        GL11.glPolygonOffset(factor, units);
+    }
+
+    @Override
+    public void enableLogicOp() {
+        GL11.glEnable(GL11.GL_COLOR_LOGIC_OP);
+    }
+
+    @Override
+    public void disableLogicOp() {
+        GL11.glDisable(GL11.GL_COLOR_LOGIC_OP);
+    }
+
+    @Override
+    public void logicOp(int opcode) {
+        GL11.glLogicOp(opcode);
+    }
+
+    @Override
+    public void colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+        GL11.glColorMask(red, green, blue, alpha);
+    }
 }

@@ -3,10 +3,10 @@ package rogo.sketch.api;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public interface RenderStateComponent {
-    Identifier getIdentifier();
+    KeyId getIdentifier();
 
     boolean equals(Object other);
 

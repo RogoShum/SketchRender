@@ -12,7 +12,7 @@ import rogo.sketch.render.pipeline.flow.RenderFlowType;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pipeline.flow.impl.RasterizationPostProcessor;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RenderHelper {
-    private static final Identifier IMMEDIATE_STAGE_ID = Identifier.of("sketch_render", "immediate");
+    private static final KeyId IMMEDIATE_STAGE_ID = KeyId.of("sketch_render", "immediate");
 
     private final GraphicsPipeline<?> pipeline;
     private final Map<RenderParameter, IndirectCommandBuffer> indirectBuffers = new HashMap<>();

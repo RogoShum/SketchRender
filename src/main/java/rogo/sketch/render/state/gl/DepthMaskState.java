@@ -5,10 +5,10 @@ import com.google.gson.JsonObject;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.driver.GraphicsDriver;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class DepthMaskState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("depth_mask");
+    public static final KeyId TYPE = KeyId.of("depth_mask");
 
     private boolean writable;
 
@@ -21,7 +21,7 @@ public class DepthMaskState implements RenderStateComponent {
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 

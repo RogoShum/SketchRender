@@ -3,7 +3,7 @@ package rogo.sketch.vanilla.resource;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import rogo.sketch.render.resource.Texture;
 import rogo.sketch.util.GLFeatureChecker;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.function.Supplier;
 
@@ -49,7 +49,7 @@ public class TempTexture {
 
             texture = new Texture(
                     textureId,
-                    Identifier.of("render_target_" + renderTarget.get().frameBufferId),
+                    KeyId.of("render_target_" + renderTarget.get().frameBufferId),
                     format[0],
                     minFilter[0],
                     wrapS[0]

@@ -8,7 +8,7 @@ import rogo.sketch.render.pipeline.PartialRenderSetting;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.state.FullRenderState;
 import rogo.sketch.render.state.RenderStateRegistry;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.util.HashMap;
@@ -22,7 +22,7 @@ import java.util.function.Function;
 public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting> {
 
     @Override
-    public PartialRenderSetting load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public PartialRenderSetting load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<BufferedReader>> resourceProvider) {
         try {
             String jsonData = data.getString();
             if (jsonData == null) return null;
@@ -37,7 +37,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
                 shouldSwitchRenderState = json.get("shouldSwitchRenderState").getAsBoolean();
             }
 
-            return PartialRenderSetting.reloadable(renderState, resourceBinding, shouldSwitchRenderState, identifier);
+            return PartialRenderSetting.reloadable(renderState, resourceBinding, shouldSwitchRenderState, keyId);
         } catch (Exception e) {
             System.err.println("Failed to load render setting from JSON: " + e.getMessage());
             e.printStackTrace();
@@ -55,7 +55,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
         }
 
         JsonObject renderStateObj = json.getAsJsonObject("renderState");
-        Map<Identifier, RenderStateComponent> overrideComponents = new HashMap<>();
+        Map<KeyId, RenderStateComponent> overrideComponents = new HashMap<>();
 
         // Load each render state component override from JSON
         for (Map.Entry<String, JsonElement> entry : renderStateObj.entrySet()) {
@@ -64,7 +64,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
 
             if (componentElement.isJsonObject()) {
                 JsonObject componentObj = componentElement.getAsJsonObject();
-                Identifier componentType = Identifier.of(componentTypeName);
+                KeyId componentType = KeyId.of(componentTypeName);
 
                 if (RenderStateRegistry.hasComponent(componentType)) {
                     RenderStateComponent component = RenderStateRegistry.loadComponentFromJson(componentType, componentObj, gson);
@@ -97,7 +97,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
             JsonElement bindingsElement = typeEntry.getValue();
 
             if (bindingsElement.isJsonObject()) {
-                Identifier resourceType = Identifier.of(resourceTypeName);
+                KeyId resourceType = KeyId.of(resourceTypeName);
                 JsonObject bindings = bindingsElement.getAsJsonObject();
 
                 // Parse individual bindings
@@ -107,8 +107,8 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
 
                     if (resourceElement.isJsonPrimitive() && resourceElement.getAsJsonPrimitive().isString()) {
                         String resourceIdentifierStr = resourceElement.getAsString();
-                        Identifier bindingId = Identifier.of(bindingName);
-                        Identifier resourceId = Identifier.of(resourceIdentifierStr);
+                        KeyId bindingId = KeyId.of(bindingName);
+                        KeyId resourceId = KeyId.of(resourceIdentifierStr);
 
                         resourceBinding.addBinding(resourceType, bindingId, resourceId);
                     }

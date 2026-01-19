@@ -1,13 +1,13 @@
 package rogo.sketch.render.state;
 
 import rogo.sketch.api.RenderStateComponent;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class RenderStateBuilder {
-    private final Map<Identifier, RenderStateComponent> components = new HashMap<>();
+    private final Map<KeyId, RenderStateComponent> components = new HashMap<>();
 
     public <T extends RenderStateComponent> RenderStateBuilder set(T component) {
         components.put(component.getIdentifier(), component);
@@ -15,7 +15,7 @@ public class RenderStateBuilder {
     }
 
     public FullRenderState build() {
-        for (Identifier type : components.keySet()) {
+        for (KeyId type : components.keySet()) {
             if (!RenderStateRegistry.isRegistered(type)) {
                 throw new IllegalStateException("RenderStateComponent type not registered: " + type.getName());
             }

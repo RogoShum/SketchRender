@@ -4,13 +4,13 @@ import net.minecraft.world.entity.Entity;
 import rogo.sketch.api.model.PreparedMesh;
 import rogo.sketch.render.instance.MeshGraphics;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class EntityGraphicsInstance extends MeshGraphics {
     private final Entity entity;
 
-    public EntityGraphicsInstance(Identifier identifier, Entity entity) {
-        super(identifier);
+    public EntityGraphicsInstance(KeyId keyId, Entity entity) {
+        super(keyId);
         this.entity = entity;
     }
 

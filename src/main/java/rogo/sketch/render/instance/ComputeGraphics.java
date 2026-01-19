@@ -4,25 +4,25 @@ import rogo.sketch.api.graphics.DispatchProvider;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.shader.ComputeShader;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public abstract class ComputeGraphics implements Graphics, DispatchProvider {
-    private final Identifier id;
+    private final KeyId id;
     private final Consumer<RenderContext> tick;
     private final BiConsumer<RenderContext, ComputeShader> dispatch;
 
-    public ComputeGraphics(Identifier identifier, Consumer<RenderContext> tick,
-            BiConsumer<RenderContext, ComputeShader> dispatchCommand) {
-        this.id = identifier;
+    public ComputeGraphics(KeyId keyId, Consumer<RenderContext> tick,
+                           BiConsumer<RenderContext, ComputeShader> dispatchCommand) {
+        this.id = keyId;
         this.tick = tick;
         this.dispatch = dispatchCommand;
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return id;
     }
 

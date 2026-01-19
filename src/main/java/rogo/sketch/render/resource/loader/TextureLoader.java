@@ -7,7 +7,7 @@ import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 import rogo.sketch.render.resource.Texture;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.util.Optional;
@@ -19,7 +19,7 @@ import java.util.function.Function;
 public class TextureLoader implements ResourceLoader<Texture> {
 
     @Override
-    public Texture load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public Texture load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<BufferedReader>> resourceProvider) {
         try {
             String jsonData = data.getString();
             if (jsonData == null) return null;
@@ -73,7 +73,7 @@ public class TextureLoader implements ResourceLoader<Texture> {
 
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
 
-            return new Texture(handle, identifier, format, filterMode, wrapMode);
+            return new Texture(handle, keyId, format, filterMode, wrapMode);
 
         } catch (Exception e) {
             System.err.println("Failed to load texture from JSON: " + e.getMessage());

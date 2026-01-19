@@ -14,7 +14,7 @@ import rogo.sketch.render.resource.buffer.IndexBufferResource;
 import rogo.sketch.render.resource.buffer.VertexBufferObject;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.VertexResourceManager;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.util.ArrayList;
@@ -30,8 +30,8 @@ import java.util.function.Function;
 public class MeshLoader implements ResourceLoader<MeshGroup> {
 
     @Override
-    public MeshGroup load(Identifier identifier, ResourceData data, Gson gson,
-                          Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public MeshGroup load(KeyId keyId, ResourceData data, Gson gson,
+                          Function<KeyId, Optional<BufferedReader>> resourceProvider) {
         try {
             String jsonData = data.getString();
             if (jsonData == null)
@@ -40,7 +40,7 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
 
             // Get mesh name and primitive type
-            String name = json.has("name") ? json.get("name").getAsString() : identifier.toString();
+            String name = json.has("name") ? json.get("name").getAsString() : keyId.toString();
             PrimitiveType primitiveType = parsePrimitiveType(json.get("primitiveType").getAsString());
 
             // Determine vertex format from top level or first submesh

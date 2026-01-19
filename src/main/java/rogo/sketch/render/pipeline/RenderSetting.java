@@ -5,7 +5,7 @@ import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.state.FullRenderState;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import javax.annotation.Nullable;
 import java.util.Objects;
@@ -15,7 +15,7 @@ public class RenderSetting implements ResourceObject {
     private FullRenderState renderState;
     private ResourceBinding resourceBinding;
     private boolean shouldSwitchRenderState;
-    private final @Nullable Identifier sourceIdentifier;
+    private final @Nullable KeyId sourceKeyId;
     private final @Nullable GraphicsResourceManager.ResourceReloadListener reloadListener;
     private boolean disposed = false;
 
@@ -23,12 +23,12 @@ public class RenderSetting implements ResourceObject {
         this(renderState, resourceBinding, renderParameter, shouldSwitchRenderState, null);
     }
 
-    public RenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, RenderParameter renderParameter, boolean shouldSwitchRenderState, @Nullable Identifier sourcePartialSetting) {
+    public RenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, RenderParameter renderParameter, boolean shouldSwitchRenderState, @Nullable KeyId sourcePartialSetting) {
         this.renderState = renderState;
         this.resourceBinding = resourceBinding;
         this.renderParameter = renderParameter == null ? RenderParameter.INVALID : renderParameter;
         this.shouldSwitchRenderState = shouldSwitchRenderState;
-        this.sourceIdentifier = sourcePartialSetting;
+        this.sourceKeyId = sourcePartialSetting;
 
         if (sourcePartialSetting != null) {
             reloadListener = this::onSourceResourceReload;
@@ -57,7 +57,7 @@ public class RenderSetting implements ResourceObject {
     private void setupReloadListener() {
         GraphicsResourceManager.getInstance().registerReloadListener(
                 ResourceTypes.PARTIAL_RENDER_SETTING,
-                sourceIdentifier,
+                sourceKeyId,
                 reloadListener
         );
     }
@@ -65,7 +65,7 @@ public class RenderSetting implements ResourceObject {
     /**
      * Handle resource reload
      */
-    private void onSourceResourceReload(Identifier resourceName, ResourceObject newResource) {
+    private void onSourceResourceReload(KeyId resourceName, ResourceObject newResource) {
         if (newResource instanceof PartialRenderSetting newSetting) {
             this.renderState = newSetting.renderState;
             this.resourceBinding = newSetting.resourceBinding;
@@ -83,12 +83,12 @@ public class RenderSetting implements ResourceObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RenderSetting that = (RenderSetting) o;
-        return shouldSwitchRenderState == that.shouldSwitchRenderState && Objects.equals(renderState, that.renderState) && Objects.equals(resourceBinding, that.resourceBinding) && Objects.equals(renderParameter, that.renderParameter) && Objects.equals(sourceIdentifier, that.sourceIdentifier);
+        return shouldSwitchRenderState == that.shouldSwitchRenderState && Objects.equals(renderState, that.renderState) && Objects.equals(resourceBinding, that.resourceBinding) && Objects.equals(renderParameter, that.renderParameter) && Objects.equals(sourceKeyId, that.sourceKeyId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(renderState, resourceBinding, renderParameter, shouldSwitchRenderState, sourceIdentifier);
+        return Objects.hash(renderState, resourceBinding, renderParameter, shouldSwitchRenderState, sourceKeyId);
     }
 
     @Override

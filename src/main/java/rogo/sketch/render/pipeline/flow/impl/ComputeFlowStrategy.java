@@ -15,7 +15,7 @@ import rogo.sketch.render.pipeline.information.ComputeInstanceInfo;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.shader.ComputeShader;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -66,7 +66,7 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
     @Override
     public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
             Collection<InstanceInfo> infos,
-            Identifier stageId,
+            KeyId stageId,
             RenderFlowContext flowContext,
             RenderPostProcessors postProcessors) {
         // Filter to ComputeInstanceInfo

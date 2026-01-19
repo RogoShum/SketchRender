@@ -2,13 +2,13 @@ package rogo.sketch.render.pipeline;
 
 import org.joml.Matrix4f;
 import rogo.sketch.api.ShaderProvider;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class RenderContext {
-    private final Map<Identifier, Object> contextMap = new HashMap<>();
+    private final Map<KeyId, Object> contextMap = new HashMap<>();
     private final Matrix4f viewMatrix = new Matrix4f();
     private final Matrix4f modelMatrix = new Matrix4f();
     private final Matrix4f projectionMatrix = new Matrix4f();
@@ -63,20 +63,20 @@ public class RenderContext {
         return shaderProvider;
     }
 
-    public void preStage(Identifier stage) {
+    public void preStage(KeyId stage) {
 
     }
 
-    public void postStage(Identifier stage) {
-        this.set(Identifier.of("rendered"), false);
+    public void postStage(KeyId stage) {
+        this.set(KeyId.of("rendered"), false);
     }
 
-    public void set(Identifier key, Object value) {
+    public void set(KeyId key, Object value) {
         contextMap.put(key, value);
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T get(Identifier key) {
+    public <T> T get(KeyId key) {
         return (T) contextMap.get(key);
     }
 }

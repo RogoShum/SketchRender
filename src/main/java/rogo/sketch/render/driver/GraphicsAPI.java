@@ -42,4 +42,18 @@ public abstract class GraphicsAPI {
     public abstract void polygonMode(int face, int mode);
 
     public abstract void viewport(int x, int y, int w, int h);
+
+    public abstract void enablePolygonOffset();
+
+    public abstract void disablePolygonOffset();
+
+    public abstract void polygonOffset(float factor, float units);
+
+    public abstract void enableLogicOp();
+
+    public abstract void disableLogicOp();
+
+    public abstract void logicOp(int opcode);
+
+    public abstract void colorMask(boolean red, boolean green, boolean blue, boolean alpha);
 }

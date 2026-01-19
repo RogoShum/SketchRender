@@ -15,7 +15,7 @@ import rogo.sketch.render.shader.preprocessor.ShaderResourceProvider;
 import rogo.sketch.render.shader.uniform.ShaderUniform;
 import rogo.sketch.render.shader.uniform.UniformHookGroup;
 import rogo.sketch.render.shader.uniform.UniformHookRegistry;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,9 +29,9 @@ import java.util.function.Function;
  * Base class for all shaders (graphics and compute)
  */
 public abstract class Shader implements ShaderProvider {
-    private final Map<Identifier, Map<Identifier, Integer>> resourceBindings = new HashMap<>();
+    private final Map<KeyId, Map<KeyId, Integer>> resourceBindings = new HashMap<>();
     protected final UniformHookGroup uniformHookGroup = new UniformHookGroup();
-    protected final Identifier identifier;
+    protected final KeyId keyId;
     protected final int program;
     protected final Map<ShaderType, Integer> shaderIds = new HashMap<>();
     protected boolean disposed = false;
@@ -39,11 +39,11 @@ public abstract class Shader implements ShaderProvider {
     /**
      * Create a shader program from GLSL source code
      *
-     * @param identifier    Unique identifier for this shader
+     * @param keyId    Unique identifier for this shader
      * @param shaderSources Map of shader types to their GLSL source code
      */
-    public Shader(Identifier identifier, Map<ShaderType, String> shaderSources) throws IOException {
-        this.identifier = identifier;
+    public Shader(KeyId keyId, Map<ShaderType, String> shaderSources) throws IOException {
+        this.keyId = keyId;
         this.program = GL20.glCreateProgram();
 
         validateShaderTypes(shaderSources);
@@ -58,20 +58,20 @@ public abstract class Shader implements ShaderProvider {
     /**
      * Create a shader program with preprocessing support
      *
-     * @param identifier       Unique identifier for this shader
+     * @param keyId       Unique identifier for this shader
      * @param shaderSources    Map of shader types to their GLSL source code (original, unprocessed)
      * @param preprocessor     Shader preprocessor for handling imports and macros
      * @param resourceProvider Resource provider for loading imported files
      */
-    public Shader(Identifier identifier,
+    public Shader(KeyId keyId,
                   Map<ShaderType, String> shaderSources,
                   ShaderPreprocessor preprocessor,
-                  Function<Identifier, Optional<java.io.BufferedReader>> resourceProvider) throws IOException {
-        this.identifier = identifier;
+                  Function<KeyId, Optional<java.io.BufferedReader>> resourceProvider) throws IOException {
+        this.keyId = keyId;
         this.program = GL20.glCreateProgram();
 
         // Preprocess all sources before compilation
-        Map<ShaderType, String> processedSources = preprocessSources(identifier, shaderSources, preprocessor, resourceProvider);
+        Map<ShaderType, String> processedSources = preprocessSources(keyId, shaderSources, preprocessor, resourceProvider);
 
         validateShaderTypes(processedSources);
         compileAndAttachShaders(processedSources);
@@ -85,28 +85,28 @@ public abstract class Shader implements ShaderProvider {
     /**
      * Create a shader program with a single shader type
      */
-    public Shader(Identifier identifier, ShaderType type, String source) throws IOException {
-        this(identifier, Map.of(type, source));
+    public Shader(KeyId keyId, ShaderType type, String source) throws IOException {
+        this(keyId, Map.of(type, source));
     }
 
     /**
      * Create a shader program with a single shader type and preprocessing support
      */
-    public Shader(Identifier identifier,
+    public Shader(KeyId keyId,
                   ShaderType type,
                   String source,
                   ShaderPreprocessor preprocessor,
-                  Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
-        this(identifier, Map.of(type, source), preprocessor, resourceProvider);
+                  Function<KeyId, Optional<BufferedReader>> resourceProvider) throws IOException {
+        this(keyId, Map.of(type, source), preprocessor, resourceProvider);
     }
 
     /**
      * Preprocess shader sources with current configuration
      */
-    protected static Map<ShaderType, String> preprocessSources(Identifier identifier,
+    protected static Map<ShaderType, String> preprocessSources(KeyId keyId,
                                                                Map<ShaderType, String> originalSources,
                                                                ShaderPreprocessor preprocessor,
-                                                               Function<Identifier, Optional<BufferedReader>> resourceProvider) throws IOException {
+                                                               Function<KeyId, Optional<BufferedReader>> resourceProvider) throws IOException {
         try {
             // Set up the resource provider for the preprocessor
             if (preprocessor != null && resourceProvider != null) {
@@ -116,21 +116,21 @@ public abstract class Shader implements ShaderProvider {
 
             // Get current configuration
             ShaderConfiguration config =
-                    ShaderConfigurationManager.getInstance().getConfiguration(identifier);
+                    ShaderConfigurationManager.getInstance().getConfiguration(keyId);
 
             Map<ShaderType, String> processedSources = new HashMap<>();
 
             // Preprocess each source
             for (Map.Entry<ShaderType, String> entry : originalSources.entrySet()) {
                 PreprocessorResult result =
-                        preprocessor.process(entry.getValue(), identifier, config.getMacros());
+                        preprocessor.process(entry.getValue(), keyId, config.getMacros());
                 processedSources.put(entry.getKey(), result.processedSource());
             }
 
             return processedSources;
 
         } catch (ShaderPreprocessorException e) {
-            throw new IOException("Shader preprocessing failed for " + identifier, e);
+            throw new IOException("Shader preprocessing failed for " + keyId, e);
         }
     }
 
@@ -139,7 +139,7 @@ public abstract class Shader implements ShaderProvider {
             ShaderType type = entry.getKey();
             String source = entry.getValue();
 
-            int shaderId = compileShader(type, source, identifier.toString());
+            int shaderId = compileShader(type, source, keyId.toString());
             shaderIds.put(type, shaderId);
             GL20.glAttachShader(program, shaderId);
         }
@@ -164,7 +164,7 @@ public abstract class Shader implements ShaderProvider {
 
         if (GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
             String error = GL20.glGetProgramInfoLog(program);
-            throw new IOException("Error linking shader program [" + identifier + "]:\n" + error);
+            throw new IOException("Error linking shader program [" + keyId + "]:\n" + error);
         }
     }
 
@@ -192,8 +192,8 @@ public abstract class Shader implements ShaderProvider {
     private UnifiedUniformInfo discoverAllUniforms() {
         bind();
         Map<String, ShaderResource<?>> uniforms = new HashMap<>();
-        Map<Identifier, Integer> textureBindings = new HashMap<>();
-        Map<Identifier, Integer> imageBindings = new HashMap<>();
+        Map<KeyId, Integer> textureBindings = new HashMap<>();
+        Map<KeyId, Integer> imageBindings = new HashMap<>();
 
         // Reusable buffers to avoid repeated allocations
         IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
@@ -216,7 +216,7 @@ public abstract class Shader implements ShaderProvider {
                 // Create shader uniform for regular uniforms
                 DataType dataType = inferUniformType(glType);
                 if (dataType != null) {
-                    Identifier uniformId = Identifier.of(uniformName);
+                    KeyId uniformId = KeyId.of(uniformName);
                     ShaderUniform<?> shaderUniform = new ShaderUniform<>(uniformId, location, dataType, glSize, program);
                     uniforms.put(uniformName, shaderUniform);
                 }
@@ -224,14 +224,14 @@ public abstract class Shader implements ShaderProvider {
                 if (isSamplerType(glType)) {
                     int unit = nextTextureUnit++;
                     GL20.glUniform1i(location, unit);
-                    textureBindings.put(Identifier.of(uniformName), unit);
+                    textureBindings.put(KeyId.of(uniformName), unit);
                     System.out.println("Discovered Texture: " + uniformName + " -> unit " + unit);
                 }
 
                 // Check for image uniforms (requires OpenGL 4.2+)
                 if (GL.getCapabilities().OpenGL42 && isImageType(glType)) {
                     int unit = GL20.glGetUniformi(program, location);
-                    imageBindings.put(Identifier.of(uniformName), unit);
+                    imageBindings.put(KeyId.of(uniformName), unit);
                     System.out.println("Discovered Image: " + uniformName + " -> unit " + unit);
                 }
             }
@@ -255,8 +255,8 @@ public abstract class Shader implements ShaderProvider {
      * Container for unified uniform discovery results
      */
     private record UnifiedUniformInfo(Map<String, ShaderResource<?>> uniformMap,
-                                      Map<Identifier, Integer> textureBindings,
-                                      Map<Identifier, Integer> imageBindings) {
+                                      Map<KeyId, Integer> textureBindings,
+                                      Map<KeyId, Integer> imageBindings) {
     }
 
     /**
@@ -271,7 +271,7 @@ public abstract class Shader implements ShaderProvider {
 
         if (numSSBOs > 0) {
             resourceBindings.put(ResourceTypes.SHADER_STORAGE_BUFFER, new HashMap<>());
-            Map<Identifier, Integer> ssboBindings = resourceBindings.get(ResourceTypes.SHADER_STORAGE_BUFFER);
+            Map<KeyId, Integer> ssboBindings = resourceBindings.get(ResourceTypes.SHADER_STORAGE_BUFFER);
 
             IntBuffer props = BufferUtils.createIntBuffer(1).put(0, GL43.GL_BUFFER_BINDING); // query property
             IntBuffer params = BufferUtils.createIntBuffer(1);
@@ -288,7 +288,7 @@ public abstract class Shader implements ShaderProvider {
                         params);   // result written here
 
                 int binding = params.get(0);
-                ssboBindings.put(Identifier.of(blockName), binding);
+                ssboBindings.put(KeyId.of(blockName), binding);
                 System.out.println("Discovered SSBO: " + blockName + " -> binding " + binding);
             }
         }
@@ -303,7 +303,7 @@ public abstract class Shader implements ShaderProvider {
 
             if (numUBOs > 0) {
                 resourceBindings.put(ResourceTypes.UNIFORM_BLOCK, new HashMap<>());
-                Map<Identifier, Integer> uniformBlock = resourceBindings.get(ResourceTypes.UNIFORM_BLOCK);
+                Map<KeyId, Integer> uniformBlock = resourceBindings.get(ResourceTypes.UNIFORM_BLOCK);
 
                 for (int i = 0; i < numUBOs; i++) {
                     String blockName = GL31.glGetActiveUniformBlockName(program, i);
@@ -313,7 +313,7 @@ public abstract class Shader implements ShaderProvider {
                     GL31.glGetActiveUniformBlockiv(program, i, GL31.GL_UNIFORM_BLOCK_BINDING, bindingBuffer);
                     int binding = bindingBuffer.get(0);
 
-                    uniformBlock.put(Identifier.of(blockName), binding);
+                    uniformBlock.put(KeyId.of(blockName), binding);
                     System.out.println("Discovered UBO: " + blockName + " -> binding " + binding);
                 }
             }
@@ -401,8 +401,8 @@ public abstract class Shader implements ShaderProvider {
     }
 
     @Override
-    public Identifier getIdentifier() {
-        return identifier;
+    public KeyId getIdentifier() {
+        return keyId;
     }
 
     @Override
@@ -411,7 +411,7 @@ public abstract class Shader implements ShaderProvider {
     }
 
     @Override
-    public Map<Identifier, Map<Identifier, Integer>> getResourceBindings() {
+    public Map<KeyId, Map<KeyId, Integer>> getResourceBindings() {
         return resourceBindings;
     }
 
@@ -434,7 +434,7 @@ public abstract class Shader implements ShaderProvider {
     @Override
     public String toString() {
         return getClass().getSimpleName() + "{" +
-                "identifier=" + identifier +
+                "identifier=" + keyId +
                 ", program=" + program +
                 '}';
     }

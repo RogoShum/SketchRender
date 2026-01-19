@@ -5,7 +5,7 @@ import net.minecraft.server.packs.resources.ResourceProvider;
 import rogo.sketch.render.shader.ComputeShader;
 import rogo.sketch.render.shader.GraphicsShader;
 import rogo.sketch.render.shader.ShaderType;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class ShaderUtils {
                                                   ResourceLocation shaderLocation,
                                                   String computeShaderSource) throws IOException {
         String shaderCode = loadShaderSource(resourceProvider, shaderLocation, "compute", computeShaderSource, ShaderType.COMPUTE);
-        return new ComputeShader(Identifier.valueOf(shaderLocation), shaderCode);
+        return new ComputeShader(KeyId.valueOf(shaderLocation), shaderCode);
     }
 
     /**
@@ -53,7 +53,7 @@ public class ShaderUtils {
             loadedSources.put(type, shaderCode);
         }
 
-        return new GraphicsShader(Identifier.valueOf(shaderLocation), loadedSources);
+        return new GraphicsShader(KeyId.valueOf(shaderLocation), loadedSources);
     }
 
     /**

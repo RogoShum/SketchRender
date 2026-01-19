@@ -3,14 +3,13 @@ package rogo.sketch.render.command;
 import org.lwjgl.opengl.GL43;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.data.vertex.VertexDataShard;
-import rogo.sketch.render.pipeline.RasterizationParameter;
 import rogo.sketch.render.pipeline.RenderBatch;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.information.RasterizationInstanceInfo;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.resource.buffer.VertexResource;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 /**
  * A render command that executes a Multi-Draw Indirect call.
@@ -26,7 +25,7 @@ public class MultiDrawRenderCommand extends DrawRenderCommand {
             VertexResource vertexResource,
             IndirectCommandBuffer indirectBuffer,
             RenderSetting renderSetting,
-            Identifier stageId,
+            KeyId stageId,
             int drawCount,
             long indirectOffset,
             RenderBatch<? extends RasterizationInstanceInfo> batch) {
@@ -50,7 +49,7 @@ public class MultiDrawRenderCommand extends DrawRenderCommand {
             VertexResource vertexResource,
             IndirectCommandBuffer indirectBuffer,
             RenderSetting renderSetting,
-            Identifier stageId,
+            KeyId stageId,
             int drawCount,
             RenderBatch<? extends RasterizationInstanceInfo> batch) {
         this(vertexResource, indirectBuffer, renderSetting, stageId, drawCount, 0, batch);

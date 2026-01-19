@@ -1,20 +1,20 @@
 package rogo.sketch.render.shader.uniform;
 
 import rogo.sketch.api.ShaderResource;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.Set;
 
 public class UniformHook<T> {
-    private final Identifier identifier;
+    private final KeyId keyId;
     private final ShaderResource<T> uniform;
     private final ValueGetter<T> valueGetter;
     private T value;
 
-    public UniformHook(Identifier identifier, ShaderResource<T> uniform, ValueGetter<T> valueGetter) {
-        this.identifier = identifier;
+    public UniformHook(KeyId keyId, ShaderResource<T> uniform, ValueGetter<T> valueGetter) {
+        this.keyId = keyId;
         this.uniform = uniform;
         this.valueGetter = valueGetter;
     }
@@ -44,8 +44,8 @@ public class UniformHook<T> {
         return value;
     }
 
-    public Identifier getIdentifier() {
-        return identifier;
+    public KeyId getIdentifier() {
+        return keyId;
     }
 
     public ShaderResource<T> uniform() {
@@ -64,11 +64,11 @@ public class UniformHook<T> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UniformHook<?> that = (UniformHook<?>) o;
-        return Objects.equals(identifier, that.identifier);
+        return Objects.equals(keyId, that.keyId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(identifier);
+        return Objects.hashCode(keyId);
     }
 }

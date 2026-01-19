@@ -10,7 +10,7 @@ import rogo.sketch.render.pipeline.information.ComputeInstanceInfo;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.shader.ComputeShader;
 import rogo.sketch.render.shader.Shader;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +33,7 @@ public class ComputeRenderCommand extends RenderCommand {
     public ComputeRenderCommand(
             RenderSetting renderSetting,
             ResourceBinding resourceBinding,
-            Identifier stageId,
+            KeyId stageId,
             int workGroupsX,
             int workGroupsY,
             int workGroupsZ) {
@@ -44,7 +44,7 @@ public class ComputeRenderCommand extends RenderCommand {
     public ComputeRenderCommand(
             RenderSetting renderSetting,
             ResourceBinding resourceBinding,
-            Identifier stageId,
+            KeyId stageId,
             int workGroupsX,
             int workGroupsY,
             int workGroupsZ,
@@ -162,7 +162,7 @@ public class ComputeRenderCommand extends RenderCommand {
     public static class Builder {
         private RenderSetting renderSetting;
         private ResourceBinding resourceBinding;
-        private Identifier stageId;
+        private KeyId stageId;
         private int workGroupsX = 1;
         private int workGroupsY = 1;
         private int workGroupsZ = 1;
@@ -176,7 +176,7 @@ public class ComputeRenderCommand extends RenderCommand {
             return this;
         }
 
-        public Builder stageId(Identifier stageId) {
+        public Builder stageId(KeyId stageId) {
             this.stageId = stageId;
             return this;
         }
@@ -221,7 +221,7 @@ public class ComputeRenderCommand extends RenderCommand {
 
     public static ComputeRenderCommand create(
             RenderSetting renderSetting,
-            Identifier stageId,
+            KeyId stageId,
             int workGroupsX,
             int workGroupsY,
             int workGroupsZ) {
@@ -236,7 +236,7 @@ public class ComputeRenderCommand extends RenderCommand {
 
     public static ComputeRenderCommand createFromInfo(
             ComputeInstanceInfo computeInfo,
-            Identifier stageId) {
+            KeyId stageId) {
         return new Builder()
                 .renderSetting(computeInfo.getRenderSetting())
                 .stageId(stageId)

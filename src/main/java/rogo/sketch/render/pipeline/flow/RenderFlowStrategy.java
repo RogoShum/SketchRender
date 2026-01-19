@@ -5,13 +5,12 @@ import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * Strategy interface for processing graphics instances with different rendering
@@ -76,7 +75,7 @@ public interface RenderFlowStrategy {
      */
     Map<RenderSetting, List<RenderCommand>> createRenderCommands(
             Collection<InstanceInfo> infos,
-            Identifier stageId,
+            KeyId stageId,
             RenderFlowContext flowContext,
             RenderPostProcessors postProcessors);
 

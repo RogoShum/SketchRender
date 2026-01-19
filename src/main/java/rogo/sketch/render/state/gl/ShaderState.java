@@ -9,27 +9,27 @@ import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.Objects;
 
 public class ShaderState implements RenderStateComponent {
-    public static final Identifier TYPE = ResourceTypes.SHADER_PROGRAM;
+    public static final KeyId TYPE = ResourceTypes.SHADER_PROGRAM;
     private ResourceReference<ShaderProvider> shader;
-    private Identifier shaderId;
+    private KeyId shaderId;
 
     public ShaderState() {
-        this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, Identifier.of("empty"));
-        this.shaderId = Identifier.of("empty");
+        this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, KeyId.of("empty"));
+        this.shaderId = KeyId.of("empty");
     }
 
-    public ShaderState(Identifier identifier) {
-        this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, identifier);
-        this.shaderId = identifier;
+    public ShaderState(KeyId keyId) {
+        this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, keyId);
+        this.shaderId = keyId;
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 
@@ -58,8 +58,8 @@ public class ShaderState implements RenderStateComponent {
     public void deserializeFromJson(JsonObject json, Gson gson) {
         if (json.has("identifier")) {
             String shaderIdStr = json.get("identifier").getAsString();
-            this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, Identifier.of(shaderIdStr));
-            this.shaderId = Identifier.of(shaderIdStr);
+            this.shader = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_PROGRAM, KeyId.of(shaderIdStr));
+            this.shaderId = KeyId.of(shaderIdStr);
         }
     }
 

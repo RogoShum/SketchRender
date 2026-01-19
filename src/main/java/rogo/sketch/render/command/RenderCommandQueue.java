@@ -1,6 +1,5 @@
 package rogo.sketch.render.command;
 
-import rogo.sketch.SketchRender;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.event.GraphicsPipelineStageEvent;
@@ -8,7 +7,7 @@ import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.pipeline.*;
 import rogo.sketch.render.state.FullRenderState;
 import rogo.sketch.render.state.RenderStateSnapshotUtils;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.*;
 
@@ -19,7 +18,7 @@ import java.util.*;
 public class RenderCommandQueue<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
     private final Map<RenderSetting, List<RenderCommand>> commandsByVertexResource;
-    private final Map<Identifier, Map<RenderSetting, List<RenderCommand>>> commandsByStage;
+    private final Map<KeyId, Map<RenderSetting, List<RenderCommand>>> commandsByStage;
 
     public RenderCommandQueue(GraphicsPipeline<C> graphicsPipeline) {
         this.graphicsPipeline = graphicsPipeline;
@@ -32,7 +31,7 @@ public class RenderCommandQueue<C extends RenderContext> {
      */
     public void addCommand(RenderCommand command) {
         RenderSetting renderSetting = command.getRenderSetting();
-        Identifier stageId = command.getStageId();
+        KeyId stageId = command.getStageId();
 
         // Add to vertex resource grouping
         commandsByVertexResource.computeIfAbsent(renderSetting, k -> new ArrayList<>()).add(command);
@@ -66,7 +65,7 @@ public class RenderCommandQueue<C extends RenderContext> {
             // we can optimization this. However, to be safe and strictly correct per
             // command:
             for (RenderCommand command : cmdList) {
-                Identifier stageId = command.getStageId();
+                KeyId stageId = command.getStageId();
                 commandsByStage.computeIfAbsent(stageId, k -> new HashMap<>())
                         .computeIfAbsent(setting, r -> new ArrayList<>()).add(command);
             }
@@ -76,7 +75,7 @@ public class RenderCommandQueue<C extends RenderContext> {
     /**
      * Execute render commands for a specific stage
      */
-    public void executeStage(Identifier stageId, RenderStateManager manager, C context) {
+    public void executeStage(KeyId stageId, RenderStateManager manager, C context) {
         Map<RenderSetting, List<RenderCommand>> stageCommands = commandsByStage.get(stageId);
 
         EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context,
@@ -85,7 +84,7 @@ public class RenderCommandQueue<C extends RenderContext> {
 
         if (stageCommands != null && !stageCommands.isEmpty()) {
             FullRenderState snapshot = RenderStateSnapshotUtils.createSnapshot();
-            manager.changeState(snapshot, context);
+            manager.changeState(snapshot, context, false);
 
             for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
                 RenderSetting setting = entry.getKey();
@@ -173,7 +172,7 @@ public class RenderCommandQueue<C extends RenderContext> {
         command.execute(context);
 
         // Mark that something was rendered
-        context.set(Identifier.of("rendered"), true);
+        context.set(KeyId.of("rendered"), true);
 
         // Call afterDraw for all instances in this batch
         for (Graphics instance : batch.getInstances()) {

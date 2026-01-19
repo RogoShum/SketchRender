@@ -1,7 +1,7 @@
 package rogo.sketch.render.resource.loader;
 
 import rogo.sketch.api.ResourceObject;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -13,12 +13,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ResourceLoaderRegistry<T extends ResourceObject> {
 
-    private final Map<Identifier, Set<ResourceLoader<T>>> loaders = new ConcurrentHashMap<>();
+    private final Map<KeyId, Set<ResourceLoader<T>>> loaders = new ConcurrentHashMap<>();
 
     /**
      * Register a resource loader for a specific type
      */
-    public void registerLoader(Identifier type, ResourceLoader<T> loader) {
+    public void registerLoader(KeyId type, ResourceLoader<T> loader) {
         loaders.computeIfAbsent(type, k -> new HashSet<>()).add(loader);
     }
 
@@ -26,28 +26,28 @@ public class ResourceLoaderRegistry<T extends ResourceObject> {
      * Get a resource loader for a specific type
      */
     @SuppressWarnings("unchecked")
-    public Set<ResourceLoader<T>> getLoader(Identifier type) {
+    public Set<ResourceLoader<T>> getLoader(KeyId type) {
         return loaders.get(type);
     }
 
     /**
      * Check if a loader exists for a specific type
      */
-    public boolean hasLoader(Identifier type) {
+    public boolean hasLoader(KeyId type) {
         return loaders.containsKey(type);
     }
 
     /**
      * Remove a loader for a specific type
      */
-    public void removeLoader(Identifier type) {
+    public void removeLoader(KeyId type) {
         loaders.remove(type);
     }
 
     /**
      * Get all registered loader types
      */
-    public Set<Identifier> getRegisteredTypes() {
+    public Set<KeyId> getRegisteredTypes() {
         return loaders.keySet();
     }
 } 

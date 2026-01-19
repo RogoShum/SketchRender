@@ -10,7 +10,7 @@ import rogo.sketch.render.resource.buffer.VertexBufferObject;
 import rogo.sketch.render.resource.buffer.VertexResource;
 import rogo.sketch.render.vertex.DefaultDataFormats;
 import rogo.sketch.render.vertex.VertexResourceManager;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.util.ArrayList;
@@ -26,8 +26,8 @@ import java.util.function.Function;
 public class ObjLoader implements ResourceLoader<MeshGroup> {
 
     @Override
-    public MeshGroup load(Identifier identifier, ResourceData resourceData, Gson gson,
-                          Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public MeshGroup load(KeyId keyId, ResourceData resourceData, Gson gson,
+                          Function<KeyId, Optional<BufferedReader>> resourceProvider) {
         BufferedReader reader = resourceData.getReader();
         if (reader == null)
             return null;
@@ -74,7 +74,7 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             // Create MeshGroup
             // Use POS_UV_NORMAL format (Position 3, UV 2, Normal 3)
             DataFormat format = DefaultDataFormats.OBJ;
-            MeshGroup meshGroup = new MeshGroup(identifier.toString(), PrimitiveType.TRIANGLES, format);
+            MeshGroup meshGroup = new MeshGroup(keyId.toString(), PrimitiveType.TRIANGLES, format);
 
             // Create VertexResource
             VertexResource resource = new VertexResource(

@@ -9,7 +9,7 @@ import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,7 +48,7 @@ public class GeometryBatchProcessor {
      */
     public <C extends RenderContext> Map<RenderSetting, List<RenderCommand>> createAllCommands(
             Map<RenderSetting, Collection<Graphics>> instanceGroups,
-            Identifier stageId,
+            KeyId stageId,
             C context,
             RenderPostProcessors postProcessors) {
 

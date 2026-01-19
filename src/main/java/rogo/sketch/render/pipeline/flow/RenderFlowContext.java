@@ -3,7 +3,7 @@ package rogo.sketch.render.pipeline.flow;
 import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.render.vertex.VertexResourceManager;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,7 +21,7 @@ public class RenderFlowContext {
     private final VertexResourceManager vertexResourceManager;
     private final Map<RenderParameter, IndirectCommandBuffer> indirectBuffers;
     private final Map<RenderParameter, AtomicInteger> instancedOffsets;
-    private final Map<Identifier, Object> extraContexts;
+    private final Map<KeyId, Object> extraContexts;
 
     public RenderFlowContext(VertexResourceManager vertexResourceManager, Map<RenderParameter, IndirectCommandBuffer> indirectBuffers, Map<RenderParameter, AtomicInteger> instancedOffsets) {
         this.vertexResourceManager = vertexResourceManager;
@@ -72,7 +72,7 @@ public class RenderFlowContext {
         return instancedOffsets;
     }
 
-    public Map<Identifier, Object> extraContext() {
+    public Map<KeyId, Object> extraContext() {
         return extraContexts;
     }
 

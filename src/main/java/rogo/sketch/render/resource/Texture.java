@@ -6,11 +6,11 @@ import org.lwjgl.opengl.GL42;
 import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.render.driver.GraphicsDriver;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class Texture implements ResourceObject, BindingResource {
     protected final int handle;
-    protected final Identifier identifier;
+    protected final KeyId keyId;
     protected final int format;
     protected final int filterMode;
     protected final int wrapMode;
@@ -20,9 +20,9 @@ public class Texture implements ResourceObject, BindingResource {
     protected int currentWidth = 0;
     protected int currentHeight = 0;
 
-    public Texture(int handle, Identifier identifier, int format, int filterMode, int wrapMode) {
+    public Texture(int handle, KeyId keyId, int format, int filterMode, int wrapMode) {
         this.handle = handle;
-        this.identifier = identifier;
+        this.keyId = keyId;
         this.format = format;
         this.filterMode = filterMode;
         this.wrapMode = wrapMode;
@@ -65,7 +65,7 @@ public class Texture implements ResourceObject, BindingResource {
      * Bind this texture to the specified texture unit
      */
     @Override
-    public void bind(Identifier resourceType, int textureUnit) {
+    public void bind(KeyId resourceType, int textureUnit) {
         if (disposed) {
             throw new IllegalStateException("Texture has been disposed");
         }
@@ -93,8 +93,8 @@ public class Texture implements ResourceObject, BindingResource {
         unbind(0);
     }
 
-    public Identifier getIdentifier() {
-        return identifier;
+    public KeyId getIdentifier() {
+        return keyId;
     }
 
     public int getFormat() {

@@ -7,7 +7,7 @@ import org.lwjgl.opengl.GL45;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.DataResourceObject;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.nio.ByteBuffer;
 
@@ -174,7 +174,7 @@ public class PersistentReadSSBO implements DataResourceObject, BindingResource {
     }
 
     @Override
-    public void bind(Identifier resourceType, int binding) {
+    public void bind(KeyId resourceType, int binding) {
         checkDisposed();
         GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, binding, id);
     }

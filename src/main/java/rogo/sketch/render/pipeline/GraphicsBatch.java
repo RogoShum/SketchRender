@@ -2,7 +2,7 @@ package rogo.sketch.render.pipeline;
 
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.pool.InstancePoolManager;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class GraphicsBatch<C extends RenderContext> {
-    private final Map<Identifier, Graphics> allGraphics = new LinkedHashMap<>();
+    private final Map<KeyId, Graphics> allGraphics = new LinkedHashMap<>();
 
     public GraphicsBatch() {
     }

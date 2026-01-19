@@ -9,7 +9,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceTypes;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.function.Function;
 
 public class RenderResourceManager implements ResourceManagerReloadListener {
     private static final Gson GSON = new Gson();
-    private static final Identifier[] SUB_DIRS = {
+    private static final KeyId[] SUB_DIRS = {
             ResourceTypes.SHADER_PROGRAM,
             ResourceTypes.TEXTURE,
             ResourceTypes.RENDER_TARGET,
@@ -31,7 +31,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
         GraphicsResourceManager.getInstance().clearAllResources();
-        Function<Identifier, Optional<BufferedReader>> subResourceProvider = (identifier) -> {
+        Function<KeyId, Optional<BufferedReader>> subResourceProvider = (identifier) -> {
             try {
                 ResourceLocation loc = new ResourceLocation(identifier.toString());
                 BufferedReader reader = resourceManager.openAsReader(loc);
@@ -46,7 +46,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
     }
 
     private void scanAndLoad(ResourceManager resourceManager) {
-        for (Identifier subDir : SUB_DIRS) {
+        for (KeyId subDir : SUB_DIRS) {
             String pathPrefix = "render/resource/" + subDir;
 
             Map<ResourceLocation, Resource> found = resourceManager.listResources(
@@ -59,7 +59,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(entry.getValue().open()))) {
                     JsonObject json = GSON.fromJson(reader, JsonObject.class);
                     String identifier = getIdentifierWithoutExtension(id);
-                    handleJsonResource(subDir, Identifier.of(identifier), json);
+                    handleJsonResource(subDir, KeyId.of(identifier), json);
                 } catch (IOException | JsonParseException e) {
                     System.err.println("Failed to load JSON " + id + ": " + e.getMessage());
                 }
@@ -67,8 +67,8 @@ public class RenderResourceManager implements ResourceManagerReloadListener {
         }
     }
 
-    private void handleJsonResource(Identifier type, Identifier identifier, JsonObject json) {
-        GraphicsResourceManager.getInstance().registerJson(type, identifier, json.toString());
+    private void handleJsonResource(KeyId type, KeyId keyId, JsonObject json) {
+        GraphicsResourceManager.getInstance().registerJson(type, keyId, json.toString());
     }
 
     public static String getIdentifierWithoutExtension(ResourceLocation loc) {

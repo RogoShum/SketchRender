@@ -7,7 +7,7 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.ResourceLocation;
 import rogo.sketch.render.resource.loader.ResourceLoader;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 import rogo.sketch.vanilla.resource.VanillaTexture;
 
 import java.io.BufferedReader;
@@ -21,7 +21,7 @@ public class VanillaTextureLoader implements ResourceLoader<VanillaTexture> {
     private final TextureManager textureManager = Minecraft.getInstance().getTextureManager();
 
     @Override
-    public VanillaTexture load(Identifier identifier, rogo.sketch.render.resource.loader.ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public VanillaTexture load(KeyId keyId, rogo.sketch.render.resource.loader.ResourceData data, Gson gson, Function<KeyId, Optional<BufferedReader>> resourceProvider) {
         try {
             String jsonData = data.getString();
             if (jsonData == null) return null;
@@ -33,7 +33,7 @@ public class VanillaTextureLoader implements ResourceLoader<VanillaTexture> {
                 ResourceLocation mcResource = new ResourceLocation(mcResourceStr);
                 AbstractTexture texture = textureManager.getTexture(mcResource);
 
-                return new VanillaTexture(identifier, mcResource, texture);
+                return new VanillaTexture(keyId, mcResource, texture);
             }
 
             return null;

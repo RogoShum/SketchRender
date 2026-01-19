@@ -7,7 +7,7 @@ import rogo.sketch.render.shader.preprocessor.PreprocessorResult;
 import rogo.sketch.render.shader.preprocessor.ShaderPreprocessor;
 import rogo.sketch.render.shader.preprocessor.ShaderPreprocessorException;
 import rogo.sketch.render.shader.preprocessor.ShaderResourceProvider;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -26,17 +26,17 @@ public abstract class ReloadableShader extends ReloadableResourceSupport<Shader>
     private PreprocessorResult lastPreprocessingResult;
     private int lastConfigurationHash = -1;
 
-    public ReloadableShader(Identifier identifier,
+    public ReloadableShader(KeyId keyId,
                             Map<ShaderType, String> originalSources,
                             ShaderPreprocessor preprocessor,
-                            Function<Identifier, Optional<BufferedReader>> resourceProvider) {
-        super(identifier, resourceProvider);
+                            Function<KeyId, Optional<BufferedReader>> resourceProvider) {
+        super(keyId, resourceProvider);
         this.originalSources = new HashMap<>(originalSources);
         this.preprocessor = preprocessor;
 
         // Register for configuration changes
         ShaderConfigurationManager.getInstance()
-                .addConfigurationListener(identifier, this::onConfigurationChanged);
+                .addConfigurationListener(keyId, this::onConfigurationChanged);
     }
 
     @Override
@@ -48,7 +48,7 @@ public abstract class ReloadableShader extends ReloadableResourceSupport<Shader>
         Shader shader = createShaderInstance(processedSources);
 
         // Extract dependencies from preprocessing result
-        Set<Identifier> dependencies = lastPreprocessingResult != null ?
+        Set<KeyId> dependencies = lastPreprocessingResult != null ?
                 lastPreprocessingResult.importedFiles() : Collections.emptySet();
 
         return ResourceLoadResult.of(shader, dependencies);
@@ -67,7 +67,7 @@ public abstract class ReloadableShader extends ReloadableResourceSupport<Shader>
             }
 
             ShaderConfiguration config = ShaderConfigurationManager.getInstance()
-                    .getConfiguration(resourceIdentifier);
+                    .getConfiguration(resourceKeyId);
             Map<String, String> macros = new HashMap<>(config.getMacros());
 
             Map<ShaderType, String> processedSources = new HashMap<>();
@@ -75,7 +75,7 @@ public abstract class ReloadableShader extends ReloadableResourceSupport<Shader>
             for (Map.Entry<ShaderType, String> entry : originalSources.entrySet()) {
                 PreprocessorResult result = preprocessor.process(
                         entry.getValue(),
-                        resourceIdentifier,
+                        resourceKeyId,
                         macros
                 );
                 processedSources.put(entry.getKey(), result.processedSource());
@@ -92,7 +92,7 @@ public abstract class ReloadableShader extends ReloadableResourceSupport<Shader>
             return processedSources;
 
         } catch (ShaderPreprocessorException e) {
-            throw new IOException("Shader preprocessing failed for " + resourceIdentifier, e);
+            throw new IOException("Shader preprocessing failed for " + resourceKeyId, e);
         }
     }
 
@@ -118,7 +118,7 @@ public abstract class ReloadableShader extends ReloadableResourceSupport<Shader>
     @Override
     protected boolean hasConfigurationChanges() {
         ShaderConfiguration currentConfig = ShaderConfigurationManager.getInstance()
-                .getConfiguration(resourceIdentifier);
+                .getConfiguration(resourceKeyId);
         return lastConfigurationHash != currentConfig.getConfigurationHash();
     }
 
@@ -151,7 +151,7 @@ public abstract class ReloadableShader extends ReloadableResourceSupport<Shader>
     public void dispose() {
         // Remove configuration listener
         ShaderConfigurationManager.getInstance()
-                .removeConfigurationListener(resourceIdentifier, this::onConfigurationChanged);
+                .removeConfigurationListener(resourceKeyId, this::onConfigurationChanged);
 
         super.dispose();
     }

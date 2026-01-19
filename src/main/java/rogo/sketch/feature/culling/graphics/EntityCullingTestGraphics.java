@@ -7,7 +7,7 @@ import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.instance.MeshGraphics;
 import rogo.sketch.render.model.DynamicMesh;
 import rogo.sketch.render.vertex.DefaultDataFormats;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 /**
  * Entity culling test graphics instance using DynamicMesh
@@ -15,8 +15,8 @@ import rogo.sketch.util.Identifier;
 public class EntityCullingTestGraphics extends MeshGraphics {
     private final PreparedMesh mesh;
 
-    public EntityCullingTestGraphics(Identifier identifier) {
-        super(identifier);
+    public EntityCullingTestGraphics(KeyId keyId) {
+        super(keyId);
         // Use DynamicMesh for run-time generation (demonstration)
         // In reality, a static quad could be a BakedMesh, but user requested
         // DynamicMesh logic

@@ -1,14 +1,14 @@
 package rogo.sketch.api;
 
 import rogo.sketch.render.shader.uniform.UniformHookGroup;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.Map;
 
 public interface ShaderProvider extends ResourceObject {
-    Identifier getIdentifier();
+    KeyId getIdentifier();
 
     UniformHookGroup getUniformHookGroup();
 
-    Map<Identifier, Map<Identifier, Integer>> getResourceBindings();
+    Map<KeyId, Map<KeyId, Integer>> getResourceBindings();
 }

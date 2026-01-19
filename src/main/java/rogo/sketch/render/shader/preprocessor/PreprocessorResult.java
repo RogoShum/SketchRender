@@ -1,6 +1,6 @@
 package rogo.sketch.render.shader.preprocessor;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.*;
 
@@ -9,11 +9,11 @@ import java.util.*;
  */
 public class PreprocessorResult {
     private final String processedSource;
-    private final Set<Identifier> importedFiles;
+    private final Set<KeyId> importedFiles;
     private final List<String> warnings;
     private final int finalGlslVersion;
     
-    public PreprocessorResult(String processedSource, Set<Identifier> importedFiles, 
+    public PreprocessorResult(String processedSource, Set<KeyId> importedFiles,
                             List<String> warnings, int finalGlslVersion) {
         this.processedSource = processedSource;
         this.importedFiles = importedFiles;
@@ -25,7 +25,7 @@ public class PreprocessorResult {
         return processedSource;
     }
     
-    public Set<Identifier> importedFiles() {
+    public Set<KeyId> importedFiles() {
         return importedFiles;
     }
     

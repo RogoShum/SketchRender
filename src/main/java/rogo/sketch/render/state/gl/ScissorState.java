@@ -5,10 +5,10 @@ import com.google.gson.JsonObject;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.driver.GraphicsDriver;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class ScissorState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("scissor_test");
+    public static final KeyId TYPE = KeyId.of("scissor_test");
 
     private boolean enabled;
     private int x, y, width, height;
@@ -30,7 +30,7 @@ public class ScissorState implements RenderStateComponent {
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 

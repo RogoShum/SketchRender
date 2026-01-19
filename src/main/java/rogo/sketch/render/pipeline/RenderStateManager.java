@@ -4,7 +4,7 @@ import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.state.FullRenderState;
 import rogo.sketch.render.state.RenderStateRegistry;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.Objects;
 
@@ -76,14 +76,19 @@ public class RenderStateManager {
     }
 
     public void changeState(FullRenderState newState, RenderContext context) {
+        changeState(newState, context, true);
+    }
+
+    public void changeState(FullRenderState newState, RenderContext context, boolean applyChanged) {
         if (currentState == null) {
             // First time, apply all components
             for (RenderStateComponent comp : newState.getComponentTypes().stream().map(newState::get).toList()) {
                 comp.apply(context);
             }
-        } else {
+        } else if (applyChanged) {
             // Only apply changed components
-            for (Identifier type : newState.getComponentTypes()) {
+
+            for (KeyId type : newState.getComponentTypes()) {
                 RenderStateComponent newComp = newState.get(type);
                 RenderStateComponent oldComp = currentState.get(type);
                 if (!newComp.equals(oldComp)) {

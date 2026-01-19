@@ -1,12 +1,12 @@
 package rogo.sketch.render.instance;
 
 import rogo.sketch.api.model.PreparedMesh;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class ScreenSpaceGraphics extends MeshGraphics {
 
-    public ScreenSpaceGraphics(Identifier identifier) {
-        super(identifier);
+    public ScreenSpaceGraphics(KeyId keyId) {
+        super(keyId);
     }
 
     @Override

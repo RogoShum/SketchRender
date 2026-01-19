@@ -37,7 +37,7 @@ import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.GLFeatureChecker;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 import rogo.sketch.vanilla.PipelineUtil;
 import rogo.sketch.feature.culling.graphics.CopyCounterGraphics;
 
@@ -53,10 +53,10 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
     private int lastUpdateFrame = 0;
     private List<RenderRegion> orderedRegions;
     private final ExtraChunkRenderer defaultChunkRenderer;
-    private final ComputeChunkCullingGraphics chunkCullingGraphics = new ComputeChunkCullingGraphics(Identifier.of(SketchRender.MOD_ID, "culling_chunk"));
-    private final ResourceReference<PartialRenderSetting> cullingChunkSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "cull_chunk"));
-    private final CopyCounterGraphics copyCounterGraphics = new CopyCounterGraphics(Identifier.of(SketchRender.MOD_ID, "copy_counter"));
-    private final ResourceReference<PartialRenderSetting> copyCounterSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, Identifier.of(SketchRender.MOD_ID, "copy_counter"));
+    private final ComputeChunkCullingGraphics chunkCullingGraphics = new ComputeChunkCullingGraphics(KeyId.of(SketchRender.MOD_ID, "culling_chunk"));
+    private final ResourceReference<PartialRenderSetting> cullingChunkSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "cull_chunk"));
+    private final CopyCounterGraphics copyCounterGraphics = new CopyCounterGraphics(KeyId.of(SketchRender.MOD_ID, "copy_counter"));
+    private final ResourceReference<PartialRenderSetting> copyCounterSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "copy_counter"));
 
     public IndirectDrawChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
         super(device, vertexType);

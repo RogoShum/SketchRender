@@ -7,7 +7,7 @@ import org.lwjgl.opengl.GL31;
 import rogo.sketch.api.BindingResource;
 import rogo.sketch.api.DataResourceObject;
 import rogo.sketch.render.data.DataType;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.nio.FloatBuffer;
 import java.util.HashMap;
@@ -105,7 +105,7 @@ public class UniformBlock implements DataResourceObject, BindingResource {
     }
 
     @Override
-    public void bind(Identifier resourceType, int binding) {
+    public void bind(KeyId resourceType, int binding) {
         GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, binding, handle);
     }
 

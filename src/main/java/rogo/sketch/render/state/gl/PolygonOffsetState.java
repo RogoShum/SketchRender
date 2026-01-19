@@ -2,15 +2,15 @@ package rogo.sketch.render.state.gl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
+import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.Objects;
 
 public class PolygonOffsetState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("polygon_offset_state");
+    public static final KeyId TYPE = KeyId.of("polygon_offset_state");
 
     private boolean enabled;
     private float factor;
@@ -29,17 +29,17 @@ public class PolygonOffsetState implements RenderStateComponent {
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 
     @Override
     public void apply(RenderContext context) {
         if (enabled) {
-            GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
-            GL11.glPolygonOffset(factor, units);
+            GraphicsDriver.getCurrentAPI().enablePolygonOffset();
+            GraphicsDriver.getCurrentAPI().polygonOffset(factor, units);
         } else {
-            GL11.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
+            GraphicsDriver.getCurrentAPI().disablePolygonOffset();
         }
     }
 

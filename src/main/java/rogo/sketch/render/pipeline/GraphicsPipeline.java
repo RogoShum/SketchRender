@@ -13,7 +13,7 @@ import rogo.sketch.render.pipeline.flow.RenderPostProcessor;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.resource.buffer.IndirectCommandBuffer;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 import rogo.sketch.util.OrderedList;
 
 import java.util.*;
@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class GraphicsPipeline<C extends RenderContext> {
     private final OrderedList<GraphicsStage> stages;
     private final Map<GraphicsStage, GraphicsBatchGroup<C>> passMap = new LinkedHashMap<>();
-    private final Map<Identifier, GraphicsStage> idToStage = new LinkedHashMap<>();
+    private final Map<KeyId, GraphicsStage> idToStage = new LinkedHashMap<>();
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
@@ -79,14 +79,14 @@ public class GraphicsPipeline<C extends RenderContext> {
         return stages.getPendingElements();
     }
 
-    public GraphicsStage getStage(Identifier id) {
+    public GraphicsStage getStage(KeyId id) {
         return idToStage.get(id);
     }
 
     /**
      * Add a GraphInstance to a specific stage.
      */
-    public void addGraphInstance(Identifier stageId, Graphics graph, RenderSetting renderSetting) {
+    public void addGraphInstance(KeyId stageId, Graphics graph, RenderSetting renderSetting) {
         GraphicsStage stage = idToStage.get(stageId);
         if (stage != null) {
             passMap.get(stage).addGraphInstance(graph, renderSetting);
@@ -147,7 +147,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Render stages between 'fromStage' (exclusive) and 'toStage' (exclusive).
      * Only renders the stages strictly between fromId and toId.
      */
-    public void renderStagesBetween(Identifier fromId, Identifier toId) {
+    public void renderStagesBetween(KeyId fromId, KeyId toId) {
         List<GraphicsStage> ordered = stages.getOrderedList();
         GraphicsStage fromStage = idToStage.get(fromId);
         GraphicsStage toStage = idToStage.get(toId);
@@ -164,11 +164,11 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Render a single stage.
      */
-    public void renderStage(Identifier id) {
+    public void renderStage(KeyId id) {
         renderCommandQueue.executeStage(id, this.renderStateManager, this.currentContext);
     }
 
-    public void renderStagesBefore(Identifier id) {
+    public void renderStagesBefore(KeyId id) {
         List<GraphicsStage> ordered = stages.getOrderedList();
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
@@ -180,7 +180,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         renderStage(id);
     }
 
-    public void renderStagesAfter(Identifier id) {
+    public void renderStagesAfter(KeyId id) {
         renderStage(id);
 
         List<GraphicsStage> ordered = stages.getOrderedList();
@@ -224,7 +224,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Add a GraphInstance from the instance pool to a specific stage
      */
-    public void addPooledGraphInstance(Identifier stageId, Class<? extends Graphics> instanceType,
+    public void addPooledGraphInstance(KeyId stageId, Class<? extends Graphics> instanceType,
                                        RenderSetting renderSetting) {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
@@ -237,7 +237,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Add a GraphInstance from a named pool to a specific stage
      */
-    public void addNamedPoolGraphInstance(Identifier stageId, Identifier poolName, RenderSetting renderSetting) {
+    public void addNamedPoolGraphInstance(KeyId stageId, KeyId poolName, RenderSetting renderSetting) {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
         }

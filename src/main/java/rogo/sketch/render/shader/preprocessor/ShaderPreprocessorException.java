@@ -1,43 +1,43 @@
 package rogo.sketch.render.shader.preprocessor;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 /**
  * Exception thrown during shader preprocessing
  */
 public class ShaderPreprocessorException extends Exception {
     
-    private final Identifier shaderIdentifier;
+    private final KeyId shaderKeyId;
     private final int lineNumber;
     
     public ShaderPreprocessorException(String message) {
         super(message);
-        this.shaderIdentifier = null;
+        this.shaderKeyId = null;
         this.lineNumber = -1;
     }
     
     public ShaderPreprocessorException(String message, Throwable cause) {
         super(message, cause);
-        this.shaderIdentifier = null;
+        this.shaderKeyId = null;
         this.lineNumber = -1;
     }
     
-    public ShaderPreprocessorException(String message, Identifier shaderIdentifier, int lineNumber) {
-        super(formatMessage(message, shaderIdentifier, lineNumber));
-        this.shaderIdentifier = shaderIdentifier;
+    public ShaderPreprocessorException(String message, KeyId shaderKeyId, int lineNumber) {
+        super(formatMessage(message, shaderKeyId, lineNumber));
+        this.shaderKeyId = shaderKeyId;
         this.lineNumber = lineNumber;
     }
     
-    public ShaderPreprocessorException(String message, Identifier shaderIdentifier, int lineNumber, Throwable cause) {
-        super(formatMessage(message, shaderIdentifier, lineNumber), cause);
-        this.shaderIdentifier = shaderIdentifier;
+    public ShaderPreprocessorException(String message, KeyId shaderKeyId, int lineNumber, Throwable cause) {
+        super(formatMessage(message, shaderKeyId, lineNumber), cause);
+        this.shaderKeyId = shaderKeyId;
         this.lineNumber = lineNumber;
     }
     
-    private static String formatMessage(String message, Identifier shaderIdentifier, int lineNumber) {
+    private static String formatMessage(String message, KeyId shaderKeyId, int lineNumber) {
         StringBuilder sb = new StringBuilder();
-        if (shaderIdentifier != null) {
-            sb.append("In shader '").append(shaderIdentifier).append("'");
+        if (shaderKeyId != null) {
+            sb.append("In shader '").append(shaderKeyId).append("'");
             if (lineNumber > 0) {
                 sb.append(" at line ").append(lineNumber);
             }
@@ -47,8 +47,8 @@ public class ShaderPreprocessorException extends Exception {
         return sb.toString();
     }
     
-    public Identifier getShaderIdentifier() {
-        return shaderIdentifier;
+    public KeyId getShaderIdentifier() {
+        return shaderKeyId;
     }
     
     public int getLineNumber() {

@@ -4,7 +4,7 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 import rogo.sketch.render.resource.Texture;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import javax.annotation.Nullable;
 
@@ -17,8 +17,8 @@ public class VanillaTexture extends Texture {
     /**
      * Create a Minecraft-compatible texture
      */
-    public VanillaTexture(Identifier identifier, ResourceLocation resourceLocation, AbstractTexture texture) {
-        super(texture.getId(), identifier, GL11.GL_RGBA, GL11.GL_NEAREST, GL11.GL_REPEAT);
+    public VanillaTexture(KeyId keyId, ResourceLocation resourceLocation, AbstractTexture texture) {
+        super(texture.getId(), keyId, GL11.GL_RGBA, GL11.GL_NEAREST, GL11.GL_REPEAT);
         this.resourceLocation = resourceLocation;
     }
 

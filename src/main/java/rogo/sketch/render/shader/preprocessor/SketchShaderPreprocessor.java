@@ -1,6 +1,6 @@
 package rogo.sketch.render.shader.preprocessor;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -63,7 +63,7 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
     );
 
     private ShaderResourceProvider resourceProvider;
-    private final Set<Identifier> lastImportedFiles = new HashSet<>();
+    private final Set<KeyId> lastImportedFiles = new HashSet<>();
     private final Map<String, PreprocessorResult> cache = new HashMap<>();
 
     @Override
@@ -72,7 +72,7 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
     }
 
     @Override
-    public Set<Identifier> getLastImportedFiles() {
+    public Set<KeyId> getLastImportedFiles() {
         return new HashSet<>(lastImportedFiles);
     }
 
@@ -82,7 +82,7 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
     }
 
     @Override
-    public PreprocessorResult process(String source, Identifier shaderIdentifier, Map<String, String> macros)
+    public PreprocessorResult process(String source, KeyId shaderKeyId, Map<String, String> macros)
             throws ShaderPreprocessorException {
 
         if (resourceProvider == null) {
@@ -91,8 +91,8 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
 
         lastImportedFiles.clear();
 
-        ProcessingContext context = new ProcessingContext(shaderIdentifier, macros);
-        String processed = processRecursive(source, shaderIdentifier, context, new HashSet<>());
+        ProcessingContext context = new ProcessingContext(shaderKeyId, macros);
+        String processed = processRecursive(source, shaderKeyId, context, new HashSet<>());
 
         return new PreprocessorResult(
                 processed,
@@ -102,13 +102,13 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
         );
     }
 
-    private String processRecursive(String source, Identifier currentFile, ProcessingContext context,
-                                    Set<Identifier> importStack) throws ShaderPreprocessorException {
+    private String processRecursive(String source, KeyId currentFile, ProcessingContext context,
+                                    Set<KeyId> importStack) throws ShaderPreprocessorException {
 
         if (importStack.contains(currentFile)) {
             throw new ShaderPreprocessorException(
                     "Circular import detected: " + String.join(" -> ",
-                            importStack.stream().map(Identifier::toString).toArray(String[]::new)) +
+                            importStack.stream().map(KeyId::toString).toArray(String[]::new)) +
                             " -> " + currentFile
             );
         }
@@ -143,8 +143,8 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
         return source;
     }
 
-    private String processImports(String source, Identifier currentFile, ProcessingContext context,
-                                  Set<Identifier> importStack) throws ShaderPreprocessorException {
+    private String processImports(String source, KeyId currentFile, ProcessingContext context,
+                                  Set<KeyId> importStack) throws ShaderPreprocessorException {
 
         Matcher matcher = IMPORT_PATTERN.matcher(source);
         StringBuilder result = new StringBuilder();
@@ -156,7 +156,7 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
             String importPath = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
             boolean isSystemImport = matcher.group(2) != null; // <> style import
 
-            Identifier importId = resourceProvider.resolveImport(currentFile, importPath);
+            KeyId importId = resourceProvider.resolveImport(currentFile, importPath);
 
             if (lastImportedFiles.contains(importId)) {
                 // Already imported, skip to avoid duplication
@@ -302,11 +302,11 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
 
         if (ELSE_PATTERN.matcher(line).find()) {
             if (stack.isEmpty()) {
-                throw new ShaderPreprocessorException("Unexpected #else directive", context.shaderIdentifier, lineNumber);
+                throw new ShaderPreprocessorException("Unexpected #else directive", context.shaderKeyId, lineNumber);
             }
             ConditionalBlock current = stack.pop();
             if (current.hasElse) {
-                throw new ShaderPreprocessorException("Multiple #else directives", context.shaderIdentifier, lineNumber);
+                throw new ShaderPreprocessorException("Multiple #else directives", context.shaderKeyId, lineNumber);
             }
             stack.push(new ConditionalBlock(current.type, !current.originalCondition, true));
             return true;
@@ -314,7 +314,7 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
 
         if (ENDIF_PATTERN.matcher(line).find()) {
             if (stack.isEmpty()) {
-                throw new ShaderPreprocessorException("Unexpected #endif directive", context.shaderIdentifier, lineNumber);
+                throw new ShaderPreprocessorException("Unexpected #endif directive", context.shaderKeyId, lineNumber);
             }
             stack.pop();
             return true;
@@ -389,13 +389,13 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
     }
 
     private static class ProcessingContext {
-        final Identifier shaderIdentifier;
+        final KeyId shaderKeyId;
         final Map<String, String> macros;
         final List<String> warnings = new ArrayList<>();
         int finalGlslVersion = 0;
 
-        ProcessingContext(Identifier shaderIdentifier, Map<String, String> macros) {
-            this.shaderIdentifier = shaderIdentifier;
+        ProcessingContext(KeyId shaderKeyId, Map<String, String> macros) {
+            this.shaderKeyId = shaderKeyId;
             this.macros = new HashMap<>(macros);
         }
     }

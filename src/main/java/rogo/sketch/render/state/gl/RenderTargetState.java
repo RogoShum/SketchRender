@@ -10,29 +10,29 @@ import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.RenderTarget;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class RenderTargetState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("render_target");
+    public static final KeyId TYPE = KeyId.of("render_target");
     private ResourceReference<RenderTarget> renderTarget;
-    private Identifier rtId;
+    private KeyId rtId;
 
     public RenderTargetState() {
-        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, Identifier.of("minecraft:main_target"));
-        this.rtId = Identifier.of("minecraft:main_target");
+        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, KeyId.of("minecraft:main_target"));
+        this.rtId = KeyId.of("minecraft:main_target");
     }
 
-    public RenderTargetState(Identifier identifier) {
-        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, identifier);
-        this.rtId = identifier;
+    public RenderTargetState(KeyId keyId) {
+        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, keyId);
+        this.rtId = keyId;
     }
 
     public static RenderTargetState defaultFramebuffer() {
-        return new RenderTargetState(Identifier.of("minecraft:main_target"));
+        return new RenderTargetState(KeyId.of("minecraft:main_target"));
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 
@@ -46,8 +46,8 @@ public class RenderTargetState implements RenderStateComponent {
     @Override
     public void deserializeFromJson(JsonObject json, Gson gson) {
         String id = json.get("identifier").getAsString();
-        renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, Identifier.of(id));
-        this.rtId = Identifier.of(id);
+        renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, KeyId.of(id));
+        this.rtId = KeyId.of(id);
     }
 
     @Override

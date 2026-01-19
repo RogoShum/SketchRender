@@ -7,7 +7,7 @@ import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.instance.MeshGraphics;
 import rogo.sketch.render.model.DynamicMesh;
 import rogo.sketch.render.vertex.DefaultDataFormats;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 /**
  * Chunk culling test graphics instance using DynamicMesh
@@ -15,8 +15,8 @@ import rogo.sketch.util.Identifier;
 public class ChunkCullingTestGraphics extends MeshGraphics {
     private final PreparedMesh mesh;
 
-    public ChunkCullingTestGraphics(Identifier identifier) {
-        super(identifier);
+    public ChunkCullingTestGraphics(KeyId keyId) {
+        super(keyId);
         this.mesh = createDynamicMesh();
     }
 

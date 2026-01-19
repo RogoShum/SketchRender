@@ -5,12 +5,12 @@ import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.pipeline.RenderContext;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.Objects;
 
 public class ViewportState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("viewport");
+    public static final KeyId TYPE = KeyId.of("viewport");
 
     private int x, y, width, height;
     private boolean auto = true;
@@ -30,7 +30,7 @@ public class ViewportState implements RenderStateComponent {
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 

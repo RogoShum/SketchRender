@@ -4,15 +4,15 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.instance.ComputeGraphics;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import static org.lwjgl.opengl.GL42C.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class ComputeHIZGraphics extends ComputeGraphics {
     private final boolean first;
 
-    public ComputeHIZGraphics(Identifier identifier, boolean first) {
-        super(identifier, (c) -> {
+    public ComputeHIZGraphics(KeyId keyId, boolean first) {
+        super(keyId, (c) -> {
         }, (c, shader) -> {
             RenderTarget screen = Minecraft.getInstance().getMainRenderTarget();
 

@@ -6,10 +6,10 @@ import org.lwjgl.opengl.GL11;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.driver.GraphicsDriver;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 public class DepthTestState implements RenderStateComponent {
-    public static final Identifier TYPE = Identifier.of("depth_test");
+    public static final KeyId TYPE = KeyId.of("depth_test");
 
     private boolean enabled;
     private int func;
@@ -25,7 +25,7 @@ public class DepthTestState implements RenderStateComponent {
     }
 
     @Override
-    public Identifier getIdentifier() {
+    public KeyId getIdentifier() {
         return TYPE;
     }
 

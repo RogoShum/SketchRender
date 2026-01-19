@@ -2,7 +2,7 @@ package rogo.sketch.render.resource;
 
 import rogo.sketch.api.ResourceObject;
 import rogo.sketch.api.ResourceReloadable;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -22,25 +22,25 @@ import java.util.function.Function;
  */
 public abstract class ReloadableResourceSupport<T extends ResourceObject> implements ResourceReloadable<T> {
 
-    protected final Identifier resourceIdentifier;
-    protected final Function<Identifier, Optional<BufferedReader>> resourceProvider;
+    protected final KeyId resourceKeyId;
+    protected final Function<KeyId, Optional<BufferedReader>> resourceProvider;
 
     protected T currentResource;
     protected ReloadMetadata lastReloadMetadata;
 
-    private final Map<Identifier, Long> dependencyTimestamps = new ConcurrentHashMap<>();
+    private final Map<KeyId, Long> dependencyTimestamps = new ConcurrentHashMap<>();
     private final Set<Consumer<T>> reloadListeners = ConcurrentHashMap.newKeySet();
-    private volatile Set<Identifier> lastKnownDependencies = Collections.emptySet();
+    private volatile Set<KeyId> lastKnownDependencies = Collections.emptySet();
 
-    public ReloadableResourceSupport(Identifier resourceIdentifier,
-                                     Function<Identifier, Optional<BufferedReader>> resourceProvider) {
-        this.resourceIdentifier = resourceIdentifier;
+    public ReloadableResourceSupport(KeyId resourceKeyId,
+                                     Function<KeyId, Optional<BufferedReader>> resourceProvider) {
+        this.resourceKeyId = resourceKeyId;
         this.resourceProvider = resourceProvider;
     }
 
     @Override
-    public final Identifier getResourceIdentifier() {
-        return resourceIdentifier;
+    public final KeyId getResourceIdentifier() {
+        return resourceKeyId;
     }
 
     @Override
@@ -49,7 +49,7 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
     }
 
     @Override
-    public final Set<Identifier> getDependencies() {
+    public final Set<KeyId> getDependencies() {
         return Collections.unmodifiableSet(lastKnownDependencies);
     }
 
@@ -83,10 +83,10 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
 
     @Override
     public final void forceReload() throws IOException {
-        System.out.println("Reloading resource: " + resourceIdentifier);
+        System.out.println("Reloading resource: " + resourceKeyId);
 
         T oldResource = currentResource;
-        Set<Identifier> oldDependencies = lastKnownDependencies;
+        Set<KeyId> oldDependencies = lastKnownDependencies;
 
         try {
             // Perform the actual reload
@@ -103,14 +103,14 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
             // Notify listeners
             notifyReloadListeners(currentResource);
 
-            System.out.println("Resource reloaded successfully: " + resourceIdentifier);
+            System.out.println("Resource reloaded successfully: " + resourceKeyId);
 
         } catch (Exception e) {
             // Record failure and restore dependencies
             this.lastReloadMetadata = ReloadMetadata.failure(e.getMessage(), oldDependencies);
             this.lastKnownDependencies = oldDependencies;
 
-            System.err.println("Resource reload failed for " + resourceIdentifier + ": " + e.getMessage());
+            System.err.println("Resource reload failed for " + resourceKeyId + ": " + e.getMessage());
             throw new IOException("Resource reload failed", e);
 
         } finally {
@@ -127,7 +127,7 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
 
     @Override
     public final boolean hasDependencyChanges() {
-        for (Identifier dependency : lastKnownDependencies) {
+        for (KeyId dependency : lastKnownDependencies) {
             if (hasDependencyChanged(dependency)) {
                 return true;
             }
@@ -138,7 +138,7 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
     @Override
     public final void updateDependencyTimestamps() {
         long currentTime = System.currentTimeMillis();
-        for (Identifier dependency : lastKnownDependencies) {
+        for (KeyId dependency : lastKnownDependencies) {
             dependencyTimestamps.put(dependency, currentTime);
         }
     }
@@ -147,7 +147,7 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
      * Check if a specific dependency has changed
      * Subclasses can override this for more sophisticated change detection
      */
-    protected boolean hasDependencyChanged(Identifier dependency) {
+    protected boolean hasDependencyChanged(KeyId dependency) {
         // Basic implementation: assume changed if we don't have a timestamp
         return !dependencyTimestamps.containsKey(dependency);
     }
@@ -193,7 +193,7 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
             try {
                 listener.accept(newResource);
             } catch (Exception e) {
-                System.err.println("Reload listener failed for " + resourceIdentifier + ": " + e.getMessage());
+                System.err.println("Reload listener failed for " + resourceKeyId + ": " + e.getMessage());
             }
         }
     }
@@ -214,9 +214,9 @@ public abstract class ReloadableResourceSupport<T extends ResourceObject> implem
      */
     protected record ResourceLoadResult<T extends ResourceObject>(
             T resource,
-            Set<Identifier> dependencies
+            Set<KeyId> dependencies
     ) {
-        public static <T extends ResourceObject> ResourceLoadResult<T> of(T resource, Set<Identifier> dependencies) {
+        public static <T extends ResourceObject> ResourceLoadResult<T> of(T resource, Set<KeyId> dependencies) {
             return new ResourceLoadResult<>(resource, dependencies);
         }
 

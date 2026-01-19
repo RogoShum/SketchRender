@@ -6,12 +6,12 @@ import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class Identifier implements Comparable<Identifier> {
-    private static final Map<String, Identifier> CACHE = new ConcurrentHashMap<>();
+public final class KeyId implements Comparable<KeyId> {
+    private static final Map<String, KeyId> CACHE = new ConcurrentHashMap<>();
     private static final String ILLEGAL_CHARACTERS = "[\\s]"; // forbid spaces, you can expand this regex
     private final String name;
 
-    private Identifier(String name) {
+    private KeyId(String name) {
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Identifier name cannot be null or empty.");
         }
@@ -24,18 +24,18 @@ public final class Identifier implements Comparable<Identifier> {
     /**
      * Creates or retrieves an Identifier from a string (cached).
      */
-    public static Identifier of(String name) {
-        return CACHE.computeIfAbsent(name, Identifier::new);
+    public static KeyId of(String name) {
+        return CACHE.computeIfAbsent(name, KeyId::new);
     }
 
-    public static Identifier of(String head, String body) {
-        return CACHE.computeIfAbsent(head + ":" + body, Identifier::new);
+    public static KeyId of(String head, String body) {
+        return CACHE.computeIfAbsent(head + ":" + body, KeyId::new);
     }
 
     /**
      * Converts any object to string via toString() and wraps it as an Identifier.
      */
-    public static Identifier valueOf(Object obj) {
+    public static KeyId valueOf(Object obj) {
         return of(String.valueOf(obj));
     }
 
@@ -50,7 +50,7 @@ public final class Identifier implements Comparable<Identifier> {
 
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof Identifier && ((Identifier) obj).name.equals(this.name);
+        return obj instanceof KeyId && ((KeyId) obj).name.equals(this.name);
     }
 
     @Override
@@ -59,7 +59,7 @@ public final class Identifier implements Comparable<Identifier> {
     }
 
     @Override
-    public int compareTo(Identifier other) {
+    public int compareTo(KeyId other) {
         return this.name.compareTo(other.name);
     }
 
@@ -71,19 +71,19 @@ public final class Identifier implements Comparable<Identifier> {
     /**
      * GSON serializer/deserializer
      */
-    public static class GsonAdapter implements JsonSerializer<Identifier>, JsonDeserializer<Identifier> {
+    public static class GsonAdapter implements JsonSerializer<KeyId>, JsonDeserializer<KeyId> {
         @Override
-        public JsonElement serialize(Identifier src, Type typeOfSrc, JsonSerializationContext context) {
+        public JsonElement serialize(KeyId src, Type typeOfSrc, JsonSerializationContext context) {
             return new JsonPrimitive(src.name);
         }
 
         @Override
-        public Identifier deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
+        public KeyId deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
                 throws JsonParseException {
             if (!json.isJsonPrimitive() || !json.getAsJsonPrimitive().isString()) {
                 throw new JsonParseException("Expected Identifier as string");
             }
-            return Identifier.of(json.getAsString());
+            return KeyId.of(json.getAsString());
         }
     }
 }

@@ -7,7 +7,7 @@ import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL30;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.RenderTarget;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.util.Optional;
@@ -19,7 +19,7 @@ import java.util.function.Function;
 public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
 
     @Override
-    public RenderTarget load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public RenderTarget load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<BufferedReader>> resourceProvider) {
         try {
             String jsonData = data.getString();
             if (jsonData == null) return null;
@@ -63,7 +63,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
             int handle = GL30.glGenFramebuffers();
             GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, handle);
 
-            RenderTarget renderTarget = new RenderTarget(handle, identifier, mode,
+            RenderTarget renderTarget = new RenderTarget(handle, keyId, mode,
                     baseWidth, baseHeight, scaleX, scaleY, clearColor);
 
             GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
@@ -76,7 +76,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                     JsonElement element = colorAttachments.get(i);
 
                     // Use TextureHelper for smart texture loading
-                    Identifier textureId = TextureHelper.loadTextureFromElement(element, resourceManager);
+                    KeyId textureId = TextureHelper.loadTextureFromElement(element, resourceManager);
                     if (textureId != null) {
                         renderTarget.setColorAttachment(i, textureId);
                     } else {
@@ -88,7 +88,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
             // Attach depth texture using smart loading
             if (json.has("depthAttachment")) {
                 JsonElement depthElement = json.get("depthAttachment");
-                Identifier depthTextureId = TextureHelper.loadTextureFromElement(depthElement, resourceManager);
+                KeyId depthTextureId = TextureHelper.loadTextureFromElement(depthElement, resourceManager);
                 if (depthTextureId != null) {
                     renderTarget.setDepthAttachment(depthTextureId);
                 } else {
@@ -99,7 +99,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
             // Attach stencil texture using smart loading
             if (json.has("stencilAttachment")) {
                 JsonElement stencilElement = json.get("stencilAttachment");
-                Identifier stencilTextureId = TextureHelper.loadTextureFromElement(stencilElement, resourceManager);
+                KeyId stencilTextureId = TextureHelper.loadTextureFromElement(stencilElement, resourceManager);
                 if (stencilTextureId != null) {
                     renderTarget.setStencilAttachment(stencilTextureId);
                 } else {
@@ -113,7 +113,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                 for (int i = 0; i < keepSizeAttachments.size(); i++) {
                     JsonElement element = keepSizeAttachments.get(i);
 
-                    Identifier textureId = TextureHelper.loadTextureFromElement(element, resourceManager);
+                    KeyId textureId = TextureHelper.loadTextureFromElement(element, resourceManager);
                     if (textureId != null) {
                         renderTarget.keepTextureSize(textureId);
                     }

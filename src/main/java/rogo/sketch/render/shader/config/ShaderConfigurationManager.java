@@ -1,6 +1,6 @@
 package rogo.sketch.render.shader.config;
 
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,8 +13,8 @@ public class ShaderConfigurationManager {
     
     private static ShaderConfigurationManager instance;
     
-    private final Map<Identifier, ShaderConfiguration> configurations = new ConcurrentHashMap<>();
-    private final Map<Identifier, Set<Consumer<ShaderConfiguration>>> changeListeners = new ConcurrentHashMap<>();
+    private final Map<KeyId, ShaderConfiguration> configurations = new ConcurrentHashMap<>();
+    private final Map<KeyId, Set<Consumer<ShaderConfiguration>>> changeListeners = new ConcurrentHashMap<>();
     private final ShaderConfiguration globalConfiguration = new ShaderConfiguration();
     
     private ShaderConfigurationManager() {
@@ -34,14 +34,14 @@ public class ShaderConfigurationManager {
     /**
      * Get configuration for a specific shader
      */
-    public ShaderConfiguration getConfiguration(Identifier shaderId) {
+    public ShaderConfiguration getConfiguration(KeyId shaderId) {
         return configurations.computeIfAbsent(shaderId, id -> new ShaderConfiguration(globalConfiguration));
     }
     
     /**
      * Set configuration for a specific shader
      */
-    public void setConfiguration(Identifier shaderId, ShaderConfiguration config) {
+    public void setConfiguration(KeyId shaderId, ShaderConfiguration config) {
         ShaderConfiguration oldConfig = configurations.get(shaderId);
         configurations.put(shaderId, new ShaderConfiguration(config));
         
@@ -54,7 +54,7 @@ public class ShaderConfigurationManager {
     /**
      * Update configuration for a specific shader
      */
-    public void updateConfiguration(Identifier shaderId, Consumer<ShaderConfiguration> updater) {
+    public void updateConfiguration(KeyId shaderId, Consumer<ShaderConfiguration> updater) {
         ShaderConfiguration config = getConfiguration(shaderId);
         ShaderConfiguration oldConfig = new ShaderConfiguration(config);
         
@@ -81,8 +81,8 @@ public class ShaderConfigurationManager {
         
         if (!Objects.equals(oldConfig, globalConfiguration)) {
             // Update all shader configurations and notify listeners
-            for (Map.Entry<Identifier, ShaderConfiguration> entry : configurations.entrySet()) {
-                Identifier shaderId = entry.getKey();
+            for (Map.Entry<KeyId, ShaderConfiguration> entry : configurations.entrySet()) {
+                KeyId shaderId = entry.getKey();
                 ShaderConfiguration shaderConfig = entry.getValue();
                 
                 // Create new config with global changes applied
@@ -101,14 +101,14 @@ public class ShaderConfigurationManager {
     /**
      * Add a listener for configuration changes on a specific shader
      */
-    public void addConfigurationListener(Identifier shaderId, Consumer<ShaderConfiguration> listener) {
+    public void addConfigurationListener(KeyId shaderId, Consumer<ShaderConfiguration> listener) {
         changeListeners.computeIfAbsent(shaderId, id -> ConcurrentHashMap.newKeySet()).add(listener);
     }
     
     /**
      * Remove a configuration listener
      */
-    public void removeConfigurationListener(Identifier shaderId, Consumer<ShaderConfiguration> listener) {
+    public void removeConfigurationListener(KeyId shaderId, Consumer<ShaderConfiguration> listener) {
         Set<Consumer<ShaderConfiguration>> listeners = changeListeners.get(shaderId);
         if (listeners != null) {
             listeners.remove(listener);
@@ -121,21 +121,21 @@ public class ShaderConfigurationManager {
     /**
      * Remove all listeners for a shader
      */
-    public void clearListeners(Identifier shaderId) {
+    public void clearListeners(KeyId shaderId) {
         changeListeners.remove(shaderId);
     }
     
     /**
      * Get all shader IDs that have configurations
      */
-    public Set<Identifier> getConfiguredShaders() {
+    public Set<KeyId> getConfiguredShaders() {
         return new HashSet<>(configurations.keySet());
     }
     
     /**
      * Remove configuration for a shader
      */
-    public void removeConfiguration(Identifier shaderId) {
+    public void removeConfiguration(KeyId shaderId) {
         configurations.remove(shaderId);
         changeListeners.remove(shaderId);
     }
@@ -181,7 +181,7 @@ public class ShaderConfigurationManager {
         };
     }
     
-    private void notifyConfigurationChanged(Identifier shaderId, ShaderConfiguration newConfig) {
+    private void notifyConfigurationChanged(KeyId shaderId, ShaderConfiguration newConfig) {
         Set<Consumer<ShaderConfiguration>> listeners = changeListeners.get(shaderId);
         if (listeners != null) {
             for (Consumer<ShaderConfiguration> listener : listeners) {

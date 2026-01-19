@@ -11,7 +11,7 @@ import rogo.sketch.render.shader.config.ShaderConfiguration;
 import rogo.sketch.render.shader.config.ShaderConfigurationManager;
 import rogo.sketch.render.shader.preprocessor.SketchShaderPreprocessor;
 import rogo.sketch.render.shader.preprocessor.ShaderPreprocessor;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
 import java.util.HashMap;
@@ -32,7 +32,7 @@ public class ShaderProgramLoader implements ResourceLoader<ShaderProvider> {
     }
 
     @Override
-    public ShaderProvider load(Identifier identifier, ResourceData data, Gson gson, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
+    public ShaderProvider load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<BufferedReader>> resourceProvider) {
         try {
             String jsonData = data.getString();
             if (jsonData == null) return null;
@@ -40,20 +40,20 @@ public class ShaderProgramLoader implements ResourceLoader<ShaderProvider> {
             JsonObject json = gson.fromJson(jsonData, JsonObject.class);
 
             // Load shader configuration if present
-            ShaderConfiguration config = loadConfigurationFromJson(json, identifier);
+            ShaderConfiguration config = loadConfigurationFromJson(json, keyId);
             if (config != null) {
-                ShaderConfigurationManager.getInstance().setConfiguration(identifier, config);
+                ShaderConfigurationManager.getInstance().setConfiguration(keyId, config);
             }
 
             // Create sub-resource provider for shader files
-            Function<Identifier, Optional<BufferedReader>> shaderResourceProvider = createShaderResourceProvider(resourceProvider);
+            Function<KeyId, Optional<BufferedReader>> shaderResourceProvider = createShaderResourceProvider(resourceProvider);
 
             if (json.has("compute")) {
                 String computeSource = loadShaderSource(json.get("compute").getAsString(), shaderResourceProvider);
 
                 // Always use preprocessing for imports and macros
                 // Pass the base resourceProvider (not shaderResourceProvider) for import resolution
-                return ComputeShader.reloadable(identifier, computeSource, preprocessor, resourceProvider);
+                return ComputeShader.reloadable(keyId, computeSource, preprocessor, resourceProvider);
 
             } else {
                 Map<ShaderType, String> shaderSources = new HashMap<>();
@@ -91,7 +91,7 @@ public class ShaderProgramLoader implements ResourceLoader<ShaderProvider> {
 
                 // Always use preprocessing for imports and macros
                 // Pass the base resourceProvider (not shaderResourceProvider) for import resolution
-                return GraphicsShader.reloadable(identifier, shaderSources, preprocessor, resourceProvider);
+                return GraphicsShader.reloadable(keyId, shaderSources, preprocessor, resourceProvider);
             }
         } catch (Exception e) {
             System.err.println("Failed to load shader program from JSON: " + e.getMessage());
@@ -105,7 +105,7 @@ public class ShaderProgramLoader implements ResourceLoader<ShaderProvider> {
      * This is specifically for loading main shader files (vertex.glsl, fragment.glsl, etc.)
      * Import files are handled separately by the ShaderResourceProvider adapter
      */
-    private Function<Identifier, Optional<BufferedReader>> createShaderResourceProvider(Function<Identifier, Optional<BufferedReader>> baseResourceProvider) {
+    private Function<KeyId, Optional<BufferedReader>> createShaderResourceProvider(Function<KeyId, Optional<BufferedReader>> baseResourceProvider) {
         return (shaderId) -> {
             // Parse namespace:path format
             String shaderIdStr = shaderId.toString();
@@ -122,13 +122,13 @@ public class ShaderProgramLoader implements ResourceLoader<ShaderProvider> {
 
             // Create shader-specific path: namespace:render/shader_type/path
             // This is for main shader files (vertex, fragment, etc.)
-            Identifier shaderResourceId = Identifier.of(namespace + ":render/resource/shader_type/" + path);
+            KeyId shaderResourceId = KeyId.of(namespace + ":render/resource/shader_type/" + path);
             return baseResourceProvider.apply(shaderResourceId);
         };
     }
 
-    private String loadShaderSource(String element, Function<Identifier, Optional<BufferedReader>> resourceProvider) {
-        Optional<BufferedReader> reader = resourceProvider.apply(Identifier.of(element));
+    private String loadShaderSource(String element, Function<KeyId, Optional<BufferedReader>> resourceProvider) {
+        Optional<BufferedReader> reader = resourceProvider.apply(KeyId.of(element));
         if (reader.isPresent()) {
             try (BufferedReader br = reader.get()) {
                 return br.lines().collect(Collectors.joining("\n"));
@@ -140,7 +140,7 @@ public class ShaderProgramLoader implements ResourceLoader<ShaderProvider> {
         return "";
     }
 
-    private ShaderConfiguration loadConfigurationFromJson(JsonObject json, Identifier identifier) {
+    private ShaderConfiguration loadConfigurationFromJson(JsonObject json, KeyId keyId) {
         if (!json.has("config")) {
             return null;
         }

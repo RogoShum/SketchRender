@@ -4,7 +4,7 @@ import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.UniformBatchGroup;
 import rogo.sketch.render.resource.ResourceBinding;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import java.util.List;
 
@@ -22,13 +22,13 @@ import java.util.List;
 public abstract class RenderCommand {
     protected final RenderSetting renderSetting;
     protected final ResourceBinding resourceBinding;
-    protected final Identifier stageId;
+    protected final KeyId stageId;
     protected final List<UniformBatchGroup> uniformBatches;
 
     protected RenderCommand(
             RenderSetting renderSetting,
             ResourceBinding resourceBinding,
-            Identifier stageId,
+            KeyId stageId,
             List<UniformBatchGroup> uniformBatches) {
         this.renderSetting = renderSetting;
         this.resourceBinding = resourceBinding;
@@ -92,7 +92,7 @@ public abstract class RenderCommand {
         return resourceBinding;
     }
 
-    public Identifier getStageId() {
+    public KeyId getStageId() {
         return stageId;
     }
 

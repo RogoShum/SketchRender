@@ -1,7 +1,5 @@
 package rogo.sketch.render.shader.config;
 
-import rogo.sketch.util.Identifier;
-
 /**
  * 详细对比Feature和Macro的区别，解释为什么需要两套系统
  */

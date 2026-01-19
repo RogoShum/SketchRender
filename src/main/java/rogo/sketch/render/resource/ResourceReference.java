@@ -1,7 +1,7 @@
 package rogo.sketch.render.resource;
 
 import rogo.sketch.api.ResourceObject;
-import rogo.sketch.util.Identifier;
+import rogo.sketch.util.KeyId;
 
 import javax.annotation.Nullable;
 import java.util.Optional;
@@ -13,8 +13,8 @@ import java.util.function.Supplier;
  */
 public class ResourceReference<T extends ResourceObject> {
 
-    private final Identifier resourceId;
-    private final Identifier resourceType;
+    private final KeyId resourceId;
+    private final KeyId resourceType;
     private final Supplier<Optional<T>> resolver;
 
     @Nullable
@@ -22,11 +22,11 @@ public class ResourceReference<T extends ResourceObject> {
     private boolean cacheValid = false;
     boolean persistentResources;
 
-    public ResourceReference(Identifier resourceId, Identifier resourceType, Supplier<Optional<T>> resolver) {
+    public ResourceReference(KeyId resourceId, KeyId resourceType, Supplier<Optional<T>> resolver) {
         this(resourceId, resourceType, resolver, false);
     }
 
-    public ResourceReference(Identifier resourceId, Identifier resourceType, Supplier<Optional<T>> resolver, boolean persistentResources) {
+    public ResourceReference(KeyId resourceId, KeyId resourceType, Supplier<Optional<T>> resolver, boolean persistentResources) {
         this.resourceId = resourceId;
         this.resourceType = resourceType;
         this.resolver = resolver;
@@ -89,14 +89,14 @@ public class ResourceReference<T extends ResourceObject> {
     /**
      * Get resource identifier
      */
-    public Identifier getResourceId() {
+    public KeyId getResourceId() {
         return resourceId;
     }
 
     /**
      * Get resource type
      */
-    public Identifier getResourceType() {
+    public KeyId getResourceType() {
         return resourceType;
     }
 
