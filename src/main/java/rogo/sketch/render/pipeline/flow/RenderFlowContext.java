@@ -17,23 +17,12 @@ public class RenderFlowContext {
     private final VertexResourceManager vertexResourceManager;
     private final PipelineDataStore backendDataRegistry;
 
-    public RenderFlowContext(VertexResourceManager vertexResourceManager,
-            PipelineDataStore backendDataRegistry) {
+    public RenderFlowContext(VertexResourceManager vertexResourceManager, PipelineDataStore backendDataRegistry) {
         this.vertexResourceManager = vertexResourceManager;
         this.backendDataRegistry = backendDataRegistry;
     }
 
     /**
-     * Get the vertex resource manager for allocating and managing vertex buffers.
-     *
-     * @return The vertex resource manager
-     */
-    public VertexResourceManager getVertexResourceManager() {
-        return vertexResourceManager;
-    }
-
-    /**
-     * Alias for {@link #getVertexResourceManager()} for compatibility.
      *
      * @return The vertex resource manager
      */

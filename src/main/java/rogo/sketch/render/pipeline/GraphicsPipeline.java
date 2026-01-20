@@ -15,6 +15,7 @@ import rogo.sketch.render.pool.InstancePoolManager;
 import rogo.sketch.render.pipeline.data.IndirectBufferData;
 import rogo.sketch.render.pipeline.data.InstancedOffsetData;
 import rogo.sketch.render.pipeline.data.PipelineDataStore;
+import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.util.KeyId;
 import rogo.sketch.util.OrderedList;
 
@@ -28,7 +29,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     private final RenderCommandQueue<C> renderCommandQueue = new RenderCommandQueue<>(this);
-
+    private final VertexResourceManager resourceManager = new VertexResourceManager();
     private final PipelineDataStore pipelineDataRegistry = new PipelineDataStore();
 
     private final PipelineConfig config;
@@ -319,5 +320,9 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public PipelineDataStore getPipelineDataRegistry() {
         return pipelineDataRegistry;
+    }
+
+    public VertexResourceManager vertexResourceManager() {
+        return resourceManager;
     }
 }

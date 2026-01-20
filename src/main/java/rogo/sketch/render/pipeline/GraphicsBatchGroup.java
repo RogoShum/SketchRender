@@ -38,8 +38,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     public GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, KeyId stageKeyId) {
         this.graphicsPipeline = graphicsPipeline;
         this.stageKeyId = stageKeyId;
-        // Indirect buffers managed here but used by processor
-        this.batchProcessor = new GeometryBatchProcessor(graphicsPipeline.getPipelineDataRegistry());
+        this.batchProcessor = new GeometryBatchProcessor(graphicsPipeline.vertexResourceManager(), graphicsPipeline.getPipelineDataRegistry());
     }
 
     /**

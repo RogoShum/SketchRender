@@ -28,10 +28,10 @@ public class VertexResourceManager {
     private final Map<VertexBufferKey, VertexResource> resourceCache = new ConcurrentHashMap<>();
     private final Map<BuilderKey, VertexDataBuilder> builderCache = new ConcurrentHashMap<>();
 
-    private VertexResourceManager() {
+    public VertexResourceManager() {
     }
 
-    public static VertexResourceManager getInstance() {
+    public static VertexResourceManager globalInstance() {
         if (instance == null) {
             instance = new VertexResourceManager();
         }

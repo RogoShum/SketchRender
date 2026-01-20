@@ -1,6 +1,6 @@
 package rogo.sketch.render.command.prosessor;
 
-import rogo.sketch.api.graphics.*;
+import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
@@ -24,11 +24,12 @@ import java.util.*;
  */
 public class GeometryBatchProcessor {
     private final PipelineDataStore backendDataRegistry;
-    private final VertexResourceManager resourceManager = VertexResourceManager.getInstance();
+    private final VertexResourceManager vertexResourceManager;
     private final RenderFlowRegistry flowRegistry = RenderFlowRegistry.getInstance();
 
-    public GeometryBatchProcessor(PipelineDataStore backendDataRegistry) {
+    public GeometryBatchProcessor(VertexResourceManager vertexResourceManager, PipelineDataStore backendDataRegistry) {
         this.backendDataRegistry = backendDataRegistry;
+        this.vertexResourceManager = vertexResourceManager;
     }
 
     /**
@@ -73,7 +74,7 @@ public class GeometryBatchProcessor {
 
         // 2. Create render commands for each flow type
         Map<RenderSetting, List<RenderCommand>> allCommands = new LinkedHashMap<>();
-        RenderFlowContext flowContext = new RenderFlowContext(resourceManager, backendDataRegistry);
+        RenderFlowContext flowContext = new RenderFlowContext(vertexResourceManager, backendDataRegistry);
 
         for (Map.Entry<RenderFlowType, List<InstanceInfo>> entry : infosByFlowType.entrySet()) {
             RenderFlowType flowType = entry.getKey();
@@ -94,11 +95,5 @@ public class GeometryBatchProcessor {
         }
 
         return allCommands;
-    }
-
-    // ===== Getters for context (kept for legacy or compatibility if needed) =====
-
-    public VertexResourceManager getResourceManager() {
-        return resourceManager;
     }
 }

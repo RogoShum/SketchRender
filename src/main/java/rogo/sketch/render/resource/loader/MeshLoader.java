@@ -254,8 +254,7 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
         // Create unique VertexResource (bypassing cache or using it as a unique
         // container)
         // Since this is a specific asset, we create a new one.
-        VertexResourceManager vrm = VertexResourceManager
-                .getInstance();
+        VertexResourceManager vrm = VertexResourceManager.globalInstance();
 
         // We manually create VertexResource to ensure it's not shared/cached (unless we
         // used a unique key)
@@ -351,22 +350,48 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
     private DataType parseDataType(String type) {
         return switch (type.toLowerCase()) {
             case "float" -> DataType.FLOAT;
-            case "vec2" -> DataType.VEC2F;
-            case "vec3" -> DataType.VEC3F;
-            case "vec4" -> DataType.VEC4F;
+            case "vec2f" -> DataType.VEC2F;
+            case "vec3f" -> DataType.VEC3F;
+            case "vec4f" -> DataType.VEC4F;
+
             case "int" -> DataType.INT;
             case "vec2i" -> DataType.VEC2I;
             case "vec3i" -> DataType.VEC3I;
             case "vec4i" -> DataType.VEC4I;
+
+            case "uint" -> DataType.UINT;
+            case "vec2ui" -> DataType.VEC2UI;
+            case "vec3ui" -> DataType.VEC3UI;
+            case "vec4ui" -> DataType.VEC4UI;
+
+            case "byte" -> DataType.BYTE;
+            case "vec2b" -> DataType.VEC2B;
+            case "vec3b" -> DataType.VEC3B;
+            case "vec4b" -> DataType.VEC4B;
+
+            case "ubyte" -> DataType.UBYTE;
+            case "vec2ub" -> DataType.VEC2UB;
+            case "vec3ub" -> DataType.VEC3UB;
+            case "vec4ub" -> DataType.VEC4UB;
+
+            case "short" -> DataType.SHORT;
+            case "vec2s" -> DataType.VEC2S;
+            case "vec3s" -> DataType.VEC3S;
+            case "vec4s" -> DataType.VEC4S;
+
+            case "ushort" -> DataType.USHORT;
+            case "vec2us" -> DataType.VEC2US;
+            case "vec3us" -> DataType.VEC3US;
+            case "vec4us" -> DataType.VEC4US;
+
+            case "double" -> DataType.DOUBLE;
+            case "vec2d" -> DataType.VEC2D;
+            case "vec3d" -> DataType.VEC3D;
+            case "vec4d" -> DataType.VEC4D;
+
             case "mat2" -> DataType.MAT2;
             case "mat3" -> DataType.MAT3;
             case "mat4" -> DataType.MAT4;
-            case "byte" -> DataType.BYTE;
-            case "ubyte" -> DataType.UBYTE;
-            case "short" -> DataType.SHORT;
-            case "ushort" -> DataType.USHORT;
-            case "uint" -> DataType.UINT;
-            case "double" -> DataType.DOUBLE;
             default -> throw new IllegalArgumentException("Unknown data type: " + type);
         };
     }

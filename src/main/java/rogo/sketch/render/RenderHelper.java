@@ -13,6 +13,7 @@ import rogo.sketch.render.pipeline.flow.impl.RasterizationPostProcessor;
 import rogo.sketch.render.pipeline.data.IndirectBufferData;
 import rogo.sketch.render.pipeline.data.InstancedOffsetData;
 import rogo.sketch.render.pipeline.data.PipelineDataStore;
+import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.util.KeyId;
 
 import java.util.Collection;
@@ -30,7 +31,7 @@ public class RenderHelper {
         this.pipeline = pipeline;
         pipelineDataRegistry.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
         pipelineDataRegistry.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
-        this.batchProcessor = new GeometryBatchProcessor(pipelineDataRegistry);
+        this.batchProcessor = new GeometryBatchProcessor(VertexResourceManager.globalInstance(), pipelineDataRegistry);
     }
 
     public void renderInstanceImmediately(Graphics instance, RenderSetting setting) {
