@@ -29,8 +29,9 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     private final RenderCommandQueue<C> renderCommandQueue = new RenderCommandQueue<>(this);
-    private final VertexResourceManager resourceManager = new VertexResourceManager();
-    private final PipelineDataStore pipelineDataRegistry = new PipelineDataStore();
+    private final Map<KeyId, PipelineType> pipelineTypes = new HashMap();
+    private final Map<PipelineType, VertexResourceManager> resourceManagers = new LinkedHashMap<>();
+    private final Map<PipelineType, PipelineDataStore> pipelineDataStores = new LinkedHashMap<>();
 
     private final PipelineConfig config;
     private C currentContext;
@@ -53,12 +54,38 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     private void initPipelineData() {
-        pipelineDataRegistry.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
-        pipelineDataRegistry.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
+        // Initialize resource managers and data stores for each pipeline type
+        initializePipeline(PipelineType.COMPUTE);
+        initializePipeline(PipelineType.RASTERIZATION);
+        initializePipeline(PipelineType.TRANSLUCENT);
+    }
+
+    private void initializePipeline(PipelineType pipelineType) {
+        pipelineTypes.put(pipelineType.getIdentifier(), pipelineType);
+        VertexResourceManager manager = new VertexResourceManager();
+        PipelineDataStore dataStore = new PipelineDataStore();
+
+        // Register standard pipeline data
+        dataStore.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
+        dataStore.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
+
+        resourceManagers.put(pipelineType, manager);
+        pipelineDataStores.put(pipelineType, dataStore);
     }
 
     public PipelineConfig getConfig() {
         return config;
+    }
+
+    /**
+     * Get all registered pipeline types sorted by priority.
+     * 
+     * @return List of pipeline types in priority order
+     */
+    public List<PipelineType> getPipelineTypes() {
+        List<PipelineType> sorted = new ArrayList<>(pipelineTypes.values());
+        sorted.sort(Comparator.comparingInt(PipelineType::getPriority));
+        return sorted;
     }
 
     /**
@@ -83,29 +110,53 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     /**
+     * Get a specific stage by identifier.
+     * 
+     * @param stageId Stage identifier
+     * @return GraphicsStage or null if not found
+     */
+    public GraphicsStage getStage(KeyId stageId) {
+        return idToStage.get(stageId);
+    }
+
+    /**
      * Get the list of pending (delayed) stages.
      */
     public List<OrderedList.PendingElement<GraphicsStage>> getPendingStages() {
         return stages.getPendingElements();
     }
 
-    public GraphicsStage getStage(KeyId id) {
-        return idToStage.get(id);
+    /**
+     * Add a GraphInstance to a specific stage with default rasterization pipeline.
+     */
+    public void addGraphInstance(KeyId stageId, Graphics graph, RenderParameter renderParameter) {
+        addGraphInstance(stageId, graph, renderParameter, PipelineType.RASTERIZATION.getIdentifier());
     }
 
     /**
-     * Add a GraphInstance to a specific stage.
+     * Add a GraphInstance to a specific stage with specified pipeline type.
      */
-    public void addGraphInstance(KeyId stageId, Graphics graph, RenderSetting renderSetting) {
+    public void addGraphInstance(KeyId stageId, Graphics graph, RenderParameter renderParameter, KeyId pipelineType) {
+        addGraphInstance(stageId, graph, renderParameter, pipelineType, GraphicsBatch.DEFAULT_CONTAINER);
+    }
+
+    /**
+     * Add a GraphInstance to a specific stage with pipeline type and container
+     * type.
+     */
+    public void addGraphInstance(KeyId stageId, Graphics graph, RenderParameter renderParameter, KeyId pipelineType, KeyId containerType) {
         GraphicsStage stage = idToStage.get(stageId);
         if (stage != null) {
-            passMap.get(stage).addGraphInstance(graph, renderSetting);
+            passMap.get(stage).addGraphInstance(graph, renderParameter, pipelineTypes.get(pipelineType), containerType);
         }
     }
 
     public void computeAllRenderCommand() {
         try {
-            pipelineDataRegistry.reset();
+            // Reset all pipeline data stores
+            for (PipelineDataStore dataStore : pipelineDataStores.values()) {
+                dataStore.reset();
+            }
 
             RenderPostProcessors postProcessors = new RenderPostProcessors();
             for (RenderFlowStrategy strategy : RenderFlowRegistry.getInstance().getAllStrategies()) {
@@ -115,10 +166,15 @@ public class GraphicsPipeline<C extends RenderContext> {
                 }
             }
 
-            Map<RenderSetting, List<RenderCommand>> renderCommands = createRenderCommands(postProcessors);
+            // Create render commands for all pipeline types
+            Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> allRenderCommands = createRenderCommandsByPipeline(postProcessors);
 
             renderCommandQueue.clear();
-            renderCommandQueue.addCommands(renderCommands);
+            // Add commands for each pipeline type
+            for (Map.Entry<PipelineType, Map<RenderSetting, List<RenderCommand>>> entry : allRenderCommands
+                    .entrySet()) {
+                renderCommandQueue.addCommands(entry.getKey(), entry.getValue());
+            }
 
             postProcessors.executeAll();
         } catch (Exception e) {
@@ -127,21 +183,25 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     /**
-     * Create render commands from all stages
+     * Create render commands from all stages grouped by pipeline type
      */
-    private Map<RenderSetting, List<RenderCommand>> createRenderCommands(
-            RenderPostProcessors postProcessors) {
-        Map<RenderSetting, List<RenderCommand>> allCommands = new LinkedHashMap<>();
+    private Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> createRenderCommandsByPipeline(RenderPostProcessors postProcessors) {
+        Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> allCommands = new LinkedHashMap<>();
 
         for (GraphicsStage stage : stages.getOrderedList()) {
             GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
             if (batchGroup != null) {
-                Map<RenderSetting, List<RenderCommand>> stageCommands = batchGroup.createRenderCommands(currentContext,
-                        postProcessors);
+                Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> stageCommands = batchGroup.createAllRenderCommands(currentContext, postProcessors);
 
-                // Merge into allCommands
-                for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
-                    allCommands.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).addAll(entry.getValue());
+                // Merge into allCommands by pipeline type
+                for (Map.Entry<PipelineType, Map<RenderSetting, List<RenderCommand>>> pipelineEntry : stageCommands.entrySet()) {
+                    PipelineType pipelineType = pipelineEntry.getKey();
+                    Map<RenderSetting, List<RenderCommand>> commands = pipelineEntry.getValue();
+                    Map<RenderSetting, List<RenderCommand>> pipelineCommands = allCommands.computeIfAbsent(pipelineType, k -> new LinkedHashMap<>());
+
+                    for (Map.Entry<RenderSetting, List<RenderCommand>> entry : commands.entrySet()) {
+                        pipelineCommands.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).addAll(entry.getValue());
+                    }
                 }
             }
         }
@@ -231,25 +291,25 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Add a GraphInstance from the instance pool to a specific stage
      */
     public void addPooledGraphInstance(KeyId stageId, Class<? extends Graphics> instanceType,
-            RenderSetting renderSetting) {
+            RenderParameter renderParameter) {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
         }
 
         Graphics instance = poolManager.borrowInstance(instanceType);
-        addGraphInstance(stageId, instance, renderSetting);
+        addGraphInstance(stageId, instance, renderParameter);
     }
 
     /**
      * Add a GraphInstance from a named pool to a specific stage
      */
-    public void addNamedPoolGraphInstance(KeyId stageId, KeyId poolName, RenderSetting renderSetting) {
+    public void addNamedPoolGraphInstance(KeyId stageId, KeyId poolName, RenderParameter renderParameter) {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
         }
 
         Graphics instance = poolManager.borrowInstance(poolName);
-        addGraphInstance(stageId, instance, renderSetting);
+        addGraphInstance(stageId, instance, renderParameter);
     }
 
     /**
@@ -318,11 +378,28 @@ public class GraphicsPipeline<C extends RenderContext> {
         return renderCommandQueue;
     }
 
-    public PipelineDataStore getPipelineDataRegistry() {
-        return pipelineDataRegistry;
+    public PipelineDataStore getPipelineDataStore() {
+        // Return default rasterization pipeline data store for backward compatibility
+        return getPipelineDataStore(PipelineType.RASTERIZATION);
+    }
+
+    public PipelineDataStore getPipelineDataStore(PipelineType pipelineType) {
+        return pipelineDataStores.computeIfAbsent(pipelineType, pt -> {
+            initializePipeline(pt);
+            return pipelineDataStores.get(pt);
+        });
     }
 
     public VertexResourceManager vertexResourceManager() {
-        return resourceManager;
+        // Return default rasterization pipeline resource manager for backward
+        // compatibility
+        return getVertexResourceManager(PipelineType.RASTERIZATION);
+    }
+
+    public VertexResourceManager getVertexResourceManager(PipelineType pipelineType) {
+        return resourceManagers.computeIfAbsent(pipelineType, pt -> {
+            initializePipeline(pt);
+            return resourceManagers.get(pt);
+        });
     }
 }

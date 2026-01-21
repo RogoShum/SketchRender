@@ -3,6 +3,7 @@ package rogo.sketch.render.command.prosessor;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.pipeline.RenderContext;
+import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.data.PipelineDataStore;
 import rogo.sketch.render.pipeline.flow.*;
@@ -43,19 +44,14 @@ public class GeometryBatchProcessor {
      * @param <C>            The render context type
      * @return List of render commands
      */
-    public <C extends RenderContext> Map<RenderSetting, List<RenderCommand>> createAllCommands(
-            Map<RenderSetting, Collection<Graphics>> instanceGroups,
-            KeyId stageId,
-            C context,
-            RenderPostProcessors postProcessors) {
-
+    public <C extends RenderContext> Map<RenderSetting, List<RenderCommand>> createAllCommands(Map<RenderParameter, Collection<Graphics>> instanceGroups, KeyId stageId, C context, RenderPostProcessors postProcessors) {
         // 1. Collect instance info using flow strategies
         Map<RenderFlowType, List<InstanceInfo>> infosByFlowType = new HashMap<>();
 
-        for (Map.Entry<RenderSetting, Collection<Graphics>> entry : instanceGroups.entrySet()) {
-            RenderSetting setting = entry.getKey();
+        for (Map.Entry<RenderParameter, Collection<Graphics>> entry : instanceGroups.entrySet()) {
+            RenderParameter renderParameter = entry.getKey();
             Collection<Graphics> instances = entry.getValue();
-            RenderFlowType flowType = setting.renderParameter().getFlowType();
+            RenderFlowType flowType = renderParameter.getFlowType();
 
             Optional<RenderFlowStrategy> strategyOpt = flowRegistry.getStrategy(flowType);
             if (strategyOpt.isEmpty()) {
@@ -65,7 +61,7 @@ public class GeometryBatchProcessor {
             RenderFlowStrategy strategy = strategyOpt.get();
 
             for (Graphics instance : instances) {
-                InstanceInfo info = strategy.collectInstanceInfo(instance, setting, context);
+                InstanceInfo info = strategy.collectInstanceInfo(instance, renderParameter, context);
                 if (info != null) {
                     infosByFlowType.computeIfAbsent(flowType, k -> new ArrayList<>()).add(info);
                 }
@@ -85,8 +81,7 @@ public class GeometryBatchProcessor {
                 continue;
 
             RenderFlowStrategy strategy = strategyOpt.get();
-            Map<RenderSetting, List<RenderCommand>> strategyCommands = strategy.createRenderCommands(infos, stageId,
-                    flowContext, postProcessors);
+            Map<RenderSetting, List<RenderCommand>> strategyCommands = strategy.createRenderCommands(infos, stageId, flowContext, postProcessors);
 
             // Merge into allCommands
             for (Map.Entry<RenderSetting, List<RenderCommand>> cmdEntry : strategyCommands.entrySet()) {

@@ -17,96 +17,140 @@ import java.util.*;
  */
 public class RenderCommandQueue<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
-    private final Map<RenderSetting, List<RenderCommand>> commandsByVertexResource;
-    private final Map<KeyId, Map<RenderSetting, List<RenderCommand>>> commandsByStage;
+
+    // Pipeline type -> RenderSetting -> List<RenderCommand>
+    private final Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> commandsByPipeline;
+
+    // Pipeline type -> StageId -> RenderSetting -> List<RenderCommand>
+    private final Map<PipelineType, Map<KeyId, Map<RenderSetting, List<RenderCommand>>>> commandsByPipelineAndStage;
 
     public RenderCommandQueue(GraphicsPipeline<C> graphicsPipeline) {
         this.graphicsPipeline = graphicsPipeline;
-        this.commandsByVertexResource = new LinkedHashMap<>();
-        this.commandsByStage = new LinkedHashMap<>();
+        this.commandsByPipeline = new LinkedHashMap<>();
+        this.commandsByPipelineAndStage = new LinkedHashMap<>();
+
+        // Initialize for default pipeline types
+        initializePipeline(PipelineType.COMPUTE);
+        initializePipeline(PipelineType.RASTERIZATION);
+        initializePipeline(PipelineType.TRANSLUCENT);
+    }
+
+    private void initializePipeline(PipelineType pipelineType) {
+        commandsByPipeline.put(pipelineType, new LinkedHashMap<>());
+        commandsByPipelineAndStage.put(pipelineType, new LinkedHashMap<>());
     }
 
     /**
-     * Add a render command to the queue
+     * Add a render command to a specific pipeline
      */
-    public void addCommand(RenderCommand command) {
+    public void addCommand(PipelineType pipelineType, RenderCommand command) {
         RenderSetting renderSetting = command.getRenderSetting();
         KeyId stageId = command.getStageId();
 
-        // Add to vertex resource grouping
-        commandsByVertexResource.computeIfAbsent(renderSetting, k -> new ArrayList<>()).add(command);
+        // Add to pipeline grouping
+        Map<RenderSetting, List<RenderCommand>> pipelineCommands = commandsByPipeline.computeIfAbsent(pipelineType,
+                pt -> {
+                    initializePipeline(pt);
+                    return commandsByPipeline.get(pt);
+                });
+        pipelineCommands.computeIfAbsent(renderSetting, k -> new ArrayList<>()).add(command);
 
-        // Add to stage grouping
-        commandsByStage.computeIfAbsent(stageId, k -> new HashMap<>())
+        // Add to pipeline+stage grouping
+        Map<KeyId, Map<RenderSetting, List<RenderCommand>>> stageMap = commandsByPipelineAndStage
+                .computeIfAbsent(pipelineType, pt -> {
+                    initializePipeline(pt);
+                    return commandsByPipelineAndStage.get(pt);
+                });
+        stageMap.computeIfAbsent(stageId, k -> new HashMap<>())
                 .computeIfAbsent(renderSetting, r -> new ArrayList<>()).add(command);
     }
 
     /**
-     * Add multiple render commands
+     * Add multiple render commands to a specific pipeline
      */
-    public void addCommands(Collection<RenderCommand> commands) {
-        commands.forEach(this::addCommand);
-    }
-
-    /**
-     * Add multiple render commands grouped by RenderSetting
-     */
-    public void addCommands(Map<RenderSetting, List<RenderCommand>> commands) {
+    public void addCommands(PipelineType pipelineType, Map<RenderSetting, List<RenderCommand>> commands) {
         for (Map.Entry<RenderSetting, List<RenderCommand>> entry : commands.entrySet()) {
-            RenderSetting setting = entry.getKey();
-            List<RenderCommand> cmdList = entry.getValue();
-
-            // Add to vertex resource grouping directly
-            commandsByVertexResource.computeIfAbsent(setting, k -> new ArrayList<>()).addAll(cmdList);
-
-            // Add to stage grouping
-            // Since all commands in the list should share the same Stage ID (as per
-            // createRenderCommands contract usually),
-            // we can optimization this. However, to be safe and strictly correct per
-            // command:
-            for (RenderCommand command : cmdList) {
-                KeyId stageId = command.getStageId();
-                commandsByStage.computeIfAbsent(stageId, k -> new HashMap<>())
-                        .computeIfAbsent(setting, r -> new ArrayList<>()).add(command);
+            for (RenderCommand command : entry.getValue()) {
+                addCommand(pipelineType, command);
             }
         }
     }
 
+    // Deferred translucent commands for DEDICATED_STAGES and FLEXIBLE modes
+    private final Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> deferredTranslucentCommands = new LinkedHashMap<>();
+
     /**
-     * Execute render commands for a specific stage
+     * Execute render commands for a specific stage.
+     * Executes commands based on the configured translucent rendering strategy.
      */
     public void executeStage(KeyId stageId, RenderStateManager manager, C context) {
-        Map<RenderSetting, List<RenderCommand>> stageCommands = commandsByStage.get(stageId);
-
         EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context,
                 GraphicsPipelineStageEvent.Phase.PRE));
         context.preStage(stageId);
 
-        if (stageCommands != null && !stageCommands.isEmpty()) {
-            FullRenderState snapshot = RenderStateSnapshotUtils.createSnapshot();
-            manager.changeState(snapshot, context, false);
+        FullRenderState snapshot = RenderStateSnapshotUtils.createSnapshot();
+        manager.changeState(snapshot, context, false);
 
-            for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
-                RenderSetting setting = entry.getKey();
-                List<RenderCommand> commands = entry.getValue();
+        PipelineConfig config = graphicsPipeline.getConfig();
+        PipelineConfig.TranslucencyStrategy strategy = config.getTranslucencyStrategy();
 
-                if (setting.renderParameter().isInvalid()) {
-                    continue;
+        // Get GraphicsStage for stage-specific configuration
+        GraphicsStage stage = graphicsPipeline.getStage(stageId);
+
+        // Get all pipeline types and sort by priority
+        List<PipelineType> pipelineTypes = graphicsPipeline.getPipelineTypes();
+
+        switch (strategy) {
+            case INTERLEAVED:
+                // Execute all pipeline types in priority order for this stage
+                for (PipelineType pipelineType : pipelineTypes) {
+                    executeStageForPipeline(pipelineType, stageId, manager, context);
+                }
+                break;
+
+            case DEDICATED_STAGES:
+                // Execute non-translucent pipelines normally
+                for (PipelineType pipelineType : pipelineTypes) {
+                    if (pipelineType.equals(PipelineType.TRANSLUCENT)) {
+                        // Accumulate translucent commands instead of executing
+                        accumulateTranslucentCommands(pipelineType, stageId);
+                    } else {
+                        executeStageForPipeline(pipelineType, stageId, manager, context);
+                    }
                 }
 
-                // Apply render setting once for all commands with the same setting
-                if (setting.shouldSwitchRenderState()) {
-                    applyRenderSetting(manager, context, setting);
+                // Check if this is a dedicated translucent stage
+                boolean isDedicated = stage != null && stage.isDedicatedTranslucentStage()
+                        || config.isDedicatedTranslucentStage(stageId);
+
+                if (isDedicated) {
+                    // Flush all deferred translucent commands
+                    flushDeferredTranslucentCommands(manager, context);
+                }
+                break;
+
+            case FLEXIBLE:
+                // Execute non-translucent pipelines normally
+                for (PipelineType pipelineType : pipelineTypes) {
+                    if (!pipelineType.equals(PipelineType.TRANSLUCENT)) {
+                        executeStageForPipeline(pipelineType, stageId, manager, context);
+                    }
                 }
 
-                // Execute each render command
-                for (RenderCommand command : commands) {
-                    executeRenderCommand(command, context);
-                }
-            }
+                // Determine if translucent should follow solid for this stage
+                boolean followsSolid = shouldTranslucentFollowSolid(stage, stageId, config);
 
-            manager.changeState(snapshot, context);
+                if (followsSolid) {
+                    // Execute translucent immediately for this stage
+                    executeStageForPipeline(PipelineType.TRANSLUCENT, stageId, manager, context);
+                } else {
+                    // Defer translucent commands
+                    accumulateTranslucentCommands(PipelineType.TRANSLUCENT, stageId);
+                }
+                break;
         }
+
+        manager.changeState(snapshot, context);
 
         context.postStage(stageId);
         EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context,
@@ -114,11 +158,147 @@ public class RenderCommandQueue<C extends RenderContext> {
     }
 
     /**
+     * Execute all remaining deferred translucent commands.
+     * Call this at the end of the render pipeline for FLEXIBLE mode.
+     */
+    public void flushRemainingTranslucentCommands(RenderStateManager manager, C context) {
+        if (!deferredTranslucentCommands.isEmpty()) {
+            FullRenderState snapshot = RenderStateSnapshotUtils.createSnapshot();
+            manager.changeState(snapshot, context, false);
+
+            flushDeferredTranslucentCommands(manager, context);
+
+            manager.changeState(snapshot, context);
+        }
+    }
+
+    /**
+     * Accumulate translucent commands for later execution.
+     */
+    private void accumulateTranslucentCommands(PipelineType pipelineType, KeyId stageId) {
+        Map<KeyId, Map<RenderSetting, List<RenderCommand>>> stageMap = commandsByPipelineAndStage.get(pipelineType);
+        if (stageMap == null) {
+            return;
+        }
+
+        Map<RenderSetting, List<RenderCommand>> stageCommands = stageMap.get(stageId);
+        if (stageCommands == null || stageCommands.isEmpty()) {
+            return;
+        }
+
+        // Accumulate commands per pipeline type
+        Map<RenderSetting, List<RenderCommand>> deferred = deferredTranslucentCommands.computeIfAbsent(pipelineType,
+                k -> new LinkedHashMap<>());
+
+        for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
+            deferred.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                    .addAll(entry.getValue());
+        }
+    }
+
+    /**
+     * Flush all deferred translucent commands.
+     */
+    private void flushDeferredTranslucentCommands(RenderStateManager manager, C context) {
+        // Get pipeline types in priority order
+        List<PipelineType> pipelineTypes = new ArrayList<>(deferredTranslucentCommands.keySet());
+        pipelineTypes.sort(Comparator.comparingInt(PipelineType::getPriority));
+
+        for (PipelineType pipelineType : pipelineTypes) {
+            Map<RenderSetting, List<RenderCommand>> commands = deferredTranslucentCommands.get(pipelineType);
+            if (commands != null && !commands.isEmpty()) {
+                executeCommandMap(commands, manager, context);
+            }
+        }
+
+        // Clear deferred commands after flushing
+        deferredTranslucentCommands.clear();
+    }
+
+    /**
+     * Determine if translucent rendering should follow solid for a stage (FLEXIBLE
+     * mode).
+     */
+    private boolean shouldTranslucentFollowSolid(GraphicsStage stage, KeyId stageId, PipelineConfig config) {
+        // Check stage-specific configuration first
+        if (stage != null && stage.getTranslucentFollowsSolid() != null) {
+            return stage.getTranslucentFollowsSolid();
+        }
+
+        // Check config per-stage setting
+        Boolean configSetting = config.getStageTranslucentFollowsSolid(stageId);
+        if (configSetting != null) {
+            return configSetting;
+        }
+
+        // Default: translucent follows solid (INTERLEAVED behavior)
+        return true;
+    }
+
+    /**
+     * Execute commands from a command map.
+     */
+    private void executeCommandMap(Map<RenderSetting, List<RenderCommand>> commandMap,
+            RenderStateManager manager, C context) {
+        for (Map.Entry<RenderSetting, List<RenderCommand>> entry : commandMap.entrySet()) {
+            RenderSetting setting = entry.getKey();
+            List<RenderCommand> commands = entry.getValue();
+
+            if (setting.renderParameter().isInvalid()) {
+                continue;
+            }
+
+            // Apply render setting once for all commands with the same setting
+            if (setting.shouldSwitchRenderState()) {
+                applyRenderSetting(manager, context, setting);
+            }
+
+            // Execute each render command
+            for (RenderCommand command : commands) {
+                executeRenderCommand(command, context);
+            }
+        }
+    }
+
+    /**
+     * Execute render commands for a specific stage and pipeline type.
+     */
+    private void executeStageForPipeline(PipelineType pipelineType, KeyId stageId, RenderStateManager manager, C context) {
+        Map<KeyId, Map<RenderSetting, List<RenderCommand>>> stageMap = commandsByPipelineAndStage.get(pipelineType);
+        if (stageMap == null) {
+            return;
+        }
+
+        Map<RenderSetting, List<RenderCommand>> stageCommands = stageMap.get(stageId);
+        if (stageCommands == null || stageCommands.isEmpty()) {
+            return;
+        }
+
+        for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
+            RenderSetting setting = entry.getKey();
+            List<RenderCommand> commands = entry.getValue();
+
+            if (setting.renderParameter().isInvalid()) {
+                continue;
+            }
+
+            // Apply render setting once for all commands with the same setting
+            if (setting.shouldSwitchRenderState()) {
+                applyRenderSetting(manager, context, setting);
+            }
+
+            // Execute each render command
+            for (RenderCommand command : commands) {
+                executeRenderCommand(command, context);
+            }
+        }
+    }
+
+    /**
      * Execute a render command immediately (skipping the queue).
      * Useful for immediate rendering scenarios.
      */
-    public void executeImmediate(RenderCommand command, RenderSetting setting, RenderStateManager manager,
-            RenderContext context) {
+    public void executeImmediate(RenderCommand command, RenderSetting setting, RenderStateManager manager, RenderContext context) {
         if (setting.renderParameter().isInvalid()) {
             return;
         }
@@ -190,26 +370,21 @@ public class RenderCommandQueue<C extends RenderContext> {
      * Clear all commands from the queue
      */
     public void clear() {
-        commandsByVertexResource.clear();
-        commandsByStage.clear();
-    }
-
-    /**
-     * Get commands for a specific vertex resource
-     */
-    public List<RenderCommand> getCommandsForVertexResource(RenderSetting renderSetting) {
-        return commandsByVertexResource.getOrDefault(renderSetting, Collections.emptyList());
-    }
-
-    /**
-     * Get all vertex resources in the queue
-     */
-    public Set<RenderSetting> getVertexResources() {
-        return new HashSet<>(commandsByVertexResource.keySet());
+        for (Map<RenderSetting, List<RenderCommand>> commands : commandsByPipeline.values()) {
+            commands.clear();
+        }
+        for (Map<KeyId, Map<RenderSetting, List<RenderCommand>>> stageMap : commandsByPipelineAndStage.values()) {
+            stageMap.clear();
+        }
     }
 
     public boolean isEmpty() {
-        return commandsByVertexResource.isEmpty();
+        for (Map<RenderSetting, List<RenderCommand>> commands : commandsByPipeline.values()) {
+            if (!commands.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

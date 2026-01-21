@@ -66,12 +66,10 @@ public class RenderBatch<T extends InstanceInfo> {
 
         for (InstanceInfo info : instances) {
             Graphics instance = info.getInstance();
-            if (instance.shouldRender()) {
-                UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(
-                        shaderProvider.getUniformHookGroup(), instance);
+            UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(
+                    shaderProvider.getUniformHookGroup(), instance);
 
-                batches.computeIfAbsent(snapshot, UniformBatchGroup::new).addInstance(instance);
-            }
+            batches.computeIfAbsent(snapshot, UniformBatchGroup::new).addInstance(instance);
         }
 
         this.uniformBatches.clear();
@@ -83,8 +81,7 @@ public class RenderBatch<T extends InstanceInfo> {
      */
     private ShaderProvider extractShaderProvider(InstanceInfo info) {
         try {
-            ResourceReference<ShaderProvider> reference = ((ShaderState) info.getRenderSetting().renderState()
-                    .get(ResourceTypes.SHADER_PROGRAM)).shader();
+            ResourceReference<ShaderProvider> reference = ((ShaderState) info.getRenderSetting().renderState().get(ResourceTypes.SHADER_PROGRAM)).shader();
             if (reference.isAvailable()) {
                 return reference.get();
             }

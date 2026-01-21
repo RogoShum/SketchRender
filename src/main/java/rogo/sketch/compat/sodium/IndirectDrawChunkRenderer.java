@@ -31,15 +31,11 @@ import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
 import rogo.sketch.compat.sodium.api.TessellationDevice;
 import rogo.sketch.feature.culling.graphics.ComputeChunkCullingGraphics;
-import rogo.sketch.render.pipeline.PartialRenderSetting;
-import rogo.sketch.render.pipeline.RenderSetting;
-import rogo.sketch.render.resource.GraphicsResourceManager;
-import rogo.sketch.render.resource.ResourceReference;
-import rogo.sketch.render.resource.ResourceTypes;
+import rogo.sketch.feature.culling.graphics.CopyCounterGraphics;
+import rogo.sketch.render.pipeline.ComputeParameter;
 import rogo.sketch.util.GLFeatureChecker;
 import rogo.sketch.util.KeyId;
 import rogo.sketch.vanilla.PipelineUtil;
-import rogo.sketch.feature.culling.graphics.CopyCounterGraphics;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -54,9 +50,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
     private List<RenderRegion> orderedRegions;
     private final ExtraChunkRenderer defaultChunkRenderer;
     private final ComputeChunkCullingGraphics chunkCullingGraphics = new ComputeChunkCullingGraphics(KeyId.of(SketchRender.MOD_ID, "culling_chunk"));
-    private final ResourceReference<PartialRenderSetting> cullingChunkSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "cull_chunk"));
     private final CopyCounterGraphics copyCounterGraphics = new CopyCounterGraphics(KeyId.of(SketchRender.MOD_ID, "copy_counter"));
-    private final ResourceReference<PartialRenderSetting> copyCounterSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "copy_counter"));
 
     public IndirectDrawChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
         super(device, vertexType);
@@ -150,15 +144,8 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         MeshResource.CULLING_COUNTER.updateCount(0);
         MeshResource.ORDERED_REGION_SIZE = orderedRegions.size();
 
-        if (cullingChunkSetting.isAvailable()) {
-            RenderSetting setting = RenderSetting.computeShader(cullingChunkSetting.get());
-            PipelineUtil.renderHelper().renderInstanceImmediately(chunkCullingGraphics, setting);
-        }
-
-        if (copyCounterSetting.isAvailable()) {
-            RenderSetting setting = RenderSetting.computeShader(copyCounterSetting.get());
-            PipelineUtil.renderHelper().renderInstanceImmediately(copyCounterGraphics, setting);
-        }
+        PipelineUtil.renderHelper().renderInstanceImmediately(chunkCullingGraphics, ComputeParameter.COMPUTE_PARAMETER);
+        PipelineUtil.renderHelper().renderInstanceImmediately(copyCounterGraphics, ComputeParameter.COMPUTE_PARAMETER);
 
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
     }

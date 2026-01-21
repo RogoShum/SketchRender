@@ -35,6 +35,7 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
+import org.joml.primitives.AABBf;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketch.compat.sodium.MeshResource;
@@ -232,7 +233,8 @@ public class SketchRender {
         } else if (o instanceof Entity) {
             return ((Entity) o).getBoundingBox();
         } else if (o instanceof AABBObject) {
-            return ((AABBObject) o).getAABB();
+            AABBf aabbf = ((AABBObject) o).getAABB();
+            return new AABB(aabbf.minX, aabbf.minY, aabbf.minZ, aabbf.maxX, aabbf.maxY, aabbf.maxZ);
         }
 
         return null;

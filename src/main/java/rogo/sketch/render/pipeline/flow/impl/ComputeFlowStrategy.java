@@ -4,6 +4,7 @@ import rogo.sketch.api.graphics.DispatchProvider;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.ComputeRenderCommand;
 import rogo.sketch.render.command.RenderCommand;
+import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.pipeline.flow.RenderBatch;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.render.pipeline.RenderSetting;
@@ -42,26 +43,16 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
 
     @Override
     @Nullable
-    public <C extends RenderContext> InstanceInfo collectInstanceInfo(
-            Graphics instance,
-            RenderSetting renderSetting,
-            C context) {
-        if (!instance.shouldRender()) {
-            return null;
-        }
-
+    public <C extends RenderContext> InstanceInfo collectInstanceInfo(Graphics instance, RenderParameter renderParameter, C context) {
         BiConsumer<RenderContext, ComputeShader> dispatchCommand = extractDispatchCommand(instance);
-        if (dispatchCommand == null) {
+        if (dispatchCommand == null || instance.getPartialRenderSetting() == null) {
             return null;
         }
 
+        RenderSetting renderSetting = RenderSetting.fromPartial(renderParameter, instance.getPartialRenderSetting());
         ResourceBinding resourceBinding = renderSetting.resourceBinding();
 
-        return new ComputeInstanceInfo(
-                instance,
-                renderSetting,
-                resourceBinding,
-                dispatchCommand);
+        return new ComputeInstanceInfo(instance, renderSetting, resourceBinding, dispatchCommand);
     }
 
     @Override

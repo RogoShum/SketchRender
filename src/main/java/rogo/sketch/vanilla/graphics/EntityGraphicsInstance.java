@@ -3,6 +3,7 @@ package rogo.sketch.vanilla.graphics;
 import net.minecraft.world.entity.Entity;
 import rogo.sketch.api.model.PreparedMesh;
 import rogo.sketch.render.instance.MeshGraphics;
+import rogo.sketch.render.pipeline.PartialRenderSetting;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.KeyId;
 
@@ -14,6 +15,11 @@ public class EntityGraphicsInstance extends MeshGraphics {
         this.entity = entity;
     }
 
+
+    @Override
+    public PartialRenderSetting getPartialRenderSetting() {
+        return null;
+    }
 
     @Override
     public boolean shouldTick() {

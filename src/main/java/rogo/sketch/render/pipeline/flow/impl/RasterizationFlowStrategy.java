@@ -54,14 +54,8 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
 
     @Override
     @Nullable
-    public <C extends RenderContext> InstanceInfo collectInstanceInfo(
-            Graphics instance,
-            RenderSetting renderSetting,
-            C context) {
-        if (!instance.shouldRender()) {
-            return null;
-        }
-
+    public <C extends RenderContext> InstanceInfo collectInstanceInfo(Graphics instance, RenderParameter renderParameter, C context) {
+        RenderSetting renderSetting = RenderSetting.fromPartial(renderParameter, instance.getPartialRenderSetting());
         ResourceBinding resourceBinding = renderSetting.resourceBinding();
         PreparedMesh mesh = extractMesh(instance);
         Matrix4f meshMatrix = extractMeshMatrix(instance);
@@ -295,9 +289,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         for (RenderBatch<RasterizationInstanceInfo> batch : batches.meshBatches()) {
             totalInstances += batch.getInstances().size();
             for (RasterizationInstanceInfo info : batch.getInstances()) {
-                if (info.getInstance().shouldRender()) {
-                    totalVertices += info.getVertexCount(); // Accumulate for dynamic vertex buffers
-                }
+                totalVertices += info.getVertexCount(); // Accumulate for dynamic vertex buffers
             }
         }
 
@@ -347,9 +339,6 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
 
             for (RasterizationInstanceInfo info : batch.getInstances()) {
                 Graphics instance = info.getInstance();
-                if (!instance.shouldRender())
-                    continue;
-
                 validInstanceCount++;
                 batchInstanceCount++;
 

@@ -6,6 +6,10 @@ import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.render.data.PrimitiveType;
 import rogo.sketch.render.instance.MeshGraphics;
 import rogo.sketch.render.model.DynamicMesh;
+import rogo.sketch.render.pipeline.PartialRenderSetting;
+import rogo.sketch.render.resource.GraphicsResourceManager;
+import rogo.sketch.render.resource.ResourceReference;
+import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.vertex.DefaultDataFormats;
 import rogo.sketch.util.KeyId;
 
@@ -13,6 +17,7 @@ import rogo.sketch.util.KeyId;
  * Entity culling test graphics instance using DynamicMesh
  */
 public class EntityCullingTestGraphics extends MeshGraphics {
+    private final ResourceReference<PartialRenderSetting> partialRenderSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "culling_test_entity"));
     private final PreparedMesh mesh;
 
     public EntityCullingTestGraphics(KeyId keyId) {
@@ -38,6 +43,15 @@ public class EntityCullingTestGraphics extends MeshGraphics {
                             .put(1.0f, 1.0f, 0.0f).endVertex()
                             .put(-1.0f, 1.0f, 0.0f).endVertex();
                 });
+    }
+
+    @Override
+    public PartialRenderSetting getPartialRenderSetting() {
+        if (partialRenderSetting.isAvailable()) {
+            return partialRenderSetting.get();
+        }
+
+        return null;
     }
 
     @Override

@@ -9,12 +9,14 @@ import rogo.sketch.api.graphics.InstanceDataProvider;
 import rogo.sketch.api.model.PreparedMesh;
 import rogo.sketch.render.data.builder.VertexDataBuilder;
 import rogo.sketch.render.model.MeshGroup;
+import rogo.sketch.render.pipeline.PartialRenderSetting;
 import rogo.sketch.render.resource.GraphicsResourceManager;
 import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.util.KeyId;
 
 public class CubeTestGraphics extends MeshGraphics implements InstanceDataProvider {
+    private final ResourceReference<PartialRenderSetting> renderSetting;
     public static final KeyId ENTITY_POS = KeyId.of("entity_pos");
     public static final KeyId ENTITY_TRANSFORM = KeyId.of("entity_transform");
     private final ResourceReference<MeshGroup> cube = GraphicsResourceManager.getInstance().getReference(ResourceTypes.MESH, KeyId.of(SketchRender.MOD_ID, "cube"));
@@ -25,13 +27,23 @@ public class CubeTestGraphics extends MeshGraphics implements InstanceDataProvid
     private final boolean attachHead;
     private final KeyId meshName;
 
-    public CubeTestGraphics(KeyId keyId, boolean attachHead, KeyId meshName, Vector3f offset, Vector3f scale, Vector3f rotation) {
+    public CubeTestGraphics(KeyId keyId, ResourceReference<PartialRenderSetting> renderSetting, boolean attachHead, KeyId meshName, Vector3f offset, Vector3f scale, Vector3f rotation) {
         super(keyId);
         this.attachHead = attachHead;
         this.offset = offset;
         this.scale = scale;
         this.rotation = rotation;
         this.meshName = meshName;
+        this.renderSetting = renderSetting;
+    }
+
+    @Override
+    public PartialRenderSetting getPartialRenderSetting() {
+        if (renderSetting.isAvailable()) {
+            return renderSetting.get();
+        }
+
+        return null;
     }
 
     @Override

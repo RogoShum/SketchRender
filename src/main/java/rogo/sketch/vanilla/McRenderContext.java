@@ -11,8 +11,12 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.client.ForgeHooksClient;
+import net.minecraftforge.client.event.ViewportEvent;
+import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL13;
+import rogo.sketch.mixin.AccessorFrustum;
 import rogo.sketch.render.pipeline.RenderContext;
 import rogo.sketch.util.KeyId;
 
@@ -27,8 +31,8 @@ public class McRenderContext extends RenderContext {
     public McRenderContext(LevelRenderer levelRenderer, PoseStack vanillaModelView, Matrix4f projectionMatrix, Camera camera, Frustum frustum, int renderTick, float partialTicks) {
         this.levelRenderer = levelRenderer;
         this.vanillaModelView = vanillaModelView;
-        net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles cameraSetup = net.minecraftforge.client.ForgeHooksClient.onCameraSetup(Minecraft.getInstance().gameRenderer
-                , camera, Minecraft.getInstance().getFrameTime());
+        ViewportEvent.ComputeCameraAngles cameraSetup = ForgeHooksClient
+                .onCameraSetup(Minecraft.getInstance().gameRenderer, camera, Minecraft.getInstance().getFrameTime());
         this.viewMatrix().identity();
         Vec3 cameraPos = camera.getPosition();
         this.viewMatrix().rotate(Axis.ZP.rotationDegrees(cameraSetup.getRoll()));
@@ -38,8 +42,16 @@ public class McRenderContext extends RenderContext {
         this.projectionMatrix().mul(projectionMatrix);
         this.modelMatrix().identity();
         this.camera = camera;
+        this.cameraPosition = camera.getPosition().toVector3f();
+        this.cameraDirection = camera.getLookVector();
+        this.cameraUp = camera.getUpVector();
+        this.cameraLeft = camera.getLeftVector();
         this.frustum = frustum;
         this.cullingFrustum = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
+
+        // Convert Minecraft frustum to JOML frustum
+        this.setFrustum(new FrustumIntersection(((AccessorFrustum) this.cullingFrustum).frustumMatrix()));
+
         this.renderTick = renderTick;
         this.partialTicks = partialTicks;
         this.windowWidth = Minecraft.getInstance().getWindow().getWidth();
@@ -65,6 +77,7 @@ public class McRenderContext extends RenderContext {
     public void setFrustum(Frustum frustum) {
         this.frustum = frustum;
         this.cullingFrustum = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
+        super.setFrustum(new FrustumIntersection(((AccessorFrustum) this.cullingFrustum).frustumMatrix()));
     }
 
     public Frustum cullingFrustum() {

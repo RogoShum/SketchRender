@@ -3,6 +3,7 @@ package rogo.sketch.render.pipeline.flow;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.pipeline.RenderContext;
+import rogo.sketch.render.pipeline.RenderParameter;
 import rogo.sketch.render.pipeline.RenderSetting;
 import rogo.sketch.render.pipeline.information.InstanceInfo;
 import rogo.sketch.util.KeyId;
@@ -47,17 +48,14 @@ public interface RenderFlowStrategy {
      * </p>
      *
      * @param instance      The graphics instance to collect from
-     * @param renderSetting The render setting associated with this instance
+     * @param renderParameter The render setting associated with this instance
      * @param context       The current render context
      * @param <C>           The render context type
      * @return The collected instance information, or null if the instance should be
      *         skipped
      */
     @Nullable
-    <C extends RenderContext> InstanceInfo collectInstanceInfo(
-            Graphics instance,
-            RenderSetting renderSetting,
-            C context);
+    <C extends RenderContext> InstanceInfo collectInstanceInfo(Graphics instance, RenderParameter renderParameter, C context);
 
     /**
      * Create render commands from collected instance information.
@@ -73,11 +71,7 @@ public interface RenderFlowStrategy {
      *                      uploads)
      * @return Map of render commands grouped by RenderSetting
      */
-    Map<RenderSetting, List<RenderCommand>> createRenderCommands(
-            Collection<InstanceInfo> infos,
-            KeyId stageId,
-            RenderFlowContext flowContext,
-            RenderPostProcessors postProcessors);
+    Map<RenderSetting, List<RenderCommand>> createRenderCommands(Collection<InstanceInfo> infos, KeyId stageId, RenderFlowContext flowContext, RenderPostProcessors postProcessors);
 
     /**
      * Create a post-processor for this strategy.

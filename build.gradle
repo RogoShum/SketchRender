@@ -181,6 +181,12 @@ dependencies {
     //spark
     compileOnly fg.deobf("maven.modrinth:l6YH9Als:4FXHDE9F")
     implementation fg.deobf("maven.modrinth:l6YH9Als:4FXHDE9F")
+    
+    // JOML primitives for spatial data structures
+    minecraftLibrary ("org.joml:joml-primitives:1.10.0")
+    implementation(jarJar("org.joml:joml-primitives:1.10.0")) {
+        jarJar.ranged(it, "[1.10.0,)")
+    }
 }
 
 afterEvaluate {

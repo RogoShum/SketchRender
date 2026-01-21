@@ -7,6 +7,12 @@
       "enabled": true,
       "srcFactor": "SRC_ALPHA",
       "dstFactor": "ONE_MINUS_SRC_ALPHA"
+    },
+    "depth_test": {
+      "enabled": true
+    },
+    "depth_mask": {
+      "writable": false
     }
   },
   "resourceBinding": {

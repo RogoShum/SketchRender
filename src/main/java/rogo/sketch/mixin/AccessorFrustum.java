@@ -2,6 +2,7 @@ package rogo.sketch.mixin;
 
 import net.minecraft.client.renderer.culling.Frustum;
 import org.joml.FrustumIntersection;
+import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -15,6 +16,9 @@ public interface AccessorFrustum {
 
     @Accessor("camZ")
     double camZ();
+
+    @Accessor("matrix")
+    Matrix4f frustumMatrix();
 
     @Accessor("intersection")
     FrustumIntersection frustumIntersection();

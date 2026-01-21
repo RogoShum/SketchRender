@@ -1,6 +1,8 @@
 package rogo.sketch.render.pipeline;
 
+import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.util.KeyId;
 
@@ -12,10 +14,15 @@ public class RenderContext {
     private final Matrix4f viewMatrix = new Matrix4f();
     private final Matrix4f modelMatrix = new Matrix4f();
     private final Matrix4f projectionMatrix = new Matrix4f();
+    protected Vector3f cameraPosition = new Vector3f();
+    protected Vector3f cameraDirection = new Vector3f();
+    protected Vector3f cameraUp = new Vector3f();
+    protected Vector3f cameraLeft = new Vector3f();
     protected int windowWidth;
     protected int windowHeight;
     protected int renderTick;
     protected float partialTicks;
+    protected FrustumIntersection frustum; // JOML frustum for culling
 
     protected ShaderProvider shaderProvider;
 
@@ -61,6 +68,14 @@ public class RenderContext {
 
     public ShaderProvider shaderProvider() {
         return shaderProvider;
+    }
+
+    public FrustumIntersection getFrustum() {
+        return frustum;
+    }
+
+    public void setFrustum(FrustumIntersection frustum) {
+        this.frustum = frustum;
     }
 
     public void preStage(KeyId stage) {

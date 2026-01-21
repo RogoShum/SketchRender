@@ -33,6 +33,7 @@ import rogo.sketch.render.pipeline.*;
 import rogo.sketch.render.pipeline.flow.impl.ComputeFlowStrategy;
 import rogo.sketch.render.pipeline.flow.impl.RasterizationFlowStrategy;
 import rogo.sketch.render.resource.GraphicsResourceManager;
+import rogo.sketch.render.resource.ResourceReference;
 import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.ValueGetter;
 import rogo.sketch.render.vertex.DefaultDataFormats;
@@ -381,15 +382,10 @@ public class VanillaPipelineEventHandler {
     @SubscribeEvent
     public void onStaticGraphicsRegister(ProxyEvent<RegisterStaticGraphicsEvent> event) {
         RegisterStaticGraphicsEvent registerEvent = event.getWrapped();
-        registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":hierarchy_depth_buffer_first",
-                () -> new ComputeHIZGraphics(KeyId.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true));
 
-        registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":hierarchy_depth_buffer_second",
-                () -> new ComputeHIZGraphics(KeyId.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"),
-                        false));
-
-        registerReloadableComputeShader(registerEvent, SketchRender.MOD_ID + ":cull_entity_batch",
-                () -> new ComputeEntityCullingGraphics(KeyId.of(SketchRender.MOD_ID, "cull_entity_batch")));
+        registerReloadableComputeShader(registerEvent, () -> new ComputeHIZGraphics(KeyId.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true));
+        registerReloadableComputeShader(registerEvent, () -> new ComputeHIZGraphics(KeyId.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"), false));
+        registerReloadableComputeShader(registerEvent, () -> new ComputeEntityCullingGraphics(KeyId.of(SketchRender.MOD_ID, "cull_entity_batch")));
 
         RenderSystem.recordRenderCall(() -> {
             registerNewPipelineCullingGraphics(registerEvent);
@@ -408,87 +404,58 @@ public class VanillaPipelineEventHandler {
      */
     private static void registerNewPipelineCullingGraphics(RegisterStaticGraphicsEvent registerEvent) {
         // Register chunk culling graphics
-        ChunkCullingTestGraphics chunkGraphics = new ChunkCullingTestGraphics(
-                KeyId.of(SketchRender.MOD_ID, "culling_test_chunk_new"));
+        ChunkCullingTestGraphics chunkGraphics = new ChunkCullingTestGraphics(KeyId.of(SketchRender.MOD_ID, "culling_test_chunk_new"));
         // Since we don't have mesh yet, register as legacy for compatibility
-        registerNewPipelineGraphicsAsLegacy(registerEvent, chunkGraphics, "culling_test_chunk");
+        registerNewPipelineGraphicsAsLegacy(registerEvent, chunkGraphics);
 
         // Register entity culling graphics
-        EntityCullingTestGraphics entityGraphics = new EntityCullingTestGraphics(
-                KeyId.of(SketchRender.MOD_ID, "culling_test_entity_new"));
-        registerNewPipelineGraphicsAsLegacy(registerEvent, entityGraphics, "culling_test_entity");
+        EntityCullingTestGraphics entityGraphics = new EntityCullingTestGraphics(KeyId.of(SketchRender.MOD_ID, "culling_test_entity_new"));
+        registerNewPipelineGraphicsAsLegacy(registerEvent, entityGraphics);
 
         // Register block entity culling graphics
-        BlockEntityCullingTestGraphics blockEntityGraphics = new BlockEntityCullingTestGraphics(
-                KeyId.of(SketchRender.MOD_ID, "culling_test_block_entity_new"));
-        registerNewPipelineGraphicsAsLegacy(registerEvent, blockEntityGraphics, "culling_test_block_entity");
+        BlockEntityCullingTestGraphics blockEntityGraphics = new BlockEntityCullingTestGraphics(KeyId.of(SketchRender.MOD_ID, "culling_test_block_entity_new"));
+        registerNewPipelineGraphicsAsLegacy(registerEvent, blockEntityGraphics);
 
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"), new Vector3f(0, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"), new Vector3f(0.5f, 0, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"), new Vector3f(-0.5f, 0, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test_1"), KeyId.of("cube_geometry"), new Vector3f(0f, 1.5f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test_1"), KeyId.of("cube_geometry"), new Vector3f(0f, 1f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
+        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"),
+                new Vector3f(0, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), false);
+        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"),
+                new Vector3f(0.5f, 0, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), false);
+        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"),
+                new Vector3f(-0.5f, 0, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), false);
+        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test_1"), KeyId.of("cube_geometry"),
+                new Vector3f(0f, 1.5f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), true);
+        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test_1"), KeyId.of("cube_geometry"),
+                new Vector3f(0f, 1f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), true);
         //registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), new Vector3f(0f, 1f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"), new Vector3f(0, 0.5f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier());
-        registerTestCube(registerEvent, false, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"), new Vector3f(0.5f, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier());
-        registerTestCube(registerEvent, false, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"), new Vector3f(-0.5f, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.BLOCK_OUTLINE.getIdentifier());
+        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"),
+                new Vector3f(0, 0.5f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier(), false);
+        registerTestCube(registerEvent, false, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"),
+                new Vector3f(0.5f, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier(), false);
+        registerTestCube(registerEvent, false, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"),
+                new Vector3f(-0.5f, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.BLOCK_OUTLINE.getIdentifier(), false);
     }
 
-    private static void registerNewPipelineGraphicsAsLegacy(RegisterStaticGraphicsEvent registerEvent, Graphics instance, String settingName) {
-        KeyId settingId = KeyId.of(SketchRender.MOD_ID, settingName);
-        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
-
-        if (renderSetting.isPresent()) {
-            PartialRenderSetting partialRenderSetting = renderSetting.get();
-            VertexLayoutSpec layout = VertexLayoutSpec.builder()
-                    .addDynamic(DynamicTypeMesh.BASED_MESH, DefaultDataFormats.POSITION)
-                    .build();
-
-            RenderParameter renderParameter = RasterizationParameter.create(
-                    layout,
-                    PrimitiveType.QUADS,
-                    Usage.DYNAMIC_DRAW,
-                    false);
-            RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
-            registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), instance, setting);
-        }
+    private static void registerNewPipelineGraphicsAsLegacy(RegisterStaticGraphicsEvent registerEvent, Graphics instance) {
+        VertexLayoutSpec layout = VertexLayoutSpec.builder().addDynamic(DynamicTypeMesh.BASED_MESH, DefaultDataFormats.POSITION).build();
+        RenderParameter renderParameter = RasterizationParameter.create(layout, PrimitiveType.QUADS, Usage.DYNAMIC_DRAW, false);
+        registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), instance, renderParameter);
     }
 
-    private static void registerTestCube(RegisterStaticGraphicsEvent registerEvent, boolean attachHead, KeyId renderSettingKey, KeyId meshName, Vector3f offset, Vector3f scale, Vector3f rotation, KeyId stage) {
-        Graphics cubeTestGraphics = new CubeTestGraphics(KeyId.of(SketchRender.MOD_ID, "cube_test_" + UUID.randomUUID()), attachHead, meshName, offset, scale, rotation);
-        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance().getResource(ResourceTypes.PARTIAL_RENDER_SETTING, renderSettingKey);
+    private static void registerTestCube(RegisterStaticGraphicsEvent registerEvent, boolean attachHead, KeyId renderSettingKey, KeyId meshName, Vector3f offset, Vector3f scale, Vector3f rotation, KeyId stage, boolean translucent) {
+        ResourceReference<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, renderSettingKey);
+        Graphics cubeTestGraphics = new CubeTestGraphics(KeyId.of(SketchRender.MOD_ID, "cube_test_" + UUID.randomUUID()), renderSetting, attachHead, meshName, offset, scale, rotation);
 
-        if (renderSetting.isPresent()) {
-            PartialRenderSetting partialRenderSetting = renderSetting.get();
-            VertexLayoutSpec layout = VertexLayoutSpec.builder()
-                    .addStatic(BakedTypeMesh.BAKED_MESH, DefaultDataFormats.POSITION_UV_NORMAL)
-                    .addDynamicInstanced(CubeTestGraphics.ENTITY_POS, DefaultDataFormats.POSITION)
-                    .addDynamicInstanced(CubeTestGraphics.ENTITY_TRANSFORM, DefaultDataFormats.TRANSFORM)
-                    .build();
+        VertexLayoutSpec layout = VertexLayoutSpec.builder()
+                .addStatic(BakedTypeMesh.BAKED_MESH, DefaultDataFormats.POSITION_UV_NORMAL)
+                .addDynamicInstanced(CubeTestGraphics.ENTITY_POS, DefaultDataFormats.POSITION)
+                .addDynamicInstanced(CubeTestGraphics.ENTITY_TRANSFORM, DefaultDataFormats.TRANSFORM)
+                .build();
 
-            RenderParameter renderParameter = RasterizationParameter.create(
-                    layout,
-                    PrimitiveType.QUADS,
-                    Usage.DYNAMIC_DRAW,
-                    false);
-            RenderSetting setting = RenderSetting.fromPartial(partialRenderSetting, renderParameter);
-            registerEvent.register(stage, cubeTestGraphics, setting);
-        }
+        RenderParameter renderParameter = RasterizationParameter.create(layout, PrimitiveType.QUADS, Usage.DYNAMIC_DRAW, false);
+        registerEvent.register(translucent ? MinecraftRenderStages.TRANSLUCENT.getIdentifier() : stage, cubeTestGraphics, renderParameter, translucent ? PipelineType.TRANSLUCENT.getIdentifier() : PipelineType.RASTERIZATION.getIdentifier());
     }
 
-    private static void registerReloadableComputeShader(RegisterStaticGraphicsEvent registerEvent,
-                                                        String settingIdString, Supplier<Graphics> instanceSupplier) {
-        KeyId settingId = KeyId.of(settingIdString);
-        Optional<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.PARTIAL_RENDER_SETTING, settingId);
-
-        if (renderSetting.isPresent()) {
-            PartialRenderSetting partialRenderSetting = renderSetting.get();
-            RenderSetting setting = RenderSetting.computeShader(partialRenderSetting);
-            registerEvent.register(CullingStages.HIZ, instanceSupplier.get(), setting);
-        } else {
-            System.err.println("Failed to find PartialRenderSetting: " + settingId);
-        }
+    private static void registerReloadableComputeShader(RegisterStaticGraphicsEvent registerEvent, Supplier<Graphics> instanceSupplier) {
+        registerEvent.register(CullingStages.HIZ, instanceSupplier.get(), ComputeParameter.COMPUTE_PARAMETER, PipelineType.COMPUTE.getIdentifier());
     }
 }

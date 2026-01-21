@@ -4,63 +4,89 @@ import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.prosessor.GeometryBatchProcessor;
 import rogo.sketch.render.pipeline.async.AsyncRenderManager;
+import rogo.sketch.render.pipeline.data.PipelineDataStore;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pool.InstancePoolManager;
+import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.util.KeyId;
 
 import java.util.*;
 
 /**
- * Container for graphics instances grouped by render settings.
+ * Container for graphics instances grouped by pipeline type and render
+ * settings.
  * <p>
- * This class is now a pure data container responsible for:
- * <ul>
- * <li>Storing and organizing graphics instances by render setting</li>
- * <li>Ticking instances each frame</li>
- * <li>Providing instance groups to the batch processor for command
- * creation</li>
- * <li>Managing instance lifecycle (cleanup, clear)</li>
- * </ul>
+ * This class manages instances across multiple pipeline types (compute,
+ * rasterization, translucent),
+ * Each pipeline type has its own batch groups and batch processor with
+ * dedicated resource managers.
  * </p>
  * <p>
- * Command creation logic has been moved to {@link GeometryBatchProcessor}.
+ * Responsibilities:
+ * <ul>
+ * <li>Storing and organizing graphics instances by pipeline type and render
+ * setting</li>
+ * <li>Ticking instances each frame across all pipeline types</li>
+ * <li>Creating render commands for each pipeline type</li>
+ * <li>Managing instance lifecycle (cleanup, clear)</li>
+ * </ul>
  * </p>
  */
 public class GraphicsBatchGroup<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
     private final KeyId stageKeyId;
-    private final Map<RenderSetting, GraphicsBatch<C>> groups = new LinkedHashMap<>();
+    private final Map<PipelineType, Map<RenderParameter, GraphicsBatch<C>>> pipelineGroups = new LinkedHashMap<>();
+    private final Map<PipelineType, GeometryBatchProcessor> batchProcessors = new LinkedHashMap<>();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
-
-    private final GeometryBatchProcessor batchProcessor;
 
     public GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, KeyId stageKeyId) {
         this.graphicsPipeline = graphicsPipeline;
         this.stageKeyId = stageKeyId;
-        this.batchProcessor = new GeometryBatchProcessor(graphicsPipeline.vertexResourceManager(), graphicsPipeline.getPipelineDataRegistry());
+
+        // Initialize batch groups for default pipeline types
+        initializePipeline(PipelineType.COMPUTE);
+        initializePipeline(PipelineType.RASTERIZATION);
+        initializePipeline(PipelineType.TRANSLUCENT);
+    }
+
+    private void initializePipeline(PipelineType pipelineType) {
+        pipelineGroups.put(pipelineType, new LinkedHashMap<>());
+
+        VertexResourceManager resourceManager = graphicsPipeline.getVertexResourceManager(pipelineType);
+        PipelineDataStore dataStore = graphicsPipeline.getPipelineDataStore(pipelineType);
+        batchProcessors.put(pipelineType, new GeometryBatchProcessor(resourceManager, dataStore));
+    }
+
+    public void addGraphInstance(Graphics instance, RenderParameter renderParameter, PipelineType pipelineType) {
+        addGraphInstance(instance, renderParameter, pipelineType, GraphicsBatch.DEFAULT_CONTAINER);
+    }
+
+    public void addGraphInstance(Graphics instance, RenderParameter renderParameter, PipelineType pipelineType, KeyId containerType) {
+        Map<RenderParameter, GraphicsBatch<C>> groups = pipelineGroups.get(pipelineType);
+        if (groups == null) {
+            // Initialize pipeline on demand if custom pipeline type
+            initializePipeline(pipelineType);
+            groups = pipelineGroups.get(pipelineType);
+        }
+
+        GraphicsBatch<C> batch = groups.computeIfAbsent(renderParameter, s -> new GraphicsBatch<>());
+        batch.addGraphInstance(instance, containerType);
     }
 
     /**
-     * Add a graphics instance with its render setting.
-     *
-     * @param instance The graphics instance
-     * @param setting  The render setting for this instance
-     */
-    public void addGraphInstance(Graphics instance, RenderSetting setting) {
-        GraphicsBatch<C> group = groups.computeIfAbsent(setting, s -> new GraphicsBatch<>());
-        group.addGraphInstance(instance);
-    }
-
-    /**
-     * Tick all instances in this group.
+     * Tick all instances across all pipeline types.
      *
      * @param context The render context
      */
     public void tick(C context) {
-        Collection<Graphics> allInstances = groups.values().stream()
-                .flatMap(graphicsBatch -> graphicsBatch.getAllInstances().stream())
-                .toList();
+        // Collect all instances from all pipeline types
+        Collection<Graphics> allInstances = new ArrayList<>();
+        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
+            for (GraphicsBatch<C> batch : groups.values()) {
+                allInstances.addAll(batch.getAllInstances());
+            }
+        }
 
         if (asyncManager.shouldUseAsync(allInstances.size())) {
             asyncManager.tickInstancesAsync(allInstances, context).join();
@@ -70,19 +96,28 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     private void tickSync(C context) {
-        groups.values().forEach(group -> group.tick(context));
+        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
+            for (GraphicsBatch<C> batch : groups.values()) {
+                batch.tick(context);
+            }
+        }
     }
 
     /**
-     * Get the instance groups as a map of render settings to instances.
-     * This is the primary data accessor for the batch processor.
+     * Get the instance groups for a specific pipeline type.
      *
-     * @return Map of render settings to instance collections
+     * @param pipelineType Pipeline type
+     * @return Map of render parameters to instance collections
      */
-    public Map<RenderSetting, Collection<Graphics>> getInstanceGroups() {
-        Map<RenderSetting, Collection<Graphics>> result = new LinkedHashMap<>();
-        for (Map.Entry<RenderSetting, GraphicsBatch<C>> entry : groups.entrySet()) {
-            result.put(entry.getKey(), entry.getValue().getAllInstances());
+    public Map<RenderParameter, Collection<Graphics>> getInstanceGroups(PipelineType pipelineType) {
+        Map<RenderParameter, GraphicsBatch<C>> groups = pipelineGroups.get(pipelineType);
+        if (groups == null) {
+            return Collections.emptyMap();
+        }
+
+        Map<RenderParameter, Collection<Graphics>> result = new LinkedHashMap<>();
+        for (Map.Entry<RenderParameter, GraphicsBatch<C>> entry : groups.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().getVisibleInstances(graphicsPipeline.currentContext()));
         }
         return result;
     }
@@ -96,16 +131,28 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         return stageKeyId;
     }
 
+    /**
+     * Create render commands for a specific pipeline type.
+     *
+     * @param pipelineType   Pipeline type to create commands for
+     * @param context        Render context
+     * @param postProcessors Post processors
+     * @return Map of render settings to command lists
+     */
     public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
-            C context,
-            RenderPostProcessors postProcessors) {
+            PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
         try {
-            Map<RenderSetting, Collection<Graphics>> instanceGroups = getInstanceGroups();
+            Map<RenderParameter, Collection<Graphics>> instanceGroups = getInstanceGroups(pipelineType);
             if (instanceGroups.isEmpty()) {
                 return Collections.emptyMap();
             }
 
-            return batchProcessor.createAllCommands(instanceGroups, stageKeyId, context, postProcessors);
+            GeometryBatchProcessor processor = batchProcessors.get(pipelineType);
+            if (processor == null) {
+                return Collections.emptyMap();
+            }
+
+            return processor.createAllCommands(instanceGroups, stageKeyId, context, postProcessors);
         } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyMap();
@@ -113,39 +160,74 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     /**
-     * Clean up discarded instances from all batches.
+     * Create render commands for all pipeline types.
+     *
+     * @param context        Render context
+     * @param postProcessors Post processors
+     * @return Map of pipeline types to render setting command maps
+     */
+    public Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> createAllRenderCommands(C context, RenderPostProcessors postProcessors) {
+        Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> allCommands = new LinkedHashMap<>();
+
+        for (PipelineType pipelineType : pipelineGroups.keySet()) {
+            Map<RenderSetting, List<RenderCommand>> commands = createRenderCommands(pipelineType, context,
+                    postProcessors);
+            if (!commands.isEmpty()) {
+                allCommands.put(pipelineType, commands);
+            }
+        }
+
+        return allCommands;
+    }
+
+    /**
+     * Clean up discarded instances from all batches across all pipeline types.
      */
     public void cleanupDiscardedInstances() {
-        for (GraphicsBatch<C> graphicsBatch : groups.values()) {
-            graphicsBatch.cleanupDiscardedInstances(poolManager);
+        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
+            for (GraphicsBatch<C> batch : groups.values()) {
+                batch.cleanupDiscardedInstances(poolManager);
+            }
         }
     }
 
     /**
-     * Clear all instance groups.
+     * Clear all instance groups across all pipeline types.
      */
     public void clear() {
-        groups.clear();
+        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
+            groups.clear();
+        }
     }
 
     /**
-     * Get the total number of instances across all groups.
+     * Get the total number of instances across all pipeline types and groups.
      *
      * @return Total instance count
      */
     public int getTotalInstanceCount() {
-        return groups.values().stream()
-                .mapToInt(batch -> batch.getAllInstances().size())
-                .sum();
+        int total = 0;
+        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
+            for (GraphicsBatch<C> batch : groups.values()) {
+                total += batch.getAllInstances().size();
+            }
+        }
+        return total;
     }
 
     /**
-     * Check if this group has any instances.
+     * Check if this group has any instances across all pipeline types.
      *
      * @return true if there are instances
      */
     public boolean hasInstances() {
-        return groups.values().stream()
-                .anyMatch(batch -> !batch.getAllInstances().isEmpty());
+        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
+            for (GraphicsBatch<C> batch : groups.values()) {
+                if (!batch.getAllInstances().isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
