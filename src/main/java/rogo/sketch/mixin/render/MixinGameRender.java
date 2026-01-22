@@ -12,7 +12,7 @@ import rogo.sketch.vanilla.PipelineUtil;
 @Mixin(GameRenderer.class)
 public abstract class MixinGameRender {
 
-    @Inject(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/vertex/PoseStack;FJZLnet/minecraft/client/Camera;Lnet/minecraft/client/renderer/GameRenderer;Lnet/minecraft/client/renderer/LightTexture;Lorg/joml/Matrix4f;)V"))
+    @Inject(method = "renderLevel", at = @At(value = "INVOKE", shift = At.Shift.AFTER, target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/vertex/PoseStack;FJZLnet/minecraft/client/Camera;Lnet/minecraft/client/renderer/GameRenderer;Lnet/minecraft/client/renderer/LightTexture;Lorg/joml/Matrix4f;)V"))
     public void onRenderLevel(float p_109090_, long p_109091_, PoseStack p_109092_, CallbackInfo ci) {
         PipelineUtil.pipeline().renderStagesBetween(MinecraftRenderStages.LEVEL_END.getIdentifier(), MinecraftRenderStages.HAND.getIdentifier());
     }

@@ -220,8 +220,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         int fromIdx = ordered.indexOf(fromStage);
         int toIdx = ordered.indexOf(toStage);
         for (int i = fromIdx + 1; i < toIdx; i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
-                    this.currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
         }
 
         renderStage(toId);
@@ -239,8 +238,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
         for (int i = 0; i < idx; i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
-                    this.currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
         }
 
         renderStage(id);
@@ -253,8 +251,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         GraphicsStage stage = idToStage.get(id);
         int idx = ordered.indexOf(stage);
         for (int i = idx + 1; i < ordered.size(); i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
-                    this.currentContext);
+            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager, this.currentContext);
         }
     }
 

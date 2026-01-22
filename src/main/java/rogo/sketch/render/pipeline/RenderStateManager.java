@@ -79,15 +79,14 @@ public class RenderStateManager {
         changeState(newState, context, true);
     }
 
-    public void changeState(FullRenderState newState, RenderContext context, boolean applyChanged) {
+    public void changeState(FullRenderState newState, RenderContext context, boolean forceReplace) {
         if (currentState == null) {
             // First time, apply all components
             for (RenderStateComponent comp : newState.getComponentTypes().stream().map(newState::get).toList()) {
                 comp.apply(context);
             }
-        } else if (applyChanged) {
+        } else if (forceReplace) {
             // Only apply changed components
-
             for (KeyId type : newState.getComponentTypes()) {
                 RenderStateComponent newComp = newState.get(type);
                 RenderStateComponent oldComp = currentState.get(type);

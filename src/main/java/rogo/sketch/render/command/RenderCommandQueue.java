@@ -1,5 +1,6 @@
 package rogo.sketch.render.command;
 
+import rogo.sketch.SketchRender;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.event.GraphicsPipelineStageEvent;
@@ -84,6 +85,7 @@ public class RenderCommandQueue<C extends RenderContext> {
      * Executes commands based on the configured translucent rendering strategy.
      */
     public void executeStage(KeyId stageId, RenderStateManager manager, C context) {
+        //SketchRender.COMMAND_TIMER.start("execute command -> " + stageId);
         EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context,
                 GraphicsPipelineStageEvent.Phase.PRE));
         context.preStage(stageId);
@@ -150,11 +152,13 @@ public class RenderCommandQueue<C extends RenderContext> {
                 break;
         }
 
+        manager.reset();
         manager.changeState(snapshot, context);
 
         context.postStage(stageId);
         EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context,
                 GraphicsPipelineStageEvent.Phase.POST));
+        //SketchRender.COMMAND_TIMER.end("execute command -> " + stageId);
     }
 
     /**
@@ -168,6 +172,7 @@ public class RenderCommandQueue<C extends RenderContext> {
 
             flushDeferredTranslucentCommands(manager, context);
 
+            manager.reset();
             manager.changeState(snapshot, context);
         }
     }

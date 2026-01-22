@@ -1,5 +1,6 @@
 package rogo.sketch.render.pipeline;
 
+import rogo.sketch.SketchRender;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.prosessor.GeometryBatchProcessor;
@@ -139,8 +140,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * @param postProcessors Post processors
      * @return Map of render settings to command lists
      */
-    public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
-            PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
+    public Map<RenderSetting, List<RenderCommand>> createRenderCommands(PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
         try {
             Map<RenderParameter, Collection<Graphics>> instanceGroups = getInstanceGroups(pipelineType);
             if (instanceGroups.isEmpty()) {
@@ -169,14 +169,14 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     public Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> createAllRenderCommands(C context, RenderPostProcessors postProcessors) {
         Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> allCommands = new LinkedHashMap<>();
 
+        //SketchRender.COMMAND_TIMER.start("compute command -> " + this.stageKeyId);
         for (PipelineType pipelineType : pipelineGroups.keySet()) {
-            Map<RenderSetting, List<RenderCommand>> commands = createRenderCommands(pipelineType, context,
-                    postProcessors);
+            Map<RenderSetting, List<RenderCommand>> commands = createRenderCommands(pipelineType, context, postProcessors);
             if (!commands.isEmpty()) {
                 allCommands.put(pipelineType, commands);
             }
         }
-
+        //SketchRender.COMMAND_TIMER.end("compute command -> " + this.stageKeyId);
         return allCommands;
     }
 
