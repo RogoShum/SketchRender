@@ -266,10 +266,10 @@ public class SketchRender {
 
             String[] strings = debug.toString().split("\n");
 
-            for (int i = 0; i < strings.length; ++i) {
-                event.getGuiGraphics().drawString(Minecraft.getInstance().font, strings[i], 0,
-                        Minecraft.getInstance().font.lineHeight * i, 16777215 + (255 << 24));
-            }
+//            for (int i = 0; i < strings.length; ++i) {
+//                event.getGuiGraphics().drawString(Minecraft.getInstance().font, strings[i], 0,
+//                        Minecraft.getInstance().font.lineHeight * i, 16777215 + (255 << 24));
+//            }
         }
     }
 
