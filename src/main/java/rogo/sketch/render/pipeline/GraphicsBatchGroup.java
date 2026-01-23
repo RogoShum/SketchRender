@@ -46,14 +46,13 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         this.stageKeyId = stageKeyId;
 
         // Initialize batch groups for default pipeline types
-        initializePipeline(PipelineType.COMPUTE);
-        initializePipeline(PipelineType.RASTERIZATION);
-        initializePipeline(PipelineType.TRANSLUCENT);
+        for (PipelineType pipelineType : graphicsPipeline.getPipelineTypes()) {
+            initializePipeline(pipelineType);
+        }
     }
 
     private void initializePipeline(PipelineType pipelineType) {
         pipelineGroups.put(pipelineType, new LinkedHashMap<>());
-
         VertexResourceManager resourceManager = graphicsPipeline.getVertexResourceManager(pipelineType);
         PipelineDataStore dataStore = graphicsPipeline.getPipelineDataStore(pipelineType);
         batchProcessors.put(pipelineType, new GeometryBatchProcessor(resourceManager, dataStore));
@@ -66,9 +65,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     public void addGraphInstance(Graphics instance, RenderParameter renderParameter, PipelineType pipelineType, KeyId containerType) {
         Map<RenderParameter, GraphicsBatch<C>> groups = pipelineGroups.get(pipelineType);
         if (groups == null) {
-            // Initialize pipeline on demand if custom pipeline type
-            initializePipeline(pipelineType);
-            groups = pipelineGroups.get(pipelineType);
+            throw new IllegalArgumentException("Pipeline type " + pipelineType + " does not contain any pipeline groups");
         }
 
         GraphicsBatch<C> batch = groups.computeIfAbsent(renderParameter, s -> new GraphicsBatch<>());

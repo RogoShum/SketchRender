@@ -114,6 +114,6 @@ public class RenderStateSnapshotUtils {
         // lookup.
         // Omitted for now. The snapshot will not contain RenderTarget state.
 
-        return RenderStateRegistry.createFullRenderState(components);
+        return DefaultRenderStates.createFullRenderState(components);
     }
 }

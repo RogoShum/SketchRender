@@ -14,6 +14,7 @@ import java.util.Set;
 public class ResourceBinding {
     // Map: ResourceType -> (BindingName -> ResourceIdentifier)
     private final Map<KeyId, Map<KeyId, KeyId>> bindings = new HashMap<>();
+    private int hash = 0;
 
     public ResourceBinding() {
     }
@@ -26,8 +27,8 @@ public class ResourceBinding {
      * @param resourceKeyId Identifier of the actual resource
      */
     public void addBinding(KeyId resourceType, KeyId bindingName, KeyId resourceKeyId) {
-        bindings.computeIfAbsent(resourceType, k -> new HashMap<>())
-                .put(bindingName, resourceKeyId);
+        bindings.computeIfAbsent(resourceType, k -> new HashMap<>()).put(bindingName, resourceKeyId);
+        hash = Objects.hash(bindings);
     }
 
     /**
@@ -152,7 +153,7 @@ public class ResourceBinding {
 
     @Override
     public int hashCode() {
-        return Objects.hash(bindings);
+        return hash;
     }
 
     @Override

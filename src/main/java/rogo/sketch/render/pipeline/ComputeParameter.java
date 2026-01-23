@@ -20,6 +20,6 @@ public class ComputeParameter extends RenderParameter {
 
     @Override
     public int hashCode() {
-        return 0;
+        return System.identityHashCode(this);
     }
 }

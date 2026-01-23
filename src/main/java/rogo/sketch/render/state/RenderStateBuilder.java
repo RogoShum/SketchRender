@@ -16,11 +16,11 @@ public class RenderStateBuilder {
 
     public FullRenderState build() {
         for (KeyId type : components.keySet()) {
-            if (!RenderStateRegistry.isRegistered(type)) {
+            if (!DefaultRenderStates.isRegistered(type)) {
                 throw new IllegalStateException("RenderStateComponent type not registered: " + type.getName());
             }
         }
 
-        return RenderStateRegistry.createFullRenderState(components);
+        return DefaultRenderStates.createFullRenderState(components);
     }
 }

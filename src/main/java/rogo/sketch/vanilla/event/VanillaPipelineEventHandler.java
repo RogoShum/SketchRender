@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.joml.*;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
@@ -44,8 +45,8 @@ import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.resource.TempTexture;
 import rogo.sketch.vanilla.resource.loader.VanillaTextureLoader;
 
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.Random;
 import java.util.function.Supplier;
 
 public class VanillaPipelineEventHandler {
@@ -416,24 +417,53 @@ public class VanillaPipelineEventHandler {
         BlockEntityCullingTestGraphics blockEntityGraphics = new BlockEntityCullingTestGraphics(KeyId.of(SketchRender.MOD_ID, "culling_test_block_entity_new"));
         registerNewPipelineGraphicsAsLegacy(registerEvent, blockEntityGraphics);
 
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"),
-                new Vector3f(0, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), false);
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"),
-                new Vector3f(0.5f, 0, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), false);
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"),
-                new Vector3f(-0.5f, 0, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), false);
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test_1"), KeyId.of("cube_geometry"),
-                new Vector3f(0f, 1.5f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), true);
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test_1"), KeyId.of("cube_geometry"),
-                new Vector3f(0f, 1f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier(), true);
-        //registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), new Vector3f(0f, 1f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.ENTITIES.getIdentifier());
-        registerTestCube(registerEvent, true, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("sphere_geometry"),
-                new Vector3f(0, 0.5f, 0), new Vector3f(0.25f, 0.25f, 0.25f), new Vector3f(0, 0, 0), MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier(), false);
-        registerTestCube(registerEvent, false, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"),
-                new Vector3f(0.5f, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier(), false);
-        registerTestCube(registerEvent, false, KeyId.of(SketchRender.MOD_ID, "cube_test"), KeyId.of("cube_geometry"),
-                new Vector3f(-0.5f, 0, 0), new Vector3f(0.5f, 0.5f, 0.5f), new Vector3f(0, 0, 0), MinecraftRenderStages.BLOCK_OUTLINE.getIdentifier(), false);
+        if (!FMLEnvironment.production) {
+            Random random = new Random();
+            KeyId cubeTest = KeyId.of(SketchRender.MOD_ID, "cube_test");
+            KeyId cubeTest1 = KeyId.of(SketchRender.MOD_ID, "cube_test_1");
+
+            KeyId cube_geometry = KeyId.of("cube_geometry");
+            KeyId sphere_geometry = KeyId.of("sphere_geometry");
+
+            List<KeyId> stages = new ArrayList<>();
+            stages.add(MinecraftRenderStages.ENTITIES.getIdentifier());
+            stages.add(MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier());
+            stages.add(MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier());
+            stages.add(MinecraftRenderStages.PARTICLE.getIdentifier());
+            stages.add(MinecraftRenderStages.WEATHER.getIdentifier());
+
+            for (int i = 0; i < 100000; i++) {
+                boolean attachHead = random.nextBoolean();
+                KeyId randStage = stages.get(random.nextInt(stages.size()));
+                boolean translucent = random.nextBoolean();
+
+                Vector3f offset = new Vector3f(
+                        randomOffset(random),
+                        randomOffset(random),
+                        randomOffset(random)
+                );
+
+                Vector3f scale = new Vector3f(
+                        0.5f + random.nextFloat() * 0.5f,
+                        0.5f + random.nextFloat() * 0.5f,
+                        0.5f + random.nextFloat() * 0.5f
+                );
+
+                registerTestCube(registerEvent, attachHead, translucent ? cubeTest1 : cubeTest, random.nextBoolean() ? cube_geometry : sphere_geometry,
+                        offset, scale, new Vector3f(0), randStage, translucent);
+            }
+        }
     }
+
+    private static float randomOffset(Random random) {
+        // 50% 正区间，50% 负区间
+        if (random.nextBoolean()) {
+            return 0.5f + random.nextFloat() * 4.5f;   // [0.5, 5.0]
+        } else {
+            return -5.0f + random.nextFloat() * 4.5f;  // [-5.0, -0.5]
+        }
+    }
+
 
     private static void registerNewPipelineGraphicsAsLegacy(RegisterStaticGraphicsEvent registerEvent, Graphics instance) {
         VertexLayoutSpec layout = VertexLayoutSpec.builder().addDynamic(DynamicTypeMesh.BASED_MESH, DefaultDataFormats.POSITION).build();

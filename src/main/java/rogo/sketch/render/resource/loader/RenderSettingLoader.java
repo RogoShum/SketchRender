@@ -7,7 +7,7 @@ import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.pipeline.PartialRenderSetting;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.state.FullRenderState;
-import rogo.sketch.render.state.RenderStateRegistry;
+import rogo.sketch.render.state.DefaultRenderStates;
 import rogo.sketch.util.KeyId;
 
 import java.io.BufferedReader;
@@ -51,7 +51,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
     private FullRenderState loadFullRenderState(JsonObject json, Gson gson) {
         if (!json.has("renderState")) {
             // Return defaults only
-            return RenderStateRegistry.createDefaultFullRenderState();
+            return DefaultRenderStates.createDefaultFullRenderState();
         }
 
         JsonObject renderStateObj = json.getAsJsonObject("renderState");
@@ -66,8 +66,8 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
                 JsonObject componentObj = componentElement.getAsJsonObject();
                 KeyId componentType = KeyId.of(componentTypeName);
 
-                if (RenderStateRegistry.hasComponent(componentType)) {
-                    RenderStateComponent component = RenderStateRegistry.loadComponentFromJson(componentType, componentObj, gson);
+                if (DefaultRenderStates.isRegistered(componentType)) {
+                    RenderStateComponent component = DefaultRenderStates.loadComponentFromJson(componentType, componentObj, gson);
                     overrideComponents.put(component.getIdentifier(), component);
                 } else {
                     System.err.println("No default component found for render state component: " + componentTypeName);
@@ -76,7 +76,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
         }
 
         // Build state map with defaults + overrides
-        return RenderStateRegistry.createFullRenderState(overrideComponents);
+        return DefaultRenderStates.createFullRenderState(overrideComponents);
     }
 
     /**
@@ -118,4 +118,4 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
 
         return resourceBinding;
     }
-} 
+}

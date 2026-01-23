@@ -4,31 +4,36 @@ package rogo.sketch.render.state;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.util.KeyId;
 
-import java.util.Map;
-import java.util.Set;
+import java.util.Arrays;
 
 public class FullRenderState {
-    private final Map<KeyId, ? extends RenderStateComponent> components;
+    private final RenderStateComponent[] states;
     private final int hash;
 
-    protected FullRenderState(Map<KeyId, RenderStateComponent> components) {
-        this.components = Map.copyOf(components);
-        this.hash = this.components.hashCode();
+    protected FullRenderState(RenderStateComponent[] states) {
+        this.states = states;
+        this.hash = Arrays.hashCode(states);
     }
 
     public RenderStateComponent get(KeyId type) {
-        return components.get(type);
+        int index = DefaultRenderStates.getIndex(type);
+        return states[index];
     }
 
-    public Set<KeyId> getComponentTypes() {
-        return components.keySet();
+    public RenderStateComponent get(int index) {
+        return states[index];
+    }
+
+    public RenderStateComponent[] getComponents() {
+        return states;
     }
 
     @Override
     public boolean equals(Object o) {
+        if (this == o) return true;
         if (!(o instanceof FullRenderState)) return false;
-        FullRenderState other = (FullRenderState) o;
-        return components.equals(other.components);
+        FullRenderState that = (FullRenderState) o;
+        return Arrays.equals(states, that.states);
     }
 
     @Override

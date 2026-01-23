@@ -3,8 +3,7 @@ package rogo.sketch.render.pipeline;
 import rogo.sketch.api.RenderStateComponent;
 import rogo.sketch.render.resource.ResourceBinding;
 import rogo.sketch.render.state.FullRenderState;
-import rogo.sketch.render.state.RenderStateRegistry;
-import rogo.sketch.util.KeyId;
+import rogo.sketch.render.state.DefaultRenderStates;
 
 import java.util.Objects;
 
@@ -34,7 +33,7 @@ public class RenderStateManager {
      */
     public void forceApplyState(RenderContext context) {
         if (currentState != null) {
-            for (RenderStateComponent comp : currentState.getComponentTypes().stream().map(currentState::get).toList()) {
+            for (RenderStateComponent comp : currentState.getComponents()) {
                 comp.apply(context);
             }
         }
@@ -68,7 +67,7 @@ public class RenderStateManager {
 
     public void resetDefault(RenderContext context) {
         if (defaultState == null) {
-            defaultState = RenderStateRegistry.createDefaultFullRenderState();
+            defaultState = DefaultRenderStates.createDefaultFullRenderState();
         }
 
         currentState = null;
@@ -82,14 +81,14 @@ public class RenderStateManager {
     public void changeState(FullRenderState newState, RenderContext context, boolean forceReplace) {
         if (currentState == null) {
             // First time, apply all components
-            for (RenderStateComponent comp : newState.getComponentTypes().stream().map(newState::get).toList()) {
+            for (RenderStateComponent comp : newState.getComponents()) {
                 comp.apply(context);
             }
         } else if (forceReplace) {
             // Only apply changed components
-            for (KeyId type : newState.getComponentTypes()) {
-                RenderStateComponent newComp = newState.get(type);
-                RenderStateComponent oldComp = currentState.get(type);
+            for (int i = 0; i < newState.getComponents().length; ++i) {
+                RenderStateComponent newComp = newState.get(i);
+                RenderStateComponent oldComp = currentState.get(i);
                 if (!newComp.equals(oldComp)) {
                     newComp.apply(context);
                 }

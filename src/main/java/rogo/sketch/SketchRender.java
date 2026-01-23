@@ -32,6 +32,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
@@ -53,7 +54,7 @@ import rogo.sketch.render.driver.GraphicsDriver;
 import rogo.sketch.render.driver.MinecraftAPI;
 import rogo.sketch.render.pipeline.flow.RenderFlowRegistry;
 import rogo.sketch.render.shader.uniform.UniformHookRegistry;
-import rogo.sketch.render.state.RenderStateRegistry;
+import rogo.sketch.render.state.DefaultRenderStates;
 import rogo.sketch.util.CommandCallTimer;
 import rogo.sketch.util.GLFeatureChecker;
 import rogo.sketch.util.OcclusionCullerThread;
@@ -242,7 +243,7 @@ public class SketchRender {
 
     @SubscribeEvent
     public void onRenderGameOverlayEvent(RenderGuiOverlayEvent event) {
-        if (event.getOverlay() == VanillaGuiOverlay.HELMET.type()) {
+        if (event.getOverlay() == VanillaGuiOverlay.HELMET.type() && !FMLEnvironment.production) {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
@@ -266,10 +267,10 @@ public class SketchRender {
 
             String[] strings = debug.toString().split("\n");
 
-//            for (int i = 0; i < strings.length; ++i) {
-//                event.getGuiGraphics().drawString(Minecraft.getInstance().font, strings[i], 0,
-//                        Minecraft.getInstance().font.lineHeight * i, 16777215 + (255 << 24));
-//            }
+            for (int i = 0; i < strings.length; ++i) {
+                event.getGuiGraphics().drawString(Minecraft.getInstance().font, strings[i], 0,
+                        Minecraft.getInstance().font.lineHeight * i, 16777215 + (255 << 24));
+            }
         }
     }
 
@@ -302,7 +303,7 @@ public class SketchRender {
         McPipelineRegister.initPipeline();
         UniformHookRegistry.getInstance().init();
         RenderFlowRegistry.getInstance().init();
-        RenderStateRegistry.init();
+        DefaultRenderStates.init();
     }
 
     public static CommandCallTimer COMMAND_TIMER = new CommandCallTimer();

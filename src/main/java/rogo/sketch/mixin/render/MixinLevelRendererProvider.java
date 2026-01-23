@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketch.api.LevelPipelineProvider;
 import rogo.sketch.render.pipeline.GraphicsPipeline;
+import rogo.sketch.render.pipeline.PipelineConfig;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.McRenderContext;
 import rogo.sketch.vanilla.MinecraftRenderStages;
@@ -36,7 +37,9 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
 
     @Inject(method = "<init>", at = @At(value = "RETURN"))
     private void onInit(Minecraft p_234245_, EntityRenderDispatcher p_234246_, BlockEntityRenderDispatcher p_234247_, RenderBuffers p_234248_, CallbackInfo ci) {
-        sketchlib$graphPipeline = new McGraphicsPipeline(true);
+        PipelineConfig pipelineConfig = new PipelineConfig();
+        pipelineConfig.setThrowOnSortFail(true);
+        sketchlib$graphPipeline = new McGraphicsPipeline(pipelineConfig);
     }
 
     @Inject(method = "renderLevel", at = @At(value = "HEAD"))

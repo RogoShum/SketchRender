@@ -1,14 +1,13 @@
 package rogo.sketch.render.data.format;
 
 import rogo.sketch.api.model.PreparedMesh;
+import rogo.sketch.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import rogo.sketch.render.data.format.DataFormat;
-import rogo.sketch.render.data.format.DataElement;
+import java.util.Objects;
 import java.util.stream.Collectors;
-import rogo.sketch.util.KeyId;
 
 /**
  * Defines the complete layout specification for a Vertex Resource.
@@ -17,9 +16,16 @@ import rogo.sketch.util.KeyId;
  */
 public class VertexLayoutSpec {
     private final List<ComponentSpec> components;
+    private final List<ComponentSpec> staticComponents;
+    private final List<ComponentSpec> dynamicComponents;
+
+    private final int hash;
 
     public VertexLayoutSpec(List<ComponentSpec> components) {
         this.components = Collections.unmodifiableList(new ArrayList<>(components));
+        this.staticComponents = components.stream().filter(ComponentSpec::isImmutable).collect(Collectors.toList());
+        this.dynamicComponents = components.stream().filter(ComponentSpec::isMutable).collect(Collectors.toList());
+        this.hash = Objects.hash(components);
     }
 
     public List<ComponentSpec> getComponents() {
@@ -30,18 +36,14 @@ public class VertexLayoutSpec {
      * Get specifications for static components (usually provided by Mesh).
      */
     public List<ComponentSpec> getStaticSpecs() {
-        return components.stream()
-                .filter(ComponentSpec::isImmutable)
-                .collect(Collectors.toList());
+        return staticComponents;
     }
 
     /**
      * Get specifications for dynamic components (fillable at runtime).
      */
     public List<ComponentSpec> getDynamicSpecs() {
-        return components.stream()
-                .filter(ComponentSpec::isMutable)
-                .collect(Collectors.toList());
+        return dynamicComponents;
     }
 
     /**
@@ -153,7 +155,7 @@ public class VertexLayoutSpec {
 
     @Override
     public int hashCode() {
-        return components.hashCode();
+        return hash;
     }
 
     @Override

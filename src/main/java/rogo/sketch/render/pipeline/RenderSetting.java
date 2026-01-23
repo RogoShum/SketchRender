@@ -10,12 +10,14 @@ public class RenderSetting {
     private final FullRenderState renderState;
     private final ResourceBinding resourceBinding;
     private final boolean shouldSwitchRenderState;
+    private final int hash;
 
     public RenderSetting(RenderParameter renderParameter, PartialRenderSetting partialRenderSetting) {
         this.renderParameter = renderParameter == null ? RenderParameter.INVALID : renderParameter;
         this.renderState = partialRenderSetting.renderState();
         this.resourceBinding = partialRenderSetting.resourceBinding();
         this.shouldSwitchRenderState = partialRenderSetting.shouldSwitchRenderState();
+        this.hash = Objects.hash(renderParameter, partialRenderSetting, resourceBinding, shouldSwitchRenderState);
     }
 
     public FullRenderState renderState() {
@@ -44,7 +46,7 @@ public class RenderSetting {
 
     @Override
     public int hashCode() {
-        return Objects.hash(renderState, resourceBinding, renderParameter, shouldSwitchRenderState);
+        return hash;
     }
 
     public static RenderSetting fromPartial(RenderParameter renderParameter, PartialRenderSetting partial) {

@@ -26,6 +26,7 @@ public class RasterizationParameter extends RenderParameter {
     private final PrimitiveType primitiveType;
     private final Usage usage;
     private final boolean enableSorting;
+    private final int hash;
 
     /**
      * Primary constructor with explicit VertexLayoutSpec.
@@ -39,6 +40,7 @@ public class RasterizationParameter extends RenderParameter {
         this.primitiveType = Objects.requireNonNull(primitiveType);
         this.usage = Objects.requireNonNull(usage);
         this.enableSorting = enableSorting;
+        this.hash = Objects.hash(layout, primitiveType, usage, enableSorting);
     }
 
     /**
@@ -88,7 +90,7 @@ public class RasterizationParameter extends RenderParameter {
 
     @Override
     public int hashCode() {
-        return Objects.hash(layout, primitiveType, usage, enableSorting);
+        return hash;
     }
 
     @Override

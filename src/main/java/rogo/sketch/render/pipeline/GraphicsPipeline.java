@@ -7,14 +7,14 @@ import rogo.sketch.event.bridge.EventBusBridge;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.command.RenderCommandQueue;
 import rogo.sketch.render.pipeline.async.AsyncRenderManager;
+import rogo.sketch.render.pipeline.data.IndirectBufferData;
+import rogo.sketch.render.pipeline.data.InstancedOffsetData;
+import rogo.sketch.render.pipeline.data.PipelineDataStore;
 import rogo.sketch.render.pipeline.flow.RenderFlowRegistry;
 import rogo.sketch.render.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessor;
 import rogo.sketch.render.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.render.pool.InstancePoolManager;
-import rogo.sketch.render.pipeline.data.IndirectBufferData;
-import rogo.sketch.render.pipeline.data.InstancedOffsetData;
-import rogo.sketch.render.pipeline.data.PipelineDataStore;
 import rogo.sketch.render.vertex.VertexResourceManager;
 import rogo.sketch.util.KeyId;
 import rogo.sketch.util.OrderedList;
@@ -29,7 +29,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
     private final RenderCommandQueue<C> renderCommandQueue = new RenderCommandQueue<>(this);
-    private final Map<KeyId, PipelineType> pipelineTypes = new HashMap();
+    private final Map<KeyId, PipelineType> pipelineTypes = new HashMap<>();
     private final Map<PipelineType, VertexResourceManager> resourceManagers = new LinkedHashMap<>();
     private final Map<PipelineType, PipelineDataStore> pipelineDataStores = new LinkedHashMap<>();
 
@@ -41,14 +41,6 @@ public class GraphicsPipeline<C extends RenderContext> {
     public GraphicsPipeline(PipelineConfig config, C defaultContext) {
         this.config = config;
         this.stages = new OrderedList<>(config.isThrowOnSortFail());
-        this.currentContext = defaultContext;
-        initPipelineData();
-    }
-
-    public GraphicsPipeline(boolean throwOnSortFail, C defaultContext) {
-        this.config = new PipelineConfig();
-        this.config.setThrowOnSortFail(throwOnSortFail);
-        this.stages = new OrderedList<>(throwOnSortFail);
         this.currentContext = defaultContext;
         initPipelineData();
     }
@@ -79,7 +71,7 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     /**
      * Get all registered pipeline types sorted by priority.
-     * 
+     *
      * @return List of pipeline types in priority order
      */
     public List<PipelineType> getPipelineTypes() {
@@ -111,7 +103,7 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     /**
      * Get a specific stage by identifier.
-     * 
+     *
      * @param stageId Stage identifier
      * @return GraphicsStage or null if not found
      */
@@ -288,7 +280,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Add a GraphInstance from the instance pool to a specific stage
      */
     public void addPooledGraphInstance(KeyId stageId, Class<? extends Graphics> instanceType,
-            RenderParameter renderParameter) {
+                                       RenderParameter renderParameter) {
         if (!poolManager.isPoolingEnabled()) {
             throw new IllegalStateException("Instance pooling is not enabled");
         }
@@ -360,7 +352,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public record PipelineStats(int totalStages, int pendingStages, int totalInstances,
-            boolean initialized) {
+                                boolean initialized) {
         @Override
         public String toString() {
             return String.format("Pipeline[stages=%d, pending=%d, instances=%d, init=%s]",

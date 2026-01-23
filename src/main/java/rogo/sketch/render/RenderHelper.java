@@ -66,8 +66,7 @@ public class RenderHelper {
         // 4. Execute Commands Immediately
         for (List<RenderCommand> commands : commandMap.values()) {
             for (RenderCommand command : commands) {
-                pipeline.getRenderCommandQueue().executeImmediate(command, setting, pipeline().renderStateManager(),
-                        context);
+                pipeline.getRenderCommandQueue().executeImmediate(command, setting, pipeline().renderStateManager(), context);
             }
         }
 

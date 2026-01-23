@@ -1,6 +1,5 @@
 package rogo.sketch.render.command;
 
-import rogo.sketch.SketchRender;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.event.GraphicsPipelineStageEvent;
@@ -18,12 +17,11 @@ import java.util.*;
  */
 public class RenderCommandQueue<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
-
     // Pipeline type -> RenderSetting -> List<RenderCommand>
     private final Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> commandsByPipeline;
-
     // Pipeline type -> StageId -> RenderSetting -> List<RenderCommand>
     private final Map<PipelineType, Map<KeyId, Map<RenderSetting, List<RenderCommand>>>> commandsByPipelineAndStage;
+    private final Set<KeyId> commandedStages = new HashSet<>();
 
     public RenderCommandQueue(GraphicsPipeline<C> graphicsPipeline) {
         this.graphicsPipeline = graphicsPipeline;
@@ -47,7 +45,7 @@ public class RenderCommandQueue<C extends RenderContext> {
     public void addCommand(PipelineType pipelineType, RenderCommand command) {
         RenderSetting renderSetting = command.getRenderSetting();
         KeyId stageId = command.getStageId();
-
+        commandedStages.add(stageId);
         // Add to pipeline grouping
         Map<RenderSetting, List<RenderCommand>> pipelineCommands = commandsByPipeline.computeIfAbsent(pipelineType,
                 pt -> {
@@ -86,13 +84,6 @@ public class RenderCommandQueue<C extends RenderContext> {
      */
     public void executeStage(KeyId stageId, RenderStateManager manager, C context) {
         //SketchRender.COMMAND_TIMER.start("execute command -> " + stageId);
-        EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context,
-                GraphicsPipelineStageEvent.Phase.PRE));
-        context.preStage(stageId);
-
-        FullRenderState snapshot = RenderStateSnapshotUtils.createSnapshot();
-        manager.changeState(snapshot, context, false);
-
         PipelineConfig config = graphicsPipeline.getConfig();
         PipelineConfig.TranslucencyStrategy strategy = config.getTranslucencyStrategy();
 
@@ -101,6 +92,16 @@ public class RenderCommandQueue<C extends RenderContext> {
 
         // Get all pipeline types and sort by priority
         List<PipelineType> pipelineTypes = graphicsPipeline.getPipelineTypes();
+
+        FullRenderState snapshot = null;
+        //todo need check
+        if (commandedStages.contains(stageId)) {
+            snapshot = RenderStateSnapshotUtils.createSnapshot();
+            manager.changeState(snapshot, context, false);
+        }
+
+        EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context, GraphicsPipelineStageEvent.Phase.PRE));
+        context.preStage(stageId);
 
         switch (strategy) {
             case INTERLEAVED:
@@ -152,8 +153,10 @@ public class RenderCommandQueue<C extends RenderContext> {
                 break;
         }
 
-        manager.reset();
-        manager.changeState(snapshot, context);
+        if (snapshot != null) {
+            manager.reset();
+            manager.changeState(snapshot, context);
+        }
 
         context.postStage(stageId);
         EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context,
@@ -192,12 +195,10 @@ public class RenderCommandQueue<C extends RenderContext> {
         }
 
         // Accumulate commands per pipeline type
-        Map<RenderSetting, List<RenderCommand>> deferred = deferredTranslucentCommands.computeIfAbsent(pipelineType,
-                k -> new LinkedHashMap<>());
+        Map<RenderSetting, List<RenderCommand>> deferred = deferredTranslucentCommands.computeIfAbsent(pipelineType, k -> new LinkedHashMap<>());
 
         for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
-            deferred.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
-                    .addAll(entry.getValue());
+            deferred.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).addAll(entry.getValue());
         }
     }
 
@@ -243,8 +244,7 @@ public class RenderCommandQueue<C extends RenderContext> {
     /**
      * Execute commands from a command map.
      */
-    private void executeCommandMap(Map<RenderSetting, List<RenderCommand>> commandMap,
-            RenderStateManager manager, C context) {
+    private void executeCommandMap(Map<RenderSetting, List<RenderCommand>> commandMap, RenderStateManager manager, C context) {
         for (Map.Entry<RenderSetting, List<RenderCommand>> entry : commandMap.entrySet()) {
             RenderSetting setting = entry.getKey();
             List<RenderCommand> commands = entry.getValue();
@@ -279,24 +279,7 @@ public class RenderCommandQueue<C extends RenderContext> {
             return;
         }
 
-        for (Map.Entry<RenderSetting, List<RenderCommand>> entry : stageCommands.entrySet()) {
-            RenderSetting setting = entry.getKey();
-            List<RenderCommand> commands = entry.getValue();
-
-            if (setting.renderParameter().isInvalid()) {
-                continue;
-            }
-
-            // Apply render setting once for all commands with the same setting
-            if (setting.shouldSwitchRenderState()) {
-                applyRenderSetting(manager, context, setting);
-            }
-
-            // Execute each render command
-            for (RenderCommand command : commands) {
-                executeRenderCommand(command, context);
-            }
-        }
+        executeCommandMap(stageCommands, manager, context);
     }
 
     /**
@@ -381,6 +364,7 @@ public class RenderCommandQueue<C extends RenderContext> {
         for (Map<KeyId, Map<RenderSetting, List<RenderCommand>>> stageMap : commandsByPipelineAndStage.values()) {
             stageMap.clear();
         }
+        commandedStages.clear();
     }
 
     public boolean isEmpty() {
