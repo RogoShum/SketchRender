@@ -1,5 +1,6 @@
 package rogo.sketch.render.pipeline.flow;
 
+import rogo.sketch.SketchRender;
 import rogo.sketch.api.ShaderProvider;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.pipeline.RenderSetting;
@@ -10,7 +11,15 @@ import rogo.sketch.render.resource.ResourceTypes;
 import rogo.sketch.render.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.render.state.gl.ShaderState;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 /**
  * Represents a batch of graphics instances that share the same render settings.
@@ -62,13 +71,10 @@ public class RenderBatch<T extends InstanceInfo> {
         }
 
         // Collect uniform batches
-        Map<UniformValueSnapshot, UniformBatchGroup> batches = new HashMap<>();
-
+        final Map<UniformValueSnapshot, UniformBatchGroup> batches = new HashMap<>();
         for (InstanceInfo info : instances) {
             Graphics instance = info.getInstance();
-            UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(
-                    shaderProvider.getUniformHookGroup(), instance);
-
+            UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(shaderProvider.getUniformHookGroup(), instance);
             batches.computeIfAbsent(snapshot, UniformBatchGroup::new).addInstance(instance);
         }
 

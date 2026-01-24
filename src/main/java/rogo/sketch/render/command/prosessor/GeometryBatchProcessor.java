@@ -1,5 +1,6 @@
 package rogo.sketch.render.command.prosessor;
 
+import rogo.sketch.SketchRender;
 import rogo.sketch.api.graphics.Graphics;
 import rogo.sketch.render.command.RenderCommand;
 import rogo.sketch.render.pipeline.RenderContext;
@@ -48,6 +49,8 @@ public class GeometryBatchProcessor {
         // 1. Collect instance info using flow strategies
         Map<RenderFlowType, List<InstanceInfo>> infosByFlowType = new HashMap<>();
 
+
+        SketchRender.COMMAND_TIMER.start("info collect");
         for (Map.Entry<RenderParameter, Collection<Graphics>> entry : instanceGroups.entrySet()) {
             RenderParameter renderParameter = entry.getKey();
             Collection<Graphics> instances = entry.getValue();
@@ -67,11 +70,13 @@ public class GeometryBatchProcessor {
                 }
             }
         }
+        SketchRender.COMMAND_TIMER.end("info collect");
 
         // 2. Create render commands for each flow type
         Map<RenderSetting, List<RenderCommand>> allCommands = new LinkedHashMap<>();
         RenderFlowContext flowContext = new RenderFlowContext(vertexResourceManager, backendDataRegistry);
 
+        SketchRender.COMMAND_TIMER.start("create command");
         for (Map.Entry<RenderFlowType, List<InstanceInfo>> entry : infosByFlowType.entrySet()) {
             RenderFlowType flowType = entry.getKey();
             List<InstanceInfo> infos = entry.getValue();
@@ -88,6 +93,7 @@ public class GeometryBatchProcessor {
                 allCommands.computeIfAbsent(cmdEntry.getKey(), k -> new ArrayList<>()).addAll(cmdEntry.getValue());
             }
         }
+        SketchRender.COMMAND_TIMER.end("create command");
 
         return allCommands;
     }

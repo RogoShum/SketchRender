@@ -1,6 +1,7 @@
 package rogo.sketch.render.pipeline.flow.impl;
 
 import org.joml.Matrix4f;
+import rogo.sketch.SketchRender;
 import rogo.sketch.api.graphics.*;
 import rogo.sketch.api.model.BakedTypeMesh;
 import rogo.sketch.api.model.DynamicTypeMesh;
@@ -128,7 +129,9 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         }
 
         // Organize into batches
+        SketchRender.COMMAND_TIMER.start("organizeToBatches");
         List<RenderBatch<RasterizationInstanceInfo>> batches = organizeToBatches(rasterInfos);
+        SketchRender.COMMAND_TIMER.end("organizeToBatches");
 
         // Group by VertexBufferKey
         Map<VertexBufferKey, RenderBatchList> keyGroups = groupByVertexBufferKey(batches);

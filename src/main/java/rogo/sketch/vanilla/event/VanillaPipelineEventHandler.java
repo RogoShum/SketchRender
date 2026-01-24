@@ -432,26 +432,26 @@ public class VanillaPipelineEventHandler {
             stages.add(MinecraftRenderStages.PARTICLE.getIdentifier());
             stages.add(MinecraftRenderStages.WEATHER.getIdentifier());
 
-//            for (int i = 0; i < 100000; i++) {
-//                boolean attachHead = random.nextBoolean();
-//                KeyId randStage = stages.get(random.nextInt(stages.size()));
-//                boolean translucent = random.nextBoolean();
-//
-//                Vector3f offset = new Vector3f(
-//                        randomOffset(random),
-//                        randomOffset(random),
-//                        randomOffset(random)
-//                );
-//
-//                Vector3f scale = new Vector3f(
-//                        0.5f + random.nextFloat() * 0.5f,
-//                        0.5f + random.nextFloat() * 0.5f,
-//                        0.5f + random.nextFloat() * 0.5f
-//                );
-//
-//                registerTestCube(registerEvent, attachHead, translucent ? cubeTest1 : cubeTest, random.nextBoolean() ? cube_geometry : sphere_geometry,
-//                        offset, scale, new Vector3f(0), randStage, translucent);
-//            }
+            for (int i = 0; i < 100000; i++) {
+                boolean attachHead = random.nextBoolean();
+                KeyId randStage = stages.get(random.nextInt(stages.size()));
+                boolean translucent = random.nextBoolean();
+
+                Vector3f offset = new Vector3f(
+                        randomOffset(random),
+                        randomOffset(random),
+                        randomOffset(random)
+                );
+
+                Vector3f scale = new Vector3f(
+                        0.5f + random.nextFloat() * 0.5f,
+                        0.5f + random.nextFloat() * 0.5f,
+                        0.5f + random.nextFloat() * 0.5f
+                );
+
+                registerTestCube(registerEvent, attachHead, translucent ? cubeTest1 : cubeTest, random.nextBoolean() ? cube_geometry : sphere_geometry,
+                        offset, scale, new Vector3f(0), randStage, translucent);
+            }
         }
     }
 

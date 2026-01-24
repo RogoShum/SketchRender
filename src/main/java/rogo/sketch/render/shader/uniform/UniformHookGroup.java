@@ -9,6 +9,7 @@ public class UniformHookGroup {
     private final Map<Class<?>, List<UniformHook<?>>> classToHooksMap = new HashMap<>();
     private final List<UniformHook<?>> universalHooks = new ArrayList<>();
     private final Map<UniformHook<?>, String> hookToNameMap = new HashMap<>();
+    private final Map<Class<?>, List<UniformHook<?>>> matchingHooksCache = new HashMap<>();
 
     public UniformHookGroup() {
     }
@@ -25,6 +26,8 @@ public class UniformHookGroup {
                 classToHooksMap.computeIfAbsent(targetClass, k -> new ArrayList<>()).add(uniform);
             }
         }
+
+        matchingHooksCache.clear();
     }
 
     public UniformHook<?> getUniformHook(final String uniformName) {
@@ -36,21 +39,22 @@ public class UniformHookGroup {
     }
 
     public void updateUniforms(Object c) {
-        for (UniformHook<?> uniformHook : universalHooks) {
-            uniformHook.checkUpdate(c);
+        for (int i = 0; i < universalHooks.size(); i++) {
+            universalHooks.get(i).checkUpdate(c);
         }
 
         Class<?> objectClass = c.getClass();
         List<UniformHook<?>> matchingHooks = getMatchingHooks(objectClass);
-        for (UniformHook<?> uniformHook : matchingHooks) {
-            uniformHook.checkUpdate(c);
+        for (int i = 0; i < matchingHooks.size(); i++) {
+            matchingHooks.get(i).checkUpdate(c);
         }
     }
 
     public Map<String, Object> getUniformsDirect(Object c) {
         Map<String, Object> values = new HashMap<>();
 
-        for (UniformHook<?> uniformHook : universalHooks) {
+        for (int i = 0; i < universalHooks.size(); i++) {
+            UniformHook<?> uniformHook = universalHooks.get(i);
             Object currentValue = uniformHook.getDirectValue(c);
             if (currentValue != null) {
                 String uniformName = getUniformName(uniformHook);
@@ -62,7 +66,8 @@ public class UniformHookGroup {
 
         Class<?> objectClass = c.getClass();
         List<UniformHook<?>> matchingHooks = getMatchingHooks(objectClass);
-        for (UniformHook<?> uniformHook : matchingHooks) {
+        for (int i = 0; i < matchingHooks.size(); i++) {
+            UniformHook<?> uniformHook = matchingHooks.get(i);
             Object currentValue = uniformHook.getDirectValue(c);
             if (currentValue != null) {
                 String uniformName = getUniformName(uniformHook);
@@ -87,8 +92,12 @@ public class UniformHookGroup {
      * This includes exact matches and superclass/interface matches
      */
     private List<UniformHook<?>> getMatchingHooks(Class<?> objectClass) {
-        List<UniformHook<?>> result = new ArrayList<>();
+        List<UniformHook<?>> cachedResult = matchingHooksCache.get(objectClass);
+        if (cachedResult != null) {
+            return cachedResult;
+        }
 
+        List<UniformHook<?>> result = new ArrayList<>();
         for (Map.Entry<Class<?>, List<UniformHook<?>>> entry : classToHooksMap.entrySet()) {
             Class<?> targetClass = entry.getKey();
             if (targetClass.isAssignableFrom(objectClass)) {
@@ -96,6 +105,13 @@ public class UniformHookGroup {
             }
         }
 
+        if (result.isEmpty()) {
+            result = Collections.emptyList();
+        } else {
+            ((ArrayList<?>) result).trimToSize();
+        }
+
+        matchingHooksCache.put(objectClass, result);
         return result;
     }
 
