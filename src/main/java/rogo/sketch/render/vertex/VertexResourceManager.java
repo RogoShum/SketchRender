@@ -134,8 +134,8 @@ public class VertexResourceManager {
     /**
      * Create a VertexDataBuilder for a single DataFormat.
      */
-    public VertexDataBuilder createBuilder(DataFormat format, PrimitiveType primitiveType, int initialCapacity) {
-        return builderCache.computeIfAbsent(new BuilderKey(format, primitiveType),
+    public VertexDataBuilder createBuilder(DataFormat format, PrimitiveType primitiveType, boolean instanced, int initialCapacity) {
+        return builderCache.computeIfAbsent(new BuilderKey(format, primitiveType, instanced),
                 k -> new VertexDataBuilder(format, primitiveType));
     }
 
@@ -143,7 +143,7 @@ public class VertexResourceManager {
      * Create a VertexDataBuilder for a single ComponentSpec.
      */
     public VertexDataBuilder createBuilder(ComponentSpec spec, PrimitiveType primitiveType, int initialCapacity) {
-        return createBuilder(spec.getFormat(), primitiveType, initialCapacity);
+        return createBuilder(spec.getFormat(), primitiveType, spec.isInstanced(), initialCapacity).setMarkedAsInstanced(spec.isInstanced());
     }
 
     /**
@@ -184,6 +184,6 @@ public class VertexResourceManager {
     /**
      * Create a VertexDataBuilder for a single DataFormat.
      */
-    private record BuilderKey(DataFormat format, PrimitiveType primitiveType) {
+    private record BuilderKey(DataFormat format, PrimitiveType primitiveType, boolean instanced) {
     }
 }

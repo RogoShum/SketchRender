@@ -272,7 +272,7 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
         resource.attachVBO(ComponentSpec.immutable(BakedTypeMesh.BAKED_MESH, 0, groupFormat, false), vbo);
 
         // Upload Vertices
-        VertexDataBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), allVertices.size());
+        VertexDataBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), false, allVertices.size());
         int floatsPerVertex = groupFormat.getStride() / 4;
 
         // Convert List to array for faster filling? Or just iterate.

@@ -20,6 +20,7 @@ public class VertexDataBuilder {
     private final DataBufferWriter writer;
     private final DataFormat format; // Used for structure knowledge (offsets, padding), NOT for buffer creation
     private final PrimitiveType primitiveType;
+    private boolean markedAsInstanced;
     
     // State
     private int vertexCount = 0;
@@ -281,5 +282,14 @@ public class VertexDataBuilder {
     
     public DataFormat getFormat() {
         return format;
+    }
+
+    public boolean isMarkedAsInstanced() {
+        return markedAsInstanced;
+    }
+
+    public VertexDataBuilder setMarkedAsInstanced(boolean markedAsInstanced) {
+        this.markedAsInstanced = markedAsInstanced;
+        return this;
     }
 }

@@ -346,8 +346,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                 for (Map.Entry<KeyId, VertexDataBuilder> entry : builders.entrySet()) {
                     KeyId vboKey = entry.getKey();
                     // Identify if this component is instanced or vertex-based
-                    boolean isCompInstanced = key.components().stream().filter(c -> c.getId().equals(vboKey))
-                            .findFirst().map(ComponentSpec::isInstanced).orElse(false);
+                    boolean isCompInstanced = entry.getValue().isMarkedAsInstanced();
 
                     if (isCompInstanced) {
                         // Instanced Data
