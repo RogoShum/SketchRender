@@ -1,0 +1,10 @@
+{
+  "imagePath": "sketch_render:test_image.png",
+  "format": "RGBA",
+  "minFilter": "LINEAR",
+  "magFilter": "LINEAR",
+  "wrapS": "CLAMP_TO_EDGE",
+  "wrapT": "CLAMP_TO_EDGE",
+  "mipmaps": true,
+  "mipmapFormat": "LINEAR_MIPMAP_LINEAR"
+}

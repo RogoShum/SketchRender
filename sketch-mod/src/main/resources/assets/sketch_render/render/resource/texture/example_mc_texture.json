@@ -1,0 +1,7 @@
+{
+  "resourceLocation": "minecraft:textures/block/stone.png",
+  "minFilter": "NEAREST",
+  "magFilter": "NEAREST",
+  "wrapS": "REPEAT",
+  "wrapT": "REPEAT"
+}

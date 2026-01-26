@@ -1,0 +1,27 @@
+{
+  "name": "screen",
+  "primitiveType": "TRIANGLES",
+  "vertexFormat": {
+    "name": "POS_UV",
+    "elements": [
+      { "name": "Position", "dataType": "VEC3F" },
+      { "name": "TexCoord", "dataType": "VEC2F", "normalized": true }
+    ]
+  },
+  "bones": [
+  ],
+  "subMeshes": [
+    {
+      "name": "screen",
+      "vertices": [
+        -1.0, -1.0, 0.0, 0.0, 0.0,
+        3.0, -1.0, 0.0, 2.0, 0.0,
+        -1.0,  3.0, 0.0, 0.0, 2.0
+      ]
+    }
+  ],
+  "metadata": {
+    "author": "SketchRender",
+    "version": 1.0
+  }
+}

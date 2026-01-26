@@ -1,0 +1,45 @@
+plugins {
+    id 'java-library'
+}
+
+group = mod_group_id
+version = mod_version
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly "org.joml:joml-primitives:1.10.0"
+    
+    // Requested dependencies
+    compileOnly 'com.google.code.gson:gson:2.10.1'
+    compileOnly 'org.jetbrains:annotations:24.0.0'
+    
+    // LWJGL - Use the BOM or specific modules? 
+    // Since this is a core library potentially used in MC, we want to compile against it.
+    // MC 1.20.1 uses LWJGL 3.3.1.
+    compileOnly platform("org.lwjgl:lwjgl-bom:3.3.3")
+    compileOnly "org.lwjgl:lwjgl"
+    compileOnly "org.lwjgl:lwjgl-opengl"
+
+    compileOnly 'it.unimi.dsi:fastutil:8.5.12'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                "Specification-Title": "sketch-core",
+                "Specification-Vendor": mod_authors,
+                "Specification-Version": "1",
+                "Implementation-Title": project.name,
+                "Implementation-Version": project.jar.archiveVersion,
+                "Implementation-Vendor": mod_authors
+        ])
+    }
+}

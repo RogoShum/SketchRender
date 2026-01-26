@@ -1,0 +1,8 @@
+{
+  "isRenderTarget": true,
+  "format": "RGBA",
+  "minFilter": "LINEAR",
+  "magFilter": "LINEAR",
+  "wrapS": "CLAMP_TO_EDGE",
+  "wrapT": "CLAMP_TO_EDGE"
+}

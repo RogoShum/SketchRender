@@ -13,3 +13,6 @@ plugins {
 }
 
 rootProject.name = 'sketchlib'
+
+include 'sketch-core'
+include 'sketch-mod'

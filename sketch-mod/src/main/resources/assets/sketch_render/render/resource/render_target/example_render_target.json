@@ -1,0 +1,13 @@
+{
+  "resolutionMode": "SCREEN_RELATIVE",
+  "scale": 1.0,
+  "clearColor": "#00000000",
+  "colorAttachments": [
+    "sketch_render:example_rt_color"
+  ],
+  "depthAttachment": "sketch_render:example_rt_depth",
+  "clearSettings": {
+    "color": true,
+    "depth": true
+  }
+}

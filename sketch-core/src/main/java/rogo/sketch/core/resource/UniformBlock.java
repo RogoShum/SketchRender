@@ -1,0 +1,129 @@
+package rogo.sketch.core.resource;
+
+import org.joml.Vector3i;
+import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL31;
+import rogo.sketch.core.api.BindingResource;
+import rogo.sketch.core.api.DataResourceObject;
+import rogo.sketch.core.data.DataType;
+import rogo.sketch.core.util.KeyId;
+
+import java.nio.FloatBuffer;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class UniformBlock implements DataResourceObject, BindingResource {
+    private final int handle;
+    private final long stride;
+    private final String blockName;
+    private final Map<Integer, Vector3i> shaderBinding = new HashMap<>();
+    private boolean disposed = false;
+
+    public UniformBlock(String blockName, List<Variable> variables) {
+        this.stride = calculateStride(variables);
+        this.handle = createUBO();
+        this.blockName = blockName;
+    }
+
+    private int createUBO() {
+        int id = GL15.glGenBuffers();
+        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, id);
+        GL15.glBufferData(GL31.GL_UNIFORM_BUFFER, stride, GL15.GL_DYNAMIC_DRAW);
+        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
+        return id;
+    }
+
+    private int calculateStride(List<Variable> variables) {
+        int stride = 0;
+        for (Variable var : variables) {
+            stride += var.getDataType().getStride();
+        }
+        return stride;
+    }
+
+    public void bindShader(int shaderId, int bindingPoint) {
+        int blockIndex = GL31.glGetUniformBlockIndex(shaderId, blockName);
+        if (blockIndex == GL31.GL_INVALID_INDEX) {
+            throw new IllegalStateException("Uniform block not found: " + blockName);
+        }
+        GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, bindingPoint, handle);
+        GL31.glUniformBlockBinding(shaderId, blockIndex, bindingPoint);
+        GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, bindingPoint, 0);
+        shaderBinding.put(shaderId, new Vector3i(blockIndex, bindingPoint, 0));
+    }
+
+    public void drawBind(int shaderId) {
+        try {
+            Vector3i binding = shaderBinding.get(shaderId);
+            GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, binding.y(), handle);
+        } catch (Exception e) {
+            throw new IllegalStateException("Can't binding Uniform block: " + blockName);
+        }
+    }
+
+    public void updateData(FloatBuffer buffer) {
+        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, handle);
+        GL15.glBufferData(GL31.GL_UNIFORM_BUFFER, buffer, GL15.GL_DYNAMIC_DRAW);
+        GL15.glBindBuffer(GL31.GL_UNIFORM_BUFFER, 0);
+    }
+
+    @Override
+    public long getDataCount() {
+        return 0;
+    }
+
+    @Override
+    public long getCapacity() {
+        return 0;
+    }
+
+    @Override
+    public long getStride() {
+        return stride;
+    }
+
+    @Override
+    public long getMemoryAddress() {
+        return 0;
+    }
+
+    @Override
+    public int getHandle() {
+        return handle;
+    }
+
+    @Override
+    public void dispose() {
+        disposed = true;
+    }
+
+    @Override
+    public boolean isDisposed() {
+        return disposed;
+    }
+
+    @Override
+    public void bind(KeyId resourceType, int binding) {
+        GL30.glBindBufferBase(GL31.GL_UNIFORM_BUFFER, binding, handle);
+    }
+
+    public static class Variable {
+        private String name;
+        private DataType dataType;
+
+        public Variable(String name, DataType dataType) {
+            this.name = name;
+            this.dataType = dataType;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public DataType getDataType() {
+            return dataType;
+        }
+    }
+}
