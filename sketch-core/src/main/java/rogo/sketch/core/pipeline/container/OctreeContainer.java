@@ -20,7 +20,8 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
     private static final int MAX_OBJECTS_PER_NODE = 8;
 
     private final Map<KeyId, Graphics> instanceMap = new LinkedHashMap<>();
-    private final Collection<Graphics> tickableInstances = new ArrayList<>();
+    private final Map<KeyId, AABBf> lastBounds = new HashMap<>();
+    private final Collection<Graphics> tickableInstances = new LinkedHashSet<>();
     private OctreeNode root;
 
     public OctreeContainer() {
@@ -49,6 +50,7 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
         }
 
         instanceMap.put(graphics.getIdentifier(), graphics);
+        lastBounds.put(graphics.getIdentifier(), new AABBf(bounds));
         if (graphics.tickable()) {
             tickableInstances.add(graphics);
         }
@@ -62,29 +64,30 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
             if (graphics.tickable()) {
                 tickableInstances.remove(graphics);
             }
-            if (graphics instanceof AABBGraphics) {
-                AABBf bounds = ((AABBGraphics) graphics).getAABB();
-                if (bounds != null) {
-                    root.remove(graphics, bounds);
-                    // Optionally try to merge nodes
-                    root.tryMerge();
-                }
+            AABBf bounds = lastBounds.remove(identifier);
+            if (bounds != null) {
+                root.remove(graphics, bounds);
+                // Optionally try to merge nodes
+                root.tryMerge();
             }
         }
     }
 
     @Override
     public void tick(C context) {
-        // Check for AABB changes and reinsert if necessary
-        List<Graphics> toReinsert = new ArrayList<>();
-
         for (Graphics graphics : instanceMap.values()) {
             if (graphics instanceof AABBGraphics) {
-                AABBf newBounds = ((AABBGraphics) graphics).getAABB();
-                if (newBounds != null) {
-                    // For simplicity, reinsert all objects each tick
-                    // More sophisticated implementations could track changes
-                    toReinsert.add(graphics);
+                AABBGraphics aabbGraphics = (AABBGraphics) graphics;
+                AABBf newBounds = aabbGraphics.getAABB();
+                AABBf oldBounds = lastBounds.get(graphics.getIdentifier());
+
+                if (newBounds != null && oldBounds != null) {
+                    if (!boundsEqual(newBounds, oldBounds)) {
+                        // Incremental update: remove from old position, insert to new
+                        root.remove(graphics, oldBounds);
+                        oldBounds.set(newBounds);
+                        root.insert(graphics, newBounds);
+                    }
                 }
             }
         }
@@ -95,26 +98,25 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
             }
         }
 
-        // Rebuild tree if needed (simple approach - could be optimized)
-        if (!toReinsert.isEmpty()) {
-            root = new OctreeNode(root.bounds, 0);
-            for (Graphics graphics : toReinsert) {
-                AABBf bounds = ((AABBGraphics) graphics).getAABB();
-                root.insert(graphics, bounds);
-            }
-        }
-
         // Cleanup discarded instances
-        java.util.List<KeyId> toRemove = new java.util.ArrayList<>();
-        for (Graphics graphics : instanceMap.values()) {
+        instanceMap.values().removeIf(graphics -> {
             if (graphics.shouldDiscard()) {
-                toRemove.add(graphics.getIdentifier());
+                AABBf bounds = lastBounds.remove(graphics.getIdentifier());
+                if (bounds != null) {
+                    root.remove(graphics, bounds);
+                }
+                if (graphics.tickable()) {
+                    tickableInstances.remove(graphics);
+                }
+                return true;
             }
-        }
+            return false;
+        });
+    }
 
-        for (KeyId id : toRemove) {
-            remove(id);
-        }
+    private boolean boundsEqual(AABBf a, AABBf b) {
+        return a.minX == b.minX && a.minY == b.minY && a.minZ == b.minZ &&
+                a.maxX == b.maxX && a.maxY == b.maxY && a.maxZ == b.maxZ;
     }
 
     @Override

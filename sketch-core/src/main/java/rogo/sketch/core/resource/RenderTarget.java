@@ -1,8 +1,8 @@
 package rogo.sketch.core.resource;
 
-import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import rogo.sketch.core.api.ResourceObject;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.util.KeyId;
 
 public abstract class RenderTarget implements ResourceObject {
@@ -39,12 +39,11 @@ public abstract class RenderTarget implements ResourceObject {
     }
 
     public void bind() {
-        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, handle);
-        GL11.glViewport(0, 0, currentWidth, currentHeight);
+        GraphicsDriver.getCurrentAPI().bindFrameBuffer(getHandle());
     }
 
     public static void unbind() {
-        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
+        GraphicsDriver.getCurrentAPI().bindFrameBuffer(0);
     }
 
     @Override

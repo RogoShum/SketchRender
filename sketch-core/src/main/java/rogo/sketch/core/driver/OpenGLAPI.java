@@ -172,4 +172,19 @@ public class OpenGLAPI extends GraphicsAPI {
     public void generateMipmap(int target) {
         GL30.glGenerateMipmap(target);
     }
+
+    @Override
+    public void bindFrameBuffer(int target) {
+        bindFrameBuffer(GL30.GL_FRAMEBUFFER, target);
+    }
+
+    @Override
+    public void bindFrameBuffer(int type, int target) {
+        GL30.glBindFramebuffer(type, target);
+    }
+
+    @Override
+    public void bindVertexArray(int target) {
+        GL30.glBindVertexArray(target);
+    }
 }

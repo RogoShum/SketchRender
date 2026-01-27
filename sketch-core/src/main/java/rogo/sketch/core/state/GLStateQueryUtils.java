@@ -2,11 +2,9 @@ package rogo.sketch.core.state;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL32;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 
 public class GLStateQueryUtils {
     // Buffers for querying values (thread-local or allocated on stack would be
@@ -58,7 +56,7 @@ public class GLStateQueryUtils {
     // --- Polygon Mode State ---
     public static int[] getPolygonMode() {
         int[] modes = new int[2]; // [0]=Front, [1]=Back. Actually deprecated in core profile but usually returns
-                                  // 2 values.
+        // 2 values.
         GL11.glGetIntegerv(GL11.GL_POLYGON_MODE, modes);
         return modes;
     }
@@ -148,5 +146,9 @@ public class GLStateQueryUtils {
     // --- Render Target State (Framebuffer) ---
     public static int getDrawFramebufferBinding() {
         return GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+    }
+
+    public static int getCurrentVAO() {
+        return GL11.glGetInteger(GL32.GL_VERTEX_ARRAY_BINDING);
     }
 }

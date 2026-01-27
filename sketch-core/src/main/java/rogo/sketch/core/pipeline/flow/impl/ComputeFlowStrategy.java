@@ -19,10 +19,7 @@ import rogo.sketch.core.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -68,12 +65,12 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
                 .toList();
 
         if (computeInfos.isEmpty()) {
-            return java.util.Collections.emptyMap();
+            return Collections.emptyMap();
         }
 
         // Create batches to handle uniform grouping
         List<RenderBatch<ComputeInstanceInfo>> batches = organize(computeInfos);
-        Map<RenderSetting, List<RenderCommand>> commandsMap = new java.util.LinkedHashMap<>();
+        Map<RenderSetting, List<RenderCommand>> commandsMap = new LinkedHashMap<>();
 
         for (RenderBatch<ComputeInstanceInfo> batch : batches) {
             RenderSetting setting = batch.getRenderSetting();
@@ -103,7 +100,12 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
             return List.of();
 
         // Group by RenderSetting
-        Map<RenderSetting, List<T>> grouped = allData.stream().collect(Collectors.groupingBy(InstanceInfo::getRenderSetting));
+        Map<RenderSetting, List<T>> grouped = new LinkedHashMap<>();
+        for (T data : allData) {
+            RenderSetting setting = data.getRenderSetting();
+            List<T> group = grouped.computeIfAbsent(setting, k -> new ArrayList<>());
+            group.add(data);
+        }
 
         List<RenderBatch<T>> batches = new ArrayList<>();
         for (Map.Entry<RenderSetting, List<T>> entry : grouped.entrySet()) {

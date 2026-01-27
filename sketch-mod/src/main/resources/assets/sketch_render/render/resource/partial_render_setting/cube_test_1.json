@@ -13,9 +13,6 @@
     },
     "depth_mask": {
       "writable": false
-    },
-    "render_target": {
-      "identifier" : "sketch_render:example_render_target"
     }
   },
   "resourceBinding": {

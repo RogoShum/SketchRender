@@ -14,6 +14,7 @@ public class RenderContext {
     private final Matrix4f viewMatrix = new Matrix4f();
     private final Matrix4f modelMatrix = new Matrix4f();
     private final Matrix4f projectionMatrix = new Matrix4f();
+    protected RenderStateManager renderStateManager;
     protected Vector3f cameraPosition = new Vector3f();
     protected Vector3f cameraDirection = new Vector3f();
     protected Vector3f cameraUp = new Vector3f();
@@ -23,7 +24,6 @@ public class RenderContext {
     protected int renderTick;
     protected float partialTicks;
     protected FrustumIntersection frustum; // JOML frustum for culling
-
     protected ShaderProvider shaderProvider;
 
     public Matrix4f viewMatrix() {
@@ -68,6 +68,14 @@ public class RenderContext {
 
     public ShaderProvider shaderProvider() {
         return shaderProvider;
+    }
+
+    public void setRenderStateManager(RenderStateManager renderStateManager) {
+        this.renderStateManager = renderStateManager;
+    }
+
+    public RenderStateManager renderStateManager() {
+        return renderStateManager;
     }
 
     public FrustumIntersection getFrustum() {

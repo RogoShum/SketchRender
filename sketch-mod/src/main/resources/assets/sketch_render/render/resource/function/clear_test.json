@@ -1,12 +1,16 @@
 {
-  "stage": "vanilla_render_start",
+  "stage": "vanilla_clear",
   "command": [
     {
-      "operate": "clear",
+      "operate": "clearRenderTarget",
       "renderTarget": "sketch_render:example_render_target",
       "clearChannels": "color|depth",
       "color": [0.0, 0.0, 0.0, 0.0],
       "depth": 1.0
+    },
+    {
+      "operate": "bindRenderTarget",
+      "renderTarget": "minecraft:main_target"
     }
   ]
 }

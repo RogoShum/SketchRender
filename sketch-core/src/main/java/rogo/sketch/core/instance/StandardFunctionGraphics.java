@@ -4,18 +4,18 @@ import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
-import rogo.sketch.core.driver.GraphicsAPI;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.RenderTarget;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.StandardRenderTarget;
+import rogo.sketch.core.state.gl.ColorMaskState;
 import rogo.sketch.core.util.KeyId;
 
 import java.nio.IntBuffer;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class StandardFunctionGraphics extends FunctionGraphics {
     private final Command[] commands;
@@ -46,20 +46,25 @@ public class StandardFunctionGraphics extends FunctionGraphics {
         private final boolean color, depth;
         private final float[] clearColor;
         private final float clearDepth;
+        private final ColorMaskState colorMaskState;
 
-        public ClearCommand(KeyId renderTargetId, boolean color, boolean depth, float[] clearColor, float clearDepth) {
+        public ClearCommand(KeyId renderTargetId, boolean color, boolean depth, float[] clearColor, float clearDepth, ColorMaskState colorMaskState) {
             this.renderTargetId = renderTargetId;
             this.color = color;
             this.depth = depth;
             this.clearColor = clearColor;
             this.clearDepth = clearDepth;
+            this.colorMaskState = colorMaskState;
         }
 
         @Override
         public void execute(RenderContext context) {
             GraphicsResourceManager.getInstance()
-                    .getResource(rogo.sketch.core.resource.ResourceTypes.RENDER_TARGET, renderTargetId)
+                    .getResource(ResourceTypes.RENDER_TARGET, renderTargetId)
                     .ifPresent(rt -> {
+                        if (colorMaskState != null && context.renderStateManager() != null) {
+                            context.renderStateManager().changeState(colorMaskState, context);
+                        }
                         RenderTarget renderTarget = (RenderTarget) rt;
                         renderTarget.bind();
                         int mask = 0;
@@ -72,16 +77,16 @@ public class StandardFunctionGraphics extends FunctionGraphics {
                             GL11.glClearDepth(clearDepth);
                         }
                         GL11.glClear(mask);
-                        RenderTarget.unbind();
                     });
         }
     }
 
     public static class DrawBuffersCommand implements Command {
         private final KeyId renderTargetId;
-        private final java.util.Map<KeyId, Boolean> colorComponents;
+        // 存储 KeyId 或 Integer 的混合列表
+        private final List<Object> colorComponents;
 
-        public DrawBuffersCommand(KeyId renderTargetId, java.util.Map<KeyId, Boolean> colorComponents) {
+        public DrawBuffersCommand(KeyId renderTargetId, List<Object> colorComponents) {
             this.renderTargetId = renderTargetId;
             this.colorComponents = colorComponents;
         }
@@ -90,62 +95,95 @@ public class StandardFunctionGraphics extends FunctionGraphics {
         public void execute(RenderContext context) {
             GraphicsResourceManager.getInstance()
                     .getResource(ResourceTypes.RENDER_TARGET, renderTargetId)
-                    .ifPresent(rt -> {
-                        if (rt instanceof StandardRenderTarget srt) {
-                            srt.bind();
-                            List<KeyId> attachments = srt.getColorAttachmentIds();
-                            List<Integer> activeBuffers = new java.util.ArrayList<>();
-                            for (int i = 0; i < attachments.size(); i++) {
-                                KeyId attachmentId = attachments.get(i);
-                                if (colorComponents.getOrDefault(attachmentId, false)) {
-                                    activeBuffers.add(GL30.GL_COLOR_ATTACHMENT0 + i);
+                    .ifPresent(res -> {
+                        if (res instanceof RenderTarget rt) {
+                            rt.bind();
+
+                            List<Integer> activeBuffers = new ArrayList<>();
+                            boolean shouldApply = false;
+
+                            if (rt instanceof StandardRenderTarget srt) {
+                                shouldApply = true;
+
+                                if (colorComponents == null) {
+                                    List<KeyId> attachments = srt.getColorAttachmentIds();
+                                    for (int i = 0; i < attachments.size(); i++) {
+                                        activeBuffers.add(GL30.GL_COLOR_ATTACHMENT0 + i);
+                                    }
+                                } else {
+                                    List<KeyId> attachments = srt.getColorAttachmentIds();
+                                    for (Object comp : colorComponents) {
+                                        if (comp instanceof KeyId keyId) {
+                                            int index = attachments.indexOf(keyId);
+                                            if (index >= 0) {
+                                                activeBuffers.add(GL30.GL_COLOR_ATTACHMENT0 + index);
+                                            }
+                                        } else if (comp instanceof Integer val) {
+                                            activeBuffers.add(val);
+                                        }
+                                    }
+                                }
+                            } else {
+                                if (colorComponents != null) {
+                                    shouldApply = true;
+                                    for (Object comp : colorComponents) {
+                                        if (comp instanceof Integer val) {
+                                            activeBuffers.add(val);
+                                        }
+                                    }
                                 }
                             }
 
-                            if (activeBuffers.isEmpty()) {
-                                GL11.glDrawBuffer(GL11.GL_NONE);
-                            } else {
-                                IntBuffer buffer = BufferUtils.createIntBuffer(activeBuffers.size());
-                                for (int activeBuffer : activeBuffers) {
-                                    buffer.put(activeBuffer);
+                            if (shouldApply) {
+                                if (activeBuffers.isEmpty()) {
+                                    GL11.glDrawBuffer(GL11.GL_NONE);
+                                } else {
+                                    IntBuffer buffer = BufferUtils.createIntBuffer(activeBuffers.size());
+                                    for (int activeBuffer : activeBuffers) {
+                                        buffer.put(activeBuffer);
+                                    }
+                                    buffer.flip();
+                                    GL20.glDrawBuffers(buffer);
                                 }
-                                buffer.flip();
-                                GL20.glDrawBuffers(buffer);
                             }
-                            RenderTarget.unbind();
                         }
                     });
         }
     }
 
     public static class GenMipmapCommand implements Command {
-        private final KeyId renderTargetId;
-        private final Map<KeyId, Boolean> colorComponents;
+        private final KeyId textureId;
 
-        public GenMipmapCommand(KeyId renderTargetId, Map<KeyId, Boolean> colorComponents) {
+        public GenMipmapCommand(KeyId textureId) {
+            this.textureId = textureId;
+        }
+
+        @Override
+        public void execute(RenderContext context) {
+            GraphicsResourceManager.getInstance()
+                    .getResource(ResourceTypes.TEXTURE, textureId)
+                    .ifPresent(tex -> {
+                        GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, tex.getHandle());
+                        GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
+                        GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, 0);
+                    });
+        }
+    }
+
+    public static class BindRenderTargetCommand implements Command {
+        private final KeyId renderTargetId;
+
+        public BindRenderTargetCommand(KeyId renderTargetId) {
             this.renderTargetId = renderTargetId;
-            this.colorComponents = colorComponents;
         }
 
         @Override
         public void execute(RenderContext context) {
             GraphicsResourceManager.getInstance()
                     .getResource(ResourceTypes.RENDER_TARGET, renderTargetId)
-                    .ifPresent(rt -> {
-                        if (rt instanceof StandardRenderTarget srt) {
-                            List<KeyId> attachments = srt.getColorAttachmentIds();
-                            for (int i = 0; i < attachments.size(); i++) {
-                                KeyId attachmentId = attachments.get(i);
-                                if (colorComponents.getOrDefault(attachmentId, false)) {
-                                    GraphicsResourceManager.getInstance()
-                                            .getResource(ResourceTypes.TEXTURE, attachmentId)
-                                            .ifPresent(tex -> {
-                                                GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, tex.getHandle());
-                                                GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
-                                                GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, 0);
-                                            });
-                                }
-                            }
+                    .ifPresent(res -> {
+                        if (res instanceof RenderTarget rt) {
+                            rt.bind();
                         }
                     });
         }

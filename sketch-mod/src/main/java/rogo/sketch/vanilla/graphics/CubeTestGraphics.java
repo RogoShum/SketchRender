@@ -10,6 +10,7 @@ import rogo.sketch.core.data.builder.VertexDataBuilder;
 import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.core.model.MeshGroup;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
@@ -56,14 +57,13 @@ public class CubeTestGraphics extends MeshGraphics {
         return true;
     }
 
-    public void tick() {
+    @Override
+    public <C extends RenderContext> void tick(C context) {
+        super.tick(context);
         Entity player = Minecraft.getInstance().player;
         if (player != null) {
-            Vec3 playerPos = player.getPosition(Minecraft.getInstance().getPartialTick());
-            Vec3 cameraPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-
-            Vector3f offset = playerPos.subtract(cameraPos).toVector3f();
-            cubePos = offset.mul(1);
+            Vec3 playerPos = attachHead ? player.getEyePosition(Minecraft.getInstance().getPartialTick()) : player.getPosition(Minecraft.getInstance().getPartialTick());
+            cubePos = playerPos.toVector3f();
         }
     }
 
@@ -85,12 +85,6 @@ public class CubeTestGraphics extends MeshGraphics {
     @Override
     public void fillVertex(KeyId componentKey, VertexDataBuilder builder) {
         if (componentKey.equals(ENTITY_POS)) {
-            Entity player = Minecraft.getInstance().player;
-            if (player != null) {
-                Vec3 playerPos = attachHead ? player.getEyePosition(Minecraft.getInstance().getPartialTick()) : player.getPosition(Minecraft.getInstance().getPartialTick());
-                cubePos = playerPos.toVector3f();
-            }
-
             builder.put(cubePos.x(), cubePos.y(), cubePos.z()).endVertex();
         } else if (componentKey.equals(ENTITY_TRANSFORM)) {
             builder.put(offset.x(), offset.y(), offset.z()).endVertex();

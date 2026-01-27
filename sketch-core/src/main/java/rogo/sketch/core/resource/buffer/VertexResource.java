@@ -210,19 +210,19 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
             throw new IllegalStateException("No VBO available for id " + id);
         }
 
+        // Generate indices if needed (only for binding 0 - assuming binding 0 is
+        // primary vertex buffer)
+        // If automatic binding is used, we check if this component is binding 0?
+        if (component.getBindingPoint() == 0 && indexBuffer != null && builder.getPrimitiveType().requiresIndexBuffer()) {
+            generateIndices(builder);
+        }
+
         if (builder.getWriter() instanceof MemoryBufferWriter memWriter) {
             ByteBuffer buffer = memWriter.getBuffer();
             buffer.flip();
             vbo.upload(buffer);
         } else {
             throw new UnsupportedOperationException("Only MemoryBufferWriter backed builders supported for now");
-        }
-
-        // Generate indices if needed (only for binding 0 - assuming binding 0 is
-        // primary vertex buffer)
-        // If automatic binding is used, we check if this component is binding 0?
-        if (component.getBindingPoint() == 0 && indexBuffer != null && builder.getPrimitiveType().requiresIndexBuffer()) {
-            generateIndices(builder);
         }
     }
 

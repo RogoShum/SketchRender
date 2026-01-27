@@ -2,6 +2,7 @@ package rogo.sketch.core.command;
 
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.event.GraphicsPipelineStageEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
 import rogo.sketch.core.pipeline.*;
@@ -93,9 +94,11 @@ public class RenderCommandQueue<C extends RenderContext> {
         List<PipelineType> pipelineTypes = graphicsPipeline.getPipelineTypes();
 
         FullRenderState snapshot = null;
+        int vao = -1;
         //todo need check
         if (commandedStages.contains(stageId)) {
             snapshot = RenderStateSnapshotUtils.createSnapshot();
+            vao = RenderStateSnapshotUtils.getVAOBinding();
             manager.changeState(snapshot, context, false);
         }
 
@@ -155,11 +158,11 @@ public class RenderCommandQueue<C extends RenderContext> {
         if (snapshot != null) {
             manager.reset();
             manager.changeState(snapshot, context);
+            GraphicsDriver.getCurrentAPI().bindVertexArray(vao);
         }
 
         context.postStage(stageId);
-        EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context,
-                GraphicsPipelineStageEvent.Phase.POST));
+        EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context, GraphicsPipelineStageEvent.Phase.POST));
         //SketchRender.COMMAND_TIMER.end("execute command -> " + stageId);
     }
 

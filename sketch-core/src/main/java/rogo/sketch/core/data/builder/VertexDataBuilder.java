@@ -269,7 +269,7 @@ public class VertexDataBuilder {
     // ===== Accessors =====
     
     public int getVertexCount() {
-        return vertexCount;
+        return (int) (writer.getWriteOffset() / format.getStride());
     }
     
     public PrimitiveType getPrimitiveType() {

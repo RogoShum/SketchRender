@@ -13,7 +13,7 @@ import java.util.*;
  */
 public class QueueContainer<C extends RenderContext> implements GraphicsContainer<C> {
     private final Map<KeyId, Graphics> instances = new LinkedHashMap<>();
-    private final Collection<Graphics> tickableInstances = new ArrayList<>();
+    private final Collection<Graphics> tickableInstances = new LinkedHashSet<>();
 
     @Override
     public void add(Graphics graphics) {
@@ -53,17 +53,15 @@ public class QueueContainer<C extends RenderContext> implements GraphicsContaine
         }
 
         // Cleanup discarded instances
-        // Use a list to avoid ConcurrentModificationException during iteration
-        List<KeyId> toRemove = new ArrayList<>();
-        for (Graphics graphics : instances.values()) {
+        instances.values().removeIf(graphics -> {
             if (graphics.shouldDiscard()) {
-                toRemove.add(graphics.getIdentifier());
+                if (graphics.tickable()) {
+                    tickableInstances.remove(graphics);
+                }
+                return true;
             }
-        }
-
-        for (KeyId id : toRemove) {
-            remove(id);
-        }
+            return false;
+        });
     }
 
     @Override

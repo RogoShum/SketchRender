@@ -16,20 +16,19 @@ import rogo.sketch.core.data.builder.VertexDataBuilder;
 import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.data.format.VertexBufferKey;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
-import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.data.IndirectBufferData;
 import rogo.sketch.core.pipeline.data.InstancedOffsetData;
 import rogo.sketch.core.pipeline.flow.*;
 import rogo.sketch.core.pipeline.information.InstanceInfo;
 import rogo.sketch.core.pipeline.information.RasterizationInstanceInfo;
+import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.core.resource.buffer.VertexResource;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.core.util.TimerUtil;
 import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.util.*;
@@ -128,9 +127,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         }
 
         // Organize into batches
-        TimerUtil.COMMAND_TIMER.start("organizeToBatches");
         List<RenderBatch<RasterizationInstanceInfo>> batches = organizeToBatches(rasterInfos);
-        TimerUtil.COMMAND_TIMER.end("organizeToBatches");
 
         // Group by VertexBufferKey
         Map<VertexBufferKey, RenderBatchList> keyGroups = groupByVertexBufferKey(batches);
@@ -191,14 +188,6 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
      * Source (Mesh) ID.
      */
     private List<RenderBatch<RasterizationInstanceInfo>> organizeToBatches(List<RasterizationInstanceInfo> infos) {
-        // Group by Composite Key (RenderSetting + SourceID)
-        // Since we don't have a Pair/Tuple class, we can use a custom key or just
-        // nested maps.
-        // Let's use a custom record-like class or just assumption that RenderSetting is
-        // unique enough?
-        // No, RenderSetting doesn't include Mesh.
-        // We must split by Source ID (for BakedMeshes).
-
         Map<RenderSetting, Map<MeshHolder, List<RasterizationInstanceInfo>>> grouped = new LinkedHashMap<>();
 
         for (RasterizationInstanceInfo info : infos) {
@@ -239,7 +228,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
      * Group render batches by their VertexBufferKey.
      */
     private Map<VertexBufferKey, RenderBatchList> groupByVertexBufferKey(List<RenderBatch<RasterizationInstanceInfo>> batches) {
-        Map<VertexBufferKey, RenderBatchList> keyGroups = new HashMap<>();
+        Map<VertexBufferKey, RenderBatchList> keyGroups = new LinkedHashMap<>();
 
         for (RenderBatch<RasterizationInstanceInfo> batch : batches) {
             RenderSetting setting = batch.getRenderSetting();
@@ -410,6 +399,11 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         }
 
         return new ProcessorResult(resource, ranges);
+    }
+
+    @Override
+    public boolean supportsParallel() {
+        return true;
     }
 
     @Nullable

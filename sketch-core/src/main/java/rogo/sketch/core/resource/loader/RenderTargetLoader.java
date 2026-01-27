@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL30;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.RenderTarget;
 import rogo.sketch.core.resource.StandardRenderTarget;
@@ -54,18 +55,11 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                 scaleX = scaleY = scale;
             }
 
-            // Parse clear color (optional)
-            int clearColor = 0x00000000; // Default: transparent black
-            if (json.has("clearColor")) {
-                String colorStr = json.get("clearColor").getAsString();
-                clearColor = parseColor(colorStr);
-            }
-
             // Create framebuffer
             int handle = GL30.glGenFramebuffers();
-            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, handle);
+            GraphicsDriver.getCurrentAPI().bindFrameBuffer(handle);
 
-            StandardRenderTarget renderTarget = new StandardRenderTarget(handle, keyId, mode, baseWidth, baseHeight, scaleX, scaleY, clearColor, null);
+            StandardRenderTarget renderTarget = new StandardRenderTarget(handle, keyId, mode, baseWidth, baseHeight, scaleX, scaleY, null);
             GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
 
             // Attach color textures using smart loading
@@ -107,27 +101,13 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                 }
             }
 
-            // Parse clear settings
-            boolean shouldClearColor = true;
-            boolean clearDepth = true;
-            boolean clearStencil = false;
-
-            if (json.has("clearSettings")) {
-                JsonObject clearSettings = json.getAsJsonObject("clearSettings");
-                shouldClearColor = !clearSettings.has("color") || clearSettings.get("color").getAsBoolean();
-                clearDepth = !clearSettings.has("depth") || clearSettings.get("depth").getAsBoolean();
-                clearStencil = clearSettings.has("stencil") && clearSettings.get("stencil").getAsBoolean();
-            }
-
-            renderTarget.setClearSettings(shouldClearColor, clearDepth, clearStencil);
-
             // Check framebuffer completeness
             int status = GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
             if (status != GL30.GL_FRAMEBUFFER_COMPLETE) {
                 System.err.println("Framebuffer not complete: " + status);
             }
 
-            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
+            GraphicsDriver.getCurrentAPI().bindFrameBuffer(0);
 
             return renderTarget;
 
@@ -145,31 +125,5 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
             case "SCREEN_RELATIVE", "RELATIVE" -> StandardRenderTarget.ResolutionMode.SCREEN_RELATIVE;
             default -> StandardRenderTarget.ResolutionMode.FIXED;
         };
-    }
-
-    private int parseColor(String colorStr) {
-        try {
-            if (colorStr.startsWith("#")) {
-                // Hex color: #RRGGBB or #AARRGGBB
-                String hex = colorStr.substring(1);
-                if (hex.length() == 6) {
-                    // RGB -> ARGB (add full alpha)
-                    return (int) (0xFF000000L | Long.parseLong(hex, 16));
-                } else if (hex.length() == 8) {
-                    // ARGB
-                    return (int) Long.parseLong(hex, 16);
-                }
-            } else if (colorStr.startsWith("0x")) {
-                // Hex color: 0xRRGGBB or 0xAARRGGBB
-                String hex = colorStr.substring(2);
-                return (int) Long.parseLong(hex, 16);
-            } else {
-                // Try to parse as decimal
-                return Integer.parseInt(colorStr);
-            }
-        } catch (NumberFormatException e) {
-            System.err.println("Invalid color format: " + colorStr);
-        }
-        return 0x00000000; // Default to transparent black
     }
 }

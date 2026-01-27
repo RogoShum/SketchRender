@@ -95,4 +95,8 @@ public interface RenderFlowStrategy {
     default boolean supportsBatching() {
         return true;
     }
+
+    default boolean supportsParallel() {
+        return false;
+    }
 }

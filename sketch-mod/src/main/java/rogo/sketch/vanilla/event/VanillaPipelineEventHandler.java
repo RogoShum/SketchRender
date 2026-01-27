@@ -62,7 +62,7 @@ public class VanillaPipelineEventHandler {
     public static final BuildInRTTexture mainDepth = new BuildInRTTexture(
             () -> Minecraft.getInstance().getMainRenderTarget(), GL11.GL_RGBA, true);
     public static final BuildInRenderTarget mainTarget = new BuildInRenderTarget(
-            Minecraft.getInstance().getMainRenderTarget().frameBufferId, KeyId.of("minecraft:main_target"));
+            () -> Minecraft.getInstance().getMainRenderTarget().frameBufferId, KeyId.of("minecraft:main_target"));
 
     public static void registerPersistentResource() {
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.TEXTURE,

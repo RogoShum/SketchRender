@@ -17,7 +17,7 @@ import java.util.*;
  */
 public class AABBTreeContainer<C extends RenderContext> implements GraphicsContainer<C> {
     private final Map<KeyId, AABBNode> instanceNodes = new LinkedHashMap<>();
-    private final Collection<Graphics> tickableInstances = new ArrayList<>();
+    private final Collection<Graphics> tickableInstances = new LinkedHashSet<>();
     private AABBNode root;
 
     @Override
@@ -85,16 +85,16 @@ public class AABBTreeContainer<C extends RenderContext> implements GraphicsConta
         }
 
         // Cleanup discarded instances
-        java.util.List<KeyId> toRemove = new java.util.ArrayList<>();
-        for (AABBNode node : instanceNodes.values()) {
+        instanceNodes.values().removeIf(node -> {
             if (node.graphics.shouldDiscard()) {
-                toRemove.add(node.graphics.getIdentifier());
+                removeNode(node);
+                if (node.graphics.tickable()) {
+                    tickableInstances.remove(node.graphics);
+                }
+                return true;
             }
-        }
-
-        for (KeyId id : toRemove) {
-            remove(id);
-        }
+            return false;
+        });
     }
 
     @Override

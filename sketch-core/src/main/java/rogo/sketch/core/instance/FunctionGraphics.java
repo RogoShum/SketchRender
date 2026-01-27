@@ -25,7 +25,7 @@ public abstract class FunctionGraphics implements Graphics, ResourceObject, Comp
     }
 
     /**
-     * Execute the function logic (e.g. OpenGL commands).
+     * Execute the function logic
      *
      * @param context Render context
      */
@@ -73,11 +73,11 @@ public abstract class FunctionGraphics implements Graphics, ResourceObject, Comp
 
     @Override
     public boolean shouldDiscard() {
-        return disposed;
+        return isDisposed();
     }
 
     @Override
     public boolean shouldRender() {
-        return true;
+        return !isDisposed();
     }
 }

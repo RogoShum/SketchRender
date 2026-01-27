@@ -126,4 +126,14 @@ public class MinecraftAPI extends OpenGLAPI {
     public void colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
         RenderSystem.colorMask(red, green, blue, alpha);
     }
+
+    @Override
+    public void bindFrameBuffer(int type, int target) {
+        GlStateManager._glBindFramebuffer(type, target);
+    }
+
+    @Override
+    public void bindVertexArray(int target) {
+        RenderSystem.glBindVertexArray(() -> target);
+    }
 }

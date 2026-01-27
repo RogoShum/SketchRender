@@ -68,4 +68,10 @@ public abstract class GraphicsAPI {
     public abstract void texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, ByteBuffer data);
 
     public abstract void generateMipmap(int target);
+
+    public abstract void bindFrameBuffer(int target);
+
+    public abstract void bindFrameBuffer(int type, int target);
+
+    public abstract void bindVertexArray(int target);
 }

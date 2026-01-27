@@ -1,0 +1,6 @@
+{
+  "stage": "vanilla_particle",
+  "renderSetting": "sketch_render:dc_test",
+  "modelName": "sketch_render:screen",
+  "meshName": "screen"
+}

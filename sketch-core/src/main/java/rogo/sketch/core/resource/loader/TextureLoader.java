@@ -15,6 +15,8 @@ import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.lwjgl.opengl.GL31.GL_RGB8_SNORM;
+
 /**
  * Loader for Texture resources from JSON
  */
@@ -179,6 +181,7 @@ public class TextureLoader implements ResourceLoader<Texture> {
         return switch (format.toUpperCase()) {
             // Base / Standard
             case "RGB", "RGB8" -> GL11.GL_RGB8;
+            case "RGB_S", "RGB_SNORM" -> GL31.GL_RGB8_SNORM;
             case "RGBA", "RGBA8" -> GL11.GL_RGBA8;
             case "R", "R8" -> GL30.GL_R8;
             case "RG", "RG8" -> GL30.GL_RG8;

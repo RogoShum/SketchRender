@@ -74,6 +74,19 @@ public class RenderStateManager {
         changeState(defaultState, context);
     }
 
+    public void changeState(RenderStateComponent component, RenderContext context) {
+        if (currentState == null) {
+            currentState = DefaultRenderStates.createDefaultFullRenderState();
+        }
+
+        RenderStateComponent oldComp = currentState.get(component.getIdentifier());
+        if (!component.equals(oldComp)) {
+            component.apply(context);
+        }
+
+        currentState = currentState.with(component);
+    }
+
     public void changeState(FullRenderState newState, RenderContext context) {
         changeState(newState, context, true);
     }

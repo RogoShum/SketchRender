@@ -1,6 +1,5 @@
 package rogo.sketch.core.state;
 
-
 import rogo.sketch.core.api.RenderStateComponent;
 import rogo.sketch.core.util.KeyId;
 
@@ -28,10 +27,19 @@ public class FullRenderState {
         return states;
     }
 
+    public FullRenderState with(RenderStateComponent component) {
+        int index = DefaultRenderStates.getIndex(component.getIdentifier());
+        RenderStateComponent[] newStates = states.clone();
+        newStates[index] = component;
+        return new FullRenderState(newStates);
+    }
+
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof FullRenderState)) return false;
+        if (this == o)
+            return true;
+        if (!(o instanceof FullRenderState))
+            return false;
         FullRenderState that = (FullRenderState) o;
         return Arrays.equals(states, that.states);
     }

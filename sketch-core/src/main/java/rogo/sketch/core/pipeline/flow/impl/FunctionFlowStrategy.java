@@ -47,8 +47,8 @@ public class FunctionFlowStrategy implements RenderFlowStrategy {
 
         for (Map.Entry<RenderSetting, List<FunctionGraphics>> entry : groupedFunctions.entrySet()) {
             List<FunctionGraphics> functions = entry.getValue();
-            // Sort by priority (FunctionGraphics implements Comparable)
-            Collections.sort(functions);
+//            // Sort by priority (FunctionGraphics implements Comparable)
+//            Collections.sort(functions);
 
             FunctionCommand command = new FunctionCommand(entry.getKey(), null, stageId, null, functions);
             commands.put(entry.getKey(), List.of(command));

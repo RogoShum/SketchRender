@@ -49,7 +49,6 @@ public class GeometryBatchProcessor {
         // 1. Collect instance info using flow strategies
         Map<RenderFlowType, List<InstanceInfo>> infosByFlowType = new HashMap<>();
 
-        TimerUtil.COMMAND_TIMER.start("info collect");
         for (Map.Entry<RenderParameter, Collection<Graphics>> entry : instanceGroups.entrySet()) {
             RenderParameter renderParameter = entry.getKey();
             Collection<Graphics> instances = entry.getValue();
@@ -62,14 +61,21 @@ public class GeometryBatchProcessor {
 
             RenderFlowStrategy strategy = strategyOpt.get();
 
-            for (Graphics instance : instances) {
-                InstanceInfo info = strategy.collectInstanceInfo(instance, renderParameter, context);
-                if (info != null) {
-                    infosByFlowType.computeIfAbsent(flowType, k -> new ArrayList<>()).add(info);
+            if (strategy.supportsParallel()) {
+                List<InstanceInfo> collected = instances.parallelStream()
+                        .map(instance -> strategy.collectInstanceInfo(instance, renderParameter, context))
+                        .filter(Objects::nonNull)
+                        .toList();
+                infosByFlowType.computeIfAbsent(flowType, k -> new ArrayList<>()).addAll(collected);
+            } else {
+                for (Graphics instance : instances) {
+                    InstanceInfo info = strategy.collectInstanceInfo(instance, renderParameter, context);
+                    if (info != null) {
+                        infosByFlowType.computeIfAbsent(flowType, k -> new ArrayList<>()).add(info);
+                    }
                 }
             }
         }
-        TimerUtil.COMMAND_TIMER.end("info collect");
 
         // 2. Create render commands for each flow type
         Map<RenderSetting, List<RenderCommand>> allCommands = new LinkedHashMap<>();

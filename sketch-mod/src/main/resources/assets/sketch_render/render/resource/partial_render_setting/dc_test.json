@@ -1,0 +1,28 @@
+{
+  "renderState": {
+    "shader_program": {
+      "identifier": "sketch_render:dc_test"
+    },
+    "blend_state": {
+      "enabled": false
+    },
+    "depth_test": {
+      "enabled": false
+    },
+    "depth_mask": {
+      "writable": false
+    },
+    "render_target": {
+      "identifier" : "sketch_render:example_render_target",
+      "drawBuffers": [
+        "sketch_render:example_rt_normal"
+      ]
+    }
+  },
+  "resourceBinding": {
+    "texture": {
+      "depth": "minecraft:main_depth"
+    }
+  },
+  "shouldSwitchRenderState": true
+}

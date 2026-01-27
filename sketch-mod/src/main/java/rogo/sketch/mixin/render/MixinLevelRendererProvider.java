@@ -52,8 +52,22 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
         }
 
         McRenderContext context = new McRenderContext((LevelRenderer) (Object) this, modelViewMatrix, projectionMatrix, camera, frustum, this.ticks, partialTicks);
+        context.setRenderStateManager(sketchlib$graphPipeline.renderStateManager());
         sketchlib$graphPipeline.resetRenderContext(context);
         sketchlib$graphPipeline.computeAllRenderCommand();
+    }
+
+    @Inject(
+            method = {"renderLevel"},
+            at = {@At(
+                    value = "CONSTANT",
+                    args = {"stringValue=clear"},
+                    shift = At.Shift.BEFORE,
+                    by = 1
+            )}
+    )
+    private void beforeClearStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime, boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
+        sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.RENDER_START.getIdentifier(), MinecraftRenderStages.CLEAR.getIdentifier());
     }
 
     @Inject(
@@ -66,7 +80,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
             )}
     )
     private void beforeFrustumStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime, boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
-        sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.RENDER_START.getIdentifier(), MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier());
+        sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.CLEAR.getIdentifier(), MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier());
     }
 
     @Inject(

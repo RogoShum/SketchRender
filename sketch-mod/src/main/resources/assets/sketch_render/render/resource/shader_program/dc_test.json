@@ -1,0 +1,4 @@
+{
+  "vertex": "sketch_render:position_tex.vsh",
+  "fragment": "sketch_render:dc_test.fsh"
+}

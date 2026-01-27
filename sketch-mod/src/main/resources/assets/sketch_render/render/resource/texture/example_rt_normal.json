@@ -1,0 +1,8 @@
+{
+  "isRenderTarget": true,
+  "format": "RGB_SNORM",
+  "minFilter": "LINEAR",
+  "magFilter": "LINEAR",
+  "wrapS": "CLAMP_TO_EDGE",
+  "wrapT": "CLAMP_TO_EDGE"
+}

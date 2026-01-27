@@ -116,4 +116,8 @@ public class RenderStateSnapshotUtils {
 
         return DefaultRenderStates.createFullRenderState(components);
     }
+
+    public static int getVAOBinding() {
+        return GLStateQueryUtils.getCurrentVAO();
+    }
 }
