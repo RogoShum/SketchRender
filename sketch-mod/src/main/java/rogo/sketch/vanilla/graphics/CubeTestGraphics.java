@@ -6,7 +6,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.api.model.PreparedMesh;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.core.model.MeshGroup;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
@@ -83,14 +83,14 @@ public class CubeTestGraphics extends MeshGraphics {
     }
 
     @Override
-    public void fillVertex(KeyId componentKey, VertexDataBuilder builder) {
+    public void fillVertex(KeyId componentKey, VertexStreamBuilder builder) {
         if (componentKey.equals(ENTITY_POS)) {
-            builder.put(cubePos.x(), cubePos.y(), cubePos.z()).endVertex();
+            builder.put(cubePos.x(), cubePos.y(), cubePos.z());
         } else if (componentKey.equals(ENTITY_TRANSFORM)) {
-            builder.put(offset.x(), offset.y(), offset.z()).endVertex();
-            builder.put(scale.x(), scale.y(), scale.z()).endVertex();
+            builder.put(offset.x(), offset.y(), offset.z());
+            builder.put(scale.x(), scale.y(), scale.z());
             Vector3f playerDir = Minecraft.getInstance().player.getForward().toVector3f().add(rotation).normalize();
-            builder.put(playerDir.x(), playerDir.y(), playerDir.z()).endVertex();
+            builder.put(playerDir.x(), playerDir.y(), playerDir.z());
         }
     }
 }

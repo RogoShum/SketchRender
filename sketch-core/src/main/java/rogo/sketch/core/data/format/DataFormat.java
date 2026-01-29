@@ -12,19 +12,19 @@ import java.util.Objects;
  * UBO, etc.)
  */
 public class DataFormat {
-    private final List<DataElement> elements;
+    private final DataElement[] elements;
     private final int stride;
     private final String name;
 
     public DataFormat(String name, DataElement... elements) {
         this.name = name;
-        this.elements = new ArrayList<>(Arrays.asList(elements));
+        this.elements = elements;
         this.stride = calculateStride();
     }
 
     public DataFormat(String name, List<DataElement> elements) {
         this.name = name;
-        this.elements = new ArrayList<>(elements);
+        this.elements = elements.toArray(new DataElement[0]);
         this.stride = calculateStride();
     }
 
@@ -51,8 +51,8 @@ public class DataFormat {
         return totalStride;
     }
 
-    public List<DataElement> getElements() {
-        return new ArrayList<>(elements);
+    public DataElement[] getElements() {
+        return elements;
     }
 
     public int getStride() {
@@ -64,31 +64,31 @@ public class DataFormat {
     }
 
     public int getElementCount() {
-        return elements.size();
+        return elements.length;
     }
 
     public DataElement getElement(int index) {
-        return elements.get(index);
+        return elements[index];
     }
 
-    public DataElement getElement(String name) {
-        return elements.stream()
-                .filter(element -> element.getName().equals(name))
-                .findFirst()
-                .orElse(null);
+    public DataElement getSortKeyElement() {
+        for (DataElement e : elements) {
+            if (e.isSortKey()) return e;
+        }
+        return null;
     }
 
     /**
      * Check if this format is compatible with another format (for shader matching)
      */
     public boolean isCompatibleWith(DataFormat other) {
-        if (this.elements.size() != other.elements.size()) {
+        if (this.elements.length != other.elements.length) {
             return false;
         }
 
-        for (int i = 0; i < elements.size(); i++) {
-            DataElement thisElement = this.elements.get(i);
-            DataElement otherElement = other.elements.get(i);
+        for (int i = 0; i < elements.length; i++) {
+            DataElement thisElement = this.elements[i];
+            DataElement otherElement = other.elements[i];
 
             if (!thisElement.isCompatibleWith(otherElement)) {
                 return false;
@@ -102,13 +102,13 @@ public class DataFormat {
      * Check if this format exactly matches another format
      */
     public boolean matches(DataFormat other) {
-        if (this.elements.size() != other.elements.size()) {
+        if (this.elements.length != other.elements.length) {
             return false;
         }
 
-        for (int i = 0; i < elements.size(); i++) {
-            DataElement thisElement = this.elements.get(i);
-            DataElement otherElement = other.elements.get(i);
+        for (int i = 0; i < elements.length; i++) {
+            DataElement thisElement = this.elements[i];
+            DataElement otherElement = other.elements[i];
 
             if (!thisElement.equals(otherElement)) {
                 return false;
@@ -146,7 +146,7 @@ public class DataFormat {
         if (offset == 0)
             return this;
 
-        List<DataElement> newElements = new ArrayList<>(elements.size());
+        List<DataElement> newElements = new ArrayList<>(elements.length);
         for (DataElement element : elements) {
             newElements.add(element.copy(element.getIndex() + offset));
         }
@@ -171,17 +171,17 @@ public class DataFormat {
         }
 
         public Builder add(int location, String elementName, DataType dataType) {
-            return add(location, elementName, dataType, false);
+            return add(location, elementName, dataType, false, false, false);
         }
 
-        public Builder add(int location, String elementName, DataType dataType, boolean normalized) {
+        public Builder add(int location, String elementName, DataType dataType, boolean normalized, boolean sortKey, boolean padding) {
             // Check for duplicate locations
             for (DataElement element : elements) {
                 if (element.getIndex() == location) {
                     throw new IllegalArgumentException("Duplicate attribute location: " + location);
                 }
             }
-            elements.add(new DataElement(elementName, dataType, location, normalized));
+            elements.add(new DataElement(elementName, dataType, location, normalized, sortKey, padding));
             // Update nextLocation to be at least location + 1, so auto-add works if mixed
             if (location >= nextLocation) {
                 nextLocation = location + 1;
@@ -190,11 +190,11 @@ public class DataFormat {
         }
 
         public Builder add(String elementName, DataType dataType) {
-            return add(nextLocation, elementName, dataType, false);
+            return add(nextLocation, elementName, dataType, false, false, false);
         }
 
-        public Builder add(String elementName, DataType dataType, boolean normalized) {
-            return add(nextLocation, elementName, dataType, normalized);
+        public Builder add(String elementName, DataType dataType, boolean normalized, boolean sortKey, boolean padding) {
+            return add(nextLocation, elementName, dataType, normalized, sortKey, padding);
         }
 
         public Builder floatAttribute(int location, String name) {
@@ -316,22 +316,22 @@ public class DataFormat {
             return false;
         DataFormat that = (DataFormat) o;
         return stride == that.stride &&
-                Objects.equals(elements, that.elements);
+                Arrays.equals(elements, that.elements);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(elements, stride);
+        return Objects.hash(Arrays.hashCode(elements), stride);
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("DataFormat{name='").append(name).append("', stride=").append(stride).append(", elements=[");
-        for (int i = 0; i < elements.size(); i++) {
+        for (int i = 0; i < elements.length; i++) {
             if (i > 0)
                 sb.append(", ");
-            sb.append(elements.get(i));
+            sb.append(elements[i]);
         }
         sb.append("]}");
         return sb.toString();

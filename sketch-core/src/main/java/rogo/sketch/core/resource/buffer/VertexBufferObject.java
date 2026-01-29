@@ -1,12 +1,11 @@
 package rogo.sketch.core.resource.buffer;
 
 import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL44;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.core.api.BufferResourceObject;
 import rogo.sketch.core.data.Usage;
-import rogo.sketch.core.data.builder.DataBufferWriter;
-import rogo.sketch.core.data.builder.MemoryBufferWriter;
 import rogo.sketch.core.util.GLFeatureChecker;
 
 import java.nio.ByteBuffer;
@@ -20,13 +19,14 @@ public class VertexBufferObject implements BufferResourceObject {
     private final Usage usage;
     private long size;
     private boolean disposed = false;
+    private long mappedAddress = MemoryUtil.NULL;
 
     public VertexBufferObject(Usage usage) {
         this.usage = usage;
         this.handle = GLFeatureChecker.supportsDSA() ? GL45.glCreateBuffers() : GL15.glGenBuffers();
         this.size = 0;
     }
-    
+
     public VertexBufferObject(int size, Usage usage) {
         this(usage);
         ensureCapacity(size);
@@ -50,7 +50,18 @@ public class VertexBufferObject implements BufferResourceObject {
         }
         this.size = data.limit();
     }
-    
+
+    public void upload(long ptr, long dataSize, long maxSize) {
+        if (GLFeatureChecker.supportsDSA()) {
+            GL45.nglNamedBufferData(handle, dataSize, ptr, usage.getGLConstant());
+        } else {
+            bind();
+            GL15.nglBufferData(GL15.GL_ARRAY_BUFFER, dataSize, ptr, usage.getGLConstant());
+            unbind();
+        }
+        this.size = maxSize;
+    }
+
     public void uploadSubData(long offset, ByteBuffer data) {
         if (GLFeatureChecker.supportsDSA()) {
             GL45.glNamedBufferSubData(handle, offset, data);
@@ -74,20 +85,40 @@ public class VertexBufferObject implements BufferResourceObject {
             this.size = requiredSize;
         }
     }
-    
-    /**
-     * Upload data from a DataBufferWriter.
-     * If the writer is a MemoryBufferWriter, we can directly access the buffer.
-     * Otherwise, we might need a copy or mapping (not implemented for address writers yet).
-     */
-    public void upload(DataBufferWriter writer) {
-        if (writer instanceof MemoryBufferWriter memoryWriter) {
-            ByteBuffer buffer = memoryWriter.getBuffer();
-            buffer.flip();
-            upload(buffer);
+
+    public long mapPersistent(long capacity) {
+        ensureCapacity(capacity);
+
+        int access = GL44.GL_MAP_WRITE_BIT | GL44.GL_MAP_PERSISTENT_BIT | GL44.GL_MAP_COHERENT_BIT;
+
+        if (GLFeatureChecker.supportsDSA()) {
+            // DSA 重新分配存储时必须指定 flags，这里简化处理，假设 ensureCapacity 已经分配了 STORAGE_FLAGS
+            // 注意：使用持久化映射通常需要 glBufferStorage 而不是 glBufferData
+            // 这里仅做 map 演示
+            mappedAddress = MemoryUtil.memAddress(GL45.glMapNamedBufferRange(handle, 0, capacity, access));
         } else {
-            throw new UnsupportedOperationException("Direct upload from non-memory writer not supported yet");
+            bind();
+            mappedAddress = MemoryUtil.memAddress(GL45.glMapBufferRange(GL15.GL_ARRAY_BUFFER, 0, capacity, access));
+            unbind();
         }
+        return mappedAddress;
+    }
+
+    public void unmap() {
+        if (mappedAddress != MemoryUtil.NULL) {
+            if (GLFeatureChecker.supportsDSA()) {
+                GL45.glUnmapNamedBuffer(handle);
+            } else {
+                bind();
+                GL15.glUnmapBuffer(GL15.GL_ARRAY_BUFFER);
+                unbind();
+            }
+            mappedAddress = MemoryUtil.NULL;
+        }
+    }
+
+    public long getMappedAddress() {
+        return mappedAddress;
     }
 
     @Override

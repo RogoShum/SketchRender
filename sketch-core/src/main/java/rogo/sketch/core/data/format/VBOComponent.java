@@ -75,8 +75,7 @@ public class VBOComponent {
         return new VBOComponent(null, other.getSpec(), true, other.getVertexOffset(), other.getVboHandle());
     }
 
-    private VBOComponent(VertexBufferObject vbo, ComponentSpec spec, boolean external, int vertexOffset,
-            int externalVboHandle) {
+    private VBOComponent(VertexBufferObject vbo, ComponentSpec spec, boolean external, int vertexOffset, int externalVboHandle) {
         this.vbo = vbo;
         this.spec = spec;
         this.external = external;

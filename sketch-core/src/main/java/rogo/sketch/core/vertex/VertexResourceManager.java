@@ -1,11 +1,9 @@
 package rogo.sketch.core.vertex;
 
 import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.api.DataResourceObject;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.Usage;
-import rogo.sketch.core.data.builder.AddressBufferWriter;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.data.format.VertexBufferKey;
@@ -26,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VertexResourceManager {
     private static VertexResourceManager instance;
     private final Map<VertexBufferKey, VertexResource> resourceCache = new ConcurrentHashMap<>();
-    private final Map<BuilderKey, VertexDataBuilder> builderCache = new ConcurrentHashMap<>();
+    private final Map<BuilderKey, VertexStreamBuilder> builderCache = new ConcurrentHashMap<>();
 
     public VertexResourceManager() {
     }
@@ -85,8 +83,7 @@ public class VertexResourceManager {
                 // Warning: Key expects source but none provided.
                 // This implies we are trying to create a shared-VAO but lost the source object.
                 // We might fail or create empty? Log warning.
-                System.err.println(
-                        "Warning: Creating VertexResource for shared key " + key + " but no source provider given.");
+                System.err.println("Warning: Creating VertexResource for shared key " + key + " but no source provider given.");
             }
         }
 
@@ -134,48 +131,35 @@ public class VertexResourceManager {
     /**
      * Create a VertexDataBuilder for a single DataFormat.
      */
-    public VertexDataBuilder createBuilder(DataFormat format, PrimitiveType primitiveType, boolean instanced, int initialCapacity) {
+    public VertexStreamBuilder createBuilder(DataFormat format, PrimitiveType primitiveType, boolean instanced, int initialCapacity) {
         return builderCache.computeIfAbsent(new BuilderKey(format, primitiveType, instanced),
-                k -> new VertexDataBuilder(format, primitiveType));
+                k -> new VertexStreamBuilder(format, primitiveType));
     }
 
     /**
      * Create a VertexDataBuilder for a single ComponentSpec.
      */
-    public VertexDataBuilder createBuilder(ComponentSpec spec, PrimitiveType primitiveType, int initialCapacity) {
-        return createBuilder(spec.getFormat(), primitiveType, spec.isInstanced(), initialCapacity).setMarkedAsInstanced(spec.isInstanced());
+    public VertexStreamBuilder createBuilder(ComponentSpec spec, PrimitiveType primitiveType, int initialCapacity) {
+        return createBuilder(spec.getFormat(), primitiveType, spec.isInstanced(), initialCapacity);
     }
 
     /**
      * Create builders for all MUTABLE components in a VertexLayoutSpec.
      */
-    public Map<KeyId, VertexDataBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType,
-                                                       int initialCapacity) {
-        Map<KeyId, VertexDataBuilder> builders = new ConcurrentHashMap<>();
+    public Map<KeyId, VertexStreamBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType, int initialCapacity) {
+        Map<KeyId, VertexStreamBuilder> builders = new ConcurrentHashMap<>();
         for (ComponentSpec component : spec.getDynamicSpecs()) {
             builders.put(component.getId(), createBuilder(component, primitiveType, initialCapacity));
         }
-        
+
         return builders;
     }
 
     /**
      * Create builders for a RasterizationParameter (based on its layout).
      */
-    public Map<KeyId, VertexDataBuilder> createBuilder(RasterizationParameter parameter, int initialCapacity) {
+    public Map<KeyId, VertexStreamBuilder> createBuilder(RasterizationParameter parameter, int initialCapacity) {
         return createBuilder(parameter.getLayout(), parameter.primitiveType(), initialCapacity);
-    }
-
-    /**
-     * Create a builder that writes directly to a DataResourceObject (e.g. SSBO or
-     * Mapped Buffer).
-     * The builder will automatically handle resizing via the AddressBufferWriter
-     * mechanism.
-     */
-    public VertexDataBuilder createDirectBuilder(DataResourceObject resource, DataFormat format,
-                                                 PrimitiveType primitiveType) {
-        AddressBufferWriter writer = new AddressBufferWriter(resource);
-        return new VertexDataBuilder(writer, format, primitiveType);
     }
 
     public String getCacheStats() {
@@ -183,7 +167,7 @@ public class VertexResourceManager {
     }
 
     /**
-     * Create a VertexDataBuilder for a single DataFormat.
+     * Create a VertexStreamBuilder for a single DataFormat.
      */
     private record BuilderKey(DataFormat format, PrimitiveType primitiveType, boolean instanced) {
     }

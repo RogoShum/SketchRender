@@ -12,7 +12,7 @@ import rogo.sketch.core.command.MultiDrawRenderCommand;
 import rogo.sketch.core.command.RenderCommand;
 import rogo.sketch.core.command.prosessor.DrawRange;
 import rogo.sketch.core.command.prosessor.ProcessorResult;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.data.format.VertexBufferKey;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
@@ -29,6 +29,7 @@ import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.core.resource.buffer.VertexResource;
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.util.TimerUtil;
 import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.util.*;
@@ -65,19 +66,12 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         int vertexCount = (mesh != null) ? mesh.getVertexCount() : 0;
 
         if (vertexCount == 0 && mesh == null) {
-            return null; // No geometry to render
+            return null;
         }
 
-        // Determine if this is instanced rendering based on RenderParameter
         RenderParameter param = renderSetting.renderParameter();
         VertexLayoutSpec layout = param.getLayout();
-        boolean isInstancedRendering = layout != null && !layout.getDynamicSpecs().isEmpty();
-        // Or check specifically for instanced components?
-        // Actually, if layout has ANY instanced component, we flag it.
-        // But the user might want explicitly "instanced" vs "dynamic but not
-        // instanced"?
-        // New design: If RenderParameter has instanced components, we treat it as
-        // instanced draw.
+        boolean isInstancedRendering = layout != null && layout.hasInstancing();
 
         return new RasterizationInstanceInfo(
                 instance,
@@ -102,7 +96,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                 .toList();
 
         if (rasterInfos.isEmpty()) {
-            return java.util.Collections.emptyMap();
+            return Collections.emptyMap();
         }
 
         // Calculate vertex offsets for dynamic meshes
@@ -190,6 +184,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
     private List<RenderBatch<RasterizationInstanceInfo>> organizeToBatches(List<RasterizationInstanceInfo> infos) {
         Map<RenderSetting, Map<MeshHolder, List<RasterizationInstanceInfo>>> grouped = new LinkedHashMap<>();
 
+        TimerUtil.COMMAND_TIMER.start("compute holder");
         for (RasterizationInstanceInfo info : infos) {
             RenderSetting setting = info.getRenderSetting();
             MeshHolder sourceId = getSourceId(info);
@@ -198,7 +193,9 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                     .computeIfAbsent(sourceId, k -> new ArrayList<>())
                     .add(info);
         }
+        TimerUtil.COMMAND_TIMER.end("compute holder");
 
+        TimerUtil.COMMAND_TIMER.start("create batch");
         List<RenderBatch<RasterizationInstanceInfo>> batches = new ArrayList<>();
         for (Map.Entry<RenderSetting, Map<MeshHolder, List<RasterizationInstanceInfo>>> settingEntry : grouped.entrySet()) {
             RenderSetting setting = settingEntry.getKey();
@@ -211,6 +208,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
 
             }
         }
+        TimerUtil.COMMAND_TIMER.end("create batch");
 
         return batches;
     }
@@ -302,7 +300,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
 
         // Create builders for MUTABLE components
         int builderCapacity = Math.max(totalVertices, totalInstances);
-        Map<KeyId, VertexDataBuilder> builders = resourceManager.createBuilder(key.renderParameter(), builderCapacity);
+        Map<KeyId, VertexStreamBuilder> builders = resourceManager.createBuilder(key.renderParameter(), builderCapacity);
 
         Map<RenderBatch<?>, DrawRange> ranges = new HashMap<>();
         boolean isInstancedDraw = key.hasInstancing();
@@ -317,6 +315,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                 RenderParameter param = key.renderParameter();
                 if (param instanceof RasterizationParameter rasterParam && rasterParam.primitiveType().requiresIndexBuffer()) {
                     currentVertexOffset = rasterParam.primitiveType().calculateIndexCount(currentVertexOffset);
+
                 }
                 break;
             }
@@ -325,17 +324,13 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
         // 3. Process Batches
         for (RenderBatch<RasterizationInstanceInfo> batch : batches.meshBatches()) {
             int batchStartCommand = indirectBuffer.getCommandCount();
-            int batchInstanceCount = 0;
-            int validInstanceCount = 0;
+            int batchInstanceCount = batch.getInstances().size();
 
             for (RasterizationInstanceInfo info : batch.getInstances()) {
                 Graphics instance = info.getInstance();
-                validInstanceCount++;
-                batchInstanceCount++;
-
                 // Fill Data
                 if (instance instanceof MeshProvider provider) {
-                    for (Map.Entry<KeyId, VertexDataBuilder> entry : builders.entrySet()) {
+                    for (Map.Entry<KeyId, VertexStreamBuilder> entry : builders.entrySet()) {
                         provider.fillVertex(entry.getKey(), entry.getValue());
                     }
                 }
@@ -360,7 +355,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
             }
 
             // Generate Commands (Per Batch if Instanced)
-            if (isInstancedDraw && validInstanceCount > 0 && batch instanceof MeshRenderBatch meshBatch) {
+            if (isInstancedDraw && batchInstanceCount > 0 && batch instanceof MeshRenderBatch meshBatch) {
                 // Determine vertex count from mesh (Shared)
                 int vCount = 0;
                 if (!batch.getInstances().isEmpty()) {
@@ -387,9 +382,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
                         batchCurrentInstancedCount.getAndAdd(batchInstanceCount)); // BaseInstance
             }
 
-            ranges.put(batch, new DrawRange(
-                    batchStartCommand,
-                    indirectBuffer.getCommandCount() - batchStartCommand));
+            ranges.put(batch, new DrawRange(batchStartCommand, indirectBuffer.getCommandCount() - batchStartCommand));
         }
 
         // 4. Deferred Upload Data (Handled by createRenderCommands registration)

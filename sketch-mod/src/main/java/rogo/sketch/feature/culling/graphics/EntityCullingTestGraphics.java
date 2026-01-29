@@ -3,7 +3,7 @@ package rogo.sketch.feature.culling.graphics;
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.core.model.DynamicMesh;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
@@ -39,10 +39,10 @@ public class EntityCullingTestGraphics extends MeshGraphics {
                 filler -> {
                     // Full-screen quad vertices (NDC coordinates)
                     // Dynamic generation every frame (or when requested)
-                    filler.put(-1.0f, -1.0f, 0.0f).endVertex()
-                            .put(1.0f, -1.0f, 0.0f).endVertex()
-                            .put(1.0f, 1.0f, 0.0f).endVertex()
-                            .put(-1.0f, 1.0f, 0.0f).endVertex();
+                    filler.put(-1.0f, -1.0f, 0.0f)
+                            .put(1.0f, -1.0f, 0.0f)
+                            .put(1.0f, 1.0f, 0.0f)
+                            .put(-1.0f, 1.0f, 0.0f);
                 });
     }
 
@@ -84,7 +84,7 @@ public class EntityCullingTestGraphics extends MeshGraphics {
     }
 
     @Override
-    public void fillVertex(KeyId componentKey, VertexDataBuilder builder) {
+    public void fillVertex(KeyId componentKey, VertexStreamBuilder builder) {
         if (mesh.generator() != null) {
             mesh.generator().accept(builder);
         }

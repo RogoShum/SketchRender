@@ -121,7 +121,7 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
                 DataType dataType = inferAttributeType(type.get(0));
                 if (dataType != null) {
                     boolean normalized = shouldNormalizeAttribute(attributeName, dataType);
-                    DataElement element = new DataElement(attributeName, dataType, location, normalized);
+                    DataElement element = new DataElement(attributeName, dataType, location, normalized, false, false);
                     elements.add(element);
                 }
             }

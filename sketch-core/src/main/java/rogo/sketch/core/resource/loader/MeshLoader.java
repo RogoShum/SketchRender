@@ -6,17 +6,18 @@ import rogo.sketch.core.api.model.BakedTypeMesh;
 import rogo.sketch.core.data.DataType;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.Usage;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.data.format.ComponentSpec;
+import rogo.sketch.core.data.format.DataElement;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.model.BakedMesh;
 import rogo.sketch.core.model.MeshBone;
 import rogo.sketch.core.model.MeshGroup;
 import rogo.sketch.core.resource.buffer.IndexBufferResource;
-import rogo.sketch.core.vertex.VertexResourceManager;
-import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.resource.buffer.VertexBufferObject;
 import rogo.sketch.core.resource.buffer.VertexResource;
+import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -265,15 +266,8 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
         // VertexResource constructor is public in the snippet I read earlier!
         // "public class VertexResource ... public VertexResource(PrimitiveType...)"
 
-        VertexResource resource = new VertexResource(meshGroup.getPrimitiveType(), meshGroup.getPrimitiveType().requiresIndexBuffer());
-
-        // Create VBO for Binding 0
-        VertexBufferObject vbo = new VertexBufferObject(Usage.STATIC_DRAW);
-        resource.attachVBO(ComponentSpec.immutable(BakedTypeMesh.BAKED_MESH, 0, groupFormat, false), vbo);
-
         // Upload Vertices
-        VertexDataBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), false, allVertices.size());
-        int floatsPerVertex = groupFormat.getStride() / 4;
+        VertexStreamBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), false, allVertices.size());
 
         // Convert List to array for faster filling? Or just iterate.
         // Direct fill
@@ -282,15 +276,19 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             vData[i] = allVertices.get(i);
 
         fillVertices(builder, vData, groupFormat);
+
+        boolean independentIndexBuffer = !allIndices.isEmpty();
+        VertexResource resource = new VertexResource(meshGroup.getPrimitiveType(), meshGroup.getPrimitiveType().requiresIndexBuffer(), independentIndexBuffer);
+
+        // Create VBO for Binding 0
+        VertexBufferObject vbo = new VertexBufferObject(Usage.STATIC_DRAW);
+        resource.attachVBO(ComponentSpec.immutable(BakedTypeMesh.BAKED_MESH, 0, groupFormat, false), vbo);
         resource.upload(BakedTypeMesh.BAKED_MESH, builder);
 
         // Upload Indices if present
-        if (allIndices.size() > 0) {
+        if (independentIndexBuffer) {
             IndexBufferResource ibo = resource.getIndexBuffer();
-            ibo.clear();
-            for (int index : allIndices) {
-                ibo.addIndex(index);
-            }
+            ibo.setIndices(allIndices.stream().mapToInt(Integer::intValue).toArray());
             ibo.upload();
         }
 
@@ -317,12 +315,66 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
                                 int indexCount) {
     }
 
-    private static void fillVertices(VertexDataBuilder filler, float[] data, DataFormat format) {
-        int strideFloats = format.getStride() / 4;
-        int count = data.length / strideFloats;
-        for (int i = 0; i < count; i++) {
-            for (int j = 0; j < strideFloats; j++) {
-                filler.putFloat(data[i * strideFloats + j]);
+    private static void fillVertices(VertexStreamBuilder filler, float[] data, DataFormat format) {
+        // Calculate number of vertices based on total floats and stride
+        // Note: getStride() is in bytes, data is in floats.
+        int strideBytes = format.getStride();
+        int totalFloats = data.length;
+
+        // This assumes the JSON data is perfectly packed as floats, which is how loadSubMeshes parses it.
+        // We need to calculate how many vertices we have based on the *format definition*, not just bytes,
+        // because format might have padding.
+        // However, the input 'data' comes from JSON "vertices" array which usually contains packed floats
+        // corresponding to the elements defined.
+
+        // Let's count how many floats one vertex consumes from the source array
+        int sourceFloatsPerVertex = 0;
+        for (DataElement element : format.getElements()) {
+            sourceFloatsPerVertex += element.getComponentCount();
+        }
+
+        if (totalFloats % sourceFloatsPerVertex != 0) {
+            throw new IllegalArgumentException("Vertex data size does not match vertex format. Data length: " + totalFloats + ", Floats per vertex: " + sourceFloatsPerVertex);
+        }
+
+        int vertexCount = totalFloats / sourceFloatsPerVertex;
+        int readIndex = 0;
+        DataElement[] elements = format.getElements();
+
+        for (int i = 0; i < vertexCount; i++) {
+            for (DataElement element : elements) {
+                // 2. Determine type and count
+                int count = element.getComponentCount();
+                DataType type = element.getDataType();
+                boolean normalized = element.isNormalized();
+
+                // 3. Determine if we should treat input as Integer or Float
+                // If it is not normalized and is an integer type (INT, UINT, BYTE, SHORT...), use put(int)
+                // If it is normalized or FLOAT/DOUBLE, use put(float) (Builder handles float->norm byte conversion)
+                boolean useIntegerWrite = !normalized && !type.isFloatType();
+
+                // 4. Vectorized Write (Triggers advance())
+                if (useIntegerWrite) {
+                    switch (count) {
+                        case 1 -> filler.put((int) data[readIndex++]);
+                        case 2 -> filler.put((int) data[readIndex++], (int) data[readIndex++]);
+                        case 3 -> filler.put((int) data[readIndex++], (int) data[readIndex++], (int) data[readIndex++]);
+                        case 4 ->
+                                filler.put((int) data[readIndex++], (int) data[readIndex++], (int) data[readIndex++], (int) data[readIndex++]);
+                        default ->
+                                throw new UnsupportedOperationException("Unsupported component count for integer write: " + count);
+                    }
+                } else {
+                    switch (count) {
+                        case 1 -> filler.put(data[readIndex++]);
+                        case 2 -> filler.put(data[readIndex++], data[readIndex++]);
+                        case 3 -> filler.put(data[readIndex++], data[readIndex++], data[readIndex++]);
+                        case 4 ->
+                                filler.put(data[readIndex++], data[readIndex++], data[readIndex++], data[readIndex++]);
+                        default ->
+                                throw new UnsupportedOperationException("Unsupported component count for float write: " + count);
+                    }
+                }
             }
         }
     }
@@ -339,9 +391,11 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             String elementName = elementObj.get("name").getAsString();
             String dataTypeStr = elementObj.get("dataType").getAsString();
             boolean normalized = elementObj.has("normalized") && elementObj.get("normalized").getAsBoolean();
+            boolean sortKey = elementObj.has("sortKey") && elementObj.get("sortKey").getAsBoolean();
+            boolean padding = elementObj.has("padding") && elementObj.get("padding").getAsBoolean();
 
             DataType dataType = parseDataType(dataTypeStr);
-            builder.add(elementName, dataType, normalized);
+            builder.add(elementName, dataType, normalized, sortKey, padding);
         }
 
         return builder.build();

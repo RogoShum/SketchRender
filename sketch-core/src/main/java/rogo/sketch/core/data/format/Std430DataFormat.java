@@ -115,7 +115,7 @@ public class Std430DataFormat extends DataFormat {
      * Validate if this format matches std430 layout expectations
      */
     public boolean validateStd430Layout() {
-        List<DataElement> elements = getElements();
+        DataElement[] elements = getElements();
         int expectedOffset = 0;
         
         for (DataElement element : elements) {

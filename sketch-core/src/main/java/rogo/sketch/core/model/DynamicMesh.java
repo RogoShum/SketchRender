@@ -1,9 +1,8 @@
 package rogo.sketch.core.model;
 
-import org.joml.Matrix4f;
 import rogo.sketch.core.api.model.DynamicTypeMesh;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.util.KeyId;
 
@@ -17,11 +16,11 @@ public class DynamicMesh implements DynamicTypeMesh {
     private final PrimitiveType primitiveType;
     private final int vertexCount;
     private final int indexCount;
-    private final Consumer<VertexDataBuilder> generator;
+    private final Consumer<VertexStreamBuilder> generator;
     private final KeyId id;
     private int[] indices;
 
-    public DynamicMesh(KeyId id, DataFormat format, PrimitiveType primitiveType, int vertexCount, int indexCount, Consumer<VertexDataBuilder> generator) {
+    public DynamicMesh(KeyId id, DataFormat format, PrimitiveType primitiveType, int vertexCount, int indexCount, Consumer<VertexStreamBuilder> generator) {
         this.format = format;
         this.primitiveType = primitiveType;
         this.vertexCount = vertexCount;
@@ -73,7 +72,7 @@ public class DynamicMesh implements DynamicTypeMesh {
         return 0;
     }
 
-    public Consumer<VertexDataBuilder> generator() {
+    public Consumer<VertexStreamBuilder> generator() {
         return generator;
     }
 }

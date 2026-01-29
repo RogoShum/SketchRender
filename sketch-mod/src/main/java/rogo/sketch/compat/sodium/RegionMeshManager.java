@@ -4,8 +4,6 @@ import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.compat.sodium.api.ExtraRenderRegion;
-import rogo.sketch.core.data.builder.AddressBufferWriter;
-import rogo.sketch.core.data.builder.DataBufferWriter;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.data.format.MemoryLayout;
 import rogo.sketch.core.data.format.Std430DataFormat;
@@ -38,14 +36,9 @@ public class RegionMeshManager {
     private MemoryLayout memoryLayout;
     private long meshDataPointer;
     private int currentCapacity;
-    
-    // Reuse a writer instance to avoid allocation, just update address/limit
-    private final AddressBufferWriter globalWriter;
 
     public RegionMeshManager() {
         currentCapacity = 1;
-        // Writer will be initialized after buffer
-        this.globalWriter = new AddressBufferWriter(0, 0); 
         initializeMemoryLayout();
         initializeBuffer();
     }
@@ -61,13 +54,6 @@ public class RegionMeshManager {
     private void initializeBuffer() {
         meshDataBuffer = new ShaderStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
         meshDataPointer = meshDataBuffer.getMemoryAddress();
-        updateWriter();
-    }
-    
-    private void updateWriter() {
-        if (meshDataBuffer != null) {
-            globalWriter.setAddress(meshDataBuffer.getMemoryAddress(), meshDataBuffer.getCapacity());
-        }
     }
 
     public int indexOf(RenderRegion region) {
@@ -110,7 +96,6 @@ public class RegionMeshManager {
         meshDataBuffer.resetUpload(GL15.GL_DYNAMIC_DRAW);
 
         initializeMemoryLayout();
-        updateWriter();
     }
 
     /**
@@ -126,24 +111,6 @@ public class RegionMeshManager {
         }
 
         return meshDataPointer + byteOffset;
-    }
-    
-    /**
-     * Get a DataBufferWriter pointed to the specific section.
-     * The writer is transient (new instance) but lightweight.
-     * Alternatively, we could return a shared writer positioned correctly, 
-     * but DataBufferWriter is sequential usually.
-     */
-    public DataBufferWriter getSectionWriter(RenderRegion region, int passIndex, int sectionIndex) {
-        long ptr = getSectionMemPointer(region, passIndex, sectionIndex);
-        return new AddressBufferWriter(ptr, SECTION_DATA_SIZE);
-    }
-    
-    /**
-     * Access the global writer for random access.
-     */
-    public DataBufferWriter getGlobalWriter() {
-        return globalWriter;
     }
 
     public void uploadSectionData(int regionIndex, int passIndex, int sectionIndex) {

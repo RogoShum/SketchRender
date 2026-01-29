@@ -2,19 +2,20 @@ package rogo.sketch.core.data.format;
 
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class VertexBufferKey {
     private final RasterizationParameter renderParameter;
-    private final List<ComponentSpec> components;
+    private final ComponentSpec[] components;
     private final long sourceResourceID;
+    private final boolean hasInstancing;
 
-    private VertexBufferKey(RasterizationParameter staticParam, List<ComponentSpec> components, long sourceResourceID) {
+    private VertexBufferKey(RasterizationParameter staticParam, ComponentSpec[] components, long sourceResourceID) {
         this.renderParameter = staticParam;
         this.components = components;
         this.sourceResourceID = sourceResourceID;
+        this.hasInstancing = Arrays.stream(components).anyMatch(ComponentSpec::isInstanced);
     }
 
     /**
@@ -40,7 +41,7 @@ public class VertexBufferKey {
         return renderParameter;
     }
 
-    public List<ComponentSpec> components() {
+    public ComponentSpec[] components() {
         return components;
     }
 
@@ -52,25 +53,7 @@ public class VertexBufferKey {
      * Check if this key has instance components (any instanced component).
      */
     public boolean hasInstancing() {
-        return components.stream().anyMatch(ComponentSpec::isInstanced);
-    }
-
-    /**
-     * Get only the mutable components (those that need data filling).
-     */
-    public List<ComponentSpec> mutableComponents() {
-        return components.stream()
-                .filter(ComponentSpec::isMutable)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Get only the immutable components (those that are pre-baked).
-     */
-    public List<ComponentSpec> immutableComponents() {
-        return components.stream()
-                .filter(ComponentSpec::isImmutable)
-                .collect(Collectors.toList());
+        return hasInstancing;
     }
 
     // ===== equals & hashCode =====
@@ -84,12 +67,13 @@ public class VertexBufferKey {
         VertexBufferKey that = (VertexBufferKey) o;
         return sourceResourceID == that.sourceResourceID &&
                 Objects.equals(renderParameter, that.renderParameter) &&
-                Objects.equals(components, that.components);
+                hasInstancing == that.hasInstancing &&
+                Arrays.equals(components, that.components);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(renderParameter, components, sourceResourceID);
+        return Objects.hash(renderParameter, hasInstancing, Arrays.hashCode(components), sourceResourceID);
     }
 
     @Override
@@ -97,7 +81,8 @@ public class VertexBufferKey {
         return "VertexBufferKey{" +
                 "renderParameter=" + renderParameter +
                 ", sourceID=" + sourceResourceID +
-                ", components=" + components +
+                ", components=" + Arrays.toString(components) +
+                ", hasInstancing=" + hasInstancing +
                 '}';
     }
 }

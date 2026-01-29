@@ -2,7 +2,7 @@ package rogo.sketch.feature.culling.graphics;
 
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.api.model.PreparedMesh;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.instance.MeshGraphics;
@@ -34,10 +34,10 @@ public class ChunkCullingTestGraphics extends MeshGraphics {
                 4,
                 0,
                 filler -> {
-                    filler.put(-1.0f, -1.0f, 0.0f).endVertex()
-                            .put(1.0f, -1.0f, 0.0f).endVertex()
-                            .put(1.0f, 1.0f, 0.0f).endVertex()
-                            .put(-1.0f, 1.0f, 0.0f).endVertex();
+                    filler.put(-1.0f, -1.0f, 0.0f)
+                            .put(1.0f, -1.0f, 0.0f)
+                            .put(1.0f, 1.0f, 0.0f)
+                            .put(-1.0f, 1.0f, 0.0f);
                 }
         );
     }
@@ -80,7 +80,7 @@ public class ChunkCullingTestGraphics extends MeshGraphics {
     }
 
     @Override
-    public void fillVertex(KeyId componentKey, VertexDataBuilder builder) {
+    public void fillVertex(KeyId componentKey, VertexStreamBuilder builder) {
         if (mesh.generator() != null) {
             mesh.generator().accept(builder);
         }

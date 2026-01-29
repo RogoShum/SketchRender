@@ -4,9 +4,8 @@ import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -15,35 +14,43 @@ import java.util.stream.Collectors;
  * binding points.
  */
 public class VertexLayoutSpec {
-    private final List<ComponentSpec> components;
-    private final List<ComponentSpec> staticComponents;
-    private final List<ComponentSpec> dynamicComponents;
+    private final ComponentSpec[] components;
+    private final ComponentSpec[] staticComponents;
+    private final ComponentSpec[] dynamicComponents;
+    private final ComponentSpec sortKey;
+    private final boolean hasInstancing;
 
     private final int hash;
 
     private VertexLayoutSpec(List<ComponentSpec> components) {
-        this.components = Collections.unmodifiableList(new ArrayList<>(components));
-        this.staticComponents = components.stream().filter(ComponentSpec::isImmutable).collect(Collectors.toList());
-        this.dynamicComponents = components.stream().filter(ComponentSpec::isMutable).collect(Collectors.toList());
-        this.hash = Objects.hash(components);
+        this.components = components.toArray(new ComponentSpec[0]);
+        this.staticComponents = components.stream().filter(ComponentSpec::isImmutable).collect(Collectors.toUnmodifiableSet()).toArray(new ComponentSpec[0]);
+        this.dynamicComponents = components.stream().filter(ComponentSpec::isMutable).collect(Collectors.toUnmodifiableSet()).toArray(new ComponentSpec[0]);
+        this.sortKey = components.stream().filter(componentSpec -> componentSpec.getFormat().getSortKeyElement() != null).findFirst().orElse(null);
+        this.hasInstancing = components.stream().anyMatch(ComponentSpec::isInstanced);
+        this.hash = Arrays.hashCode(this.components);
     }
 
-    public List<ComponentSpec> getComponents() {
+    public ComponentSpec[] getComponents() {
         return components;
     }
 
     /**
      * Get specifications for static components (usually provided by Mesh).
      */
-    public List<ComponentSpec> getStaticSpecs() {
+    public ComponentSpec[] getStaticSpecs() {
         return staticComponents;
     }
 
     /**
      * Get specifications for dynamic components (fillable at runtime).
      */
-    public List<ComponentSpec> getDynamicSpecs() {
+    public ComponentSpec[] getDynamicSpecs() {
         return dynamicComponents;
+    }
+
+    public boolean hasInstancing() {
+        return hasInstancing;
     }
 
     /**
@@ -65,6 +72,10 @@ public class VertexLayoutSpec {
             }
         }
         return true;
+    }
+
+    public ComponentSpec getSortingComponent() {
+        return sortKey;
     }
 
     public static Builder builder() {
@@ -139,6 +150,15 @@ public class VertexLayoutSpec {
         }
 
         public VertexLayoutSpec build() {
+            long sortKeyCount = specs.stream()
+                    .map(ComponentSpec::getFormat)
+                    .mapToLong(f -> Arrays.stream(f.getElements()).filter(DataElement::isSortKey).count())
+                    .sum();
+
+            if (sortKeyCount > 1) {
+                throw new IllegalStateException("Invalid Layout: Multiple SortKeys defined. Only one element can drive sorting.");
+            }
+
             return new VertexLayoutSpec(specs);
         }
     }
@@ -150,7 +170,7 @@ public class VertexLayoutSpec {
         if (o == null || getClass() != o.getClass())
             return false;
         VertexLayoutSpec that = (VertexLayoutSpec) o;
-        return components.equals(that.components);
+        return Arrays.equals(components, that.components);
     }
 
     @Override
@@ -161,7 +181,7 @@ public class VertexLayoutSpec {
     @Override
     public String toString() {
         return "VertexLayoutSpec{" +
-                "components=" + components +
+                "components=" + Arrays.toString(components) +
                 '}';
     }
 }

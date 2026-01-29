@@ -1,7 +1,7 @@
 package rogo.sketch.core.instance;
 
 import rogo.sketch.core.api.model.PreparedMesh;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.util.KeyId;
 
@@ -42,7 +42,7 @@ public class ScreenSpaceGraphics extends MeshGraphics {
     }
 
     @Override
-    public void fillVertex(KeyId componentKey, VertexDataBuilder builder) {
+    public void fillVertex(KeyId componentKey, VertexStreamBuilder builder) {
 
     }
 }

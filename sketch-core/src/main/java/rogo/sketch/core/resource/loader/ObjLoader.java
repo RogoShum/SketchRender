@@ -4,16 +4,16 @@ import com.google.gson.Gson;
 import rogo.sketch.core.api.model.BakedTypeMesh;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.Usage;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.model.BakedMesh;
 import rogo.sketch.core.model.MeshGroup;
-import rogo.sketch.core.vertex.DefaultDataFormats;
-import rogo.sketch.core.vertex.VertexResourceManager;
-import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.resource.buffer.VertexBufferObject;
 import rogo.sketch.core.resource.buffer.VertexResource;
+import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.vertex.DefaultDataFormats;
+import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -97,7 +97,7 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             // Upload
             VertexResourceManager vrm = VertexResourceManager
                     .globalInstance();
-            VertexDataBuilder builder = vrm.createBuilder(format,
+            VertexStreamBuilder builder = vrm.createBuilder(format,
                     PrimitiveType.TRIANGLES, false, finalVertices.size());
 
             // Fill
@@ -108,14 +108,14 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             int strideFloats = 8;
             for (int i = 0; i < vertexCount; i++) {
                 int base = i * strideFloats;
-                builder.putFloat(vData[base + 0]); // x
-                builder.putFloat(vData[base + 1]); // y
-                builder.putFloat(vData[base + 2]); // z
-                builder.putFloat(vData[base + 3]); // u
-                builder.putFloat(vData[base + 4]); // v
-                builder.putFloat(vData[base + 5]); // nx
-                builder.putFloat(vData[base + 6]); // ny
-                builder.putFloat(vData[base + 7]); // nz
+                builder.put(vData[base + 0]); // x
+                builder.put(vData[base + 1]); // y
+                builder.put(vData[base + 2]); // z
+                builder.put(vData[base + 3]); // u
+                builder.put(vData[base + 4]); // v
+                builder.put(vData[base + 5]); // nx
+                builder.put(vData[base + 6]); // ny
+                builder.put(vData[base + 7]); // nz
             }
 
             resource.upload(BakedTypeMesh.BAKED_MESH, builder);

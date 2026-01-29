@@ -6,8 +6,7 @@ import org.lwjgl.opengl.GL33;
 import org.lwjgl.opengl.GL45;
 import rogo.sketch.core.api.BufferResourceObject;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.builder.MemoryBufferWriter;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.data.format.DataElement;
 import rogo.sketch.core.data.format.DataFormat;
@@ -15,20 +14,25 @@ import rogo.sketch.core.data.format.VBOComponent;
 import rogo.sketch.core.util.GLFeatureChecker;
 import rogo.sketch.core.util.KeyId;
 
-import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class VertexResource implements BufferResourceObject, AutoCloseable {
-    private final int vao;
-    private final PrimitiveType primitiveType;
+    protected static final Map<PrimitiveType, IndexBufferResource> SHARED_INDEX_BUFFER_MAP = new ConcurrentHashMap<>();
+    protected final int vao;
+    protected final PrimitiveType primitiveType;
 
     // Components: KeyId -> VBO component
-    private final Map<KeyId, VBOComponent> components = new LinkedHashMap<>();
-    private IndexBufferResource indexBuffer;
-    private boolean disposed = false;
+    protected final Map<KeyId, VBOComponent> components = new LinkedHashMap<>();
+    protected IndexBufferResource indexBuffer;
+    protected boolean disposed = false;
 
     public VertexResource(PrimitiveType primitiveType, boolean useIndexBuffer) {
+        this(primitiveType, useIndexBuffer, false);
+    }
+
+    public VertexResource(PrimitiveType primitiveType, boolean useIndexBuffer, boolean independentIndexBuffer) {
         this.primitiveType = primitiveType;
 
         if (GLFeatureChecker.supportsDSA()) {
@@ -38,7 +42,12 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         }
 
         if (useIndexBuffer) {
-            this.indexBuffer = new IndexBufferResource();
+            if (independentIndexBuffer) {
+                this.indexBuffer = new IndexBufferResource(false);
+            } else {
+                this.indexBuffer = SHARED_INDEX_BUFFER_MAP.computeIfAbsent(primitiveType, k -> new IndexBufferResource(true));
+            }
+
             attachIndexBuffer();
         }
     }
@@ -75,7 +84,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     /**
      * Setup VBO component attributes and binding.
      */
-    private void setupVBOComponent(VBOComponent component) {
+    protected void setupVBOComponent(VBOComponent component) {
         if (GLFeatureChecker.supportsDSA()) {
             setupComponentDSA(component);
         } else {
@@ -99,7 +108,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     /**
      * Setup VBO component using DSA (Direct State Access).
      */
-    private void setupComponentDSA(VBOComponent component) {
+    protected void setupComponentDSA(VBOComponent component) {
         int bindingPoint = component.getBindingPoint();
         DataFormat format = component.getFormat();
         int vboHandle = component.getVboHandle();
@@ -141,7 +150,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     /**
      * Setup VBO component using legacy OpenGL.
      */
-    private void setupComponentLegacy(VBOComponent component) {
+    protected void setupComponentLegacy(VBOComponent component) {
         bind();
 
         DataFormat format = component.getFormat();
@@ -171,7 +180,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         unbind();
     }
 
-    private void attachIndexBuffer() {
+    protected void attachIndexBuffer() {
         if (indexBuffer == null)
             return;
 
@@ -193,9 +202,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      * @param id      The KeyId of the component
      * @param builder The vertex data builder
      */
-    public void upload(KeyId id, VertexDataBuilder builder) {
-        builder.finish();
-
+    public void upload(KeyId id, VertexStreamBuilder builder) {
         VBOComponent component = components.get(id);
         if (component == null) {
             throw new IllegalStateException("No VBO component attached for id " + id);
@@ -210,30 +217,21 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
             throw new IllegalStateException("No VBO available for id " + id);
         }
 
-        // Generate indices if needed (only for binding 0 - assuming binding 0 is
-        // primary vertex buffer)
-        // If automatic binding is used, we check if this component is binding 0?
-        if (component.getBindingPoint() == 0 && indexBuffer != null && builder.getPrimitiveType().requiresIndexBuffer()) {
+        vbo.upload(builder.getBaseAddress(), builder.getWriteOffset(), builder.getCapacity());
+        if (!component.isInstanced() && indexBuffer != null && getPrimitiveType().requiresIndexBuffer()) {
             generateIndices(builder);
         }
 
-        if (builder.getWriter() instanceof MemoryBufferWriter memWriter) {
-            ByteBuffer buffer = memWriter.getBuffer();
-            buffer.flip();
-            vbo.upload(buffer);
-        } else {
-            throw new UnsupportedOperationException("Only MemoryBufferWriter backed builders supported for now");
-        }
+        builder.reset();
     }
 
-    private void generateIndices(VertexDataBuilder builder) {
+    protected void generateIndices(VertexStreamBuilder builder) {
         int vertexCount = builder.getVertexCount();
-        int[] indices = builder.getPrimitiveType().generateIndices(vertexCount);
-
-        indexBuffer.clear();
-        for (int i : indices)
-            indexBuffer.addIndex(i);
-        // indexBuffer.upload();
+        int indexCount = getPrimitiveType().calculateIndexCount(vertexCount);
+        if (indexCount > indexBuffer.getIndexCount()) {
+            int[] indices = getPrimitiveType().generateIndices(vertexCount);
+            indexBuffer.setIndices(indices);
+        }
     }
 
     // ===== Bind/Unbind =====
@@ -264,8 +262,8 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         }
         components.clear();
 
-        if (indexBuffer != null) {
-            indexBuffer.dispose();
+        if (indexBuffer != null && !this.indexBuffer.isShared()) {
+            this.indexBuffer.dispose();
         }
 
         GL30.glDeleteVertexArrays(vao);
@@ -293,7 +291,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     }
 
     public void setIndexBuffer(IndexBufferResource indexBuffer) {
-        if (this.indexBuffer != null) {
+        if (this.indexBuffer != null && !this.indexBuffer.isShared()) {
             this.indexBuffer.dispose();
         }
 

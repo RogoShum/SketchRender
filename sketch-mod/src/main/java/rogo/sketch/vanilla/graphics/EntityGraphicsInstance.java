@@ -2,7 +2,7 @@ package rogo.sketch.vanilla.graphics;
 
 import net.minecraft.world.entity.Entity;
 import rogo.sketch.core.api.model.PreparedMesh;
-import rogo.sketch.core.data.builder.VertexDataBuilder;
+import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.RenderContext;
@@ -53,7 +53,7 @@ public class EntityGraphicsInstance extends MeshGraphics {
     }
 
     @Override
-    public void fillVertex(KeyId componentKey, VertexDataBuilder builder) {
+    public void fillVertex(KeyId componentKey, VertexStreamBuilder builder) {
 
     }
 }
