@@ -267,7 +267,7 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
         // "public class VertexResource ... public VertexResource(PrimitiveType...)"
 
         // Upload Vertices
-        VertexStreamBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), false, allVertices.size());
+        VertexStreamBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), false);
 
         // Convert List to array for faster filling? Or just iterate.
         // Direct fill

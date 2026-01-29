@@ -97,8 +97,7 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             // Upload
             VertexResourceManager vrm = VertexResourceManager
                     .globalInstance();
-            VertexStreamBuilder builder = vrm.createBuilder(format,
-                    PrimitiveType.TRIANGLES, false, finalVertices.size());
+            VertexStreamBuilder builder = vrm.createBuilder(format, PrimitiveType.TRIANGLES, false);
 
             // Fill
             float[] vData = new float[finalVertices.size()];

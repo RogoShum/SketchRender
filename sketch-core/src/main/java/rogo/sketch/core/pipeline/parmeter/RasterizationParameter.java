@@ -3,6 +3,8 @@ package rogo.sketch.core.pipeline.parmeter;
 import org.jetbrains.annotations.NotNull;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.Usage;
+import rogo.sketch.core.data.format.ComponentSpec;
+import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 
@@ -26,6 +28,8 @@ public class RasterizationParameter extends RenderParameter {
     private final PrimitiveType primitiveType;
     private final Usage usage;
     private final boolean enableSorting;
+    private final BuilderBatchKey builderBatchKey;
+    private final BuilderKey[] builderKeys;
     private final int hash;
 
     /**
@@ -34,6 +38,14 @@ public class RasterizationParameter extends RenderParameter {
     public RasterizationParameter(VertexLayoutSpec layout, PrimitiveType primitiveType, Usage usage, boolean enableSorting) {
         this.layout = Objects.requireNonNull(layout);
         this.primitiveType = Objects.requireNonNull(primitiveType);
+        this.builderBatchKey = new BuilderBatchKey(layout, primitiveType);
+        this.builderKeys = new BuilderKey[layout.getDynamicSpecs().length];
+
+        for (int i = 0; i < layout.getDynamicSpecs().length; i++) {
+            ComponentSpec spec = layout.getDynamicSpecs()[i];
+            builderKeys[i] = new BuilderKey(spec.getFormat(), primitiveType, spec.isInstanced());
+        }
+
         this.usage = Objects.requireNonNull(usage);
         this.enableSorting = enableSorting;
         this.hash = Objects.hash(layout, primitiveType, usage, enableSorting);
@@ -62,6 +74,14 @@ public class RasterizationParameter extends RenderParameter {
     @NotNull
     public PrimitiveType primitiveType() {
         return primitiveType;
+    }
+
+    public BuilderBatchKey builderBatchKey() {
+        return builderBatchKey;
+    }
+
+    public BuilderKey[] builderKeys() {
+        return builderKeys;
     }
 
     public Usage usage() {
@@ -109,4 +129,8 @@ public class RasterizationParameter extends RenderParameter {
             boolean enableSorting) {
         return new RasterizationParameter(layout, primitiveType, usage, enableSorting);
     }
+
+    public record BuilderKey(DataFormat format, PrimitiveType primitiveType, boolean instanced){}
+
+    public record BuilderBatchKey(VertexLayoutSpec spec, PrimitiveType primitiveType){}
 }

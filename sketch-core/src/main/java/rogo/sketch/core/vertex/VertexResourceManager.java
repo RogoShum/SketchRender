@@ -24,7 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VertexResourceManager {
     private static VertexResourceManager instance;
     private final Map<VertexBufferKey, VertexResource> resourceCache = new ConcurrentHashMap<>();
-    private final Map<BuilderKey, VertexStreamBuilder> builderCache = new ConcurrentHashMap<>();
+    private final Map<RasterizationParameter.BuilderKey, VertexStreamBuilder> builderCache = new ConcurrentHashMap<>();
+    private final Map<RasterizationParameter.BuilderBatchKey, Map<KeyId, VertexStreamBuilder>> builderBatchCache = new ConcurrentHashMap<>();
 
     public VertexResourceManager() {
     }
@@ -131,25 +132,25 @@ public class VertexResourceManager {
     /**
      * Create a VertexDataBuilder for a single DataFormat.
      */
-    public VertexStreamBuilder createBuilder(DataFormat format, PrimitiveType primitiveType, boolean instanced, int initialCapacity) {
-        return builderCache.computeIfAbsent(new BuilderKey(format, primitiveType, instanced),
+    public VertexStreamBuilder createBuilder(DataFormat format, PrimitiveType primitiveType, boolean instanced) {
+        return builderCache.computeIfAbsent(new RasterizationParameter.BuilderKey(format, primitiveType, instanced),
                 k -> new VertexStreamBuilder(format, primitiveType));
     }
 
     /**
      * Create a VertexDataBuilder for a single ComponentSpec.
      */
-    public VertexStreamBuilder createBuilder(ComponentSpec spec, PrimitiveType primitiveType, int initialCapacity) {
-        return createBuilder(spec.getFormat(), primitiveType, spec.isInstanced(), initialCapacity);
+    public VertexStreamBuilder createBuilder(ComponentSpec spec, PrimitiveType primitiveType) {
+        return createBuilder(spec.getFormat(), primitiveType, spec.isInstanced());
     }
 
     /**
      * Create builders for all MUTABLE components in a VertexLayoutSpec.
      */
-    public Map<KeyId, VertexStreamBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType, int initialCapacity) {
+    public Map<KeyId, VertexStreamBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType) {
         Map<KeyId, VertexStreamBuilder> builders = new ConcurrentHashMap<>();
         for (ComponentSpec component : spec.getDynamicSpecs()) {
-            builders.put(component.getId(), createBuilder(component, primitiveType, initialCapacity));
+            builders.put(component.getId(), createBuilder(component, primitiveType));
         }
 
         return builders;
@@ -158,17 +159,11 @@ public class VertexResourceManager {
     /**
      * Create builders for a RasterizationParameter (based on its layout).
      */
-    public Map<KeyId, VertexStreamBuilder> createBuilder(RasterizationParameter parameter, int initialCapacity) {
-        return createBuilder(parameter.getLayout(), parameter.primitiveType(), initialCapacity);
+    public Map<KeyId, VertexStreamBuilder> createBuilder(RasterizationParameter parameter) {
+        return builderBatchCache.computeIfAbsent(parameter.builderBatchKey(), k -> createBuilder(parameter.getLayout(), parameter.primitiveType()));
     }
 
     public String getCacheStats() {
         return String.format("VertexResourceManager: %d cached resources", resourceCache.size());
-    }
-
-    /**
-     * Create a VertexStreamBuilder for a single DataFormat.
-     */
-    private record BuilderKey(DataFormat format, PrimitiveType primitiveType, boolean instanced) {
     }
 }

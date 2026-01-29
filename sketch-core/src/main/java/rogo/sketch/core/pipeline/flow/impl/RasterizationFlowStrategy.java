@@ -300,7 +300,7 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy {
 
         // Create builders for MUTABLE components
         int builderCapacity = Math.max(totalVertices, totalInstances);
-        Map<KeyId, VertexStreamBuilder> builders = resourceManager.createBuilder(key.renderParameter(), builderCapacity);
+        Map<KeyId, VertexStreamBuilder> builders = resourceManager.createBuilder(key.renderParameter());
 
         Map<RenderBatch<?>, DrawRange> ranges = new HashMap<>();
         boolean isInstancedDraw = key.hasInstancing();
