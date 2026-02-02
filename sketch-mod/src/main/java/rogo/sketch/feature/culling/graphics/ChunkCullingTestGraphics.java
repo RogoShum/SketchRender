@@ -3,9 +3,9 @@ package rogo.sketch.feature.culling.graphics;
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.data.builder.VertexStreamBuilder;
+import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.core.model.DynamicMesh;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.resource.GraphicsResourceManager;
@@ -18,7 +18,8 @@ import rogo.sketch.core.util.KeyId;
  * Chunk culling test graphics instance using DynamicMesh
  */
 public class ChunkCullingTestGraphics extends MeshGraphics {
-    private final ResourceReference<PartialRenderSetting> partialRenderSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "culling_test_chunk"));
+    private final ResourceReference<PartialRenderSetting> partialRenderSetting = GraphicsResourceManager.getInstance()
+            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "culling_test_chunk"));
     private final DynamicMesh mesh;
 
     public ChunkCullingTestGraphics(KeyId keyId) {
@@ -38,8 +39,7 @@ public class ChunkCullingTestGraphics extends MeshGraphics {
                             .put(1.0f, -1.0f, 0.0f)
                             .put(1.0f, 1.0f, 0.0f)
                             .put(-1.0f, 1.0f, 0.0f);
-                }
-        );
+                });
     }
 
     @Override
@@ -49,16 +49,6 @@ public class ChunkCullingTestGraphics extends MeshGraphics {
         }
 
         return null;
-    }
-
-    @Override
-    public boolean shouldTick() {
-        return false;
-    }
-
-    @Override
-    public boolean tickable() {
-        return false;
     }
 
     @Override

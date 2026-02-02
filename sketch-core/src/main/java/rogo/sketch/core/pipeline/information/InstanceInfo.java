@@ -23,15 +23,13 @@ import java.util.Objects;
  * </ul>
  * </p>
  */
-public abstract class InstanceInfo {
-    protected final Graphics instance;
+public abstract class InstanceInfo<T extends Graphics> {
+    protected final T instance;
     protected final RenderSetting renderSetting;
-    protected final ResourceBinding resourceBinding;
 
-    protected InstanceInfo(Graphics instance, RenderSetting renderSetting, ResourceBinding resourceBinding) {
+    protected InstanceInfo(T instance, RenderSetting renderSetting) {
         this.instance = Objects.requireNonNull(instance);
         this.renderSetting = Objects.requireNonNull(renderSetting);
-        this.resourceBinding = resourceBinding;
     }
 
     /**
@@ -39,7 +37,7 @@ public abstract class InstanceInfo {
      *
      * @return The graphics instance
      */
-    public Graphics getInstance() {
+    public T getInstance() {
         return instance;
     }
 
@@ -58,7 +56,7 @@ public abstract class InstanceInfo {
      * @return The resource binding
      */
     public ResourceBinding getResourceBinding() {
-        return resourceBinding;
+        return renderSetting.resourceBinding();
     }
 
     /**

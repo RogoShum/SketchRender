@@ -5,7 +5,6 @@ import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 
-
 public abstract class RenderParameter {
 
     public abstract RenderFlowType getFlowType();

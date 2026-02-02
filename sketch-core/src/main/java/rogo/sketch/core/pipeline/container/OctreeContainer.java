@@ -9,109 +9,71 @@ import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
 
-/**
- * Octree-based graphics container with spatial partitioning and frustum
- * culling.
- * Uses JOML primitives for cross-platform compatibility.
- * Requires graphics instances to implement {@link AABBGraphics}.
- */
-public class OctreeContainer<C extends RenderContext> implements GraphicsContainer<C> {
+public class OctreeContainer<C extends RenderContext> extends BaseGraphicsContainer<C> {
+    public static final KeyId CONTAINER_TYPE = KeyId.of("octree");
+
     private static final int MAX_DEPTH = 8;
     private static final int MAX_OBJECTS_PER_NODE = 8;
 
     private final Map<KeyId, Graphics> instanceMap = new LinkedHashMap<>();
     private final Map<KeyId, AABBf> lastBounds = new HashMap<>();
-    private final Collection<Graphics> tickableInstances = new LinkedHashSet<>();
     private OctreeNode root;
 
     public OctreeContainer() {
-        // Initialize with a large default bounds - will expand as needed
         root = new OctreeNode(new AABBf(-1000, -1000, -1000, 1000, 1000, 1000), 0);
     }
 
-    public OctreeContainer(AABBf worldBounds) {
-        root = new OctreeNode(new AABBf(worldBounds), 0);
-    }
+    // Additional internal constructor if needed, but not part of interface. User
+    // used default.
 
     @Override
-    public void add(Graphics graphics) {
+    protected boolean addImpl(Graphics graphics) {
         if (!(graphics instanceof AABBGraphics)) {
             throw new IllegalArgumentException(
-                    "Graphics instance must implement AABBObject to be added to OctreeContainer: " +
-                            graphics.getClass().getName());
+                    "Graphics instance must implement AABBObject to be added to OctreeContainer");
         }
-
         AABBGraphics aabbGraphics = (AABBGraphics) graphics;
         AABBf bounds = aabbGraphics.getAABB();
-
         if (bounds == null) {
-            throw new IllegalArgumentException(
-                    "AABBObject.getAABB() returned null for instance: " + graphics.getIdentifier());
+            throw new IllegalArgumentException("AABB is null");
         }
 
         instanceMap.put(graphics.getIdentifier(), graphics);
         lastBounds.put(graphics.getIdentifier(), new AABBf(bounds));
-        if (graphics.tickable()) {
-            tickableInstances.add(graphics);
-        }
         root.insert(graphics, bounds);
+        return true;
     }
 
     @Override
-    public void remove(KeyId identifier) {
+    protected Graphics removeImpl(KeyId identifier) {
         Graphics graphics = instanceMap.remove(identifier);
         if (graphics != null) {
-            if (graphics.tickable()) {
-                tickableInstances.remove(graphics);
-            }
             AABBf bounds = lastBounds.remove(identifier);
             if (bounds != null) {
-                root.remove(graphics, bounds);
-                // Optionally try to merge nodes
+                root.remove(graphics, bounds); // Does not merge automatically in my previous impl?
                 root.tryMerge();
             }
         }
+        return graphics;
     }
 
     @Override
-    public void tick(C context) {
+    public void swapData() {
+        super.swapData(); // Ticks asyncs swap and cleans up
+
+        // Handle Octree updates safely here
         for (Graphics graphics : instanceMap.values()) {
             if (graphics instanceof AABBGraphics) {
                 AABBGraphics aabbGraphics = (AABBGraphics) graphics;
                 AABBf newBounds = aabbGraphics.getAABB();
                 AABBf oldBounds = lastBounds.get(graphics.getIdentifier());
-
-                if (newBounds != null && oldBounds != null) {
-                    if (!boundsEqual(newBounds, oldBounds)) {
-                        // Incremental update: remove from old position, insert to new
-                        root.remove(graphics, oldBounds);
-                        oldBounds.set(newBounds);
-                        root.insert(graphics, newBounds);
-                    }
+                if (newBounds != null && oldBounds != null && !boundsEqual(newBounds, oldBounds)) {
+                    root.remove(graphics, oldBounds);
+                    oldBounds.set(newBounds);
+                    root.insert(graphics, newBounds);
                 }
             }
         }
-
-        for (Graphics graphics : tickableInstances) {
-            if (graphics.shouldTick()) {
-                graphics.tick(context);
-            }
-        }
-
-        // Cleanup discarded instances
-        instanceMap.values().removeIf(graphics -> {
-            if (graphics.shouldDiscard()) {
-                AABBf bounds = lastBounds.remove(graphics.getIdentifier());
-                if (bounds != null) {
-                    root.remove(graphics, bounds);
-                }
-                if (graphics.tickable()) {
-                    tickableInstances.remove(graphics);
-                }
-                return true;
-            }
-            return false;
-        });
     }
 
     private boolean boundsEqual(AABBf a, AABBf b) {
@@ -128,7 +90,6 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
     public Collection<Graphics> getVisibleInstances(C context) {
         FrustumIntersection frustum = context.getFrustum();
         if (frustum == null || root == null) {
-            // No frustum available - return all instances that should render
             List<Graphics> all = new ArrayList<>();
             for (Graphics graphics : instanceMap.values()) {
                 if (graphics.shouldRender()) {
@@ -147,13 +108,21 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
     public void clear() {
         instanceMap.clear();
         root = new OctreeNode(root.bounds, 0);
+        tickableInstances.clear();
+        asyncTickableInstances.clear();
     }
 
+    @Override
+    public KeyId getContainerType() {
+        return CONTAINER_TYPE;
+    }
+
+    // Octree Node Class (Same as before)
     private static class OctreeNode {
         AABBf bounds;
         int depth;
         List<Graphics> objects = new ArrayList<>();
-        OctreeNode[] children = null; // 8 children for octree
+        OctreeNode[] children = null;
 
         OctreeNode(AABBf bounds, int depth) {
             this.bounds = bounds;
@@ -161,33 +130,26 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
         }
 
         void insert(Graphics graphics, AABBf graphicsBounds) {
-            // If this node is subdivided, try to insert into children
             if (children != null) {
                 int childIndex = getChildIndex(graphicsBounds);
                 if (childIndex != -1) {
                     children[childIndex].insert(graphics, graphicsBounds);
                     return;
                 }
-                // Doesn't fit into any child, store here
             }
-
             objects.add(graphics);
-
-            // Subdivide if necessary
             if (objects.size() > MAX_OBJECTS_PER_NODE && depth < MAX_DEPTH && children == null) {
                 subdivide();
-                // Try to move objects to children
                 List<Graphics> remaining = new ArrayList<>();
                 for (Graphics obj : objects) {
                     if (obj instanceof AABBGraphics) {
                         AABBf objBounds = ((AABBGraphics) obj).getAABB();
                         if (objBounds != null) {
                             int childIndex = getChildIndex(objBounds);
-                            if (childIndex != -1) {
+                            if (childIndex != -1)
                                 children[childIndex].insert(obj, objBounds);
-                            } else {
+                            else
                                 remaining.add(obj);
-                            }
                         }
                     }
                 }
@@ -197,12 +159,10 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
 
         void remove(Graphics graphics, AABBf graphicsBounds) {
             objects.remove(graphics);
-
             if (children != null) {
                 int childIndex = getChildIndex(graphicsBounds);
-                if (childIndex != -1) {
+                if (childIndex != -1)
                     children[childIndex].remove(graphics, graphicsBounds);
-                }
             }
         }
 
@@ -210,7 +170,6 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
             float midX = (bounds.minX + bounds.maxX) / 2;
             float midY = (bounds.minY + bounds.maxY) / 2;
             float midZ = (bounds.minZ + bounds.maxZ) / 2;
-
             children = new OctreeNode[8];
             children[0] = new OctreeNode(new AABBf(bounds.minX, bounds.minY, bounds.minZ, midX, midY, midZ), depth + 1);
             children[1] = new OctreeNode(new AABBf(midX, bounds.minY, bounds.minZ, bounds.maxX, midY, midZ), depth + 1);
@@ -225,19 +184,15 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
         int getChildIndex(AABBf objBounds) {
             if (children == null)
                 return -1;
-
             float midX = (bounds.minX + bounds.maxX) / 2;
             float midY = (bounds.minY + bounds.maxY) / 2;
             float midZ = (bounds.minZ + bounds.maxZ) / 2;
-
-            // Determine which octant the object belongs to
             boolean left = objBounds.maxX <= midX;
             boolean right = objBounds.minX >= midX;
             boolean bottom = objBounds.maxY <= midY;
             boolean top = objBounds.minY >= midY;
             boolean back = objBounds.maxZ <= midZ;
             boolean front = objBounds.minZ >= midZ;
-
             if (left && bottom && back)
                 return 0;
             if (right && bottom && back)
@@ -254,58 +209,37 @@ public class OctreeContainer<C extends RenderContext> implements GraphicsContain
                 return 6;
             if (right && top && front)
                 return 7;
-
-            return -1; // Doesn't fit entirely in one child
+            return -1;
         }
 
         void tryMerge() {
             if (children == null)
                 return;
-
-            // Check if we can merge children back
-            int totalObjects = objects.size();
+            int total = objects.size();
             for (OctreeNode child : children) {
-                if (child != null) {
-                    totalObjects += child.objects.size();
-                    if (child.children != null) {
-                        return; // Has grandchildren, don't merge
-                    }
-                }
+                if (child != null)
+                    total += child.objects.size();
+                if (child.children != null)
+                    return;
             }
-
-            if (totalObjects <= MAX_OBJECTS_PER_NODE) {
-                // Merge children back
-                for (OctreeNode child : children) {
-                    if (child != null) {
+            if (total <= MAX_OBJECTS_PER_NODE) {
+                for (OctreeNode child : children)
+                    if (child != null)
                         objects.addAll(child.objects);
-                    }
-                }
                 children = null;
             }
         }
 
         void collectVisible(FrustumIntersection frustum, List<Graphics> visible) {
-            // Test this node's bounds against frustum
-            if (!frustum.testAab(bounds.minX, bounds.minY, bounds.minZ,
-                    bounds.maxX, bounds.maxY, bounds.maxZ)) {
-                return; // Entire node culled
-            }
-
-            // Add objects in this node
-            for (Graphics graphics : objects) {
-                if (graphics.shouldRender()) {
-                    visible.add(graphics);
-                }
-            }
-
-            // Recurse to children
-            if (children != null) {
-                for (OctreeNode child : children) {
-                    if (child != null) {
+            if (!frustum.testAab(bounds.minX, bounds.minY, bounds.minZ, bounds.maxX, bounds.maxY, bounds.maxZ))
+                return;
+            for (Graphics g : objects)
+                if (g.shouldRender())
+                    visible.add(g);
+            if (children != null)
+                for (OctreeNode child : children)
+                    if (child != null)
                         child.collectVisible(frustum, visible);
-                    }
-                }
-            }
         }
     }
 }

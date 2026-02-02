@@ -2,6 +2,8 @@ package rogo.sketch.core.pipeline;
 
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.container.*;
+import rogo.sketch.core.pipeline.flow.BatchContainer;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -31,17 +33,52 @@ public class GraphicsBatch<C extends RenderContext> {
     }
 
     public void addGraphInstance(Graphics graph, KeyId containerType) {
+        addGraphInstance(graph, containerType, null);
+    }
+
+    public void addGraphInstance(Graphics graph, KeyId containerType, RenderParameter renderParameter) {
         GraphicsContainer<C> container = containers.get(containerType);
         if (container == null) {
             throw new IllegalArgumentException("Unknown container type: " + containerType +
                     ". Use one of: QUEUE_CONTAINER, AABB_TREE_CONTAINER, OCTREE_CONTAINER");
         }
-        container.add(graph);
+        container.add(graph, renderParameter);
+    }
+
+    /**
+     * Register a BatchContainer as listener for all containers in this batch.
+     */
+    public void registerBatchContainerListener(BatchContainer<?, ?> batchContainer) {
+        for (GraphicsContainer<C> container : containers.values()) {
+            container.addListener(batchContainer);
+        }
+    }
+
+    /**
+     * Unregister a BatchContainer listener from all containers.
+     */
+    public void unregisterBatchContainerListener(BatchContainer<?, ?> batchContainer) {
+        for (GraphicsContainer<C> container : containers.values()) {
+            container.removeListener(batchContainer);
+        }
     }
 
     public void tick(C context) {
         for (GraphicsContainer<C> container : containers.values()) {
             container.tick(context);
+        }
+    }
+
+    public void asyncTick(C context) {
+        for (GraphicsContainer<C> container : containers.values()) {
+            container.asyncTick(context);
+            container.dirtyCheck();
+        }
+    }
+
+    public void swapData() {
+        for (GraphicsContainer<C> container : containers.values()) {
+            container.swapData();
         }
     }
 
@@ -62,11 +99,12 @@ public class GraphicsBatch<C extends RenderContext> {
     }
 
     /**
-     * Cleanup discarded instances and return them to the pool
+     * Cleanup discarded instances and return them to the pool.
+     * Also clears batch assignments for discarded instances.
      */
     public void cleanupDiscardedInstances() {
         for (GraphicsContainer<C> container : containers.values()) {
-            Collection<Graphics> all = container.getAllInstances();
+            Collection<Graphics> all = new ArrayList<>(container.getAllInstances());
             for (Graphics instance : all) {
                 if (instance.shouldDiscard()) {
                     container.remove(instance.getIdentifier());

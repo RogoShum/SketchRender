@@ -1,15 +1,16 @@
 package rogo.sketch.core.instance;
 
 import rogo.sketch.core.api.ResourceObject;
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.api.graphics.FunctionalGraphics;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.util.KeyId;
 
-public abstract class FunctionGraphics implements Graphics, ResourceObject, Comparable<FunctionGraphics> {
+public abstract class FunctionGraphics implements FunctionalGraphics, ResourceObject, Comparable<FunctionGraphics> {
     private final KeyId id;
     private boolean disposed = false;
     private int priority = 100;
+    protected boolean batchDirty = false;
 
     public FunctionGraphics(KeyId keyId) {
         this.id = keyId;
@@ -58,17 +59,7 @@ public abstract class FunctionGraphics implements Graphics, ResourceObject, Comp
 
     @Override
     public PartialRenderSetting getPartialRenderSetting() {
-        return null;
-    }
-
-    @Override
-    public boolean shouldTick() {
-        return false;
-    }
-
-    @Override
-    public boolean tickable() {
-        return false;
+        return PartialRenderSetting.EMPTY;
     }
 
     @Override
@@ -79,5 +70,15 @@ public abstract class FunctionGraphics implements Graphics, ResourceObject, Comp
     @Override
     public boolean shouldRender() {
         return !isDisposed();
+    }
+
+    @Override
+    public void clearBatchDirtyFlags() {
+        batchDirty = false;
+    }
+
+    @Override
+    public boolean isBatchDirty() {
+        return batchDirty;
     }
 }

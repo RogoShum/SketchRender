@@ -1,18 +1,13 @@
 package rogo.sketch.core.pipeline.flow.impl;
 
-import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.api.graphics.DispatchProvider;
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.api.graphics.DispatchableGraphics;
 import rogo.sketch.core.command.ComputeRenderCommand;
 import rogo.sketch.core.command.RenderCommand;
 import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.information.ComputeInstanceInfo;
-import rogo.sketch.core.pipeline.information.InstanceInfo;
-import rogo.sketch.core.resource.ResourceBinding;
-import rogo.sketch.core.shader.ComputeShader;
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.pipeline.flow.BatchContainer;
 import rogo.sketch.core.pipeline.flow.RenderBatch;
 import rogo.sketch.core.pipeline.flow.RenderFlowContext;
 import rogo.sketch.core.pipeline.flow.RenderFlowStrategy;
@@ -20,8 +15,6 @@ import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 
 import java.util.*;
-import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 /**
  * Flow strategy for compute shader operations.
@@ -31,53 +24,54 @@ import java.util.stream.Collectors;
  * but instances are grouped into batches for uniform updates.
  * </p>
  */
-public class ComputeFlowStrategy implements RenderFlowStrategy {
+public class ComputeFlowStrategy implements RenderFlowStrategy<DispatchableGraphics, ComputeInstanceInfo> {
 
     @Override
     public RenderFlowType getFlowType() {
         return RenderFlowType.COMPUTE;
     }
-
+    
     @Override
-    @Nullable
-    public <C extends RenderContext> InstanceInfo collectInstanceInfo(Graphics instance, RenderParameter renderParameter, C context) {
-        BiConsumer<RenderContext, ComputeShader> dispatchCommand = extractDispatchCommand(instance);
-        if (dispatchCommand == null || instance.getPartialRenderSetting() == null) {
-            return null;
-        }
-
-        RenderSetting renderSetting = RenderSetting.fromPartial(renderParameter, instance.getPartialRenderSetting());
-        ResourceBinding resourceBinding = renderSetting.resourceBinding();
-
-        return new ComputeInstanceInfo(instance, renderSetting, resourceBinding, dispatchCommand);
+    public Class<DispatchableGraphics> getGraphicsType() {
+        return DispatchableGraphics.class;
+    }
+    
+    @Override
+    public Class<ComputeInstanceInfo> getInfoType() {
+        return ComputeInstanceInfo.class;
     }
 
     @Override
     public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
-            Collection<InstanceInfo> infos,
+            BatchContainer<DispatchableGraphics, ComputeInstanceInfo> batchContainer,
             KeyId stageId,
             RenderFlowContext flowContext,
-            RenderPostProcessors postProcessors) {
-        // Filter to ComputeInstanceInfo
-        List<ComputeInstanceInfo> computeInfos = infos.stream()
-                .filter(info -> info instanceof ComputeInstanceInfo)
-                .map(info -> (ComputeInstanceInfo) info)
-                .toList();
-
-        if (computeInfos.isEmpty()) {
+            RenderPostProcessors postProcessors,
+            RenderContext context) {
+        
+        // Get active batches from container
+        Collection<RenderBatch<ComputeInstanceInfo>> activeBatches = batchContainer.getActiveBatches();
+        if (activeBatches.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        // Create batches to handle uniform grouping
-        List<RenderBatch<ComputeInstanceInfo>> batches = organize(computeInfos);
         Map<RenderSetting, List<RenderCommand>> commandsMap = new LinkedHashMap<>();
 
-        for (RenderBatch<ComputeInstanceInfo> batch : batches) {
+        for (RenderBatch<ComputeInstanceInfo> batch : activeBatches) {
+            // Filter visible instances
+            List<ComputeInstanceInfo> visibleInfos = filterVisible(batch.getInstances());
+            if (visibleInfos.isEmpty()) {
+                continue;
+            }
+            
+            // Update uniforms for visible instances
+            batch.setVisibleInstances(visibleInfos);
+            batch.updateUniformsForVisible();
+            
             RenderSetting setting = batch.getRenderSetting();
             List<RenderCommand> commands = commandsMap.computeIfAbsent(setting, k -> new ArrayList<>());
 
-            for (ComputeInstanceInfo info : batch.getInstances()) {
-                // Pass the batch to the command so it can process uniforms if needed
+            for (ComputeInstanceInfo info : visibleInfos) {
                 commands.add(new ComputeRenderCommand.Builder()
                         .renderSetting(info.getRenderSetting())
                         .stageId(stageId)
@@ -91,40 +85,22 @@ public class ComputeFlowStrategy implements RenderFlowStrategy {
 
         return commandsMap;
     }
-
+    
     /**
-     * Organize instances into batches based on RenderSetting.
+     * Filter visible instances from a batch.
      */
-    public <T extends InstanceInfo> List<RenderBatch<T>> organize(Collection<T> allData) {
-        if (allData.isEmpty())
-            return List.of();
-
-        // Group by RenderSetting
-        Map<RenderSetting, List<T>> grouped = new LinkedHashMap<>();
-        for (T data : allData) {
-            RenderSetting setting = data.getRenderSetting();
-            List<T> group = grouped.computeIfAbsent(setting, k -> new ArrayList<>());
-            group.add(data);
+    private List<ComputeInstanceInfo> filterVisible(List<ComputeInstanceInfo> infos) {
+        List<ComputeInstanceInfo> visible = new ArrayList<>();
+        for (ComputeInstanceInfo info : infos) {
+            if (info.getInstance().shouldRender()) {
+                visible.add(info);
+            }
         }
-
-        List<RenderBatch<T>> batches = new ArrayList<>();
-        for (Map.Entry<RenderSetting, List<T>> entry : grouped.entrySet()) {
-            batches.add(new RenderBatch<>(entry.getKey(), entry.getValue()));
-        }
-
-        return batches;
+        return visible;
     }
 
     @Override
     public boolean supportsBatching() {
         return false;
-    }
-
-    @Nullable
-    private static BiConsumer<RenderContext, ComputeShader> extractDispatchCommand(Graphics instance) {
-        if (instance instanceof DispatchProvider computeGraphics) {
-            return computeGraphics.getDispatchCommand();
-        }
-        return null;
     }
 }

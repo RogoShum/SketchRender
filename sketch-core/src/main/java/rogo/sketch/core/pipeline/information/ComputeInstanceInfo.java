@@ -1,5 +1,6 @@
 package rogo.sketch.core.pipeline.information;
 
+import rogo.sketch.core.api.graphics.DispatchableGraphics;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderSetting;
@@ -15,15 +16,14 @@ import java.util.function.BiConsumer;
  * Unlike rasterization, compute instances don't have mesh or vertex data.
  * </p>
  */
-public class ComputeInstanceInfo extends InstanceInfo {
+public class ComputeInstanceInfo extends InstanceInfo<DispatchableGraphics> {
     private final BiConsumer<RenderContext, ComputeShader> dispatchCommand;
 
     public ComputeInstanceInfo(
-            Graphics instance,
+            DispatchableGraphics instance,
             RenderSetting renderSetting,
-            ResourceBinding resourceBinding,
             BiConsumer<RenderContext, ComputeShader> dispatchCommand) {
-        super(instance, renderSetting, resourceBinding);
+        super(instance, renderSetting);
         this.dispatchCommand = dispatchCommand;
     }
 

@@ -14,8 +14,12 @@ import rogo.sketch.core.util.KeyId;
 import static org.lwjgl.opengl.GL42C.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
 
 public class ComputeHIZGraphics extends ComputeGraphics {
-    private final ResourceReference<PartialRenderSetting> firstRenderSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID,"hierarchy_depth_buffer_first"));
-    private final ResourceReference<PartialRenderSetting> secRenderSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID,"hierarchy_depth_buffer_second"));
+    private final ResourceReference<PartialRenderSetting> firstRenderSetting = GraphicsResourceManager.getInstance()
+            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING,
+                    KeyId.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"));
+    private final ResourceReference<PartialRenderSetting> secRenderSetting = GraphicsResourceManager.getInstance()
+            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING,
+                    KeyId.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"));
     private final boolean first;
 
     public ComputeHIZGraphics(KeyId keyId, boolean first) {
@@ -40,7 +44,6 @@ public class ComputeHIZGraphics extends ComputeGraphics {
         });
         this.first = first;
     }
-
 
     @Override
     public PartialRenderSetting getPartialRenderSetting() {

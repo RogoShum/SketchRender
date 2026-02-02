@@ -11,7 +11,8 @@ import rogo.sketch.core.util.KeyId;
 import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class CopyCounterGraphics extends ComputeGraphics {
-    private final ResourceReference<PartialRenderSetting> copyCounterSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "copy_counter"));
+    private final ResourceReference<PartialRenderSetting> copyCounterSetting = GraphicsResourceManager.getInstance()
+            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "copy_counter"));
 
     public CopyCounterGraphics(KeyId keyId) {
         super(keyId, null, (c, shader) -> {

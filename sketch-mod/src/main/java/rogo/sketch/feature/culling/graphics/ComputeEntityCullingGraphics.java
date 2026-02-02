@@ -13,7 +13,8 @@ import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 
 public class ComputeEntityCullingGraphics extends ComputeGraphics {
-    private final ResourceReference<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "cull_entity_batch"));
+    private final ResourceReference<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
+            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "cull_entity_batch"));
 
     public ComputeEntityCullingGraphics(KeyId keyId) {
         super(keyId, null, (c, shader) -> {

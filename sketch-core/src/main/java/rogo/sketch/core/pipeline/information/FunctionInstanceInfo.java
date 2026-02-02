@@ -1,17 +1,17 @@
 package rogo.sketch.core.pipeline.information;
 
-import rogo.sketch.core.instance.FunctionGraphics;
+import rogo.sketch.core.api.graphics.FunctionalGraphics;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pipeline.RenderSetting;
 
-public class FunctionInstanceInfo extends InstanceInfo {
+public class FunctionInstanceInfo extends InstanceInfo<FunctionalGraphics> {
     private static final PartialRenderSetting functionSetting = new PartialRenderSetting(null, null, false);
-    private final FunctionGraphics functionGraphics;
+    private final FunctionalGraphics functionalGraphics;
 
-    public FunctionInstanceInfo(FunctionGraphics functionGraphics, RenderParameter renderParameter) {
-        super(functionGraphics, RenderSetting.fromPartial(renderParameter, functionSetting), null);
-        this.functionGraphics = functionGraphics;
+    public FunctionInstanceInfo(FunctionalGraphics functionalGraphics, RenderParameter renderParameter) {
+        super(functionalGraphics, RenderSetting.fromPartial(renderParameter, functionSetting));
+        this.functionalGraphics = functionalGraphics;
     }
 
     @Override
@@ -19,7 +19,7 @@ public class FunctionInstanceInfo extends InstanceInfo {
         return "function";
     }
 
-    public FunctionGraphics functionGraphics() {
-        return functionGraphics;
+    public FunctionalGraphics functionGraphics() {
+        return functionalGraphics;
     }
 }

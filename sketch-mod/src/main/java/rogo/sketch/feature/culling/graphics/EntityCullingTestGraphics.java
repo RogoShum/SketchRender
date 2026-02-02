@@ -18,7 +18,8 @@ import rogo.sketch.feature.culling.CullingStateManager;
  * Entity culling test graphics instance using DynamicMesh
  */
 public class EntityCullingTestGraphics extends MeshGraphics {
-    private final ResourceReference<PartialRenderSetting> partialRenderSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "culling_test_entity"));
+    private final ResourceReference<PartialRenderSetting> partialRenderSetting = GraphicsResourceManager.getInstance()
+            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "culling_test_entity"));
     private final DynamicMesh mesh;
 
     public EntityCullingTestGraphics(KeyId keyId) {
@@ -53,16 +54,6 @@ public class EntityCullingTestGraphics extends MeshGraphics {
         }
 
         return null;
-    }
-
-    @Override
-    public boolean shouldTick() {
-        return false;
-    }
-
-    @Override
-    public boolean tickable() {
-        return false;
     }
 
     @Override

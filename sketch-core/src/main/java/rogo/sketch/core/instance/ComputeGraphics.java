@@ -1,27 +1,29 @@
 package rogo.sketch.core.instance;
 
 import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.api.graphics.DispatchProvider;
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.api.graphics.AsyncTickable;
+import rogo.sketch.core.api.graphics.DispatchableGraphics;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.shader.ComputeShader;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
-public abstract class ComputeGraphics implements Graphics, DispatchProvider, Comparable<ComputeGraphics> {
+public abstract class ComputeGraphics implements DispatchableGraphics, AsyncTickable, Comparable<ComputeGraphics> {
     private final KeyId id;
     @Nullable
-    private final Consumer<RenderContext> tick;
+    private final Runnable tick;
     private final BiConsumer<RenderContext, ComputeShader> dispatch;
     private int priority;
+    protected boolean batchDirty = false;
 
-    public ComputeGraphics(KeyId keyId, @Nullable Consumer<RenderContext> tick, BiConsumer<RenderContext, ComputeShader> dispatchCommand) {
+    public ComputeGraphics(KeyId keyId, @Nullable Runnable tick,
+                           BiConsumer<RenderContext, ComputeShader> dispatchCommand) {
         this(keyId, tick, dispatchCommand, 100);
     }
 
-    public ComputeGraphics(KeyId keyId, @Nullable Consumer<RenderContext> tick, BiConsumer<RenderContext, ComputeShader> dispatchCommand, int priority) {
+    public ComputeGraphics(KeyId keyId, @Nullable Runnable tick,
+                           BiConsumer<RenderContext, ComputeShader> dispatchCommand, int priority) {
         this.id = keyId;
         this.tick = tick;
         this.dispatch = dispatchCommand;
@@ -43,18 +45,24 @@ public abstract class ComputeGraphics implements Graphics, DispatchProvider, Com
     }
 
     @Override
-    public boolean tickable() {
-        return false;
+    public void asyncTick() {
+        if (tick != null) {
+            tick.run();
+        }
     }
 
     @Override
-    public boolean shouldTick() {
-        return tick != null;
+    public void swapData() {
     }
 
     @Override
-    public <C extends RenderContext> void tick(C context) {
-        tick.accept(context);
+    public void clearBatchDirtyFlags() {
+        batchDirty = false;
+    }
+
+    @Override
+    public boolean isBatchDirty() {
+        return batchDirty;
     }
 
     @Override

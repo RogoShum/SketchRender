@@ -111,7 +111,7 @@ void main() {
         }
 
         if (nearEdge) {
-            fragColor = vec4(0.0, 1.0, 0.0, 0.35); // green outline for chunks
+            fragColor = vec4(1.0, 1.0, 1.0, 0.35); // green outline for chunks
             return;
         }
         // --------- Wireframe drawing logic end ---------

@@ -6,27 +6,20 @@ import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
 
-/**
- * Graphics container that maintains instances sorted by their natural ordering
- * (usually priority).
- * Useful for FunctionGraphics where execution order matters.
- */
-public class PriorityContainer<C extends RenderContext> implements GraphicsContainer<C> {
+public class PriorityContainer<C extends RenderContext> extends BaseGraphicsContainer<C> {
+    public static final KeyId CONTAINER_TYPE = KeyId.of("priority");
+
     private final Map<KeyId, Graphics> instances = new LinkedHashMap<>();
-    private final Collection<Graphics> tickableInstances = new LinkedHashSet<>();
     private final List<Graphics> sortedInstances = new ArrayList<>();
     private boolean dirty = false;
 
     @Override
-    public void add(Graphics graphics) {
+    protected boolean addImpl(Graphics graphics) {
         if (!instances.containsKey(graphics.getIdentifier())) {
             instances.put(graphics.getIdentifier(), graphics);
             sortedInstances.add(graphics);
             dirty = true;
-
-            if (graphics.tickable()) {
-                tickableInstances.add(graphics);
-            }
+            return true;
         } else {
             Graphics old = instances.get(graphics.getIdentifier());
             if (old.shouldDiscard()) {
@@ -34,50 +27,32 @@ public class PriorityContainer<C extends RenderContext> implements GraphicsConta
                 instances.put(graphics.getIdentifier(), graphics);
                 sortedInstances.add(graphics);
                 dirty = true;
-
-                if (graphics.tickable()) {
-                    tickableInstances.add(graphics);
-                }
+                return true;
             } else {
-                System.err.println("Duplicate graphics instance: " + graphics.getIdentifier());
+                return false;
             }
         }
     }
 
     @Override
-    public void remove(KeyId identifier) {
+    protected Graphics removeImpl(KeyId identifier) {
         Graphics removed = instances.remove(identifier);
         if (removed != null) {
             sortedInstances.remove(removed);
-            if (removed.tickable()) {
-                tickableInstances.remove(removed);
-            }
-            // Removing from sortedInstances doesn't break relative order,
-            // but we keep dirty = true if we want to be safe, though
-            // ArrayList.remove() is O(n). For PriorityContainer,
-            // we might want a better structure for sortedInstances if n is large.
+            dirty = true; // Optimization: maybe no need to resort if just removing?
+            // But simpler to ensure sortedness
         }
+        return removed;
     }
 
     @Override
-    public void tick(C context) {
-        for (Graphics graphics : tickableInstances) {
-            if (graphics.shouldTick()) {
-                graphics.tick(context);
-            }
-        }
-
-        // Cleanup discarded instances
-        instances.values().removeIf(graphics -> {
-            if (graphics.shouldDiscard()) {
-                sortedInstances.remove(graphics);
-                if (graphics.tickable()) {
-                    tickableInstances.remove(graphics);
-                }
-                return true;
-            }
-            return false;
-        });
+    public void asyncTick(C context) {
+        super.asyncTick(context);
+        // Note: sortedInstances list cleanup is done via removeImpl called by
+        // super.cleanupDiscarded().
+        // Does AsyncTick modify sortedInstances?
+        // super.cleanupDiscarded() which I moved to swapData() will do it.
+        // So safe.
     }
 
     @Override
@@ -97,7 +72,6 @@ public class PriorityContainer<C extends RenderContext> implements GraphicsConta
                 visible.add(graphics);
             }
         }
-
         return visible;
     }
 
@@ -118,5 +92,11 @@ public class PriorityContainer<C extends RenderContext> implements GraphicsConta
         instances.clear();
         sortedInstances.clear();
         tickableInstances.clear();
+        asyncTickableInstances.clear();
+    }
+
+    @Override
+    public KeyId getContainerType() {
+        return CONTAINER_TYPE;
     }
 }

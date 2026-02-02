@@ -2,16 +2,18 @@
 
 uniform mat4 sketch_cullingViewMat;
 uniform mat4 sketch_cullingProjMat;
+uniform float partialTicks;
 
 layout (location=0) in vec3 Position;
 layout (location=1) in vec2 UV;
 layout (location=2) in vec3 Normal;
 
-layout (location=3) in vec3 InstancedPos;
+layout (location=3) in vec3 InstancedPosPrev;
+layout (location=4) in vec3 InstancedPosCurrent;
 
-layout (location=4) in vec3 InstancedTranslate;
-layout (location=5) in vec3 InstancedScale;
-layout (location=6) in vec3 InstancedRotation;
+layout (location=5) in vec3 InstancedTranslate;
+layout (location=6) in vec3 InstancedScale;
+layout (location=7) in vec3 InstancedRotation;
 
 out vec3 normal;
 out vec2 uv;
@@ -39,7 +41,7 @@ void main() {
     // 4. Translate（沿旋转方向，不受 scale 影响）
     vec3 translatedPos = rot * InstancedTranslate;
 
-    vec3 worldPos = rotatedPos + translatedPos + InstancedPos;
+    vec3 worldPos = rotatedPos + translatedPos +  mix(InstancedPosPrev, InstancedPosCurrent, partialTicks);
 
     gl_Position = sketch_cullingProjMat *
     sketch_cullingViewMat *

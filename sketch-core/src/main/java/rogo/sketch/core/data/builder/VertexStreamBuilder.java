@@ -63,7 +63,6 @@ public class VertexStreamBuilder extends UnsafeBatchBuilder {
     private int elementIndex = 0;
     private long vertexStartAddr;
 
-    // 缓存优化 (避免 Hotpath 访问 List)
     private final DataType[] elementTypes;
     private final boolean[] elementNormalized;
     private final int[] elementOffsets;

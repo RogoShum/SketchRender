@@ -1,11 +1,12 @@
 package rogo.sketch.core.instance;
 
-import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.api.graphics.MeshProvider;
+import rogo.sketch.core.api.graphics.MeshBasedGraphics;
 import rogo.sketch.core.util.KeyId;
 
-public abstract class MeshGraphics implements Graphics, MeshProvider {
+public abstract class MeshGraphics implements MeshProvider, MeshBasedGraphics {
     private final KeyId id;
+    protected boolean batchDirty = false;
 
     public MeshGraphics(KeyId keyId) {
         this.id = keyId;
@@ -14,5 +15,15 @@ public abstract class MeshGraphics implements Graphics, MeshProvider {
     @Override
     public KeyId getIdentifier() {
         return id;
+    }
+
+    @Override
+    public void clearBatchDirtyFlags() {
+        batchDirty = false;
+    }
+
+    @Override
+    public boolean isBatchDirty() {
+        return batchDirty;
     }
 }

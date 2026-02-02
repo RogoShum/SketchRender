@@ -2,6 +2,7 @@ package rogo.sketch.core.pipeline.container;
 
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Collection;
@@ -17,6 +18,16 @@ public interface GraphicsContainer<C extends RenderContext> {
      * Add a graphics instance to the container.
      */
     void add(Graphics graphics);
+    
+    /**
+     * Add a graphics instance with render parameter (for listener notification).
+     *
+     * @param graphics The graphics instance
+     * @param renderParameter The render parameter for batch assignment
+     */
+    default void add(Graphics graphics, RenderParameter renderParameter) {
+        add(graphics);
+    }
 
     /**
      * Remove a graphics instance by identifier.
@@ -27,6 +38,15 @@ public interface GraphicsContainer<C extends RenderContext> {
      * Tick all instances in the container.
      */
     void tick(C context);
+
+    /**
+     * Async tick all instances in the container.
+     */
+    void asyncTick(C context);
+
+    void dirtyCheck();
+
+    void swapData();
 
     /**
      * Get all instances regardless of visibility.
@@ -60,4 +80,31 @@ public interface GraphicsContainer<C extends RenderContext> {
     default boolean isEmpty() {
         return size() == 0;
     }
+    
+    // ===== Listener Support =====
+    
+    /**
+     * Add a container listener for batch synchronization.
+     *
+     * @param listener The listener to add
+     */
+    default void addListener(ContainerListener listener) {
+        // Default: no-op, subclasses should override
+    }
+    
+    /**
+     * Remove a container listener.
+     *
+     * @param listener The listener to remove
+     */
+    default void removeListener(ContainerListener listener) {
+        // Default: no-op, subclasses should override
+    }
+    
+    /**
+     * Get the container type identifier.
+     *
+     * @return The container type KeyId
+     */
+    KeyId getContainerType();
 }

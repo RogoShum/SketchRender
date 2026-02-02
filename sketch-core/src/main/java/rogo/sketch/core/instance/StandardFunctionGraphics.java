@@ -32,11 +32,6 @@ public class StandardFunctionGraphics extends FunctionGraphics {
         }
     }
 
-    @Override
-    public boolean tickable() {
-        return false;
-    }
-
     public interface Command {
         void execute(RenderContext context);
     }
@@ -48,7 +43,8 @@ public class StandardFunctionGraphics extends FunctionGraphics {
         private final float clearDepth;
         private final ColorMaskState colorMaskState;
 
-        public ClearCommand(KeyId renderTargetId, boolean color, boolean depth, float[] clearColor, float clearDepth, ColorMaskState colorMaskState) {
+        public ClearCommand(KeyId renderTargetId, boolean color, boolean depth, float[] clearColor, float clearDepth,
+                ColorMaskState colorMaskState) {
             this.renderTargetId = renderTargetId;
             this.color = color;
             this.depth = depth;

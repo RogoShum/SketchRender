@@ -23,6 +23,7 @@ public class RenderContext {
     protected int windowHeight;
     protected int renderTick;
     protected float partialTicks;
+    protected boolean nextTick = true;
     protected FrustumIntersection frustum; // JOML frustum for culling
     protected ShaderProvider shaderProvider;
 
@@ -52,6 +53,14 @@ public class RenderContext {
 
     public void setPartialTicks(float partialTicks) {
         this.partialTicks = partialTicks;
+    }
+
+    public boolean nextTick() {
+        return nextTick;
+    }
+
+    public void setNextTick(boolean nextTick) {
+        this.nextTick = nextTick;
     }
 
     public int windowHeight() {

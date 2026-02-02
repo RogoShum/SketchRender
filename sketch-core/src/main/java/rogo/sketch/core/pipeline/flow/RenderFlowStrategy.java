@@ -1,6 +1,5 @@
 package rogo.sketch.core.pipeline.flow;
 
-import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.event.RenderFlowRegisterEvent;
 import rogo.sketch.core.command.RenderCommand;
@@ -10,7 +9,6 @@ import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.information.InstanceInfo;
 import rogo.sketch.core.util.KeyId;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -30,8 +28,11 @@ import java.util.Map;
  * by registering them during the initialization phase via
  * {@link RenderFlowRegisterEvent}.
  * </p>
+ * 
+ * @param <G> The graphics type this strategy handles
+ * @param <I> The instance info type this strategy produces
  */
-public interface RenderFlowStrategy {
+public interface RenderFlowStrategy<G extends Graphics, I extends InstanceInfo<G>> {
 
     /**
      * Get the flow type this strategy handles.
@@ -39,40 +40,40 @@ public interface RenderFlowStrategy {
      * @return The render flow type
      */
     RenderFlowType getFlowType();
-
+    
     /**
-     * Collect instance information from a graphics instance.
-     * <p>
-     * This method extracts the necessary data from a graphics instance for later
-     * command creation. The returned {@link InstanceInfo} contains all data needed
-     * for batching and command generation.
-     * </p>
+     * Get the expected graphics type for this strategy.
      *
-     * @param instance      The graphics instance to collect from
-     * @param renderParameter The render setting associated with this instance
-     * @param context       The current render context
-     * @param <C>           The render context type
-     * @return The collected instance information, or null if the instance should be
-     *         skipped
+     * @return The graphics class
      */
-    @Nullable
-    <C extends RenderContext> InstanceInfo collectInstanceInfo(Graphics instance, RenderParameter renderParameter, C context);
+    Class<G> getGraphicsType();
+    
+    /**
+     * Get the expected instance info type for this strategy.
+     *
+     * @return The instance info class
+     */
+    Class<I> getInfoType();
 
     /**
-     * Create render commands from collected instance information.
+     * Create render commands from a BatchContainer.
      * <p>
-     * This method is called after all instances have been collected and batched.
-     * It should generate the appropriate render commands for the given instances.
+     * This method gets batches from the container, filters visible instances,
+     * updates uniforms, and generates render commands.
      * </p>
      *
-     * @param infos         The collected instance information
-     * @param stageId       The identifier of the current render stage
-     * @param flowContext   The flow processing context with access to resources
-     * @param postProcessors Consumer to register post-processing tasks (e.g. data
-     *                      uploads)
+     * @param batchContainer The container holding all batches for this strategy
+     * @param stageId        The identifier of the current render stage
+     * @param flowContext    The flow processing context with access to resources
+     * @param postProcessors Consumer to register post-processing tasks
      * @return Map of render commands grouped by RenderSetting
      */
-    Map<RenderSetting, List<RenderCommand>> createRenderCommands(Collection<InstanceInfo> infos, KeyId stageId, RenderFlowContext flowContext, RenderPostProcessors postProcessors);
+    Map<RenderSetting, List<RenderCommand>> createRenderCommands(
+            BatchContainer<G, I> batchContainer,
+            KeyId stageId,
+            RenderFlowContext flowContext,
+            RenderPostProcessors postProcessors,
+            RenderContext context);
 
     /**
      * Create a post-processor for this strategy.

@@ -24,7 +24,9 @@ import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.core.event.RenderFlowRegisterEvent;
 import rogo.sketch.core.event.UniformHookRegisterEvent;
-import rogo.sketch.core.pipeline.*;
+import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.PipelineType;
+import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.flow.impl.ComputeFlowStrategy;
 import rogo.sketch.core.pipeline.flow.impl.FunctionFlowStrategy;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationFlowStrategy;
@@ -453,8 +455,7 @@ public class VanillaPipelineEventHandler {
             stages.add(MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier());
             stages.add(MinecraftRenderStages.PARTICLE.getIdentifier());
             stages.add(MinecraftRenderStages.WEATHER.getIdentifier());
-
-            for (int i = 0; i < 100000; i++) {
+            for (int i = 0; i < 5; i++) {
                 boolean attachHead = random.nextBoolean();
                 KeyId randStage = stages.get(random.nextInt(stages.size()));
                 boolean translucent = random.nextBoolean();
@@ -505,7 +506,7 @@ public class VanillaPipelineEventHandler {
 
         VertexLayoutSpec layout = VertexLayoutSpec.builder()
                 .addStatic(BakedTypeMesh.BAKED_MESH, DefaultDataFormats.POSITION_UV_NORMAL)
-                .addDynamicInstanced(CubeTestGraphics.ENTITY_POS, DefaultDataFormats.POSITION)
+                .addDynamicInstanced(CubeTestGraphics.ENTITY_POS, DefaultDataFormats.POSITION_LERP)
                 .addDynamicInstanced(CubeTestGraphics.ENTITY_TRANSFORM, DefaultDataFormats.TRANSFORM)
                 .build();
 

@@ -53,8 +53,7 @@ public class UniformHookGroup {
     public Map<String, Object> getUniformsDirect(Object c) {
         Map<String, Object> values = new HashMap<>();
 
-        for (int i = 0; i < universalHooks.size(); i++) {
-            UniformHook<?> uniformHook = universalHooks.get(i);
+        for (UniformHook<?> uniformHook : universalHooks) {
             Object currentValue = uniformHook.getDirectValue(c);
             if (currentValue != null) {
                 String uniformName = getUniformName(uniformHook);
@@ -78,6 +77,62 @@ public class UniformHookGroup {
         }
 
         return values;
+    }
+    
+    /**
+     * Get uniform values using pre-cached matching hooks.
+     * This avoids the overhead of repeatedly computing matching hooks for the same class.
+     * 
+     * @param c The object to get values from
+     * @param cachedMatchingHooks Pre-computed matching hooks (from getAllMatchingHooks)
+     * @return Map of uniform name to value
+     */
+    public Map<String, Object> getUniformsDirectWithCachedHooks(Object c, List<UniformHook<?>> cachedMatchingHooks) {
+        Map<String, Object> values = new HashMap<>();
+
+        // Universal hooks are always applied
+        for (int i = 0; i < universalHooks.size(); i++) {
+            UniformHook<?> uniformHook = universalHooks.get(i);
+            Object currentValue = uniformHook.getDirectValue(c);
+            if (currentValue != null) {
+                String uniformName = hookToNameMap.get(uniformHook);
+                if (uniformName != null) {
+                    values.put(uniformName, currentValue);
+                }
+            }
+        }
+
+        // Use cached hooks instead of computing matching hooks
+        for (int i = 0; i < cachedMatchingHooks.size(); i++) {
+            UniformHook<?> uniformHook = cachedMatchingHooks.get(i);
+            Object currentValue = uniformHook.getDirectValue(c);
+            if (currentValue != null) {
+                String uniformName = hookToNameMap.get(uniformHook);
+                if (uniformName != null) {
+                    values.put(uniformName, currentValue);
+                }
+            }
+        }
+
+        return values;
+    }
+    
+    /**
+     * Get all matching hooks for a given object class.
+     * Use this to pre-compute the hooks for a class and pass to getUniformsDirectWithCachedHooks.
+     * 
+     * @param objectClass The class to get matching hooks for
+     * @return List of matching uniform hooks
+     */
+    public List<UniformHook<?>> getAllMatchingHooks(Class<?> objectClass) {
+        return getMatchingHooks(objectClass);
+    }
+    
+    /**
+     * Get the universal hooks list for caching purposes.
+     */
+    public List<UniformHook<?>> getUniversalHooks() {
+        return Collections.unmodifiableList(universalHooks);
     }
 
     /**

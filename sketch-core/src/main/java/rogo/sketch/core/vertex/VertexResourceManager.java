@@ -25,7 +25,7 @@ public class VertexResourceManager {
     private static VertexResourceManager instance;
     private final Map<VertexBufferKey, VertexResource> resourceCache = new ConcurrentHashMap<>();
     private final Map<RasterizationParameter.BuilderKey, VertexStreamBuilder> builderCache = new ConcurrentHashMap<>();
-    private final Map<RasterizationParameter.BuilderBatchKey, Map<KeyId, VertexStreamBuilder>> builderBatchCache = new ConcurrentHashMap<>();
+    private final Map<RasterizationParameter.BuilderBatchKey, BuilderPair[]> builderBatchCache = new ConcurrentHashMap<>();
 
     public VertexResourceManager() {
     }
@@ -147,10 +147,11 @@ public class VertexResourceManager {
     /**
      * Create builders for all MUTABLE components in a VertexLayoutSpec.
      */
-    public Map<KeyId, VertexStreamBuilder> createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType) {
-        Map<KeyId, VertexStreamBuilder> builders = new ConcurrentHashMap<>();
-        for (ComponentSpec component : spec.getDynamicSpecs()) {
-            builders.put(component.getId(), createBuilder(component, primitiveType));
+    public BuilderPair[] createBuilder(VertexLayoutSpec spec, PrimitiveType primitiveType) {
+        BuilderPair[] builders = new BuilderPair[spec.getDynamicSpecs().length];
+        for (int i = 0; i < spec.getDynamicSpecs().length; ++i) {
+            ComponentSpec component = spec.getDynamicSpecs()[i];
+            builders[i] = new BuilderPair(component.getId(), createBuilder(component, primitiveType), component.isTickUpdate());
         }
 
         return builders;
@@ -159,11 +160,14 @@ public class VertexResourceManager {
     /**
      * Create builders for a RasterizationParameter (based on its layout).
      */
-    public Map<KeyId, VertexStreamBuilder> createBuilder(RasterizationParameter parameter) {
+    public BuilderPair[] createBuilder(RasterizationParameter parameter) {
         return builderBatchCache.computeIfAbsent(parameter.builderBatchKey(), k -> createBuilder(parameter.getLayout(), parameter.primitiveType()));
     }
 
     public String getCacheStats() {
         return String.format("VertexResourceManager: %d cached resources", resourceCache.size());
+    }
+
+    public record BuilderPair(KeyId key, VertexStreamBuilder builder, boolean tickUpdate) {
     }
 }

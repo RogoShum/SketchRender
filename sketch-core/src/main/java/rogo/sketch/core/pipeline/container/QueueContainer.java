@@ -6,62 +6,32 @@ import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
 
-/**
- * Simple queue-based graphics container using LinkedHashMap.
- * This is the default container type with no spatial optimizations.
- * All instances are considered visible.
- */
-public class QueueContainer<C extends RenderContext> implements GraphicsContainer<C> {
+public class QueueContainer<C extends RenderContext> extends BaseGraphicsContainer<C> {
+    public static final KeyId CONTAINER_TYPE = KeyId.of("queue");
+
     private final Map<KeyId, Graphics> instances = new LinkedHashMap<>();
-    private final Collection<Graphics> tickableInstances = new LinkedHashSet<>();
 
     @Override
-    public void add(Graphics graphics) {
+    protected boolean addImpl(Graphics graphics) {
         if (!instances.containsKey(graphics.getIdentifier())) {
             instances.put(graphics.getIdentifier(), graphics);
-            if (graphics.tickable()) {
-                tickableInstances.add(graphics);
-            }
+            return true;
         } else {
             Graphics old = instances.get(graphics.getIdentifier());
             if (old.shouldDiscard()) {
-                remove(graphics.getIdentifier());
+                remove(graphics.getIdentifier()); // Calls removeImpl
                 instances.put(graphics.getIdentifier(), graphics);
-                if (graphics.tickable()) {
-                    tickableInstances.add(graphics);
-                }
+                return true;
             } else {
                 System.err.println("Duplicate graphics instance: " + graphics.getIdentifier());
+                return false;
             }
         }
     }
 
     @Override
-    public void remove(KeyId identifier) {
-        Graphics removed = instances.remove(identifier);
-        if (removed != null && removed.tickable()) {
-            tickableInstances.remove(removed);
-        }
-    }
-
-    @Override
-    public void tick(C context) {
-        for (Graphics graphics : tickableInstances) {
-            if (graphics.shouldTick()) {
-                graphics.tick(context);
-            }
-        }
-
-        // Cleanup discarded instances
-        instances.values().removeIf(graphics -> {
-            if (graphics.shouldDiscard()) {
-                if (graphics.tickable()) {
-                    tickableInstances.remove(graphics);
-                }
-                return true;
-            }
-            return false;
-        });
+    protected Graphics removeImpl(KeyId identifier) {
+        return instances.remove(identifier);
     }
 
     @Override
@@ -83,6 +53,8 @@ public class QueueContainer<C extends RenderContext> implements GraphicsContaine
     @Override
     public void clear() {
         instances.clear();
+        tickableInstances.clear();
+        asyncTickableInstances.clear();
     }
 
     @Override
@@ -93,5 +65,10 @@ public class QueueContainer<C extends RenderContext> implements GraphicsContaine
     @Override
     public boolean isEmpty() {
         return instances.isEmpty();
+    }
+
+    @Override
+    public KeyId getContainerType() {
+        return CONTAINER_TYPE;
     }
 }

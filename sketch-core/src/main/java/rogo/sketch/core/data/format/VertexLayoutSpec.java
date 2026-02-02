@@ -93,7 +93,7 @@ public class VertexLayoutSpec {
          * Automatically assigns binding point and adjusts attribute indices.
          * Throws IllegalArgumentException if KeyId is already used.
          */
-        public Builder add(KeyId id, DataFormat format, boolean instanced, boolean mutable) {
+        public Builder add(KeyId id, DataFormat format, boolean instanced, boolean mutable, boolean tickUpdate) {
             // 1. Validation: Check Key Collision
             if (usedKeys.contains(id)) {
                 throw new IllegalArgumentException(
@@ -127,26 +127,26 @@ public class VertexLayoutSpec {
             }
 
             int bindingPoint = nextBindingIndex++;
-            ComponentSpec spec = new ComponentSpec(id, bindingPoint, format, instanced, mutable);
+            ComponentSpec spec = new ComponentSpec(id, bindingPoint, format, instanced, mutable, tickUpdate);
             specs.add(spec);
 
             return this;
         }
 
         public Builder addStatic(KeyId id, DataFormat format) {
-            return add(id, format, false, false);
-        }
-
-        public Builder addDynamic(KeyId id, DataFormat format) {
-            return add(id, format, false, true);
+            return add(id, format, false, false, false);
         }
 
         public Builder addStaticInstanced(KeyId id, DataFormat format) {
-            return add(id, format, true, false);
+            return add(id, format, true, true, false);
+        }
+
+        public Builder addDynamic(KeyId id, DataFormat format) {
+            return add(id, format, false, true, false);
         }
 
         public Builder addDynamicInstanced(KeyId id, DataFormat format) {
-            return add(id, format, true, true);
+            return add(id, format, true, true, false);
         }
 
         public VertexLayoutSpec build() {

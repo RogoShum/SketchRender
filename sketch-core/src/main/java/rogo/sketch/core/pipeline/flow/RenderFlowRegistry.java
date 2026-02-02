@@ -21,7 +21,7 @@ import java.util.*;
 public class RenderFlowRegistry {
     private static RenderFlowRegistry instance;
 
-    private final Map<RenderFlowType, RenderFlowStrategy> strategies = new HashMap<>();
+    private final Map<RenderFlowType, RenderFlowStrategy<?, ?>> strategies = new HashMap<>();
     private volatile boolean frozen = false;
     private boolean initialized = false;
 
@@ -58,12 +58,12 @@ public class RenderFlowRegistry {
         freeze();
     }
 
-    private void registerInternal(RenderFlowStrategy strategy) {
+    private void registerInternal(RenderFlowStrategy<?, ?> strategy) {
         Objects.requireNonNull(strategy, "Strategy cannot be null");
         Objects.requireNonNull(strategy.getFlowType(), "Strategy flow type cannot be null");
 
         RenderFlowType flowType = strategy.getFlowType();
-        RenderFlowStrategy existing = strategies.get(flowType);
+        RenderFlowStrategy<?, ?> existing = strategies.get(flowType);
 
         if (existing != null) {
             throw new IllegalArgumentException("Flow type " + flowType + " is already registered");
@@ -101,7 +101,7 @@ public class RenderFlowRegistry {
      * @param flowType The flow type to find a strategy for
      * @return Optional containing the strategy, or empty if not found
      */
-    public Optional<RenderFlowStrategy> getStrategy(RenderFlowType flowType) {
+    public Optional<RenderFlowStrategy<?, ?>> getStrategy(RenderFlowType flowType) {
         return Optional.ofNullable(strategies.get(flowType));
     }
 
@@ -110,7 +110,7 @@ public class RenderFlowRegistry {
      *
      * @return Unmodifiable collection of all strategies
      */
-    public Collection<RenderFlowStrategy> getAllStrategies() {
+    public Collection<RenderFlowStrategy<?, ?>> getAllStrategies() {
         return Collections.unmodifiableCollection(strategies.values());
     }
 

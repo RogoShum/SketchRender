@@ -1,24 +1,44 @@
 package rogo.sketch.core.shader.uniform;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class UniformValueSnapshot {
+    private static final UniformValueSnapshot EMPTY = new UniformValueSnapshot(Map.of());
     private final Map<String, Object> uniformValues;
     private final int hashCode;
 
     public UniformValueSnapshot(Map<String, Object> uniformValues) {
-        this.uniformValues = new HashMap<>(uniformValues);
+        this.uniformValues = uniformValues;
         this.hashCode = Objects.hash(this.uniformValues);
     }
 
     public static UniformValueSnapshot empty() {
-        return new UniformValueSnapshot(Map.of());
+        return EMPTY;
     }
 
+    /**
+     * Capture uniform values from a hook group for the given instance.
+     */
     public static UniformValueSnapshot captureFrom(UniformHookGroup hookGroup, Object instance) {
         Map<String, Object> values = hookGroup.getUniformsDirect(instance);
+        return new UniformValueSnapshot(values);
+    }
+
+    /**
+     * Capture uniform values using pre-cached matching hooks for better performance.
+     * If cachedHooks is null, falls back to the standard capture method.
+     */
+    public static UniformValueSnapshot captureFrom(UniformHookGroup hookGroup, Object instance, List<UniformHook<?>> cachedHooks) {
+        if (cachedHooks == null) {
+            return captureFrom(hookGroup, instance);
+        } else if (cachedHooks.isEmpty()) {
+            return UniformValueSnapshot.empty();
+        }
+
+        Map<String, Object> values = hookGroup.getUniformsDirectWithCachedHooks(instance, cachedHooks);
         return new UniformValueSnapshot(values);
     }
 

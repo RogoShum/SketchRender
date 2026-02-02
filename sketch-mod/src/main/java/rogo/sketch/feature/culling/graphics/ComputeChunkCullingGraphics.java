@@ -16,7 +16,8 @@ import static org.lwjgl.opengl.GL42.GL_COMMAND_BARRIER_BIT;
 import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BARRIER_BIT;
 
 public class ComputeChunkCullingGraphics extends ComputeGraphics {
-    private final ResourceReference<PartialRenderSetting> cullingChunkSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "cull_chunk"));
+    private final ResourceReference<PartialRenderSetting> cullingChunkSetting = GraphicsResourceManager.getInstance()
+            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of(SketchRender.MOD_ID, "cull_chunk"));
 
     public ComputeChunkCullingGraphics(KeyId keyId) {
         super(keyId, null, (c, shader) -> {

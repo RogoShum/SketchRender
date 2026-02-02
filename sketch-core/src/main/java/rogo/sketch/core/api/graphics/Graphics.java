@@ -9,17 +9,14 @@ public interface Graphics {
 
     PartialRenderSetting getPartialRenderSetting();
 
-    boolean shouldTick();
-
-    boolean tickable();
-
-    default <C extends RenderContext> void tick(C context) {
-    }
-
     boolean shouldDiscard();
 
     boolean shouldRender();
 
     default <C extends RenderContext> void afterDraw(C context) {
     }
+
+    void clearBatchDirtyFlags();
+
+    boolean isBatchDirty();
 }

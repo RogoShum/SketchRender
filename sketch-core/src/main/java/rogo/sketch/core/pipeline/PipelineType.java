@@ -1,5 +1,6 @@
 package rogo.sketch.core.pipeline;
 
+import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Objects;
@@ -33,6 +34,13 @@ public abstract class PipelineType implements Comparable<PipelineType> {
      * @return Priority value
      */
     public abstract int getPriority();
+    
+    /**
+     * Get the default render flow type for this pipeline type.
+     *
+     * @return The default RenderFlowType
+     */
+    public abstract RenderFlowType getDefaultFlowType();
 
     /**
      * Get the unique identifier for this pipeline type.
@@ -82,6 +90,11 @@ public abstract class PipelineType implements Comparable<PipelineType> {
         public int getPriority() {
             return 100;
         }
+        
+        @Override
+        public RenderFlowType getDefaultFlowType() {
+            return RenderFlowType.COMPUTE;
+        }
     };
 
     /**
@@ -92,6 +105,11 @@ public abstract class PipelineType implements Comparable<PipelineType> {
         @Override
         public int getPriority() {
             return 200;
+        }
+        
+        @Override
+        public RenderFlowType getDefaultFlowType() {
+            return RenderFlowType.FUNCTION;
         }
     };
 
@@ -104,6 +122,11 @@ public abstract class PipelineType implements Comparable<PipelineType> {
         public int getPriority() {
             return 300;
         }
+        
+        @Override
+        public RenderFlowType getDefaultFlowType() {
+            return RenderFlowType.RASTERIZATION;
+        }
     };
 
     /**
@@ -114,6 +137,11 @@ public abstract class PipelineType implements Comparable<PipelineType> {
         @Override
         public int getPriority() {
             return 400;
+        }
+        
+        @Override
+        public RenderFlowType getDefaultFlowType() {
+            return RenderFlowType.RASTERIZATION;
         }
     };
 }

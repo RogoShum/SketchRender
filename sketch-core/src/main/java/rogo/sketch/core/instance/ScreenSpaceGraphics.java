@@ -17,16 +17,6 @@ public class ScreenSpaceGraphics extends MeshGraphics {
     }
 
     @Override
-    public boolean shouldTick() {
-        return false;
-    }
-
-    @Override
-    public boolean tickable() {
-        return false;
-    }
-
-    @Override
     public boolean shouldDiscard() {
         return false;
     }

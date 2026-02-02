@@ -12,6 +12,7 @@ import java.util.Objects;
  * Enhanced with automatic reload support using the generic reloadable system
  */
 public class PartialRenderSetting implements ResourceObject {
+    public static final PartialRenderSetting EMPTY = new PartialRenderSetting(null, null, false);
     protected final FullRenderState renderState;
     protected final ResourceBinding resourceBinding;
     protected final boolean shouldSwitchRenderState;

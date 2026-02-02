@@ -304,8 +304,14 @@ public class SketchRender {
 
     @SubscribeEvent
     public void onLevelTick(TickEvent.LevelTickEvent event) {
-        if (event.phase == TickEvent.Phase.START && event.side == LogicalSide.CLIENT) {
-            PipelineUtil.pipeline().tickAllStages();
+        if (event.side == LogicalSide.CLIENT) {
+            if (event.phase == TickEvent.Phase.START) {
+                PipelineUtil.pipeline().asyncGraphicsTicker().onPreTick();
+                PipelineUtil.pipeline().tickLogic();
+            } else {
+                PipelineUtil.pipeline().tickGraphics();
+                PipelineUtil.pipeline().asyncGraphicsTicker().onPostTick();
+            }
         }
     }
 

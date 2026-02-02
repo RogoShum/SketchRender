@@ -51,7 +51,7 @@ public class McRenderContext extends RenderContext {
         this.setFrustum(new FrustumIntersection(((AccessorFrustum) this.cullingFrustum).frustumMatrix()));
 
         this.renderTick = renderTick;
-        this.partialTicks = partialTicks;
+        setPartialTicks(partialTicks);
         this.windowWidth = Minecraft.getInstance().getWindow().getWidth();
         this.windowHeight = Minecraft.getInstance().getWindow().getHeight();
     }

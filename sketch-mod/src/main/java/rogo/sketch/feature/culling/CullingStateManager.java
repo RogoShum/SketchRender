@@ -22,10 +22,10 @@ import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketch.core.event.GraphicsPipelineStageEvent;
+import rogo.sketch.core.util.KeyId;
 import rogo.sketch.event.ProxyEvent;
 import rogo.sketch.mixin.AccessorLevelRender;
 import rogo.sketch.mixin.AccessorMinecraft;
-import rogo.sketch.core.util.KeyId;
 import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.util.ShaderPackLoader;
 import rogo.sketch.vanilla.McRenderContext;
@@ -48,9 +48,7 @@ public class CullingStateManager {
     public static Vector3i[] DEPTH_BUFFER_INFORMATION = new Vector3i[DEPTH_SIZE];
     public static int DEBUG = 0;
     public static ShaderPackLoader SHADER_LOADER = null;
-    private static boolean[] NEXT_TICK = new boolean[20];
     public static int FPS = 0;
-    private static int CURRENT_TICK = 0;
     public static int CLIENT_TICK_COUNT = 0;
     public static int ENTITY_CULLING = 0;
     public static int ENTITY_COUNT = 0;
@@ -99,7 +97,6 @@ public class CullingStateManager {
     }
 
     public static void cleanup() {
-        CURRENT_TICK = 0;
         CLIENT_TICK_COUNT = 0;
 
         if (ENTITY_CULLING_MASK != null) {
@@ -157,26 +154,19 @@ public class CullingStateManager {
         if (event.getPhase() == GraphicsPipelineStageEvent.Phase.PRE) {
             if (event.getStage() == MinecraftRenderStages.SKY.getIdentifier()) {
                 CAMERA = Minecraft.getInstance().gameRenderer.getMainCamera();
-                int thisTick = CLIENT_TICK_COUNT % 20;
-                NEXT_TICK = new boolean[20];
-
-                if (CURRENT_TICK != thisTick) {
-                    CURRENT_TICK = thisTick;
-                    NEXT_TICK[thisTick] = true;
-                }
 
                 ENTITY_CULLING = 0;
                 ENTITY_COUNT = 0;
                 BLOCK_CULLING = 0;
                 BLOCK_COUNT = 0;
 
-                if (anyNextTick()) {
+                if (event.getPipeline().anyNextTick()) {
                     if (CONTINUE_UPDATE_COUNT > 0) {
                         CONTINUE_UPDATE_COUNT--;
                     }
                 }
 
-                if (isNextLoop()) {
+                if (event.getPipeline().isNextLoop()) {
                     if (CullingStateManager.ENTITY_CULLING_MASK != null) {
                         CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(CLIENT_TICK_COUNT);
                     }
@@ -301,18 +291,6 @@ public class CullingStateManager {
 
     public static boolean enabledShader() {
         return SHADER_LOADER.enabledShader();
-    }
-
-    public static boolean anyNextTick() {
-        for (int i = 0; i < 20; ++i) {
-            if (NEXT_TICK[i])
-                return true;
-        }
-        return false;
-    }
-
-    public static boolean isNextLoop() {
-        return NEXT_TICK[0];
     }
 
     public static boolean anyCulling() {

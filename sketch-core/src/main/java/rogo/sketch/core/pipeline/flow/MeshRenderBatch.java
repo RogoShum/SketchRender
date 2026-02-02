@@ -9,9 +9,12 @@ import java.util.List;
 
 public class MeshRenderBatch extends RenderBatch<RasterizationInstanceInfo> {
     private final BakedTypeMesh mesh;
-
-    public MeshRenderBatch(RenderSetting renderSetting, @NotNull BakedTypeMesh mesh, List<RasterizationInstanceInfo> instances) {
-        super(renderSetting, instances);
+    
+    /**
+     * Create an empty batch for pre-allocation (mutable mode).
+     */
+    public MeshRenderBatch(RenderSetting renderSetting, @NotNull BakedTypeMesh mesh) {
+        super(renderSetting);
         this.mesh = mesh;
     }
 

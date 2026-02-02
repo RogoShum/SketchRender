@@ -15,7 +15,8 @@ public class DrawCallGraphics extends MeshGraphics implements ResourceObject {
 
     public DrawCallGraphics(KeyId keyId, KeyId partialRenderSetting, PreparedMesh mesh) {
         super(keyId);
-        this.partialRenderSetting = (PartialRenderSetting) GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, partialRenderSetting).get();
+        this.partialRenderSetting = (PartialRenderSetting) GraphicsResourceManager.getInstance()
+                .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, partialRenderSetting).get();
         this.mesh = mesh;
     }
 
@@ -32,16 +33,6 @@ public class DrawCallGraphics extends MeshGraphics implements ResourceObject {
     @Override
     public PartialRenderSetting getPartialRenderSetting() {
         return partialRenderSetting;
-    }
-
-    @Override
-    public boolean shouldTick() {
-        return false;
-    }
-
-    @Override
-    public boolean tickable() {
-        return false;
     }
 
     @Override

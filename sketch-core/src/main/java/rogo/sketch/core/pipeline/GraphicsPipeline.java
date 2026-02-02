@@ -6,7 +6,6 @@ import rogo.sketch.core.command.RenderCommandQueue;
 import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
-import rogo.sketch.core.pipeline.async.AsyncRenderManager;
 import rogo.sketch.core.pipeline.data.IndirectBufferData;
 import rogo.sketch.core.pipeline.data.InstancedOffsetData;
 import rogo.sketch.core.pipeline.data.PipelineDataStore;
@@ -18,6 +17,7 @@ import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
 import rogo.sketch.core.pipeline.parmeter.FunctionParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pool.InstancePoolManager;
+import rogo.sketch.core.util.AsyncGraphicsTicker;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.util.OrderedList;
 import rogo.sketch.core.util.RenderTargetUtil;
@@ -31,7 +31,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final Map<KeyId, GraphicsStage> idToStage = new LinkedHashMap<>();
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
-    private final AsyncRenderManager asyncManager = AsyncRenderManager.getInstance();
+    private final AsyncGraphicsTicker asyncGraphicsTicker;
     private final RenderCommandQueue<C> renderCommandQueue;
     private final Map<KeyId, PipelineType> pipelineTypes = new HashMap<>();
     private final Map<PipelineType, VertexResourceManager> resourceManagers = new LinkedHashMap<>();
@@ -40,6 +40,9 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final PipelineConfig config;
     private C currentContext;
     private int currentFrameTick = 0;
+    private int currentLogicTick = 0;
+    private int currentLogicTickInSeconds = 0;
+    private boolean[] nextTick = new boolean[20];
     private boolean initialized = false;
     private boolean initializedStaticGraphics = false;
 
@@ -49,6 +52,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         this.currentContext = defaultContext;
         initPipelineData();
         this.renderCommandQueue = new RenderCommandQueue<>(this);
+        this.asyncGraphicsTicker = new AsyncGraphicsTicker(this);
     }
 
     private void initPipelineData() {
@@ -165,6 +169,14 @@ public class GraphicsPipeline<C extends RenderContext> {
                 dataStore.reset();
             }
 
+            // Prepare all batch groups for new frame (handle dirty instances)
+            for (GraphicsStage stage : stages.getOrderedList()) {
+                GraphicsBatchGroup<C> group = passMap.get(stage);
+                if (group != null) {
+                    group.prepareForFrame();
+                }
+            }
+
             RenderPostProcessors postProcessors = new RenderPostProcessors();
             for (RenderFlowStrategy strategy : RenderFlowRegistry.getInstance().getAllStrategies()) {
                 RenderPostProcessor processor = strategy.createPostProcessor();
@@ -200,16 +212,13 @@ public class GraphicsPipeline<C extends RenderContext> {
         for (GraphicsStage stage : stages.getOrderedList()) {
             GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
             if (batchGroup != null) {
-                Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> stageCommands = batchGroup
-                        .createAllRenderCommands(currentContext, postProcessors);
+                Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> stageCommands = batchGroup.createAllRenderCommands(currentContext, postProcessors);
 
                 // Merge into allCommands by pipeline type
-                for (Map.Entry<PipelineType, Map<RenderSetting, List<RenderCommand>>> pipelineEntry : stageCommands
-                        .entrySet()) {
+                for (Map.Entry<PipelineType, Map<RenderSetting, List<RenderCommand>>> pipelineEntry : stageCommands.entrySet()) {
                     PipelineType pipelineType = pipelineEntry.getKey();
                     Map<RenderSetting, List<RenderCommand>> commands = pipelineEntry.getValue();
-                    Map<RenderSetting, List<RenderCommand>> pipelineCommands = allCommands.computeIfAbsent(pipelineType,
-                            k -> new LinkedHashMap<>());
+                    Map<RenderSetting, List<RenderCommand>> pipelineCommands = allCommands.computeIfAbsent(pipelineType, k -> new LinkedHashMap<>());
 
                     for (Map.Entry<RenderSetting, List<RenderCommand>> entry : commands.entrySet()) {
                         pipelineCommands.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
@@ -331,16 +340,49 @@ public class GraphicsPipeline<C extends RenderContext> {
         addGraphInstance(stageId, instance, renderParameter);
     }
 
+    public void tickLogic() {
+        this.currentLogicTick++;
+        int thisTick = this.currentLogicTick % 20;
+        this.nextTick = new boolean[20];
+
+        if (this.currentLogicTickInSeconds != thisTick) {
+            this.currentLogicTickInSeconds = thisTick;
+            this.nextTick[thisTick] = true;
+        }
+    }
+
     /**
      * Tick all stages with async support
      */
-    public void tickAllStages() {
+    public void tickGraphics() {
         for (GraphicsStage stage : stages.getOrderedList()) {
             GraphicsBatchGroup<C> group = passMap.get(stage);
             if (group != null) {
                 group.tick(currentContext);
             }
         }
+    }
+
+    public void asyncTickGraphics() {
+        for (GraphicsStage stage : stages.getOrderedList()) {
+            GraphicsBatchGroup<C> group = passMap.get(stage);
+            if (group != null) {
+                group.asyncTick(currentContext);
+            }
+        }
+    }
+
+    public void swapGraphicsData() {
+        for (GraphicsStage stage : stages.getOrderedList()) {
+            GraphicsBatchGroup<C> group = passMap.get(stage);
+            if (group != null) {
+                group.swapData();
+            }
+        }
+    }
+
+    public AsyncGraphicsTicker asyncGraphicsTicker() {
+        return asyncGraphicsTicker;
     }
 
     /**
@@ -359,11 +401,16 @@ public class GraphicsPipeline<C extends RenderContext> {
         return poolManager;
     }
 
-    /**
-     * Get the async render manager
-     */
-    public AsyncRenderManager asyncManager() {
-        return asyncManager;
+    public boolean anyNextTick() {
+        for (int i = 0; i < 20; ++i) {
+            if (nextTick[i])
+                return true;
+        }
+        return false;
+    }
+
+    public boolean isNextLoop() {
+        return nextTick[0];
     }
 
     /**

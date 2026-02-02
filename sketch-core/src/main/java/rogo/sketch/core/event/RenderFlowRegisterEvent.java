@@ -26,9 +26,9 @@ import java.util.function.Consumer;
  * </p>
  */
 public class RenderFlowRegisterEvent implements RegistryEvent {
-    private final Consumer<RenderFlowStrategy> registrar;
+    private final Consumer<RenderFlowStrategy<?, ?>> registrar;
 
-    public RenderFlowRegisterEvent(Consumer<RenderFlowStrategy> registrar) {
+    public RenderFlowRegisterEvent(Consumer<RenderFlowStrategy<?, ?>> registrar) {
         this.registrar = registrar;
     }
 
@@ -38,7 +38,7 @@ public class RenderFlowRegisterEvent implements RegistryEvent {
      * @param strategy The strategy to register
      * @throws IllegalStateException if called after the event has completed
      */
-    public void register(RenderFlowStrategy strategy) {
+    public void register(RenderFlowStrategy<?, ?> strategy) {
         registrar.accept(strategy);
     }
 }

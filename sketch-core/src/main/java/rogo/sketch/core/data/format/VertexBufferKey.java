@@ -2,20 +2,15 @@ package rogo.sketch.core.data.format;
 
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 
-import java.util.Arrays;
 import java.util.Objects;
 
 public class VertexBufferKey {
     private final RasterizationParameter renderParameter;
-    private final ComponentSpec[] components;
     private final long sourceResourceID;
-    private final boolean hasInstancing;
 
-    private VertexBufferKey(RasterizationParameter staticParam, ComponentSpec[] components, long sourceResourceID) {
-        this.renderParameter = staticParam;
-        this.components = components;
+    private VertexBufferKey(RasterizationParameter rp, long sourceResourceID) {
+        this.renderParameter = rp;
         this.sourceResourceID = sourceResourceID;
-        this.hasInstancing = Arrays.stream(components).anyMatch(ComponentSpec::isInstanced);
     }
 
     /**
@@ -31,8 +26,7 @@ public class VertexBufferKey {
      * Used for BakedMeshes where the static VBOs come from a specific source.
      */
     public static VertexBufferKey fromParameter(RasterizationParameter param, long sourceResourceID) {
-        VertexLayoutSpec layout = param.getLayout();
-        return new VertexBufferKey(param, layout.getComponents(), sourceResourceID);
+        return new VertexBufferKey(param, sourceResourceID);
     }
 
     // ===== Getters =====
@@ -42,7 +36,15 @@ public class VertexBufferKey {
     }
 
     public ComponentSpec[] components() {
-        return components;
+        return renderParameter.getLayout().getComponents();
+    }
+
+    public ComponentSpec[] dynamicComponents() {
+        return renderParameter.getLayout().getDynamicSpecs();
+    }
+
+    public ComponentSpec[] staticComponents() {
+        return renderParameter.getLayout().getStaticSpecs();
     }
 
     public long sourceResourceID() {
@@ -53,7 +55,7 @@ public class VertexBufferKey {
      * Check if this key has instance components (any instanced component).
      */
     public boolean hasInstancing() {
-        return hasInstancing;
+        return renderParameter.getLayout().hasInstancing();
     }
 
     // ===== equals & hashCode =====
@@ -66,14 +68,12 @@ public class VertexBufferKey {
             return false;
         VertexBufferKey that = (VertexBufferKey) o;
         return sourceResourceID == that.sourceResourceID &&
-                Objects.equals(renderParameter, that.renderParameter) &&
-                hasInstancing == that.hasInstancing &&
-                Arrays.equals(components, that.components);
+                Objects.equals(renderParameter, that.renderParameter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(renderParameter, hasInstancing, Arrays.hashCode(components), sourceResourceID);
+        return Objects.hash(renderParameter, sourceResourceID);
     }
 
     @Override
@@ -81,8 +81,6 @@ public class VertexBufferKey {
         return "VertexBufferKey{" +
                 "renderParameter=" + renderParameter +
                 ", sourceID=" + sourceResourceID +
-                ", components=" + Arrays.toString(components) +
-                ", hasInstancing=" + hasInstancing +
                 '}';
     }
 }
