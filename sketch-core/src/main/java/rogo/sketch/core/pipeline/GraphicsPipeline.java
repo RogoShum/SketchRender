@@ -282,7 +282,6 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void resetRenderContext(C context) {
         this.currentContext = context;
-        this.currentFrameTick++;
         this.resizeRenderTargets(context.windowWidth, context.windowHeight);
     }
 
@@ -340,8 +339,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         addGraphInstance(stageId, instance, renderParameter);
     }
 
-    public void tickLogic() {
-        this.currentLogicTick++;
+    public void tickFrame() {
+        this.currentFrameTick++;
         int thisTick = this.currentLogicTick % 20;
         this.nextTick = new boolean[20];
 
@@ -349,6 +348,10 @@ public class GraphicsPipeline<C extends RenderContext> {
             this.currentLogicTickInSeconds = thisTick;
             this.nextTick[thisTick] = true;
         }
+    }
+
+    public void tickLogic() {
+        this.currentLogicTick++;
     }
 
     /**
@@ -396,6 +399,7 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void cleanup() {
         currentLogicTick = 0;
+        currentFrameTick = 0;
     }
 
     /**

@@ -20,6 +20,7 @@ import rogo.sketch.core.pipeline.PipelineConfig;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.McRenderContext;
 import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.vanilla.PipelineUtil;
 
 import javax.annotation.Nullable;
 
@@ -52,6 +53,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
         }
 
         McRenderContext context = new McRenderContext((LevelRenderer) (Object) this, modelViewMatrix, projectionMatrix, camera, frustum, this.ticks, partialTicks);
+        sketchlib$graphPipeline.tickFrame();
         context.setRenderStateManager(sketchlib$graphPipeline.renderStateManager());
         context.setNextTick(sketchlib$graphPipeline.anyNextTick());
         sketchlib$graphPipeline.resetRenderContext(context);
