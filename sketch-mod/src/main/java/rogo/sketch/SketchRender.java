@@ -41,30 +41,30 @@ import org.joml.primitives.AABBf;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketch.compat.sodium.MeshResource;
-import rogo.sketch.core.util.TimerUtil;
-import rogo.sketch.event.ForgeEventBusImplementation;
+import rogo.sketch.core.api.graphics.AABBGraphics;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RenderFlowRegisterEvent;
 import rogo.sketch.core.event.UniformHookRegisterEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
-import rogo.sketch.feature.culling.CullingRenderEvent;
-import rogo.sketch.feature.culling.CullingStages;
-import rogo.sketch.feature.culling.CullingStateManager;
-import rogo.sketch.core.api.graphics.AABBGraphics;
-import rogo.sketch.gui.ConfigScreen;
-import rogo.sketch.core.driver.GraphicsDriver;
-import rogo.sketch.vanilla.PipelineUtil;
-import rogo.sketch.vanilla.driver.MinecraftAPI;
 import rogo.sketch.core.pipeline.flow.RenderFlowRegistry;
 import rogo.sketch.core.shader.uniform.UniformHookRegistry;
 import rogo.sketch.core.state.DefaultRenderStates;
 import rogo.sketch.core.util.CommandCallTimer;
 import rogo.sketch.core.util.GLFeatureChecker;
-import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.core.util.RenderCallTimer;
+import rogo.sketch.core.util.TimerUtil;
+import rogo.sketch.event.ForgeEventBusImplementation;
+import rogo.sketch.feature.culling.CullingRenderEvent;
+import rogo.sketch.feature.culling.CullingStages;
+import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.gui.ConfigScreen;
+import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.vanilla.McPipelineRegister;
 import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.vanilla.PipelineUtil;
 import rogo.sketch.vanilla.ShaderManager;
+import rogo.sketch.vanilla.driver.MinecraftAPI;
 import rogo.sketch.vanilla.event.VanillaPipelineEventHandler;
 import rogo.sketch.vanilla.resource.RenderResourceManager;
 
@@ -188,7 +188,6 @@ public class SketchRender {
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
             if (Minecraft.getInstance().player != null && Minecraft.getInstance().level != null) {
-                CLIENT_TICK_COUNT++;
                 if (OcclusionCullerThread.INSTANCE == null || !OcclusionCullerThread.INSTANCE.isAlive()) {
                     OcclusionCullerThread occlusionCullerThread = new OcclusionCullerThread();
                     OcclusionCullerThread.INSTANCE = occlusionCullerThread;

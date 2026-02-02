@@ -30,6 +30,7 @@ import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.util.ShaderPackLoader;
 import rogo.sketch.vanilla.McRenderContext;
 import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.vanilla.PipelineUtil;
 import rogo.sketch.vanilla.VanillaShaderPackLoader;
 
 import java.util.HashMap;
@@ -49,7 +50,6 @@ public class CullingStateManager {
     public static int DEBUG = 0;
     public static ShaderPackLoader SHADER_LOADER = null;
     public static int FPS = 0;
-    public static int CLIENT_TICK_COUNT = 0;
     public static int ENTITY_CULLING = 0;
     public static int ENTITY_COUNT = 0;
     public static int BLOCK_CULLING = 0;
@@ -97,7 +97,7 @@ public class CullingStateManager {
     }
 
     public static void cleanup() {
-        CLIENT_TICK_COUNT = 0;
+        PipelineUtil.pipeline().cleanup();
 
         if (ENTITY_CULLING_MASK != null) {
             ENTITY_CULLING_MASK.cleanup();
@@ -168,7 +168,7 @@ public class CullingStateManager {
 
                 if (event.getPipeline().isNextLoop()) {
                     if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                        CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(CLIENT_TICK_COUNT);
+                        CullingStateManager.ENTITY_CULLING_MASK.swapBuffer(event.getPipeline().currentLogicTick());
                     }
 
                     MeshResource.LAST_QUEUE_UPDATE_COUNT = MeshResource.QUEUE_UPDATE_COUNT;

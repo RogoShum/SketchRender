@@ -394,6 +394,10 @@ public class GraphicsPipeline<C extends RenderContext> {
         }
     }
 
+    public void cleanup() {
+        currentLogicTick = 0;
+    }
+
     /**
      * Get the instance pool manager
      */
@@ -411,6 +415,10 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public boolean isNextLoop() {
         return nextTick[0];
+    }
+
+    public int currentLogicTick() {
+        return currentLogicTick;
     }
 
     /**

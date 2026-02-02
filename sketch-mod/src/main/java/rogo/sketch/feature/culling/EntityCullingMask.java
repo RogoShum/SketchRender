@@ -12,6 +12,7 @@ import rogo.sketch.core.resource.buffer.PersistentReadSSBO;
 import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.core.util.IndexPool;
 import rogo.sketch.core.util.LifeTimer;
+import rogo.sketch.vanilla.PipelineUtil;
 
 import java.util.Set;
 
@@ -44,7 +45,7 @@ public class EntityCullingMask {
         int idx = getEntityMap().getIndex(o);
 
         if (getEntityMap().objectTimer.contains(o)) {
-            getEntityMap().add(o, CullingStateManager.CLIENT_TICK_COUNT);
+            getEntityMap().add(o, PipelineUtil.pipeline().currentLogicTick());
         }
 
         if (idx > -1 && idx < cullingResultSSBO.getDataCount()) {
@@ -61,7 +62,7 @@ public class EntityCullingMask {
 
             return false;
         } else {
-            getEntityMap().add(o, CullingStateManager.CLIENT_TICK_COUNT);
+            getEntityMap().add(o, PipelineUtil.pipeline().currentLogicTick());
         }
 
         return true;
