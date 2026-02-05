@@ -34,8 +34,9 @@ public class UniformHookGroup {
         return uniforms.get(uniformName);
     }
 
-    public ShaderResource<?> getUniform(final String uniformName) {
-        return uniforms.get(uniformName).uniform();
+    @SuppressWarnings("unchecked")
+    public <T> ShaderResource<T> getUniform(final String uniformName) {
+        return (ShaderResource<T>) uniforms.get(uniformName).uniform();
     }
 
     public void updateUniforms(Object c) {
@@ -78,12 +79,12 @@ public class UniformHookGroup {
 
         return values;
     }
-    
+
     /**
      * Get uniform values using pre-cached matching hooks.
      * This avoids the overhead of repeatedly computing matching hooks for the same class.
-     * 
-     * @param c The object to get values from
+     *
+     * @param c                   The object to get values from
      * @param cachedMatchingHooks Pre-computed matching hooks (from getAllMatchingHooks)
      * @return Map of uniform name to value
      */
@@ -116,18 +117,18 @@ public class UniformHookGroup {
 
         return values;
     }
-    
+
     /**
      * Get all matching hooks for a given object class.
      * Use this to pre-compute the hooks for a class and pass to getUniformsDirectWithCachedHooks.
-     * 
+     *
      * @param objectClass The class to get matching hooks for
      * @return List of matching uniform hooks
      */
     public List<UniformHook<?>> getAllMatchingHooks(Class<?> objectClass) {
         return getMatchingHooks(objectClass);
     }
-    
+
     /**
      * Get the universal hooks list for caching purposes.
      */

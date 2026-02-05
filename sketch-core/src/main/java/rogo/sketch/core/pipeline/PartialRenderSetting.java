@@ -38,11 +38,6 @@ public class PartialRenderSetting implements ResourceObject {
     }
 
     @Override
-    public int getHandle() {
-        return hashCode();
-    }
-
-    @Override
     public void dispose() {
         disposed = true;
     }

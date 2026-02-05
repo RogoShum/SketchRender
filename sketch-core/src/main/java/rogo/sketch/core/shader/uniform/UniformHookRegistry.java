@@ -12,6 +12,7 @@ import java.util.Map;
 public class UniformHookRegistry {
     private static final UniformHookRegistry INSTANCE = new UniformHookRegistry();
     private final Map<KeyId, ValueGetter<?>> pendingHooks = new HashMap<>();
+    private final ValueGetter<?> EMPTY_GETTER = ValueGetter.create(() -> null, Float.class);
 
     private UniformHookRegistry() {
     }
@@ -33,6 +34,9 @@ public class UniformHookRegistry {
             KeyId keyId = KeyId.of(uniformName);
             if (pendingHooks.containsKey(keyId)) {
                 UniformHook<?> uniformHook = new UniformHook<>(keyId, uniform, (ValueGetter<T>) pendingHooks.get(keyId));
+                provider.getUniformHookGroup().addUniform(uniformName, uniformHook);
+            } else {
+                UniformHook<?> uniformHook = new UniformHook<>(keyId, uniform, (ValueGetter<T>) EMPTY_GETTER);
                 provider.getUniformHookGroup().addUniform(uniformName, uniformHook);
             }
         }

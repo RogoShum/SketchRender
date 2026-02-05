@@ -20,10 +20,8 @@ import rogo.sketch.core.api.model.DynamicTypeMesh;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.Usage;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
-import rogo.sketch.core.event.GraphicsPipelineInitEvent;
-import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
-import rogo.sketch.core.event.RenderFlowRegisterEvent;
-import rogo.sketch.core.event.UniformHookRegisterEvent;
+import rogo.sketch.core.event.*;
+import rogo.sketch.core.instance.TransformComputeGraphics;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
@@ -49,7 +47,9 @@ import rogo.sketch.mixin.AccessorFrustum;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.McRenderContext;
 import rogo.sketch.vanilla.MinecraftRenderStages;
+import rogo.sketch.vanilla.PipelineUtil;
 import rogo.sketch.vanilla.graphics.CubeTestGraphics;
+import rogo.sketch.vanilla.graphics.PlayerGraphics;
 import rogo.sketch.vanilla.resource.BuildInRTTexture;
 import rogo.sketch.vanilla.resource.BuildInRenderTarget;
 import rogo.sketch.vanilla.resource.loader.VanillaTextureLoader;
@@ -151,6 +151,57 @@ public class VanillaPipelineEventHandler {
                 () -> {
                     if (MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER != null) {
                         return Optional.of(MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER);
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        // Transform System SSBOs
+        GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
+                KeyId.of(SketchRender.MOD_ID, "transform_input_async"),
+                () -> {
+                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
+                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getAsyncPipeline().inputSSBO());
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
+                KeyId.of(SketchRender.MOD_ID, "transform_index_async"),
+                () -> {
+                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
+                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getAsyncPipeline().indexSSBO());
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
+                KeyId.of(SketchRender.MOD_ID, "transform_input_sync"),
+                () -> {
+                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
+                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getSyncPipeline().inputSSBO());
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
+                KeyId.of(SketchRender.MOD_ID, "transform_index_sync"),
+                () -> {
+                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
+                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getSyncPipeline().indexSSBO());
+                    } else {
+                        return Optional.empty();
+                    }
+                });
+
+        GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
+                KeyId.of(SketchRender.MOD_ID, "transform_output"),
+                () -> {
+                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
+                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getOutputSSBO());
                     } else {
                         return Optional.empty();
                     }
@@ -368,6 +419,23 @@ public class VanillaPipelineEventHandler {
             }
             return new Vector3f(0, 0, 0);
         }, Vector3f.class));
+
+        // Transform system uniforms
+        uniformEvent.register(KeyId.of("u_transformCount"), ValueGetter.create((instance) -> {
+            RenderContext context = (RenderContext) instance;
+            if (context.transformStateManager() != null && context.transformStateManager().matrixManager != null) {
+                return context.transformStateManager().matrixManager.getActiveCount();
+            }
+            return 0;
+        }, Integer.class, RenderContext.class));
+
+        uniformEvent.register(KeyId.of("u_batchOffset"), ValueGetter.create(() -> {
+            return 0;
+        }, Integer.class));
+
+        uniformEvent.register(KeyId.of("u_batchCount"), ValueGetter.create(() -> {
+            return 0;
+        }, Integer.class));
     }
 
     public static void onPipelineInit(ProxyModEvent<GraphicsPipelineInitEvent> event) {
@@ -378,6 +446,11 @@ public class VanillaPipelineEventHandler {
 
         switch (pipeLineInitEvent.getPhase()) {
             case EARLY -> {
+                // Set async tick callback for transform data writing
+                mcPipeline.asyncGraphicsTicker().setAsyncTickCompleteCallback(
+                        mcPipeline.transformStateManager()::onAsyncTickComplete
+                );
+
                 // Register vanilla stages first
                 MinecraftRenderStages.registerVanillaStages(mcPipeline);
             }
@@ -401,12 +474,14 @@ public class VanillaPipelineEventHandler {
     public void onStaticGraphicsRegister(ProxyEvent<RegisterStaticGraphicsEvent> event) {
         RegisterStaticGraphicsEvent registerEvent = event.getWrapped();
 
-        registerReloadableComputeShader(registerEvent,
+        registerDepthBufferGraphics(registerEvent,
                 () -> new ComputeHIZGraphics(KeyId.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_first"), true).setPriority(98));
-        registerReloadableComputeShader(registerEvent,
+        registerDepthBufferGraphics(registerEvent,
                 () -> new ComputeHIZGraphics(KeyId.of(SketchRender.MOD_ID, "hierarchy_depth_buffer_second"), false).setPriority(99));
-        registerReloadableComputeShader(registerEvent,
+        registerDepthBufferGraphics(registerEvent,
                 () -> new ComputeEntityCullingGraphics(KeyId.of(SketchRender.MOD_ID, "cull_entity_batch")).setPriority(101));
+        registerTransformGraphics(registerEvent, true);
+        registerTransformGraphics(registerEvent, false);
 
         RenderSystem.recordRenderCall(() -> {
             registerNewPipelineCullingGraphics(registerEvent);
@@ -443,8 +518,8 @@ public class VanillaPipelineEventHandler {
 
         if (!FMLEnvironment.production) {
             Random random = new Random();
-            KeyId cubeTest = KeyId.of(SketchRender.MOD_ID, "cube_test");
-            KeyId cubeTest1 = KeyId.of(SketchRender.MOD_ID, "cube_test_1");
+            // Use transform-based cube test
+            KeyId cubeTestTransform = KeyId.of(SketchRender.MOD_ID, "cube_test_transform");
 
             KeyId cube_geometry = KeyId.of("cube_geometry");
             KeyId sphere_geometry = KeyId.of("sphere_geometry");
@@ -455,8 +530,10 @@ public class VanillaPipelineEventHandler {
             stages.add(MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier());
             stages.add(MinecraftRenderStages.PARTICLE.getIdentifier());
             stages.add(MinecraftRenderStages.WEATHER.getIdentifier());
+            // Register PlayerGraphics first (provides parent transform for cubes)
+            PlayerGraphics playerGraphics = registerPlayerGraphics(registerEvent);
+
             for (int i = 0; i < 5; i++) {
-                boolean attachHead = random.nextBoolean();
                 KeyId randStage = stages.get(random.nextInt(stages.size()));
                 boolean translucent = random.nextBoolean();
 
@@ -470,11 +547,27 @@ public class VanillaPipelineEventHandler {
                         0.5f + random.nextFloat() * 0.5f,
                         0.5f + random.nextFloat() * 0.5f);
 
-                registerTestCube(registerEvent, attachHead, translucent ? cubeTest1 : cubeTest,
+                registerTestCube(registerEvent, cubeTestTransform,
                         random.nextBoolean() ? cube_geometry : sphere_geometry,
-                        offset, scale, new Vector3f(0), randStage, translucent);
+                        offset, scale, new Vector3f(0), randStage, translucent, playerGraphics);
             }
         }
+    }
+
+    /**
+     * Register the PlayerGraphics instance that provides the player transform.
+     */
+    private static PlayerGraphics registerPlayerGraphics(RegisterStaticGraphicsEvent registerEvent) {
+        PlayerGraphics playerGraphics = new PlayerGraphics(KeyId.of(SketchRender.MOD_ID, "player_transform"));
+
+        // Register with a simple layout (no actual rendering)
+        VertexLayoutSpec layout = VertexLayoutSpec.builder().build();
+        RenderParameter renderParameter = RasterizationParameter.create(layout, PrimitiveType.QUADS, Usage.STATIC_DRAW, false);
+
+        // Register in the ENTITIES stage so it ticks with entities
+        registerEvent.register(MinecraftRenderStages.ENTITIES.getIdentifier(), playerGraphics, renderParameter);
+
+        return playerGraphics;
     }
 
     private static float randomOffset(Random random) {
@@ -495,19 +588,26 @@ public class VanillaPipelineEventHandler {
         registerEvent.register(MinecraftRenderStages.POST_PROGRESS.getIdentifier(), instance, renderParameter);
     }
 
-    private static void registerTestCube(RegisterStaticGraphicsEvent registerEvent, boolean attachHead,
+    private static void registerTestCube(RegisterStaticGraphicsEvent registerEvent,
                                          KeyId renderSettingKey, KeyId meshName, Vector3f offset, Vector3f scale, Vector3f rotation, KeyId stage,
-                                         boolean translucent) {
+                                         boolean translucent, PlayerGraphics playerGraphics) {
         ResourceReference<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
                 .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, renderSettingKey);
-        Graphics cubeTestGraphics = new CubeTestGraphics(
-                KeyId.of(SketchRender.MOD_ID, "cube_test_" + UUID.randomUUID()), renderSetting, attachHead, meshName,
+
+        // Create cube with Transform system
+        CubeTestGraphics cubeTestGraphics = new CubeTestGraphics(
+                KeyId.of(SketchRender.MOD_ID, "cube_test_" + UUID.randomUUID()), renderSetting, meshName,
                 offset, scale, rotation);
 
+        // Set player transform as parent (if available)
+        if (playerGraphics != null) {
+            cubeTestGraphics.setParentTransform(playerGraphics.getPlayerTransform());
+        }
+
+        // Vertex layout now uses transform ID instead of raw position lerp
         VertexLayoutSpec layout = VertexLayoutSpec.builder()
                 .addStatic(BakedTypeMesh.BAKED_MESH, DefaultDataFormats.POSITION_UV_NORMAL)
-                .addDynamicInstanced(CubeTestGraphics.ENTITY_POS, DefaultDataFormats.POSITION_LERP)
-                .addDynamicInstanced(CubeTestGraphics.ENTITY_TRANSFORM, DefaultDataFormats.TRANSFORM)
+                .addDynamicInstanced(CubeTestGraphics.TRANSFORM_ID, DefaultDataFormats.INT)
                 .build();
 
         RenderParameter renderParameter = RasterizationParameter.create(layout, PrimitiveType.QUADS, Usage.DYNAMIC_DRAW,
@@ -516,7 +616,12 @@ public class VanillaPipelineEventHandler {
                 cubeTestGraphics, renderParameter, translucent ? PipelineType.TRANSLUCENT : PipelineType.RASTERIZATION);
     }
 
-    private static void registerReloadableComputeShader(RegisterStaticGraphicsEvent registerEvent, Supplier<Graphics> instanceSupplier) {
+    private static void registerDepthBufferGraphics(RegisterStaticGraphicsEvent registerEvent, Supplier<Graphics> instanceSupplier) {
         registerEvent.registerCompute(CullingStages.HIZ, instanceSupplier.get());
+    }
+
+    private static void registerTransformGraphics(RegisterStaticGraphicsEvent registerEvent, boolean sync) {
+        Graphics graphics = new TransformComputeGraphics(KeyId.of("sketch_render", "transform_matrix_compute_" + (sync ? "sync" : "async")), KeyId.of("sketch_render", "transform_matrix_" + (sync ? "sync" : "async")), sync, PipelineUtil.pipeline().transformStateManager().matrixManager).setPriority(99);
+        registerEvent.registerCompute(MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(), graphics);
     }
 }

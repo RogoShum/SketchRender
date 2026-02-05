@@ -1,0 +1,218 @@
+#version 430
+
+/**
+ * Transform Matrix Compute Shader
+ * 
+ * Calculates world matrices from transform input data.
+ * Supports:
+ * - Position/Rotation/Scale interpolation using partialTicks
+ * - Pivot-based rotation
+ * - Hierarchical parent-child transforms
+ * 
+ * Rotation uses Euler angles with ZYX convention (Roll-Yaw-Pitch).
+ * 
+ * Memory Layout (std430):
+ * Input SSBO: InstanceData[N] - 128 bytes per instance
+ * Output SSBO: mat4[N] - 64 bytes per instance
+ */
+
+// ==================== Struct Definitions ====================
+
+/**
+ * Input transform data (128 bytes, std430 aligned)
+ * 
+ * Byte Offsets:
+ * 0-15:   prevPos (vec4, w = padding)
+ * 16-31:  prevRot (vec4, xyz = euler angles pitch/yaw/roll, w = padding)
+ * 32-47:  prevScale (vec4, w = padding)
+ * 48-63:  currPos (vec4, w = padding)
+ * 64-79:  currRot (vec4, xyz = euler angles pitch/yaw/roll, w = padding)
+ * 80-95:  currScale (vec4, w = padding)
+ * 96-111: pivot (vec4, w = flags)
+ * 112-115: parentID (int, -1 if root)
+ * 116-127: padding (int[3])
+ */
+struct InstanceData {
+    vec4 prevPos;      // 0-15
+    vec4 prevRot;      // 16-31 (euler angles: pitch, yaw, roll in xyz)
+    vec4 prevScale;    // 32-47
+    vec4 currPos;      // 48-63
+    vec4 currRot;      // 64-79 (euler angles: pitch, yaw, roll in xyz)
+    vec4 currScale;    // 80-95
+    vec4 pivot;        // 96-111 (w = flags)
+    int parentID;      // 112-115
+    int padding[3];    // 116-127
+};
+
+// ==================== SSBOs ====================
+
+layout(std430, binding = 0) readonly buffer InputBuffer {
+    InstanceData instances[];
+};
+
+// Note: NOT writeonly - we need to read parent matrices for hierarchy
+layout(std430, binding = 1) buffer OutputBuffer {
+    mat4 worldMatrices[];
+};
+
+layout(std430, binding = 2) readonly buffer IndexBuffer {
+    int batchIndices[];
+};
+
+// ==================== Uniforms ====================
+
+uniform float partialTicks;
+uniform int u_batchOffset;
+uniform int u_batchCount;
+
+// ==================== Work Group ====================
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+// ==================== Rotation Functions ====================
+
+/**
+ * Create rotation matrix around X axis (pitch)
+ */
+mat4 rotateX(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, c,   s,   0.0,
+        0.0, -s,  c,   0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+/**
+ * Create rotation matrix around Y axis (yaw)
+ */
+mat4 rotateY(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat4(
+        c,   0.0, -s,  0.0,
+        0.0, 1.0, 0.0, 0.0,
+        s,   0.0, c,   0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+/**
+ * Create rotation matrix around Z axis (roll)
+ */
+mat4 rotateZ(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat4(
+        c,   s,   0.0, 0.0,
+        -s,  c,   0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+/**
+ * Create rotation matrix from Euler angles using ZYX convention.
+ * 
+ * @param pitch Rotation around X axis (radians)
+ * @param yaw Rotation around Y axis (radians)
+ * @param roll Rotation around Z axis (radians)
+ */
+mat4 rotateZYX(float pitch, float yaw, float roll) {
+    // ZYX order: first Z (roll), then Y (yaw), then X (pitch)
+    return rotateX(pitch) * rotateY(yaw) * rotateZ(roll);
+}
+
+// ==================== Matrix Functions ====================
+
+/**
+ * Create translation matrix
+ */
+mat4 translate(vec3 v) {
+    return mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        v.x, v.y, v.z, 1.0
+    );
+}
+
+/**
+ * Create scale matrix
+ */
+mat4 scale(vec3 s) {
+    return mat4(
+        s.x, 0.0, 0.0, 0.0,
+        0.0, s.y, 0.0, 0.0,
+        0.0, 0.0, s.z, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+// ==================== Main ====================
+
+void main() {
+    // 1. 获取当前线程在 Batch 中的索引
+    uint localIndex = gl_GlobalInvocationID.x;
+
+    // 2. 越界检查 (针对当前 Batch)
+    if (localIndex >= u_batchCount) {
+        return;
+    }
+
+    // 3. [关键] 间接查找真实的 Instance ID
+    // 这里的 id 才是 instances[] 和 worldMatrices[] 真正的下标
+    int id = batchIndices[u_batchOffset + localIndex];
+    
+    // Load instance data
+    InstanceData data = instances[id];
+    
+    // Interpolate position
+    vec3 pos = mix(data.prevPos.xyz, data.currPos.xyz, partialTicks);
+    
+    // Interpolate rotation (linear interpolation of euler angles)
+    // This works well for small angle differences and allows multi-rotation interpolation
+    vec3 rot = mix(data.prevRot.xyz, data.currRot.xyz, partialTicks);
+    float pitch = rot.x;
+    float yaw = rot.y;
+    float roll = rot.z;
+    
+    // Interpolate scale
+    vec3 scl = mix(data.prevScale.xyz, data.currScale.xyz, partialTicks);
+    
+    // Get pivot
+    vec3 pivot = data.pivot.xyz;
+    
+    // Build local matrix: T(pos) * T(pivot) * R(ZYX) * T(-pivot) * S(scale)
+    mat4 localMatrix;
+    
+    if (pivot.x == 0.0 && pivot.y == 0.0 && pivot.z == 0.0) {
+        // No pivot - simplified calculation
+        // localMatrix = T(pos) * R(rot) * S(scale)
+        mat4 T = translate(pos);
+        mat4 R = rotateZYX(pitch, yaw, roll);
+        mat4 S = scale(scl);
+        localMatrix = T * R * S;
+    } else {
+        // With pivot
+        // localMatrix = T(pos) * T(pivot) * R(rot) * T(-pivot) * S(scale)
+        mat4 T_pos = translate(pos);
+        mat4 T_pivot = translate(pivot);
+        mat4 R = rotateZYX(pitch, yaw, roll);
+        mat4 T_neg_pivot = translate(-pivot);
+        mat4 S = scale(scl);
+        localMatrix = T_pos * T_pivot * R * T_neg_pivot * S;
+    }
+    
+    // Apply parent transform if exists
+    int parentID = data.parentID;
+    if (parentID >= 0) {
+        mat4 parentWorld = worldMatrices[parentID];
+        localMatrix = parentWorld * localMatrix;
+    }
+    
+    // Write result
+    worldMatrices[id] = localMatrix;
+}

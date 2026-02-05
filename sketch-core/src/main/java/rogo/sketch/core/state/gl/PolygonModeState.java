@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL11;
 import rogo.sketch.core.api.RenderStateComponent;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.util.KeyId;
 
@@ -36,7 +37,7 @@ public class PolygonModeState implements RenderStateComponent {
 
     @Override
     public void apply(RenderContext context) {
-        //GraphicsDriver.getCurrentAPI().polygonMode(face, mode);
+        GraphicsDriver.getCurrentAPI().polygonMode(face, mode);
     }
 
     @Override

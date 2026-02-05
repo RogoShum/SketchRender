@@ -274,6 +274,17 @@ public class UnsafeBatchBuilder implements AutoCloseable, VertexBuilder {
         return this;
     }
 
+    @Override
+    public UnsafeBatchBuilder put(Quaternionfc q) {
+        ensureCapacity(16);
+        MemoryUtil.memPutFloat(currentAddr, q.x());
+        MemoryUtil.memPutFloat(currentAddr + 4, q.y());
+        MemoryUtil.memPutFloat(currentAddr + 8, q.z());
+        MemoryUtil.memPutFloat(currentAddr + 12, q.w());
+        currentAddr += 16;
+        return this;
+    }
+
     // ===== 批量写入 (Bulk Ops) =====
 
     public void putData(long srcAddress, int bytes) {
@@ -739,6 +750,13 @@ public class UnsafeBatchBuilder implements AutoCloseable, VertexBuilder {
 
     public long getWriteOffset() {
         return currentAddr - baseAddress;
+    }
+
+    public void setWriteOffset(long writeOffset) {
+        if (writeOffset < 0) {
+            throw new IllegalArgumentException("Write offset cannot be negative!!!!!");
+        }
+        this.currentAddr = this.baseAddress + writeOffset;
     }
 
     public long getBaseAddress() {

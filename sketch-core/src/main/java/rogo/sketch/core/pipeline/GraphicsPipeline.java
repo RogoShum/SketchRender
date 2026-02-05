@@ -1,5 +1,6 @@
 package rogo.sketch.core.pipeline;
 
+import rogo.sketch.core.RenderHelper;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.command.RenderCommand;
 import rogo.sketch.core.command.RenderCommandQueue;
@@ -13,14 +14,13 @@ import rogo.sketch.core.pipeline.flow.RenderFlowRegistry;
 import rogo.sketch.core.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessor;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
+import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
 import rogo.sketch.core.pipeline.parmeter.FunctionParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pool.InstancePoolManager;
-import rogo.sketch.core.util.AsyncGraphicsTicker;
-import rogo.sketch.core.util.KeyId;
-import rogo.sketch.core.util.OrderedList;
-import rogo.sketch.core.util.RenderTargetUtil;
+import rogo.sketch.core.util.*;
+import rogo.sketch.core.util.transform.TransformStateManager;
 import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.util.*;
@@ -33,6 +33,8 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final AsyncGraphicsTicker asyncGraphicsTicker;
     private final RenderCommandQueue<C> renderCommandQueue;
+    private final TransformStateManager transformStateManager;
+    private final RenderHelper renderHelper;
     private final Map<KeyId, PipelineType> pipelineTypes = new HashMap<>();
     private final Map<PipelineType, VertexResourceManager> resourceManagers = new LinkedHashMap<>();
     private final Map<PipelineType, PipelineDataStore> pipelineDataStores = new LinkedHashMap<>();
@@ -45,6 +47,9 @@ public class GraphicsPipeline<C extends RenderContext> {
     private boolean[] nextTick = new boolean[20];
     private boolean initialized = false;
     private boolean initializedStaticGraphics = false;
+    
+    // Global container listeners (e.g., TransformManager) that track graphics instances
+    private final List<ContainerListener> globalContainerListeners = new ArrayList<>();
 
     public GraphicsPipeline(PipelineConfig config, C defaultContext) {
         this.config = config;
@@ -53,6 +58,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         initPipelineData();
         this.renderCommandQueue = new RenderCommandQueue<>(this);
         this.asyncGraphicsTicker = new AsyncGraphicsTicker(this);
+        this.transformStateManager = new TransformStateManager(this);
+        this.renderHelper = new RenderHelper(this);
     }
 
     private void initPipelineData() {
@@ -78,6 +85,40 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public PipelineConfig getConfig() {
         return config;
+    }
+
+    // ==================== Global Container Listeners ====================
+
+    /**
+     * Register a global container listener that will be notified when graphics instances
+     * are added/removed from any container in any batch.
+     * Used by systems like TransformManager to track TransformableGraphics instances.
+     * 
+     * @param listener The container listener to register
+     */
+    public void registerGlobalContainerListener(ContainerListener listener) {
+        if (!globalContainerListeners.contains(listener)) {
+            globalContainerListeners.add(listener);
+        }
+    }
+
+    /**
+     * Unregister a global container listener.
+     * 
+     * @param listener The container listener to unregister
+     */
+    public void unregisterGlobalContainerListener(ContainerListener listener) {
+        globalContainerListeners.remove(listener);
+    }
+
+    /**
+     * Get the list of global container listeners.
+     * Used by GraphicsBatchGroup to register listeners when creating new batches.
+     * 
+     * @return Unmodifiable list of global container listeners
+     */
+    public List<ContainerListener> getGlobalContainerListeners() {
+        return Collections.unmodifiableList(globalContainerListeners);
     }
 
     /**
@@ -434,6 +475,14 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public RenderStateManager renderStateManager() {
         return renderStateManager;
+    }
+
+    public RenderHelper renderHelper() {
+        return renderHelper;
+    }
+
+    public TransformStateManager transformStateManager() {
+        return transformStateManager;
     }
 
     public C currentContext() {

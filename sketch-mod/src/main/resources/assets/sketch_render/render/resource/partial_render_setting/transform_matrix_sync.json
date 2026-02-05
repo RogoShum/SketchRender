@@ -1,0 +1,15 @@
+{
+  "renderState": {
+    "shader_program": {
+      "identifier": "sketch_render:transform_matrix"
+    }
+  },
+  "resourceBinding": {
+    "shader_storage_buffer": {
+      "InputBuffer": "sketch_render:transform_input_sync",
+      "OutputBuffer": "sketch_render:transform_output",
+      "IndexBuffer": "sketch_render:transform_index_sync"
+    }
+  },
+  "shouldSwitchRenderState": true
+}

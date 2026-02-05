@@ -4,6 +4,7 @@ import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
+import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.resource.GraphicsResourceManager;
@@ -159,9 +160,11 @@ public class StandardFunctionGraphics extends FunctionGraphics {
             GraphicsResourceManager.getInstance()
                     .getResource(ResourceTypes.TEXTURE, textureId)
                     .ifPresent(tex -> {
-                        GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, tex.getHandle());
-                        GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
-                        GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, 0);
+                        if (tex instanceof GpuObject gpuObject) {
+                            GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, gpuObject.getHandle());
+                            GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
+                            GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, 0);
+                        }
                     });
         }
     }

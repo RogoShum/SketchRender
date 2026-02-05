@@ -2,12 +2,16 @@ package rogo.sketch.core.command;
 
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.driver.GraphicsAPI;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.event.GraphicsPipelineStageEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
 import rogo.sketch.core.pipeline.*;
-import rogo.sketch.core.state.FullRenderState;
-import rogo.sketch.core.state.RenderStateSnapshotUtils;
+import rogo.sketch.core.resource.ResourceReference;
+import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.state.gl.ShaderState;
+import rogo.sketch.core.state.snapshot.GLStateSnapshot;
+import rogo.sketch.core.state.snapshot.SnapshotScope;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
@@ -93,14 +97,17 @@ public class RenderCommandQueue<C extends RenderContext> {
         // Get all pipeline types and sort by priority
         List<PipelineType> pipelineTypes = graphicsPipeline.getPipelineTypes();
 
-        FullRenderState snapshot = null;
-        int vao = -1;
-        //todo need check
+        // Create GL state snapshot before executing commands
+        // Only captures states and bindings that will actually be modified
+        GLStateSnapshot snapshot = null;
+        GraphicsAPI api = GraphicsDriver.getCurrentAPI();
         if (commandedStages.contains(stageId)) {
-            snapshot = RenderStateSnapshotUtils.createSnapshot();
-            vao = RenderStateSnapshotUtils.getVAOBinding();
-            manager.changeState(snapshot, context, false);
+            SnapshotScope scope = collectSnapshotScopeForStage(stageId);
+            if (!scope.isEmpty()) {
+                snapshot = api.snapshot(scope);
+            }
         }
+        manager.reset();
 
         EventBusBridge.post(new GraphicsPipelineStageEvent<>(graphicsPipeline, stageId, context, GraphicsPipelineStageEvent.Phase.PRE));
         context.preStage(stageId);
@@ -155,10 +162,10 @@ public class RenderCommandQueue<C extends RenderContext> {
                 break;
         }
 
+        // Restore GL state from snapshot
         if (snapshot != null) {
             manager.reset();
-            manager.changeState(snapshot, context);
-            GraphicsDriver.getCurrentAPI().bindVertexArray(vao);
+            api.restore(snapshot);
         }
 
         context.postStage(stageId);
@@ -172,13 +179,19 @@ public class RenderCommandQueue<C extends RenderContext> {
      */
     public void flushRemainingTranslucentCommands(RenderStateManager manager, C context) {
         if (!deferredTranslucentCommands.isEmpty()) {
-            FullRenderState snapshot = RenderStateSnapshotUtils.createSnapshot();
-            manager.changeState(snapshot, context, false);
+            GraphicsAPI api = GraphicsDriver.getCurrentAPI();
+            SnapshotScope scope = collectSnapshotScopeFromDeferredCommands();
+            GLStateSnapshot snapshot = null;
+            if (!scope.isEmpty()) {
+                snapshot = api.snapshot(scope);
+            }
 
             flushDeferredTranslucentCommands(manager, context);
 
-            manager.reset();
-            manager.changeState(snapshot, context);
+            if (snapshot != null) {
+                manager.reset();
+                api.restore(snapshot);
+            }
         }
     }
 
@@ -354,6 +367,132 @@ public class RenderCommandQueue<C extends RenderContext> {
         manager.accept(setting, context);
         ShaderProvider shader = context.shaderProvider();
         shader.getUniformHookGroup().updateUniforms(context);
+    }
+
+    /**
+     * Collect snapshot scope for a specific stage by analyzing all RenderSettings used in that stage.
+     * Only captures states and bindings that will actually be modified during command execution.
+     */
+    private SnapshotScope collectSnapshotScopeForStage(KeyId stageId) {
+        Set<RenderSetting> allSettings = new HashSet<>();
+
+        // Collect all RenderSettings from all pipeline types for this stage
+        for (Map<KeyId, Map<RenderSetting, List<RenderCommand>>> stageMap : commandsByPipelineAndStage.values()) {
+            Map<RenderSetting, List<RenderCommand>> stageCommands = stageMap.get(stageId);
+            if (stageCommands != null) {
+                allSettings.addAll(stageCommands.keySet());
+            }
+        }
+
+        if (allSettings.isEmpty()) {
+            // No commands for this stage, but we still need to capture VAO and FBO
+            // as they might be modified by other operations
+            return SnapshotScope.builder()
+                    .addState(SnapshotScope.StateType.VAO)
+                    .addState(SnapshotScope.StateType.FBO)
+                    .build();
+        }
+
+        return collectSnapshotScopeFromSettings(allSettings);
+    }
+
+    /**
+     * Collect snapshot scope from a collection of RenderSettings.
+     * Extracts states from render states and bindings from shaders.
+     */
+    private SnapshotScope collectSnapshotScopeFromSettings(Set<RenderSetting> settings) {
+        List<SnapshotScope> scopes = new ArrayList<>();
+
+        for (RenderSetting setting : settings) {
+            if (setting == null || setting.renderParameter().isInvalid()) {
+                continue;
+            }
+
+            // Create base scope from RenderSetting
+            SnapshotScope baseScope = SnapshotScope.fromRenderSetting(setting);
+            scopes.add(baseScope);
+
+            // Extract shader from render state and add shader bindings
+            if (setting.renderState() != null) {
+                try {
+                    rogo.sketch.core.api.RenderStateComponent shaderComponent =
+                            setting.renderState().get(ResourceTypes.SHADER_PROGRAM);
+                    if (shaderComponent instanceof ShaderState shaderState) {
+                        ResourceReference<ShaderProvider> shaderRef = shaderState.shader();
+                        if (shaderRef != null && shaderRef.isAvailable()) {
+                            ShaderProvider shaderProvider = shaderRef.get();
+                            if (shaderProvider != null) {
+                                SnapshotScope shaderScope = SnapshotScope.fromShader(shaderProvider);
+                                scopes.add(shaderScope);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Ignore errors when extracting shader - continue with base scope
+                }
+            }
+        }
+
+        // Combine all scopes
+        SnapshotScope combined;
+        if (scopes.isEmpty()) {
+            combined = SnapshotScope.empty();
+        } else {
+            combined = SnapshotScope.combine(scopes.toArray(new SnapshotScope[0]));
+        }
+
+        // Always ensure VAO and FBO are captured as they are commonly modified
+        // Add them to the combined scope if not already present
+        if (combined.shouldCaptureAll()) {
+            return combined; // Already full, no need to add
+        }
+
+        SnapshotScope.Builder finalBuilder = SnapshotScope.builder();
+
+        // Copy existing state types
+        for (SnapshotScope.StateType type : combined.getStateTypes()) {
+            finalBuilder.addState(type);
+        }
+
+        // Ensure VAO and FBO are included
+        finalBuilder.addState(SnapshotScope.StateType.VAO);
+        finalBuilder.addState(SnapshotScope.StateType.FBO);
+
+        // Copy existing bindings
+        for (int unit : combined.getTextureUnits()) {
+            finalBuilder.addTextureUnit(unit);
+        }
+        for (int binding : combined.getSSBOBindings()) {
+            finalBuilder.addSSBOBinding(binding);
+        }
+        for (int binding : combined.getUBOBindings()) {
+            finalBuilder.addUBOBinding(binding);
+        }
+        for (int binding : combined.getImageBindings()) {
+            finalBuilder.addImageBinding(binding);
+        }
+
+        return finalBuilder.build();
+    }
+
+    /**
+     * Collect snapshot scope from deferred translucent commands.
+     */
+    private SnapshotScope collectSnapshotScopeFromDeferredCommands() {
+        Set<RenderSetting> allSettings = new HashSet<>();
+
+        for (Map<RenderSetting, List<RenderCommand>> commands : deferredTranslucentCommands.values()) {
+            allSettings.addAll(commands.keySet());
+        }
+
+        if (allSettings.isEmpty()) {
+            return SnapshotScope.builder()
+                    .addState(SnapshotScope.StateType.VAO)
+                    .addState(SnapshotScope.StateType.FBO)
+                    .build();
+        }
+
+        return collectSnapshotScopeFromSettings(allSettings);
     }
 
     /**

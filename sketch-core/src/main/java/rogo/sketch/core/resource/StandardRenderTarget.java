@@ -4,6 +4,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2i;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
+import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.api.Resizable;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.util.KeyId;
@@ -105,11 +106,13 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
     private void attachTextureToFramebuffer(KeyId textureId, int attachment) {
         GraphicsResourceManager.getInstance().getResource(ResourceTypes.TEXTURE, textureId)
                 .ifPresent(texture -> {
-                    int previousFB = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
-                    GraphicsDriver.getCurrentAPI().bindFrameBuffer(getHandle());
-                    GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, attachment,
-                            GL11.GL_TEXTURE_2D, texture.getHandle(), 0);
-                    GraphicsDriver.getCurrentAPI().bindFrameBuffer(previousFB);
+                    if (texture instanceof GpuObject gpuObject) {
+                        int previousFB = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
+                        GraphicsDriver.getCurrentAPI().bindFrameBuffer(getHandle());
+                        GraphicsDriver.getCurrentAPI().framebufferTexture2D(GL30.GL_FRAMEBUFFER, attachment,
+                                GL11.GL_TEXTURE_2D, gpuObject.getHandle(), 0);
+                        GraphicsDriver.getCurrentAPI().bindFrameBuffer(previousFB);
+                    }
                 });
     }
 

@@ -46,11 +46,6 @@ public class DrawCallGraphics extends MeshGraphics implements ResourceObject {
     }
 
     @Override
-    public int getHandle() {
-        return 0;
-    }
-
-    @Override
     public void dispose() {
         this.disposed = true;
     }

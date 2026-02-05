@@ -8,6 +8,7 @@ import rogo.sketch.core.pipeline.flow.BatchContainer;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.flow.impl.ComputeBatchContainer;
+import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.flow.impl.FunctionBatchContainer;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationBatchContainer;
 import rogo.sketch.core.pipeline.information.InstanceInfo;
@@ -103,6 +104,10 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             BatchContainer<?, ?> batchContainer = batchContainers.get(pipelineType);
             if (batchContainer != null) {
                 newBatch.registerBatchContainerListener(batchContainer);
+            }
+            // Register global container listeners (e.g., TransformManager)
+            for (ContainerListener listener : graphicsPipeline.getGlobalContainerListeners()) {
+                newBatch.registerContainerListener(listener);
             }
             return newBatch;
         });

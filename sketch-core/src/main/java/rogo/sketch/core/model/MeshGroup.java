@@ -178,11 +178,6 @@ public class MeshGroup implements ResourceObject {
     }
 
     @Override
-    public int getHandle() {
-        return 0;
-    }
-
-    @Override
     public void dispose() {
         disposed = true;
     }

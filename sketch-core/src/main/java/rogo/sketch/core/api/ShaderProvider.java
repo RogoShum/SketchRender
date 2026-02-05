@@ -5,7 +5,11 @@ import rogo.sketch.core.util.KeyId;
 
 import java.util.Map;
 
-public interface ShaderProvider extends ResourceObject {
+/**
+ * Interface for shader program providers.
+ * Extends GpuObject since shaders have native program handles.
+ */
+public interface ShaderProvider extends GpuObject {
     KeyId getIdentifier();
 
     UniformHookGroup getUniformHookGroup();

@@ -51,6 +51,8 @@ public interface VertexBuilder {
 
     VertexBuilder put(Matrix3fc m);
 
+    VertexBuilder put(Quaternionfc q);
+
     VertexBuilder put(long val);
 
     VertexBuilder put(float[] data);

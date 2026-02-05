@@ -1,0 +1,28 @@
+{
+  "renderState": {
+    "shader_program": {
+      "identifier": "sketch_render:cube_test_transform"
+    },
+    "blend_state": {
+      "enabled": true,
+      "srcFactor": "SRC_ALPHA",
+      "dstFactor": "ONE_MINUS_SRC_ALPHA"
+    },
+    "depth_test": {
+      "enabled": true
+    },
+    "depth_mask": {
+      "writable": true
+    }
+  },
+  "resourceBinding": {
+    "texture": {
+      "Sampler0": "sketch_render:example_image_texture"
+    },
+    "shader_storage_buffer": {
+      "TransformOutputBuffer": "sketch_render:transform_output"
+    }
+  },
+  "shouldSwitchRenderState": true
+}
+

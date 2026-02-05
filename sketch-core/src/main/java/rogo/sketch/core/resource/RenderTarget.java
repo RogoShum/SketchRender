@@ -1,11 +1,10 @@
 package rogo.sketch.core.resource;
 
-import org.lwjgl.opengl.GL30;
-import rogo.sketch.core.api.ResourceObject;
+import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.util.KeyId;
 
-public abstract class RenderTarget implements ResourceObject {
+public abstract class RenderTarget implements GpuObject {
     protected final int handle;
     protected final KeyId keyId;
     protected int currentWidth, currentHeight;

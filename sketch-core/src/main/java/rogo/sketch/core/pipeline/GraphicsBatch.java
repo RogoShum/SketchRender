@@ -3,6 +3,7 @@ package rogo.sketch.core.pipeline;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.container.*;
 import rogo.sketch.core.pipeline.flow.BatchContainer;
+import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
@@ -60,6 +61,25 @@ public class GraphicsBatch<C extends RenderContext> {
     public void unregisterBatchContainerListener(BatchContainer<?, ?> batchContainer) {
         for (GraphicsContainer<C> container : containers.values()) {
             container.removeListener(batchContainer);
+        }
+    }
+
+    /**
+     * Register a ContainerListener for all containers in this batch.
+     * Used for systems like TransformManager that need to track graphics instances.
+     */
+    public void registerContainerListener(ContainerListener listener) {
+        for (GraphicsContainer<C> container : containers.values()) {
+            container.addListener(listener);
+        }
+    }
+
+    /**
+     * Unregister a ContainerListener from all containers.
+     */
+    public void unregisterContainerListener(ContainerListener listener) {
+        for (GraphicsContainer<C> container : containers.values()) {
+            container.removeListener(listener);
         }
     }
 

@@ -159,6 +159,8 @@ tasks.register("runRenderDoc", Exec.class) {
     commandLine "C:\\Program Files\\RenderDoc\\renderdoccmd.exe",
             "capture",
             "--opt-hook-children",
+            "--opt-api-validation",
+            "--opt-verify-buffer-access",
             "--wait-for-exit",
             "--working-dir",
             rootProject.projectDir.absolutePath,

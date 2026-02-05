@@ -85,9 +85,9 @@ public class SketchRender {
 
     @SuppressWarnings("removal")
     public SketchRender() {
-        GraphicsDriver.setCurrentAPI(new MinecraftAPI());
         EventBusBridge.setImplementation(new ForgeEventBusImplementation());
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+            RenderSystem.recordRenderCall(() -> GraphicsDriver.setCurrentAPI(new MinecraftAPI()));
             MinecraftRenderStages.addStage(CullingStages.HIZ_STAGE);
             FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(GraphicsPipelineInitEvent.class,
                     VanillaPipelineEventHandler::onPipelineInit);
@@ -102,7 +102,6 @@ public class SketchRender {
             ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_CONFIG);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
-            RenderSystem.recordRenderCall(GLFeatureChecker::initialize);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::initClient);
             init();
         });
@@ -292,12 +291,14 @@ public class SketchRender {
 
     @SubscribeEvent
     public void onRenderStart(TickEvent.RenderTickEvent event) {
-        long currentTime = System.nanoTime();
-        long SWITCH_INTERVAL = 1000000000L;
-        if (currentTime - lastSwitchTime >= SWITCH_INTERVAL) {
-            lastSwitchTime = currentTime;
-            TimerUtil.COMMAND_TIMER.calculateAverageTimes(CullingStateManager.FPS);
-            TimerUtil.RENDER_TIMER.calculateAverageTimes(CullingStateManager.FPS);
+        if (event.phase == TickEvent.Phase.END) {
+            long currentTime = System.nanoTime();
+            long SWITCH_INTERVAL = 1000000000L;
+            if (currentTime - lastSwitchTime >= SWITCH_INTERVAL) {
+                lastSwitchTime = currentTime;
+                TimerUtil.COMMAND_TIMER.calculateAverageTimes(CullingStateManager.FPS);
+                TimerUtil.RENDER_TIMER.calculateAverageTimes(CullingStateManager.FPS);
+            }
         }
     }
 
@@ -305,10 +306,21 @@ public class SketchRender {
     public void onLevelTick(TickEvent.LevelTickEvent event) {
         if (event.side == LogicalSide.CLIENT) {
             if (event.phase == TickEvent.Phase.START) {
+                // PRE TICK: wait for async task, swap data
                 PipelineUtil.pipeline().asyncGraphicsTicker().onPreTick();
+                
+                // Upload async transform buffer and dispatch compute shader
+                PipelineUtil.pipeline().transformStateManager().onPreTick();
+                
                 PipelineUtil.pipeline().tickLogic();
             } else {
+                // POST TICK: sync tick for sync graphics
                 PipelineUtil.pipeline().tickGraphics();
+                
+                // Upload sync transform buffer and dispatch compute shader
+                PipelineUtil.pipeline().transformStateManager().onPostTick();
+                
+                // Start async task (asyncTickGraphics + transform write callback)
                 PipelineUtil.pipeline().asyncGraphicsTicker().onPostTick();
             }
         }
