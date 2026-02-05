@@ -1,5 +1,6 @@
 package rogo.sketch.core.shader.preprocessor;
 
+import rogo.sketch.core.shader.vertex.ShaderVertexLayout;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
@@ -18,15 +19,14 @@ public interface ShaderPreprocessor {
      * @return Processed shader source code
      * @throws ShaderPreprocessorException if preprocessing fails
      */
-    PreprocessorResult process(String source, KeyId shaderKeyId, Map<String, String> macros)
-            throws ShaderPreprocessorException;
+    PreprocessorResult process(String source, KeyId shaderKeyId, Map<String, String> macros, ShaderVertexLayout vertexLayout) throws ShaderPreprocessorException;
     
     /**
      * Process shader source with default empty macros
      */
     default PreprocessorResult process(String source, KeyId shaderKeyId)
             throws ShaderPreprocessorException {
-        return process(source, shaderKeyId, Collections.emptyMap());
+        return process(source, shaderKeyId, Collections.emptyMap(), null);
     }
     
     /**

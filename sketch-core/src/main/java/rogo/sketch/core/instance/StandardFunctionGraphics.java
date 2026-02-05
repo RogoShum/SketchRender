@@ -57,7 +57,7 @@ public class StandardFunctionGraphics extends FunctionGraphics {
         @Override
         public void execute(RenderContext context) {
             GraphicsResourceManager.getInstance()
-                    .getResource(ResourceTypes.RENDER_TARGET, renderTargetId)
+                    .getReference(ResourceTypes.RENDER_TARGET, renderTargetId)
                     .ifPresent(rt -> {
                         if (colorMaskState != null && context.renderStateManager() != null) {
                             context.renderStateManager().changeState(colorMaskState, context);
@@ -91,7 +91,7 @@ public class StandardFunctionGraphics extends FunctionGraphics {
         @Override
         public void execute(RenderContext context) {
             GraphicsResourceManager.getInstance()
-                    .getResource(ResourceTypes.RENDER_TARGET, renderTargetId)
+                    .getReference(ResourceTypes.RENDER_TARGET, renderTargetId)
                     .ifPresent(res -> {
                         if (res instanceof RenderTarget rt) {
                             rt.bind();
@@ -158,7 +158,7 @@ public class StandardFunctionGraphics extends FunctionGraphics {
         @Override
         public void execute(RenderContext context) {
             GraphicsResourceManager.getInstance()
-                    .getResource(ResourceTypes.TEXTURE, textureId)
+                    .getReference(ResourceTypes.TEXTURE, textureId)
                     .ifPresent(tex -> {
                         if (tex instanceof GpuObject gpuObject) {
                             GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, gpuObject.getHandle());
@@ -179,7 +179,7 @@ public class StandardFunctionGraphics extends FunctionGraphics {
         @Override
         public void execute(RenderContext context) {
             GraphicsResourceManager.getInstance()
-                    .getResource(ResourceTypes.RENDER_TARGET, renderTargetId)
+                    .getReference(ResourceTypes.RENDER_TARGET, renderTargetId)
                     .ifPresent(res -> {
                         if (res instanceof RenderTarget rt) {
                             rt.bind();

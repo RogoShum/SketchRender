@@ -4,6 +4,7 @@ import com.google.gson.*;
 import rogo.sketch.core.instance.FunctionGraphics;
 import rogo.sketch.core.instance.StandardFunctionGraphics;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.state.gl.ColorMaskState;
 import rogo.sketch.core.util.KeyId;
 
@@ -15,7 +16,7 @@ import java.util.function.Function;
 
 public class FunctionGraphicsLoader implements ResourceLoader<FunctionGraphics> {
     private final GraphicsPipeline<?> graphicsPipeline;
-    private final Gson gson = new GsonBuilder()
+    private final Gson internalGson = new GsonBuilder()
             .registerTypeAdapter(KeyId.class, new KeyId.GsonAdapter())
             .setPrettyPrinting()
             .create();
@@ -25,13 +26,18 @@ public class FunctionGraphicsLoader implements ResourceLoader<FunctionGraphics> 
     }
 
     @Override
-    public FunctionGraphics load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<InputStream>> resourceProvider) {
-        try {
-            String jsonData = data.getString();
-            if (jsonData == null)
-                return null;
+    public KeyId getResourceType() {
+        return ResourceTypes.FUNCTION;
+    }
 
-            JsonObject json = gson.fromJson(jsonData, JsonObject.class);
+    @Override
+    public FunctionGraphics load(ResourceLoadContext context) {
+        try {
+            KeyId keyId = context.getResourceId();
+            JsonObject json = context.getJson();
+            Gson gson = context.getGson();
+            if (json == null)
+                return null;
 
             String stageId = json.has("stage") ? json.get("stage").getAsString() : null;
             if (stageId == null) {
@@ -104,7 +110,7 @@ public class FunctionGraphicsLoader implements ResourceLoader<FunctionGraphics> 
         if (json.has("colorMaskState") && json.get("colorMaskState").isJsonObject()) {
             JsonObject colorMaskStateJson = json.getAsJsonObject("colorMaskState");
             colorMaskState = new ColorMaskState();
-            colorMaskState.deserializeFromJson(colorMaskStateJson, gson);
+            colorMaskState.deserializeFromJson(colorMaskStateJson, internalGson);
         }
 
         return new StandardFunctionGraphics.ClearCommand(KeyId.of(rtId), color, depth, clearColor, clearDepth, colorMaskState);

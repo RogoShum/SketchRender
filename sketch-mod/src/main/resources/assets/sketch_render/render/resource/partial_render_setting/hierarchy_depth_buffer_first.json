@@ -1,6 +1,6 @@
 {
   "renderState": {
-    "shader_program": {
+    "shader_template": {
       "identifier": "sketch_render:hierarchy_depth_buffer"
     }
   },

@@ -50,7 +50,6 @@ void main() {
         }
 
         // --------- Wireframe drawing logic start ---------
-        vec3 center = chunkPos;
         vec3 corners[8] = vec3[](
             vec3(boxMin.x, boxMin.y, boxMin.z),
             vec3(boxMax.x, boxMin.y, boxMin.z),

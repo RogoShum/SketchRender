@@ -31,10 +31,10 @@ public class HizTarget extends RenderTarget {
         GlStateManager._texParameter(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
         if (storeDepth) {
             GlStateManager._texImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R16F, this.width, this.height, 0, GL11.GL_RED, GL11.GL_FLOAT, null);
-            texture = new BuildInRTTexture(() -> this, GL30.GL_R16F, false);
+            texture = new BuildInRTTexture(() -> this, GL30.GL_R16F, false, GL11.GL_NEAREST, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE, GL12.GL_CLAMP_TO_EDGE);
         } else {
             GlStateManager._texImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R8, this.width, this.height, 0, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, null);
-            texture = new BuildInRTTexture(() -> this, GL30.GL_R8, false);
+            texture = new BuildInRTTexture(() -> this, GL30.GL_R8, false, GL11.GL_NEAREST, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE, GL12.GL_CLAMP_TO_EDGE);
         }
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.frameBufferId);
         GlStateManager._glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, this.colorTextureId, 0);

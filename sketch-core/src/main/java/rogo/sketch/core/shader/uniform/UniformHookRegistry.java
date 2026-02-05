@@ -27,17 +27,30 @@ public class UniformHookRegistry {
 
     @SuppressWarnings("unchecked")
     public <T> void initializeHooks(ShaderProvider provider, Map<String, ShaderResource<?>> uniformMap) {
-        for (Map.Entry<String, ShaderResource<?>> entry : uniformMap.entrySet()) {
+        initializeHooksFromMap(provider.getHandle(), uniformMap, provider.getUniformHookGroup());
+    }
+    
+    /**
+     * Initialize hooks from a uniform map to a target hook group.
+     * This variant doesn't require a ShaderProvider, useful for external initialization.
+     * 
+     * @param programId    The OpenGL program ID (unused but kept for signature consistency)
+     * @param uniformMap   Map of uniform names to ShaderResource instances
+     * @param targetGroup  The UniformHookGroup to add hooks to
+     */
+    @SuppressWarnings("unchecked")
+    public <T> void initializeHooksFromMap(int programId, Map<String, ? extends ShaderResource<?>> uniformMap, UniformHookGroup targetGroup) {
+        for (Map.Entry<String, ? extends ShaderResource<?>> entry : uniformMap.entrySet()) {
             String uniformName = entry.getKey();
             ShaderResource<T> uniform = (ShaderResource<T>) entry.getValue();
 
             KeyId keyId = KeyId.of(uniformName);
             if (pendingHooks.containsKey(keyId)) {
                 UniformHook<?> uniformHook = new UniformHook<>(keyId, uniform, (ValueGetter<T>) pendingHooks.get(keyId));
-                provider.getUniformHookGroup().addUniform(uniformName, uniformHook);
+                targetGroup.addUniform(uniformName, uniformHook);
             } else {
                 UniformHook<?> uniformHook = new UniformHook<>(keyId, uniform, (ValueGetter<T>) EMPTY_GETTER);
-                provider.getUniformHookGroup().addUniform(uniformName, uniformHook);
+                targetGroup.addUniform(uniformName, uniformHook);
             }
         }
     }

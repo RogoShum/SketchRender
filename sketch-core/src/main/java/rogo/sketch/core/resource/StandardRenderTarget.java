@@ -52,7 +52,7 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
         Vector2i dimensions = new Vector2i(baseWidth, baseHeight);
 
         if (linkedTexture != null) {
-            GraphicsResourceManager.getInstance().getResource(ResourceTypes.TEXTURE, linkedTexture).ifPresent(tex -> {
+            GraphicsResourceManager.getInstance().getReference(ResourceTypes.TEXTURE, linkedTexture).ifPresent(tex -> {
                 int w = ((Texture) tex).getCurrentWidth();
                 int h = ((Texture) tex).getCurrentHeight();
                 if (w > 0 && h > 0) {
@@ -112,7 +112,7 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
      * Attach a texture to the framebuffer
      */
     private void attachTextureToFramebuffer(KeyId textureId, int attachment) {
-        GraphicsResourceManager.getInstance().getResource(ResourceTypes.TEXTURE, textureId)
+        GraphicsResourceManager.getInstance().getReference(ResourceTypes.TEXTURE, textureId)
                 .ifPresent(texture -> {
                     if (texture instanceof GpuObject gpuObject) {
                         IGLFramebufferStrategy strategy = getFramebufferStrategy();

@@ -1,7 +1,10 @@
 {
   "renderState": {
-    "shader_program": {
-      "identifier": "sketch_render:culling_test_chunk"
+    "shader_template": {
+      "identifier": "sketch_render:culling_test",
+      "flags": [
+        "CHUNK"
+      ]
     },
     "blend_state": {
       "enabled": true,

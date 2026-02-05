@@ -1,15 +1,13 @@
 package rogo.sketch.core.command;
 
 import org.lwjgl.opengl.GL43;
-import rogo.sketch.core.api.ResourceReloadable;
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.UniformBatchGroup;
+import rogo.sketch.core.pipeline.information.ComputeInstanceInfo;
 import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.shader.ComputeShader;
-import rogo.sketch.core.shader.Shader;
-import rogo.sketch.core.pipeline.information.ComputeInstanceInfo;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -89,12 +87,8 @@ public class ComputeRenderCommand extends RenderCommand {
     private ComputeShader extractComputeShader(ShaderProvider shaderProvider) {
         if (shaderProvider instanceof ComputeShader computeShader) {
             return computeShader;
-        } else if (shaderProvider instanceof ResourceReloadable<?> reloadable) {
-            Shader currentShader = (Shader) reloadable.getCurrentResource();
-            if (currentShader instanceof ComputeShader computeShader) {
-                return computeShader;
-            }
         }
+
         return null;
     }
 

@@ -13,6 +13,7 @@ import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.model.BakedMesh;
 import rogo.sketch.core.model.MeshBone;
 import rogo.sketch.core.model.MeshGroup;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.buffer.IndexBufferResource;
 import rogo.sketch.core.resource.buffer.VertexBufferObject;
 import rogo.sketch.core.resource.buffer.VertexResource;
@@ -33,14 +34,17 @@ import java.util.function.Function;
 public class MeshLoader implements ResourceLoader<MeshGroup> {
 
     @Override
-    public MeshGroup load(KeyId keyId, ResourceData data, Gson gson,
-                          Function<KeyId, Optional<InputStream>> resourceProvider) {
-        try {
-            String jsonData = data.getString();
-            if (jsonData == null)
-                return null;
+    public KeyId getResourceType() {
+        return ResourceTypes.MESH;
+    }
 
-            JsonObject json = gson.fromJson(jsonData, JsonObject.class);
+    @Override
+    public MeshGroup load(ResourceLoadContext context) {
+        try {
+            KeyId keyId = context.getResourceId();
+            JsonObject json = context.getJson();
+            if (json == null)
+                return null;
 
             // Get mesh name and primitive type
             String name = json.has("name") ? json.get("name").getAsString() : keyId.toString();

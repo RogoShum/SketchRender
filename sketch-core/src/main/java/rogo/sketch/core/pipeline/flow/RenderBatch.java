@@ -10,6 +10,7 @@ import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.uniform.UniformHook;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
+import rogo.sketch.core.shader.variant.ShaderTemplate;
 import rogo.sketch.core.state.gl.ShaderState;
 
 import java.util.ArrayList;
@@ -257,7 +258,7 @@ public class RenderBatch<T extends InstanceInfo<?>> {
      */
     protected ShaderProvider extractShaderProvider(InstanceInfo info) {
         try {
-            ResourceReference<ShaderProvider> reference = ((ShaderState) info.getRenderSetting().renderState().get(ResourceTypes.SHADER_PROGRAM)).shader();
+            ResourceReference<ShaderTemplate> reference = ((ShaderState) info.getRenderSetting().renderState().get(ResourceTypes.SHADER_TEMPLATE)).getTemplate();
             if (reference.isAvailable()) {
                 return reference.get();
             }

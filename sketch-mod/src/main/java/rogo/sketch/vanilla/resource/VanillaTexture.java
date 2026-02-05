@@ -37,12 +37,11 @@ public class VanillaTexture extends Texture {
         if (resourceType.equals(ResourceTypes.IMAGE_BUFFER)) {
             GL42.glBindImageTexture(textureUnit, handle, 0, false, 0, GL42.GL_READ_WRITE, GL11.GL_RGBA);
         } else {
-            GraphicsDriver.getCurrentAPI().activeTexture(textureUnit);
-            GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, handle);
-            GraphicsDriver.getCurrentAPI().texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
-            GraphicsDriver.getCurrentAPI().texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, magFilter);
-            GraphicsDriver.getCurrentAPI().texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, wrapS);
-            GraphicsDriver.getCurrentAPI().texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, wrapT);
+            GraphicsDriver.getCurrentAPI().getTextureStrategy().bindTextureUnit(textureUnit, handle);
+            GraphicsDriver.getCurrentAPI().textureParameteri(textureUnit, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
+            GraphicsDriver.getCurrentAPI().textureParameteri(textureUnit, GL11.GL_TEXTURE_MAG_FILTER, magFilter);
+            GraphicsDriver.getCurrentAPI().textureParameteri(textureUnit, GL11.GL_TEXTURE_WRAP_S, wrapS);
+            GraphicsDriver.getCurrentAPI().textureParameteri(textureUnit, GL11.GL_TEXTURE_WRAP_T, wrapT);
         }
     }
 

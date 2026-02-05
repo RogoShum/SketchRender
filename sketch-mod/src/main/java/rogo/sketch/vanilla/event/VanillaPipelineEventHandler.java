@@ -10,6 +10,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.joml.*;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
@@ -60,60 +61,61 @@ import java.util.function.Supplier;
 
 public class VanillaPipelineEventHandler {
     public static final BuildInRTTexture mainColor = new BuildInRTTexture(
-            () -> Minecraft.getInstance().getMainRenderTarget(), GL11.GL_RGBA, false);
+            () -> Minecraft.getInstance().getMainRenderTarget(), GL11.GL_RGBA, false, GL11.GL_NEAREST, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE, GL12.GL_CLAMP_TO_EDGE);
     public static final BuildInRTTexture mainDepth = new BuildInRTTexture(
-            () -> Minecraft.getInstance().getMainRenderTarget(), GL11.GL_RGBA, true);
+            () -> Minecraft.getInstance().getMainRenderTarget(), GL11.GL_RGBA, true, GL11.GL_NEAREST, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE, GL12.GL_CLAMP_TO_EDGE);
     public static final BuildInRenderTarget mainTarget = new BuildInRenderTarget(
             () -> Minecraft.getInstance().getMainRenderTarget().frameBufferId, KeyId.of("minecraft:main_target"));
 
     public static void registerPersistentResource() {
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.TEXTURE,
                 KeyId.of(SketchRender.MOD_ID, "hiz_texture"),
-                () -> Optional.of(CullingStateManager.DEPTH_BUFFER_TARGET.texture()));
+                () -> CullingStateManager.DEPTH_BUFFER_TARGET.texture());
 
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.TEXTURE,
                 KeyId.of("minecraft", "main_color"),
-                () -> Optional.of(mainColor));
+                () -> mainColor);
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.TEXTURE,
                 KeyId.of("minecraft", "main_depth"),
-                () -> Optional.of(mainDepth));
+                () -> mainDepth);
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.RENDER_TARGET,
                 KeyId.of("minecraft:main_target"), () -> {
-                    return Optional.of(mainTarget);
+                    return mainTarget;
                 });
 
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "entity_data"),
                 () -> {
-                    if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                        return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityDataSSBO());
+                    if (CullingStateManager.ENTITY_CULLING_MASK != null && !CullingStateManager.ENTITY_CULLING_MASK.getEntityDataSSBO().isDisposed()) {
+                        return CullingStateManager.ENTITY_CULLING_MASK.getEntityDataSSBO();
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
+
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "entity_culling_result"),
                 () -> {
-                    if (CullingStateManager.ENTITY_CULLING_MASK != null) {
-                        return Optional.of(CullingStateManager.ENTITY_CULLING_MASK.getEntityCullingResult());
+                    if (CullingStateManager.ENTITY_CULLING_MASK != null && !CullingStateManager.ENTITY_CULLING_MASK.getEntityCullingResult().isDisposed()) {
+                        return CullingStateManager.ENTITY_CULLING_MASK.getEntityCullingResult();
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "chunk_section_mesh"),
                 () -> {
-                    return Optional.of(MeshResource.MESH_MANAGER.meshDataBuffer());
+                    return MeshResource.MESH_MANAGER.meshDataBuffer();
                 });
 
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "chunk_draw_command"),
                 () -> {
                     if (MeshResource.COMMAND_BUFFER != null) {
-                        return Optional.of(MeshResource.COMMAND_BUFFER);
+                        return MeshResource.COMMAND_BUFFER;
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
@@ -121,18 +123,18 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "mesh_counter"),
                 () -> {
                     if (MeshResource.BATCH_COUNTER != null) {
-                        return Optional.of(MeshResource.BATCH_COUNTER);
+                        return MeshResource.BATCH_COUNTER;
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "region_pos"),
                 () -> {
                     if (MeshResource.REGION_INDEX_BUFFER != null) {
-                        return Optional.of(MeshResource.REGION_INDEX_BUFFER);
+                        return MeshResource.REGION_INDEX_BUFFER;
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
@@ -140,9 +142,9 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "max_element_count"),
                 () -> {
                     if (MeshResource.MAX_ELEMENT_BUFFER != null) {
-                        return Optional.of(MeshResource.MAX_ELEMENT_BUFFER);
+                        return MeshResource.MAX_ELEMENT_BUFFER;
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
@@ -150,9 +152,9 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "persistent_max_element_count"),
                 () -> {
                     if (MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER != null) {
-                        return Optional.of(MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER);
+                        return MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER;
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
@@ -161,9 +163,9 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "transform_input_async"),
                 () -> {
                     if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getAsyncPipeline().inputSSBO());
+                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getAsyncPipeline().inputSSBO();
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
@@ -171,9 +173,9 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "transform_index_async"),
                 () -> {
                     if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getAsyncPipeline().indexSSBO());
+                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getAsyncPipeline().indexSSBO();
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
@@ -181,9 +183,9 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "transform_input_sync"),
                 () -> {
                     if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getSyncPipeline().inputSSBO());
+                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getSyncPipeline().inputSSBO();
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
@@ -191,9 +193,9 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "transform_index_sync"),
                 () -> {
                     if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getSyncPipeline().indexSSBO());
+                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getSyncPipeline().indexSSBO();
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
 
@@ -201,9 +203,9 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "transform_output"),
                 () -> {
                     if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return Optional.of(PipelineUtil.pipeline().transformStateManager().matrixManager.getOutputSSBO());
+                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getOutputSSBO();
                     } else {
-                        return Optional.empty();
+                        return null;
                     }
                 });
     }

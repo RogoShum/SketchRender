@@ -1,33 +1,77 @@
 package rogo.sketch.core.resource.loader;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import rogo.sketch.core.api.RenderStateComponent;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.resource.ResourceBinding;
+import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.shader.config.MacroContext;
+import rogo.sketch.core.shader.variant.ShaderVariantKey;
 import rogo.sketch.core.state.DefaultRenderStates;
 import rogo.sketch.core.state.FullRenderState;
 import rogo.sketch.core.util.KeyId;
 
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 
 /**
  * Loader for PartialRenderSetting resources from JSON
+ * 
+ * Enhanced JSON format:
+ * {
+ *   "renderState": {
+ *     "shader_program": {
+ *       "identifier": "sketch:entity_render",
+ *       "template": "sketch:shadow_support",  // optional macro template
+ *       "macros": { "CUSTOM": "42" },         // optional inline macros
+ *       "flags": ["INSTANCED", "TRANSLUCENT"] // optional shader flags
+ *     }
+ *   },
+ *   "flags": ["ENABLE_NORMAL"],  // global flags for this setting
+ *   "resourceBinding": { ... }
+ * }
  */
 public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting> {
+    
+    // Cache: render setting id -> shader variant key
+    private final Map<KeyId, ShaderVariantKey> shaderVariantCache = new HashMap<>();
+    
+    /**
+     * Get the shader variant key for a render setting.
+     * @param settingId The render setting identifier
+     * @return The variant key, or null if not found
+     */
+    public ShaderVariantKey getShaderVariantKey(KeyId settingId) {
+        return shaderVariantCache.get(settingId);
+    }
 
     @Override
-    public PartialRenderSetting load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<InputStream>> resourceProvider) {
-        try {
-            String jsonData = data.getString();
-            if (jsonData == null) return null;
+    public KeyId getResourceType() {
+        return ResourceTypes.PARTIAL_RENDER_SETTING;
+    }
 
-            JsonObject json = gson.fromJson(jsonData, JsonObject.class);
+    @Override
+    public PartialRenderSetting load(ResourceLoadContext context) {
+        try {
+            KeyId keyId = context.getResourceId();
+            JsonObject json = context.getJson();
+            if (json == null) return null;
+            
+            Gson gson = context.getGson();
+            
+            // Parse global flags for this render setting
+            Set<String> globalFlags = parseFlags(json, "flags");
+            
+            // Parse shader-specific configuration
+            ShaderVariantKey variantKey = parseShaderConfig(json, globalFlags);
+            if (variantKey != null && !variantKey.isEmpty()) {
+                shaderVariantCache.put(keyId, variantKey);
+            }
+            
             FullRenderState renderState = loadFullRenderState(json, gson);
             ResourceBinding resourceBinding = loadResourceBinding(json, gson);
 
@@ -43,6 +87,85 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
             e.printStackTrace();
             return null;
         }
+    }
+    
+    /**
+     * Parse flags array from JSON.
+     */
+    private Set<String> parseFlags(JsonObject json, String key) {
+        Set<String> flags = new HashSet<>();
+        if (json.has(key) && json.get(key).isJsonArray()) {
+            JsonArray flagsArray = json.getAsJsonArray(key);
+            for (JsonElement element : flagsArray) {
+                if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
+                    flags.add(element.getAsString());
+                }
+            }
+        }
+        return flags;
+    }
+    
+    /**
+     * Parse shader configuration from renderState.shader_program.
+     * Supports:
+     * - identifier: shader program id
+     * - template: macro template id
+     * - macros: inline macro definitions
+     * - flags: shader variant flags
+     */
+    private ShaderVariantKey parseShaderConfig(JsonObject json, Set<String> globalFlags) {
+        if (!json.has("renderState")) {
+            return globalFlags.isEmpty() ? ShaderVariantKey.EMPTY : ShaderVariantKey.of(globalFlags);
+        }
+        
+        JsonObject renderState = json.getAsJsonObject("renderState");
+        if (!renderState.has("shader_program")) {
+            return globalFlags.isEmpty() ? ShaderVariantKey.EMPTY : ShaderVariantKey.of(globalFlags);
+        }
+        
+        JsonElement shaderElement = renderState.get("shader_program");
+        if (!shaderElement.isJsonObject()) {
+            return globalFlags.isEmpty() ? ShaderVariantKey.EMPTY : ShaderVariantKey.of(globalFlags);
+        }
+        
+        JsonObject shaderConfig = shaderElement.getAsJsonObject();
+        
+        // Collect all flags
+        Set<String> allFlags = new HashSet<>(globalFlags);
+        
+        // Parse shader-specific flags
+        if (shaderConfig.has("flags")) {
+            allFlags.addAll(parseFlags(shaderConfig, "flags"));
+        }
+        
+        // Parse macros (add as flags for now, since they affect variant)
+        if (shaderConfig.has("macros") && shaderConfig.get("macros").isJsonObject()) {
+            JsonObject macros = shaderConfig.getAsJsonObject("macros");
+            for (Map.Entry<String, JsonElement> entry : macros.entrySet()) {
+                // For variant key, we only track macro presence, not values
+                // Values are handled by MacroContext
+                allFlags.add(entry.getKey());
+                
+                // Also register the macro value in config context
+                JsonElement value = entry.getValue();
+                if (value.isJsonPrimitive()) {
+                    MacroContext.getInstance().setConfigMacro(
+                            entry.getKey(), 
+                            value.getAsString()
+                    );
+                }
+            }
+        }
+        
+        // Load macro template if specified
+        if (shaderConfig.has("template")) {
+            String templateId = shaderConfig.get("template").getAsString();
+            // Template loading would be handled by a separate MacroTemplateLoader
+            // For now, just add template as a flag for tracking
+            allFlags.add("TEMPLATE:" + templateId);
+        }
+        
+        return allFlags.isEmpty() ? ShaderVariantKey.EMPTY : ShaderVariantKey.of(allFlags);
     }
 
     /**

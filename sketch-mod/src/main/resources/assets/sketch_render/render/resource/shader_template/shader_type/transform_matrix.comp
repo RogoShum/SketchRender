@@ -10,7 +10,7 @@
  * - Hierarchical parent-child transforms
  * 
  * Rotation uses Euler angles with ZYX convention (Roll-Yaw-Pitch).
- * 
+ *
  * Memory Layout (std430):
  * Input SSBO: InstanceData[N] - 128 bytes per instance
  * Output SSBO: mat4[N] - 64 bytes per instance
@@ -20,7 +20,7 @@
 
 /**
  * Input transform data (128 bytes, std430 aligned)
- * 
+ *
  * Byte Offsets:
  * 0-15:   prevPos (vec4, w = padding)
  * 16-31:  prevRot (vec4, xyz = euler angles pitch/yaw/roll, w = padding)
@@ -78,10 +78,10 @@ mat4 rotateX(float angle) {
     float c = cos(angle);
     float s = sin(angle);
     return mat4(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, c,   s,   0.0,
-        0.0, -s,  c,   0.0,
-        0.0, 0.0, 0.0, 1.0
+    1.0, 0.0, 0.0, 0.0,
+    0.0, c,   s,   0.0,
+    0.0, -s,  c,   0.0,
+    0.0, 0.0, 0.0, 1.0
     );
 }
 
@@ -92,10 +92,10 @@ mat4 rotateY(float angle) {
     float c = cos(angle);
     float s = sin(angle);
     return mat4(
-        c,   0.0, -s,  0.0,
-        0.0, 1.0, 0.0, 0.0,
-        s,   0.0, c,   0.0,
-        0.0, 0.0, 0.0, 1.0
+    c,   0.0, -s,  0.0,
+    0.0, 1.0, 0.0, 0.0,
+    s,   0.0, c,   0.0,
+    0.0, 0.0, 0.0, 1.0
     );
 }
 
@@ -106,16 +106,16 @@ mat4 rotateZ(float angle) {
     float c = cos(angle);
     float s = sin(angle);
     return mat4(
-        c,   s,   0.0, 0.0,
-        -s,  c,   0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0
+    c,   s,   0.0, 0.0,
+    -s,  c,   0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 0.0, 1.0
     );
 }
 
 /**
  * Create rotation matrix from Euler angles using ZYX convention.
- * 
+ *
  * @param pitch Rotation around X axis (radians)
  * @param yaw Rotation around Y axis (radians)
  * @param roll Rotation around Z axis (radians)
@@ -132,10 +132,10 @@ mat4 rotateZYX(float pitch, float yaw, float roll) {
  */
 mat4 translate(vec3 v) {
     return mat4(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        v.x, v.y, v.z, 1.0
+    1.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    v.x, v.y, v.z, 1.0
     );
 }
 
@@ -144,10 +144,10 @@ mat4 translate(vec3 v) {
  */
 mat4 scale(vec3 s) {
     return mat4(
-        s.x, 0.0, 0.0, 0.0,
-        0.0, s.y, 0.0, 0.0,
-        0.0, 0.0, s.z, 0.0,
-        0.0, 0.0, 0.0, 1.0
+    s.x, 0.0, 0.0, 0.0,
+    0.0, s.y, 0.0, 0.0,
+    0.0, 0.0, s.z, 0.0,
+    0.0, 0.0, 0.0, 1.0
     );
 }
 
@@ -165,29 +165,29 @@ void main() {
     // 3. [关键] 间接查找真实的 Instance ID
     // 这里的 id 才是 instances[] 和 worldMatrices[] 真正的下标
     int id = batchIndices[u_batchOffset + localIndex];
-    
+
     // Load instance data
     InstanceData data = instances[id];
-    
+
     // Interpolate position
     vec3 pos = mix(data.prevPos.xyz, data.currPos.xyz, partialTicks);
-    
+
     // Interpolate rotation (linear interpolation of euler angles)
     // This works well for small angle differences and allows multi-rotation interpolation
     vec3 rot = mix(data.prevRot.xyz, data.currRot.xyz, partialTicks);
     float pitch = rot.x;
     float yaw = rot.y;
     float roll = rot.z;
-    
+
     // Interpolate scale
     vec3 scl = mix(data.prevScale.xyz, data.currScale.xyz, partialTicks);
-    
+
     // Get pivot
     vec3 pivot = data.pivot.xyz;
-    
+
     // Build local matrix: T(pos) * T(pivot) * R(ZYX) * T(-pivot) * S(scale)
     mat4 localMatrix;
-    
+
     if (pivot.x == 0.0 && pivot.y == 0.0 && pivot.z == 0.0) {
         // No pivot - simplified calculation
         // localMatrix = T(pos) * R(rot) * S(scale)
@@ -205,14 +205,14 @@ void main() {
         mat4 S = scale(scl);
         localMatrix = T_pos * T_pivot * R * T_neg_pivot * S;
     }
-    
+
     // Apply parent transform if exists
     int parentID = data.parentID;
     if (parentID >= 0) {
         mat4 parentWorld = worldMatrices[parentID];
         localMatrix = parentWorld * localMatrix;
     }
-    
+
     // Write result
     worldMatrices[id] = localMatrix;
 }

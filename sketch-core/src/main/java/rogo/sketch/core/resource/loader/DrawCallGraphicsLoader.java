@@ -1,6 +1,5 @@
 package rogo.sketch.core.resource.loader;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import rogo.sketch.core.api.model.BakedTypeMesh;
 import rogo.sketch.core.api.model.PreparedMesh;
@@ -18,10 +17,6 @@ import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 
-import java.io.InputStream;
-import java.util.Optional;
-import java.util.function.Function;
-
 public class DrawCallGraphicsLoader implements ResourceLoader<DrawCallGraphics> {
     private final GraphicsPipeline<?> graphicsPipeline;
 
@@ -30,13 +25,17 @@ public class DrawCallGraphicsLoader implements ResourceLoader<DrawCallGraphics> 
     }
 
     @Override
-    public DrawCallGraphics load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<InputStream>> resourceProvider) {
-        try {
-            String jsonData = data.getString();
-            if (jsonData == null)
-                return null;
+    public KeyId getResourceType() {
+        return ResourceTypes.DRAW_CALL;
+    }
 
-            JsonObject json = gson.fromJson(jsonData, JsonObject.class);
+    @Override
+    public DrawCallGraphics load(ResourceLoadContext context) {
+        try {
+            KeyId keyId = context.getResourceId();
+            JsonObject json = context.getJson();
+            if (json == null)
+                return null;
 
             // Strict key checking
             if (!json.has("renderSetting") || json.get("renderSetting").isJsonNull()) {

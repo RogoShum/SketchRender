@@ -1,7 +1,10 @@
 {
   "renderState": {
-    "shader_program": {
-      "identifier": "sketch_render:culling_test_block_entity"
+    "shader_template": {
+      "identifier": "sketch_render:culling_test",
+      "flags": [
+        "BLOCK_ENTITY"
+      ]
     },
     "blend_state": {
       "enabled": true,

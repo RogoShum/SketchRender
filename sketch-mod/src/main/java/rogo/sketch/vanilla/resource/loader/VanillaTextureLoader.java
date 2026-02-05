@@ -1,6 +1,5 @@
 package rogo.sketch.vanilla.resource.loader;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
@@ -10,14 +9,11 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
 import rogo.sketch.core.driver.GraphicsDriver;
-import rogo.sketch.core.resource.loader.ResourceData;
+import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.loader.ResourceLoadContext;
 import rogo.sketch.core.resource.loader.ResourceLoader;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.vanilla.resource.VanillaTexture;
-
-import java.io.InputStream;
-import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * Loader for VanillaTexture resources from JSON (MC-specific)
@@ -26,13 +22,13 @@ public class VanillaTextureLoader implements ResourceLoader<VanillaTexture> {
     private final TextureManager textureManager = Minecraft.getInstance().getTextureManager();
 
     @Override
-    public VanillaTexture load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<InputStream>> resourceProvider) {
+    public VanillaTexture load(ResourceLoadContext context) {
         try {
-            String jsonData = data.getString();
-            if (jsonData == null)
+            String data = context.getString();
+            if (data == null)
                 return null;
 
-            JsonObject json = gson.fromJson(jsonData, JsonObject.class);
+            JsonObject json = context.getGson().fromJson(data, JsonObject.class);
 
             String mcResourceStr = null;
             if (json.has("mcResourceLocation")) {
@@ -65,7 +61,7 @@ public class VanillaTextureLoader implements ResourceLoader<VanillaTexture> {
                 if (json.has("wrapT"))
                     wrapT = parseWrap(json.get("wrapT").getAsString());
 
-                return new VanillaTexture(keyId, mcResource, texture, width, height, minFilter, magFilter, wrapS, wrapT);
+                return new VanillaTexture(context.getResourceId(), mcResource, texture, width, height, minFilter, magFilter, wrapS, wrapT);
             }
 
             return null;
@@ -73,6 +69,11 @@ public class VanillaTextureLoader implements ResourceLoader<VanillaTexture> {
             System.err.println("Failed to load vanilla texture from JSON: " + e.getMessage());
             return null;
         }
+    }
+
+    @Override
+    public KeyId getResourceType() {
+        return ResourceTypes.TEXTURE;
     }
 
     private int parseFilter(String filter) {

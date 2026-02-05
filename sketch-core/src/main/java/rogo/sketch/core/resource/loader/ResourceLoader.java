@@ -1,12 +1,7 @@
 package rogo.sketch.core.resource.loader;
 
-import com.google.gson.Gson;
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.util.KeyId;
-
-import java.io.InputStream;
-import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * Interface for loading resources from generic data (JSON, Binary, etc.)
@@ -14,17 +9,18 @@ import java.util.function.Function;
 public interface ResourceLoader<T extends ResourceObject> {
 
     /**
-     * Load a resource from data
+     * Load a resource from the provided context.
+     * This is the primary method that should be implemented by all loaders.
      *
-     * @param keyId       The identifier of the resource
-     * @param data            The resource data (String, Bytes, Stream)
-     * @param gson            The Gson instance for parsing (if needed)
-     * @param resourceProvider Provider for sub-resources
+     * @param context The resource loading context containing all necessary data
      * @return The loaded resource or null if failed
      */
-    T load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<InputStream>> resourceProvider);
+    T load(ResourceLoadContext context);
 
-    default T load(KeyId keyId, ResourceData data, Gson gson) {
-        return load(keyId, data, gson, id -> Optional.empty());
-    }
+    /**
+     * Get the resource type this loader handles.
+     *
+     * @return The resource type identifier
+     */
+    KeyId getResourceType();
 }

@@ -2,15 +2,14 @@ package rogo.sketch.core.shader;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL20;
-import rogo.sketch.core.api.ResourceReloadable;
 import rogo.sketch.core.data.format.DataElement;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.shader.preprocessor.ShaderPreprocessor;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.data.DataType;
+import rogo.sketch.core.shader.vertex.ShaderVertexLayout;
 import rogo.sketch.core.util.KeyId;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.IntBuffer;
@@ -22,13 +21,15 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Graphics shader program for rasterization pipeline
- * Supports vertex, fragment, geometry, and tessellation shaders
- * Supports automatic recompilation when configuration or dependencies change
+ * Graphics shader program for rasterization pipeline.
+ * Supports vertex, fragment, geometry, and tessellation shaders.
+ * <p>
+ * Note: For reloadable/recompilable shaders with macro variants, use 
+ * {@link rogo.sketch.core.shader.variant.ShaderTemplate} instead.
+ * ShaderTemplate handles macro variants and automatic recompilation via MacroContext.
  */
-public class GraphicsShader extends Shader implements ResourceReloadable<Shader> {
+public class GraphicsShader extends Shader {
     
-    private ReloadableShader reloadableSupport;
     private DataFormat vertexFormat;
 
     /**
@@ -36,34 +37,28 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
      */
     public GraphicsShader(KeyId keyId, Map<ShaderType, String> shaderSources) throws IOException {
         super(keyId, shaderSources);
-        this.reloadableSupport = null; // Non-reloadable by default
     }
     
     /**
-     * Create a reloadable graphics shader with preprocessing support
+     * Create a graphics shader with preprocessing support
      */
     public GraphicsShader(KeyId keyId,
                           Map<ShaderType, String> shaderSources,
                           ShaderPreprocessor preprocessor,
                           Function<KeyId, Optional<InputStream>> resourceProvider) throws IOException {
-        // Use parent class preprocessing constructor
-        super(keyId, shaderSources, preprocessor, resourceProvider);
-        
-        // Create reloadable support with original sources
-        this.reloadableSupport = new ReloadableShader(
-                keyId,
-            shaderSources,
-            preprocessor,
-            resourceProvider
-        ) {
-            @Override
-            protected Shader createShaderInstance(Map<ShaderType, String> processedSources) throws IOException {
-                return new GraphicsShader(keyId, processedSources);
-            }
-        };
-        
-        // Initialize the reloadable support for future reloads
-        reloadableSupport.initialize();
+        super(keyId, shaderSources, preprocessor, resourceProvider, null, null);
+    }
+
+    /**
+     * Create a graphics shader with preprocessing support and macros
+     */
+    public GraphicsShader(KeyId keyId,
+                          Map<ShaderType, String> shaderSources,
+                          ShaderPreprocessor preprocessor,
+                          Function<KeyId, Optional<InputStream>> resourceProvider,
+                          Map<String, String> macros,
+                          ShaderVertexLayout shaderVertexLayout) throws IOException {
+        super(keyId, shaderSources, preprocessor, resourceProvider, macros, shaderVertexLayout);
     }
 
     @Override
@@ -315,102 +310,16 @@ public class GraphicsShader extends Shader implements ResourceReloadable<Shader>
     }
     
     /**
-     * Create a reloadable graphics shader program
+     * Create a graphics shader with preprocessing support
+     * 
+     * @deprecated Use {@link rogo.sketch.core.shader.variant.ShaderTemplate} for reloadable shaders
      */
+    @Deprecated
     public static GraphicsShader reloadable(KeyId keyId,
                                             Map<ShaderType, String> shaderSources,
                                             ShaderPreprocessor preprocessor,
                                             Function<KeyId, Optional<InputStream>> resourceProvider) throws IOException {
         return new GraphicsShader(keyId, shaderSources, preprocessor, resourceProvider);
-    }
-    
-    // ResourceReloadable implementation
-    
-    @Override
-    public boolean needsReload() {
-        return reloadableSupport != null && reloadableSupport.needsReload();
-    }
-    
-    @Override
-    public void reload() throws IOException {
-        if (reloadableSupport != null) {
-            reloadableSupport.reload();
-        }
-    }
-    
-    @Override
-    public void forceReload() throws IOException {
-        if (reloadableSupport != null) {
-            reloadableSupport.forceReload();
-        }
-    }
-    
-    @Override
-    public Shader getCurrentResource() {
-        return reloadableSupport != null ? reloadableSupport.getCurrentResource() : this;
-    }
-    
-    @Override
-    public KeyId getResourceIdentifier() {
-        return keyId;
-    }
-    
-    @Override
-    public java.util.Set<KeyId> getDependencies() {
-        return reloadableSupport != null ? reloadableSupport.getDependencies() : java.util.Collections.emptySet();
-    }
-    
-    @Override
-    public boolean hasDependencyChanges() {
-        return reloadableSupport != null && reloadableSupport.hasDependencyChanges();
-    }
-    
-    @Override
-    public void updateDependencyTimestamps() {
-        if (reloadableSupport != null) {
-            reloadableSupport.updateDependencyTimestamps();
-        }
-    }
-    
-    @Override
-    public void addReloadListener(java.util.function.Consumer<Shader> listener) {
-        if (reloadableSupport != null) {
-            reloadableSupport.addReloadListener(listener);
-        }
-    }
-    
-    @Override
-    public void removeReloadListener(java.util.function.Consumer<Shader> listener) {
-        if (reloadableSupport != null) {
-            reloadableSupport.removeReloadListener(listener);
-        }
-    }
-    
-    @Override
-    public ReloadMetadata getLastReloadMetadata() {
-        return reloadableSupport != null ? reloadableSupport.getLastReloadMetadata() : null;
-    }
-    
-    /**
-     * Check if this shader supports reloading
-     */
-    public boolean isReloadable() {
-        return reloadableSupport != null;
-    }
-    
-    /**
-     * Get the original shader sources (if reloadable)
-     */
-    public java.util.Map<ShaderType, String> getOriginalSources() {
-        return reloadableSupport != null ? reloadableSupport.getOriginalSources() : java.util.Collections.emptyMap();
-    }
-    
-    @Override
-    public void dispose() {
-        if (reloadableSupport != null) {
-            reloadableSupport.dispose();
-        }
-        super.dispose();
     }
 
     /**

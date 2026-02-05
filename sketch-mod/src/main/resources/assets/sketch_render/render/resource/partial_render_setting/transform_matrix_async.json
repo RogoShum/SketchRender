@@ -1,6 +1,6 @@
 {
   "renderState": {
-    "shader_program": {
+    "shader_template": {
       "identifier": "sketch_render:transform_matrix"
     }
   },

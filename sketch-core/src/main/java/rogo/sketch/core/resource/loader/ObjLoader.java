@@ -9,6 +9,7 @@ import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.model.BakedMesh;
 import rogo.sketch.core.model.MeshGroup;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.buffer.VertexBufferObject;
 import rogo.sketch.core.resource.buffer.VertexResource;
 import rogo.sketch.core.util.KeyId;
@@ -30,9 +31,8 @@ import java.util.function.Function;
 public class ObjLoader implements ResourceLoader<MeshGroup> {
 
     @Override
-    public MeshGroup load(KeyId keyId, ResourceData resourceData, Gson gson,
-                          Function<KeyId, Optional<InputStream>> resourceProvider) {
-        BufferedReader reader = resourceData.getReader();
+    public MeshGroup load(ResourceLoadContext context) {
+        BufferedReader reader = context.getReader();
         if (reader == null)
             return null;
 
@@ -78,7 +78,7 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             // Create MeshGroup
             // Use POS_UV_NORMAL format (Position 3, UV 2, Normal 3)
             DataFormat format = DefaultDataFormats.OBJ;
-            MeshGroup meshGroup = new MeshGroup(keyId.toString(), PrimitiveType.TRIANGLES, format);
+            MeshGroup meshGroup = new MeshGroup(context.getResourceId().toString(), PrimitiveType.TRIANGLES, format);
 
             // Create VertexResource
             VertexResource resource = new VertexResource(
@@ -135,6 +135,11 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
             e.printStackTrace();
             return null;
         }
+    }
+
+    @Override
+    public KeyId getResourceType() {
+        return ResourceTypes.MESH;
     }
 
     private void processVertex(String token, List<Float> v, List<Float> vt, List<Float> vn, List<Float> output) {

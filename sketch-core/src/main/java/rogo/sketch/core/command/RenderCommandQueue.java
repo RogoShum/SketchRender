@@ -1,5 +1,6 @@
 package rogo.sketch.core.command;
 
+import rogo.sketch.core.api.RenderStateComponent;
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.driver.GraphicsAPI;
@@ -9,6 +10,7 @@ import rogo.sketch.core.event.bridge.EventBusBridge;
 import rogo.sketch.core.pipeline.*;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.shader.variant.ShaderTemplate;
 import rogo.sketch.core.state.gl.ShaderState;
 import rogo.sketch.core.state.snapshot.GLStateSnapshot;
 import rogo.sketch.core.state.snapshot.SnapshotScope;
@@ -415,10 +417,10 @@ public class RenderCommandQueue<C extends RenderContext> {
             // Extract shader from render state and add shader bindings
             if (setting.renderState() != null) {
                 try {
-                    rogo.sketch.core.api.RenderStateComponent shaderComponent =
-                            setting.renderState().get(ResourceTypes.SHADER_PROGRAM);
+                    RenderStateComponent shaderComponent =
+                            setting.renderState().get(ResourceTypes.SHADER_TEMPLATE);
                     if (shaderComponent instanceof ShaderState shaderState) {
-                        ResourceReference<ShaderProvider> shaderRef = shaderState.shader();
+                        ResourceReference<ShaderTemplate> shaderRef = shaderState.getTemplate();
                         if (shaderRef != null && shaderRef.isAvailable()) {
                             ShaderProvider shaderProvider = shaderRef.get();
                             if (shaderProvider != null) {

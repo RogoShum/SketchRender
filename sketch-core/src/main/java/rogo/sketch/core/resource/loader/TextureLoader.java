@@ -3,8 +3,9 @@ package rogo.sketch.core.resource.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.lwjgl.opengl.*;
-import rogo.sketch.core.driver.GraphicsAPI;
 import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.driver.internal.IGLTextureStrategy;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.StandardTexture;
 import rogo.sketch.core.resource.Texture;
 import rogo.sketch.core.util.ImageUtil;
@@ -18,25 +19,37 @@ import java.util.function.Function;
 import static org.lwjgl.opengl.GL31.GL_RGB8_SNORM;
 
 /**
- * Loader for Texture resources from JSON
+ * Loader for Texture resources from JSON.
+ * Uses GraphicsAPI texture strategy for DSA/Legacy abstraction.
  */
 public class TextureLoader implements ResourceLoader<Texture> {
 
-    @Override
-    public Texture load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<InputStream>> resourceProvider) {
-        try {
-            String jsonData = data.getString();
-            if (jsonData == null)
-                return null;
+    /**
+     * Get the texture strategy from the current graphics API
+     */
+    private static IGLTextureStrategy getTextureStrategy() {
+        return GraphicsDriver.getCurrentAPI().getTextureStrategy();
+    }
 
-            JsonObject json = gson.fromJson(jsonData, JsonObject.class);
+    @Override
+    public KeyId getResourceType() {
+        return ResourceTypes.TEXTURE;
+    }
+
+    @Override
+    public Texture load(ResourceLoadContext context) {
+        try {
+            KeyId keyId = context.getResourceId();
+            JsonObject json = context.getJson();
+            if (json == null)
+                return null;
+            
+            Function<KeyId, Optional<InputStream>> resourceProvider = context.getSubResourceProvider();
 
             boolean isRenderTarget = json.has("isRenderTarget") && json.get("isRenderTarget").getAsBoolean();
             String imagePath = json.has("imagePath") ? json.get("imagePath").getAsString() : null;
 
             if (!isRenderTarget && imagePath == null) {
-                // System.err.println("Texture " + keyId + " is not an RT and has no
-                // imagePath!");
                 return null;
             }
 
@@ -109,34 +122,32 @@ public class TextureLoader implements ResourceLoader<Texture> {
                 }
             }
 
-            // Create Texture
-            GraphicsAPI api = GraphicsDriver.getCurrentAPI();
-            int handle = api.genTextures();
-            api.bindTexture(GL11.GL_TEXTURE_2D, handle);
+            // Create Texture using strategy
+            IGLTextureStrategy strategy = getTextureStrategy();
+            int handle = strategy.createTexture(GL11.GL_TEXTURE_2D);
 
-            api.texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
-            api.texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, magFilter);
-            api.texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, wrapS);
-            api.texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, wrapT);
+            // Set texture parameters using handle-based methods
+            strategy.texParameteri(handle, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
+            strategy.texParameteri(handle, GL11.GL_TEXTURE_MAG_FILTER, magFilter);
+            strategy.texParameteri(handle, GL11.GL_TEXTURE_WRAP_S, wrapS);
+            strategy.texParameteri(handle, GL11.GL_TEXTURE_WRAP_T, wrapT);
 
             if (imageBuffer != null) {
-                api.texImage2D(GL11.GL_TEXTURE_2D, 0, internalFormat, width, height, 0, dataFormat, dataType, imageBuffer);
+                strategy.texImage2D(handle, 0, internalFormat, width, height, dataFormat, dataType, imageBuffer);
 
                 if (useMipmap) {
-                    api.generateMipmap(GL11.GL_TEXTURE_2D);
+                    strategy.generateMipmap(handle);
                 }
             } else if (isRenderTarget) {
                 int rtW = json.has("width") ? json.get("width").getAsInt() : 1;
                 int rtH = json.has("height") ? json.get("height").getAsInt() : 1;
 
-                api.texImage2D(GL11.GL_TEXTURE_2D, 0, internalFormat, rtW, rtH, 0, dataFormat, dataType, null);
+                strategy.texImage2D(handle, 0, internalFormat, rtW, rtH, dataFormat, dataType, null);
 
                 if (useMipmap) {
-                    api.generateMipmap(GL11.GL_TEXTURE_2D);
+                    strategy.generateMipmap(handle);
                 }
             }
-
-            api.bindTexture(GL11.GL_TEXTURE_2D, 0);
 
             StandardTexture tex = new StandardTexture(handle, keyId, width, height, internalFormat, dataFormat, dataType,
                     minFilter, magFilter, wrapS, wrapT,

@@ -19,13 +19,16 @@ public final class ResourceTypes {
     public static final KeyId IMAGE_BUFFER = KeyId.of("image_buffer");
     public static final KeyId RENDER_TARGET = KeyId.of("render_target");
     public static final KeyId FRAMEBUFFER = KeyId.of("framebuffer");
-    public static final KeyId SHADER_PROGRAM = KeyId.of("shader_program");
     public static final KeyId RENDER_SETTING = KeyId.of("render_setting");
     public static final KeyId PARTIAL_RENDER_SETTING = KeyId.of("partial_render_setting");
     public static final KeyId VERTEX_BUFFER = KeyId.of("vertex_buffer");
     public static final KeyId MESH = KeyId.of("mesh");
     public static final KeyId FUNCTION = KeyId.of("function");
     public static final KeyId DRAW_CALL = KeyId.of("draw_call");
+    
+    // Shader system types
+    public static final KeyId MACRO_TEMPLATE = KeyId.of("macro_template");
+    public static final KeyId SHADER_TEMPLATE = KeyId.of("shader_template");
 
     // Resource type inheritance mapping: child -> parent
     private static final Map<KeyId, KeyId> TYPE_INHERITANCE = new HashMap<>();

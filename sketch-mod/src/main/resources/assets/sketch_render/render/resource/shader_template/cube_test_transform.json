@@ -1,0 +1,10 @@
+{
+  "vertex": "sketch_render:cube_test_transform.vsh",
+  "fragment": "sketch_render:cube_test.fsh",
+  "attributes": [
+    "Position",
+    "UV",
+    "Normal",
+    "TransformID"
+  ]
+}

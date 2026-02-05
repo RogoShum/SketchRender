@@ -4,38 +4,40 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.resource.loader.*;
+import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.util.KeyId;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * Central resource manager for graphics resources.
+ * Manages both built-in (code-controlled) and file-loaded resources.
+ * 
+ * Key features:
+ * - Built-in resources take priority over file-loaded resources
+ * - Version-based cache invalidation for ResourceReferences
+ * - Platform-independent core with ResourceScanProvider for platform-specific loading
+ */
 public class GraphicsResourceManager {
     private static GraphicsResourceManager instance;
 
-    // Resource storage: Type -> (Name -> Resource)
-    private final Map<KeyId, Map<KeyId, ResourceObject>> resources = new ConcurrentHashMap<>();
-
-    // Manual (code-controlled) resources: Type -> (Name -> Supplier)
-    private final Map<KeyId, Map<KeyId, Supplier<Optional<ResourceObject>>>> builtInResources = new ConcurrentHashMap<>();
-
-    // Resource references for external use
-    private final Map<String, ResourceReference<?>> references = new ConcurrentHashMap<>();
-
-    // Resource loaders for different types
-    private final ResourceLoaderRegistry loaderRegistry = new ResourceLoaderRegistry<>();
-
-    private final Map<KeyId, Map<KeyId, Set<ResourceReloadListener>>> reloadListeners = new ConcurrentHashMap<>();
-
-    private Function<KeyId, Optional<InputStream>> subResourceProvider;
-
-    // JSON processor
-    private final Gson gson = new GsonBuilder()
-            .registerTypeAdapter(KeyId.class, new KeyId.GsonAdapter())
-            .setPrettyPrinting()
-            .create();
+    // ===== Core Storage Layer =====
+    private final ResourceStorage storage = new ResourceStorage();
+    
+    // ===== Loader System =====
+    private final LoaderSystem loaders = new LoaderSystem();
+    
+    // ===== Reference System =====
+    private final ReferenceSystem references = new ReferenceSystem();
+    
+    // ===== Resource Scan Provider =====
+    private ResourceScanProvider scanProvider;
 
     protected GraphicsResourceManager() {
         registerDefaultLoaders();
@@ -48,376 +50,252 @@ public class GraphicsResourceManager {
         return instance;
     }
 
-    /**
-     * Register a manual (code-controlled) resource
-     */
-    public void registerBuiltIn(KeyId type, KeyId name, Supplier<Optional<ResourceObject>> resourceSupplier) {
-        builtInResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(name, resourceSupplier);
+    // ========== Public API ==========
 
-        // Invalidate existing references
-        invalidateReferences(type, name);
+    /**
+     * Set the resource scan provider (platform-specific implementation).
+     */
+    public void setScanProvider(ResourceScanProvider provider) {
+        this.scanProvider = provider;
     }
 
     /**
-     * Register a resource from JSON data
-     * Note: This method directly loads and stores the resource without caching JSON
+     * Get a resource reference (dynamic wrapper with version-based caching).
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends ResourceObject> ResourceReference<T> getReference(KeyId type, KeyId name) {
+        return references.getOrCreate(type, name, () -> storage.get(type, name));
+    }
+
+    /**
+     * Get a resource directly (built-in priority, then file-loaded).
+     */
+    public <T extends ResourceObject> T getResource(KeyId type, KeyId name) {
+        return storage.get(type, name);
+    }
+
+    /**
+     * Get a resource directly without inheritance (exact type match only).
+     */
+    public <T extends ResourceObject> T getResourceExact(KeyId type, KeyId name) {
+        return storage.getExact(type, name);
+    }
+
+    /**
+     * Register a built-in (code-controlled) resource.
+     * Built-in resources take priority over file-loaded resources.
+     */
+    public void registerBuiltIn(KeyId type, KeyId name, Supplier<ResourceObject> resourceSupplier) {
+        storage.registerBuiltIn(type, name, resourceSupplier);
+        references.incrementVersion(type, name);
+    }
+
+    /**
+     * Register a resource from JSON data.
      */
     public void registerJson(KeyId type, KeyId name, String jsonData) {
         registerJson(type, name, jsonData, null);
     }
 
     /**
-     * Register a resource from JSON data with resource provider
-     * Enhanced to properly handle reload listeners during resource reload cycles
+     * Register a resource from JSON data with resource provider.
      */
-    public void registerJson(KeyId type, KeyId name, String jsonData, Function<KeyId, Optional<InputStream>> resourceProvider) {
-        registerResource(type, name, new ResourceData(jsonData), resourceProvider);
+    public void registerJson(KeyId type, KeyId name, String jsonData, 
+                            Function<KeyId, Optional<InputStream>> resourceProvider) {
+        InputStream stream = new ByteArrayInputStream(jsonData.getBytes(StandardCharsets.UTF_8));
+        loadAndRegister(type, name, stream, resourceProvider);
     }
 
     /**
-     * Register a generic resource (JSON or Binary)
-     */
-    public void registerResource(KeyId type, KeyId name, ResourceData data, Function<KeyId, Optional<InputStream>> resourceProvider) {
-        // Check if there's an existing reload listener for this resource
-        Set<ResourceReloadListener> existingListener = getReloadListener(type, name);
-
-        // Use the provided resource provider or fall back to the global sub-resource
-        // provider
-        Function<KeyId, Optional<InputStream>> actualProvider = resourceProvider != null ? resourceProvider
-                : subResourceProvider;
-
-        // Load the new resource
-        loadResource(type, name, data, actualProvider);
-        invalidateReferences(type, name);
-
-        // Get the newly loaded resource
-        ResourceObject newResource = getResourceExact(type, name).orElse(null);
-
-        // Always notify reload listeners if they exist
-        // This ensures proper update handling during resource reloads
-        if (newResource != null && existingListener != null) {
-            try {
-                for (ResourceReloadListener listener : existingListener) {
-                    listener.onResourceReload(name, newResource);
-                }
-            } catch (Exception e) {
-                System.err
-                        .println("Error in resource reload listener for " + type + ":" + name + ": " + e.getMessage());
-                e.printStackTrace();
-            }
-        }
-    }
-
-    /**
-     * Register a direct resource instance
+     * Register a direct resource instance.
      */
     public <T extends ResourceObject> void registerDirect(KeyId type, KeyId name, T resource) {
-        resources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
-                .put(name, resource);
-
-        // Invalidate existing references
-        invalidateReferences(type, name);
+        storage.registerLoaded(type, name, resource);
+        references.incrementVersion(type, name);
+        references.notifyReload(type, name, resource);
     }
 
     /**
-     * Get a resource reference (safe wrapper)
-     */
-    @SuppressWarnings("unchecked")
-    public <T extends ResourceObject> ResourceReference<T> getReference(KeyId type, KeyId name) {
-        String key = type + ":" + name;
-        return (ResourceReference<T>) references.computeIfAbsent(key, k -> {
-            List<KeyId> searchOrder = ResourceTypes.getSearchOrder(type);
-
-            for (KeyId searchType : searchOrder) {
-                Map<KeyId, ResourceObject> typeResources = resources.get(searchType);
-                if (typeResources != null) {
-                    ResourceObject resource = typeResources.get(name);
-                    if (resource != null) {
-                        return new ResourceReference<>(name, type, () -> getResource(type, name));
-                    }
-                }
-
-                Map<KeyId, Supplier<Optional<ResourceObject>>> typeManual = builtInResources.get(searchType);
-                if (typeManual != null) {
-                    Supplier<Optional<ResourceObject>> supplier = typeManual.get(name);
-                    if (supplier != null) {
-                        return new ResourceReference<>(name, type, supplier, true);
-                    }
-                }
-            }
-
-            return new ResourceReference<>(name, type, () -> getResource(type, name));
-        });
-    }
-
-    /**
-     * Get a resource directly with inheritance support
-     * Searches the requested type first, then searches parent types in the
-     * inheritance chain
-     */
-    @SuppressWarnings("unchecked")
-    public <T extends ResourceObject> Optional<T> getResource(KeyId type, KeyId name) {
-        // Get the search order based on inheritance hierarchy
-        List<KeyId> searchOrder = ResourceTypes.getSearchOrder(type);
-
-        for (KeyId searchType : searchOrder) {
-            // Try direct resources first
-            Map<KeyId, ResourceObject> typeResources = resources.get(searchType);
-            if (typeResources != null) {
-                ResourceObject resource = typeResources.get(name);
-                if (resource != null) {
-                    return Optional.of((T) resource);
-                }
-            }
-
-            // Try manual resources
-            Map<KeyId, Supplier<Optional<ResourceObject>>> typeManual = builtInResources.get(searchType);
-            if (typeManual != null) {
-                Supplier<Optional<ResourceObject>> supplier = typeManual.get(name);
-                if (supplier != null) {
-                    try {
-                        Optional<ResourceObject> resource = supplier.get();
-                        return (Optional<T>) resource;
-                    } catch (Exception e) {
-                        System.err.println("Failed to create build-in resource " + name + " of type " + searchType
-                                + ": " + e.getMessage());
-                    }
-                }
-            }
-        }
-
-        return Optional.empty();
-    }
-
-    /**
-     * Get a resource directly without inheritance (exact type match only)
-     * Useful when you specifically need a resource of the exact type
-     */
-    @SuppressWarnings("unchecked")
-    public <T extends ResourceObject> Optional<T> getResourceExact(KeyId type, KeyId name) {
-        // Try direct resources first
-        Map<KeyId, ResourceObject> typeResources = resources.get(type);
-        if (typeResources != null) {
-            ResourceObject resource = typeResources.get(name);
-            if (resource != null) {
-                return Optional.of((T) resource);
-            }
-        }
-
-        // Try manual resources
-        Map<KeyId, Supplier<Optional<ResourceObject>>> typeManual = builtInResources.get(type);
-        if (typeManual != null) {
-            Supplier<Optional<ResourceObject>> supplier = typeManual.get(name);
-            if (supplier != null) {
-                try {
-                    return (Optional<T>) supplier.get();
-                } catch (Exception e) {
-                    System.err.println(
-                            "Failed to create manual resource " + name + " of type " + type + ": " + e.getMessage());
-                }
-            }
-        }
-
-        return Optional.empty();
-    }
-
-    public void clearAllResources() {
-        for (Map<KeyId, ResourceObject> typeResources : resources.values()) {
-            for (ResourceObject resource : typeResources.values()) {
-                if (resource != null) {
-                    try {
-                        resource.dispose();
-                    } catch (Exception e) {
-                        System.err.println("Error disposing resource: " + e.getMessage());
-                    }
-                }
-            }
-        }
-        resources.clear();
-
-        for (ResourceReference<?> ref : references.values()) {
-            ref.invalidate();
-        }
-    }
-
-    /**
-     * Load a resource
-     */
-    private void loadResource(KeyId type, KeyId keyId, ResourceData data, Function<KeyId, Optional<InputStream>> resourceProvider) {
-        Set<ResourceLoader<ResourceObject>> loader = loaderRegistry.getLoader(type);
-        if (loader == null) {
-            System.err.println("No loader found for resource type: " + type);
-            return;
-        }
-
-        try {
-            for (ResourceLoader<ResourceObject> resourceLoader : loader) {
-                ResourceObject resource = resourceLoader.load(keyId, data, gson, resourceProvider);
-                if (resource != null) {
-                    resources.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(keyId, resource);
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Failed to load resource " + keyId + " of type " + type + ": " + e.getMessage());
-        }
-    }
-
-    /**
-     * Invalidate references for a specific resource
-     */
-    private void invalidateReferences(KeyId type, KeyId name) {
-        String key = type + ":" + name;
-        ResourceReference<?> ref = references.get(key);
-        if (ref != null) {
-            ref.invalidate();
-        }
-    }
-
-    /**
-     * Register a resource loader for a specific type
-     */
-    public <T extends ResourceObject> void registerLoader(KeyId type, ResourceLoader<T> loader) {
-        loaderRegistry.registerLoader(type, loader);
-    }
-
-    /**
-     * Get all resources of a specific type (including inherited types)
-     */
-    public <T extends ResourceObject> Map<KeyId, T> getResourcesOfType(KeyId type) {
-        Map<KeyId, T> result = new HashMap<>();
-
-        // Get all types to search (including inheritance chain)
-        List<KeyId> searchOrder = ResourceTypes.getSearchOrder(type);
-
-        for (KeyId searchType : searchOrder) {
-            // Add direct resources
-            Map<KeyId, ResourceObject> typeResources = resources.get(searchType);
-            if (typeResources != null) {
-                for (Map.Entry<KeyId, ResourceObject> entry : typeResources.entrySet()) {
-                    // Only add if not already present (child types take precedence)
-                    if (!result.containsKey(entry.getKey())) {
-                        @SuppressWarnings("unchecked")
-                        T resource = (T) entry.getValue();
-                        result.put(entry.getKey(), resource);
-                    }
-                }
-            }
-
-            // Add manual resources (instantiate them)
-            Map<KeyId, Supplier<Optional<ResourceObject>>> typeManual = builtInResources.get(searchType);
-            if (typeManual != null) {
-                for (Map.Entry<KeyId, Supplier<Optional<ResourceObject>>> entry : typeManual.entrySet()) {
-                    // Only add if not already present (child types take precedence)
-                    if (!result.containsKey(entry.getKey())) {
-                        try {
-                            @SuppressWarnings("unchecked")
-                            Optional<T> resource = (Optional<T>) entry.getValue().get();
-                            if (resource.isPresent()) {
-                                result.put(entry.getKey(), resource.get());
-                            }
-                        } catch (Exception e) {
-                            System.err.println("Failed to instantiate manual resource: " + e.getMessage());
-                        }
-                    }
-                }
-            }
-        }
-
-        return result;
-    }
-
-    /**
-     * Get all resources of a specific type (exact type match only)
-     */
-    public <T extends ResourceObject> Map<KeyId, T> getResourcesOfTypeExact(KeyId type) {
-        Map<KeyId, T> result = new HashMap<>();
-
-        // Add direct resources
-        Map<KeyId, ResourceObject> typeResources = resources.get(type);
-        if (typeResources != null) {
-            for (Map.Entry<KeyId, ResourceObject> entry : typeResources.entrySet()) {
-                @SuppressWarnings("unchecked")
-                T resource = (T) entry.getValue();
-                result.put(entry.getKey(), resource);
-            }
-        }
-
-        // Add manual resources (instantiate them)
-        Map<KeyId, Supplier<Optional<ResourceObject>>> typeManual = builtInResources.get(type);
-        if (typeManual != null) {
-            for (Map.Entry<KeyId, Supplier<Optional<ResourceObject>>> entry : typeManual.entrySet()) {
-                try {
-                    @SuppressWarnings("unchecked")
-                    Optional<T> resource = (Optional<T>) entry.getValue().get();
-                    if (resource.isPresent()) {
-                        result.put(entry.getKey(), resource.get());
-                    }
-                } catch (Exception e) {
-                    System.err.println("Failed to instantiate manual resource: " + e.getMessage());
-                }
-            }
-        }
-
-        return result;
-    }
-
-    /**
-     * Check if a resource exists
+     * Check if a resource exists.
      */
     public boolean hasResource(KeyId type, KeyId name) {
-        return getResource(type, name).isPresent();
+        return storage.get(type, name) != null;
     }
 
     /**
-     * Remove a resource
+     * Remove a resource.
      */
     public void removeResource(KeyId type, KeyId name) {
-        // Remove from direct resources
-        Map<KeyId, ResourceObject> typeResources = resources.get(type);
-        if (typeResources != null) {
-            ResourceObject removed = typeResources.remove(name);
-            if (removed != null) {
-                try {
-                    removed.dispose();
-                } catch (Exception e) {
-                    System.err.println("Error disposing resource: " + e.getMessage());
-                }
-            }
-        }
-
-        // Remove from manual resources
-        Map<KeyId, Supplier<Optional<ResourceObject>>> typeManual = builtInResources.get(type);
-        if (typeManual != null) {
-            typeManual.remove(name);
-        }
-
-        // Invalidate reference
-        invalidateReferences(type, name);
+        storage.remove(type, name);
+        references.incrementVersion(type, name);
     }
 
     /**
-     * Dispose all resources
+     * Get all resources of a specific type (including inherited types).
+     */
+    public <T extends ResourceObject> Map<KeyId, T> getResourcesOfType(KeyId type) {
+        return storage.getAllOfType(type);
+    }
+
+    /**
+     * Get all resources of a specific type (exact type match only).
+     */
+    public <T extends ResourceObject> Map<KeyId, T> getResourcesOfTypeExact(KeyId type) {
+        return storage.getAllOfTypeExact(type);
+    }
+
+    /**
+     * Register a resource loader for a specific type.
+     */
+    public <T extends ResourceObject> void registerLoader(KeyId type, ResourceLoader<T> loader) {
+        loaders.register(type, loader);
+    }
+
+    /**
+     * Register a resource reload listener.
+     */
+    public void registerReloadListener(KeyId resourceType, KeyId resourceName, ResourceReloadListener listener) {
+        references.addReloadListener(resourceType, resourceName, listener);
+    }
+
+    /**
+     * Execute a full resource reload using the scan provider.
+     */
+    public void reload() {
+        if (scanProvider == null) {
+            System.err.println("No scan provider set, cannot reload resources");
+            return;
+        }
+        
+        // 1. Clear file-loaded resources (keep built-in)
+        storage.clearLoaded();
+        
+        // 2. Load resource pack features
+        loadPackFeatures();
+        
+        // 3. Load resources in order
+        for (KeyId type : getLoadOrder()) {
+            scanAndLoadType(type);
+        }
+        
+        // 4. Notify macro system that reload is complete
+        MacroContext.getInstance().notifyReloadComplete();
+    }
+
+    /**
+     * Clear all resources.
+     */
+    public void clearAllResources() {
+        storage.clearLoaded();
+        references.invalidateAll();
+    }
+
+    /**
+     * Dispose all resources.
      */
     public void dispose() {
-        for (Map<KeyId, ResourceObject> typeResources : resources.values()) {
-            for (ResourceObject resource : typeResources.values()) {
-                if (resource != null) {
-                    try {
-                        resource.dispose();
-                    } catch (Exception e) {
-                        System.err.println("Error disposing resource: " + e.getMessage());
-                    }
-                }
-            }
-        }
-
-        resources.clear();
-        builtInResources.clear();
+        storage.dispose();
         references.clear();
     }
 
     /**
-     * Get detailed information about resource inheritance chain for debugging
+     * Get the sub-resource provider function.
+     */
+    public Function<KeyId, Optional<InputStream>> getSubResourceProvider() {
+        return scanProvider != null ? scanProvider::getSubResource : id -> Optional.empty();
+    }
+
+    /**
+     * Set the sub-resource provider (legacy method for compatibility).
+     * @deprecated Use setScanProvider instead
+     */
+    @Deprecated
+    public void setSubResourceProvider(Function<KeyId, Optional<InputStream>> subResourceProvider) {
+        // This is a compatibility shim - create a minimal scan provider
+        if (this.scanProvider == null) {
+            this.scanProvider = new ResourceScanProvider() {
+                @Override
+                public Map<KeyId, InputStream> scanResources(KeyId resourceType) {
+                    return Collections.emptyMap();
+                }
+                @Override
+                public Optional<InputStream> getSubResource(KeyId identifier) {
+                    return subResourceProvider.apply(identifier);
+                }
+                @Override
+                public List<PackFeatureDefinition> getPackFeatures() {
+                    return Collections.emptyList();
+                }
+            };
+        }
+    }
+
+    // ========== Internal Methods ==========
+
+    private void registerDefaultLoaders() {
+        registerLoader(ResourceTypes.TEXTURE, new TextureLoader());
+        registerLoader(ResourceTypes.RENDER_TARGET, new RenderTargetLoader());
+        registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
+        registerLoader(ResourceTypes.MESH, new MeshLoader());
+        
+        // New loaders for shader template system
+        registerLoader(ResourceTypes.MACRO_TEMPLATE, new MacroTemplateLoader());
+        registerLoader(ResourceTypes.SHADER_TEMPLATE, new ShaderTemplateLoader());
+    }
+
+    private KeyId[] getLoadOrder() {
+        return new KeyId[] {
+            ResourceTypes.MACRO_TEMPLATE,       // Load macro templates first
+            ResourceTypes.SHADER_TEMPLATE,      // Then shader templates
+            ResourceTypes.TEXTURE,
+            ResourceTypes.RENDER_TARGET,
+            ResourceTypes.PARTIAL_RENDER_SETTING,
+            ResourceTypes.MESH,
+            ResourceTypes.FUNCTION,
+            ResourceTypes.DRAW_CALL
+        };
+    }
+
+    private void loadPackFeatures() {
+        if (scanProvider == null) return;
+        
+        // Clear old resource pack macros
+        MacroContext.getInstance().clearResourcePackMacros();
+        
+        // Load new pack features
+        List<PackFeatureDefinition> features = scanProvider.getPackFeatures();
+        for (PackFeatureDefinition feature : features) {
+            if (!feature.macros().isEmpty()) {
+                MacroContext.getInstance().registerResourcePackMacros(feature.packId(), feature.macros());
+            }
+            if (!feature.features().isEmpty()) {
+                MacroContext.getInstance().registerResourcePackFlags(feature.packId(), feature.features());
+            }
+        }
+    }
+
+    private void scanAndLoadType(KeyId type) {
+        if (scanProvider == null) return;
+        if (!loaders.hasLoader(type)) return;
+        
+        Map<KeyId, InputStream> resources = scanProvider.scanResources(type);
+        for (Map.Entry<KeyId, InputStream> entry : resources.entrySet()) {
+            loadAndRegister(type, entry.getKey(), entry.getValue(), scanProvider::getSubResource);
+        }
+    }
+
+    private void loadAndRegister(KeyId type, KeyId name, InputStream stream,
+                                 Function<KeyId, Optional<InputStream>> resourceProvider) {
+        ResourceObject resource = loaders.load(type, name, stream, resourceProvider);
+        if (resource != null) {
+            storage.registerLoaded(type, name, resource);
+            references.incrementVersion(type, name);
+            references.notifyReload(type, name, resource);
+        }
+    }
+
+    /**
+     * Get detailed information about resource inheritance chain for debugging.
      */
     public String getResourceInheritanceInfo(KeyId type, KeyId name) {
         StringBuilder info = new StringBuilder();
@@ -428,99 +306,338 @@ public class GraphicsResourceManager {
             KeyId searchType = searchOrder.get(i);
             boolean found = false;
 
-            // Check direct resources
-            Map<KeyId, ResourceObject> typeResources = resources.get(searchType);
-            if (typeResources != null && typeResources.containsKey(name)) {
+            // Check built-in first (priority)
+            if (storage.hasBuiltIn(searchType, name)) {
                 found = true;
-                info.append("  ").append(i == 0 ? "✓" : "↑").append(" Found in direct resources of type: ")
-                        .append(searchType).append("\n");
+                info.append("  ").append(i == 0 ? "✓" : "↑").append(" Found in built-in resources of type: ")
+                        .append(searchType).append(" (PRIORITY)\n");
             }
 
-            // Check manual resources
-            Map<KeyId, Supplier<Optional<ResourceObject>>> typeManual = builtInResources.get(searchType);
-            if (!found && typeManual != null && typeManual.containsKey(name)) {
+            // Then check loaded
+            if (!found && storage.hasLoaded(searchType, name)) {
                 found = true;
-                info.append("  ").append(i == 0 ? "✓" : "↑").append(" Found in manual resources of type: ")
+                info.append("  ").append(i == 0 ? "✓" : "↑").append(" Found in loaded resources of type: ")
                         .append(searchType).append("\n");
             }
 
             if (!found) {
                 info.append("  ✗ Not found in type: ").append(searchType).append("\n");
             } else {
-                break; // Stop at first match
+                break;
             }
         }
 
         return info.toString();
     }
 
-    /**
-     * Register default resource loaders
-     */
-    private void registerDefaultLoaders() {
-        registerLoader(ResourceTypes.TEXTURE, new TextureLoader());
-        registerLoader(ResourceTypes.RENDER_TARGET, new RenderTargetLoader());
-        registerLoader(ResourceTypes.SHADER_PROGRAM, new ShaderProgramLoader());
-        registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
-        registerLoader(ResourceTypes.MESH, new MeshLoader());
-
-        // registerLoader(ResourceTypes.MESH, new ObjLoader());
-    }
+    // ========== Internal Classes ==========
 
     /**
-     * Get the current sub-resource provider
+     * Resource storage layer - manages built-in and file-loaded resources.
      */
-    public Function<KeyId, Optional<InputStream>> getSubResourceProvider() {
-        return subResourceProvider;
-    }
+    private static class ResourceStorage {
+        // File-loaded resources: Type -> (Name -> Resource)
+        private final Map<KeyId, Map<KeyId, ResourceObject>> loadedResources = new ConcurrentHashMap<>();
+        
+        // Built-in resources: Type -> (Name -> Supplier)
+        private final Map<KeyId, Map<KeyId, Supplier<ResourceObject>>> builtInResources = new ConcurrentHashMap<>();
 
-    /**
-     * Set the sub-resource provider for loading child resources
-     * This allows resource loaders to load additional files they need
-     */
-    public void setSubResourceProvider(Function<KeyId, Optional<InputStream>> subResourceProvider) {
-        this.subResourceProvider = subResourceProvider;
-    }
+        /**
+         * Get resource (built-in priority, then file-loaded).
+         */
+        @SuppressWarnings("unchecked")
+        <T extends ResourceObject> T get(KeyId type, KeyId name) {
+            List<KeyId> searchOrder = ResourceTypes.getSearchOrder(type);
+            
+            for (KeyId searchType : searchOrder) {
+                // 1. Check built-in first (priority)
+                Supplier<ResourceObject> builtIn = getBuiltInSupplier(searchType, name);
+                if (builtIn != null) {
+                    ResourceObject result = builtIn.get();
+                    if (result != null) return (T) result;
+                }
+                
+                // 2. Then check file-loaded
+                T loaded = getLoaded(searchType, name);
+                if (loaded != null) return loaded;
+            }
+            
+            return null;
+        }
 
-    /**
-     * Register a resource reload listener for automatic updates
-     * Uses double buffering - new registrations go to the register buffer
-     */
-    public void registerReloadListener(KeyId resourceType, KeyId resourceName, ResourceReloadListener listener) {
-        reloadListeners
-                .computeIfAbsent(resourceType, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(resourceName, k -> ConcurrentHashMap.newKeySet())
-                .add(listener);
-    }
+        /**
+         * Get resource without inheritance (exact type match).
+         */
+        @SuppressWarnings("unchecked")
+        <T extends ResourceObject> T getExact(KeyId type, KeyId name) {
+            // 1. Check built-in first (priority)
+            Supplier<ResourceObject> builtIn = getBuiltInSupplier(type, name);
+            if (builtIn != null) {
+                ResourceObject result = builtIn.get();
+                if (result != null) return (T) result;
+            }
+            
+            // 2. Then check file-loaded
+            return getLoaded(type, name);
+        }
 
-    private void removeReloadListener(KeyId resourceType, KeyId resourceName, ResourceReloadListener listener) {
-        Map<KeyId, Set<ResourceReloadListener>> typeListeners = reloadListeners.get(resourceType);
-        if (typeListeners != null) {
-            Set<ResourceReloadListener> set = typeListeners.get(resourceName);
-            set.remove(listener);
-            if (set.isEmpty()) {
-                typeListeners.remove(resourceName);
+        private Supplier<ResourceObject> getBuiltInSupplier(KeyId type, KeyId name) {
+            Map<KeyId, Supplier<ResourceObject>> typeMap = builtInResources.get(type);
+            return typeMap != null ? typeMap.get(name) : null;
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T extends ResourceObject> T getLoaded(KeyId type, KeyId name) {
+            Map<KeyId, ResourceObject> typeMap = loadedResources.get(type);
+            return typeMap != null ? (T) typeMap.get(name) : null;
+        }
+
+        void registerBuiltIn(KeyId type, KeyId name, Supplier<ResourceObject> supplier) {
+            builtInResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(name, supplier);
+        }
+
+        void registerLoaded(KeyId type, KeyId name, ResourceObject resource) {
+            loadedResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(name, resource);
+        }
+
+        boolean hasBuiltIn(KeyId type, KeyId name) {
+            Map<KeyId, Supplier<ResourceObject>> typeMap = builtInResources.get(type);
+            return typeMap != null && typeMap.containsKey(name);
+        }
+
+        boolean hasLoaded(KeyId type, KeyId name) {
+            Map<KeyId, ResourceObject> typeMap = loadedResources.get(type);
+            return typeMap != null && typeMap.containsKey(name);
+        }
+
+        void remove(KeyId type, KeyId name) {
+            // Remove from loaded
+            Map<KeyId, ResourceObject> typeResources = loadedResources.get(type);
+            if (typeResources != null) {
+                ResourceObject removed = typeResources.remove(name);
+                if (removed != null) {
+                    try {
+                        removed.dispose();
+                    } catch (Exception e) {
+                        System.err.println("Error disposing resource: " + e.getMessage());
+                    }
+                }
+            }
+            
+            // Remove from built-in
+            Map<KeyId, Supplier<ResourceObject>> typeBuiltIn = builtInResources.get(type);
+            if (typeBuiltIn != null) {
+                typeBuiltIn.remove(name);
+            }
+        }
+
+        /**
+         * Clear only file-loaded resources (keep built-in).
+         */
+        void clearLoaded() {
+            for (Map<KeyId, ResourceObject> typeMap : loadedResources.values()) {
+                for (ResourceObject resource : typeMap.values()) {
+                    if (resource != null) {
+                        try {
+                            resource.dispose();
+                        } catch (Exception e) {
+                            System.err.println("Error disposing resource: " + e.getMessage());
+                        }
+                    }
+                }
+            }
+            loadedResources.clear();
+        }
+
+        /**
+         * Dispose all resources.
+         */
+        void dispose() {
+            clearLoaded();
+            builtInResources.clear();
+        }
+
+        @SuppressWarnings("unchecked")
+        <T extends ResourceObject> Map<KeyId, T> getAllOfType(KeyId type) {
+            Map<KeyId, T> result = new HashMap<>();
+            List<KeyId> searchOrder = ResourceTypes.getSearchOrder(type);
+
+            for (KeyId searchType : searchOrder) {
+                // Add loaded resources
+                Map<KeyId, ResourceObject> typeLoaded = loadedResources.get(searchType);
+                if (typeLoaded != null) {
+                    for (Map.Entry<KeyId, ResourceObject> entry : typeLoaded.entrySet()) {
+                        if (!result.containsKey(entry.getKey())) {
+                            result.put(entry.getKey(), (T) entry.getValue());
+                        }
+                    }
+                }
+
+                // Add built-in resources
+                Map<KeyId, Supplier<ResourceObject>> typeBuiltIn = builtInResources.get(searchType);
+                if (typeBuiltIn != null) {
+                    for (Map.Entry<KeyId, Supplier<ResourceObject>> entry : typeBuiltIn.entrySet()) {
+                        if (!result.containsKey(entry.getKey())) {
+                            try {
+                                ResourceObject resource = entry.getValue().get();
+                                if (resource != null) {
+                                    result.put(entry.getKey(), (T) resource);
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Failed to get built-in resource: " + e.getMessage());
+                            }
+                        }
+                    }
+                }
             }
 
-            if (typeListeners.isEmpty()) {
-                reloadListeners.remove(resourceType);
+            return result;
+        }
+
+        @SuppressWarnings("unchecked")
+        <T extends ResourceObject> Map<KeyId, T> getAllOfTypeExact(KeyId type) {
+            Map<KeyId, T> result = new HashMap<>();
+
+            // Add loaded resources
+            Map<KeyId, ResourceObject> typeLoaded = loadedResources.get(type);
+            if (typeLoaded != null) {
+                for (Map.Entry<KeyId, ResourceObject> entry : typeLoaded.entrySet()) {
+                    result.put(entry.getKey(), (T) entry.getValue());
+                }
             }
+
+            // Add built-in resources
+            Map<KeyId, Supplier<ResourceObject>> typeBuiltIn = builtInResources.get(type);
+            if (typeBuiltIn != null) {
+                for (Map.Entry<KeyId, Supplier<ResourceObject>> entry : typeBuiltIn.entrySet()) {
+                    if (!result.containsKey(entry.getKey())) {
+                        try {
+                            ResourceObject resource = entry.getValue().get();
+                            if (resource != null) {
+                                result.put(entry.getKey(), (T) resource);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Failed to get built-in resource: " + e.getMessage());
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
     }
 
     /**
-     * Interface for resource reload listeners
+     * Loader system - manages resource loaders.
      */
-    public interface ResourceReloadListener {
-        void onResourceReload(KeyId resourceName, ResourceObject newResource);
+    private static class LoaderSystem {
+        private final Map<KeyId, Set<ResourceLoader<?>>> loaderMap = new ConcurrentHashMap<>();
+        private final Gson gson = new GsonBuilder()
+                .registerTypeAdapter(KeyId.class, new KeyId.GsonAdapter())
+                .setPrettyPrinting()
+                .create();
+
+        void register(KeyId type, ResourceLoader<?> loader) {
+            loaderMap.computeIfAbsent(type, k -> ConcurrentHashMap.newKeySet()).add(loader);
+        }
+
+        boolean hasLoader(KeyId type) {
+            Set<ResourceLoader<?>> loaders = loaderMap.get(type);
+            return loaders != null && !loaders.isEmpty();
+        }
+
+        ResourceObject load(KeyId type, KeyId id, InputStream stream,
+                           Function<KeyId, Optional<InputStream>> subProvider) {
+            Set<ResourceLoader<?>> loaders = loaderMap.get(type);
+            if (loaders == null || loaders.isEmpty()) {
+                System.err.println("No loader found for resource type: " + type);
+                return null;
+            }
+
+            ResourceLoadContext context = new ResourceLoadContext(id, stream, gson, subProvider);
+
+            for (ResourceLoader<?> loader : loaders) {
+                try {
+                    ResourceObject resource = loader.load(context);
+                    if (resource != null) {
+                        return resource;
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to load resource " + id + " of type " + type + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+
+            return null;
+        }
+
+        Gson getGson() {
+            return gson;
+        }
     }
 
     /**
-     * Get the reload listener for a specific resource
-     * Uses double buffering - reads from the active listener buffer
+     * Reference system - manages ResourceReferences and version tracking.
      */
-    private Set<ResourceReloadListener> getReloadListener(KeyId type, KeyId name) {
-        Map<KeyId, Set<ResourceReloadListener>> typeListeners = reloadListeners.get(type);
-        return typeListeners != null ? typeListeners.get(name) : null;
+    private static class ReferenceSystem {
+        private final Map<String, ResourceReference<?>> references = new ConcurrentHashMap<>();
+        private final Map<String, Long> resourceVersions = new ConcurrentHashMap<>();
+        private final Map<String, Set<ResourceReloadListener>> reloadListeners = new ConcurrentHashMap<>();
+
+        long getVersion(KeyId type, KeyId name) {
+            String key = type + ":" + name;
+            return resourceVersions.getOrDefault(key, 0L);
+        }
+
+        void incrementVersion(KeyId type, KeyId name) {
+            String key = type + ":" + name;
+            resourceVersions.compute(key, (k, v) -> (v == null) ? 1L : v + 1);
+        }
+
+        @SuppressWarnings("unchecked")
+        <T extends ResourceObject> ResourceReference<T> getOrCreate(
+                KeyId type, KeyId name, Supplier<T> resolver) {
+            String key = type + ":" + name;
+            return (ResourceReference<T>) references.computeIfAbsent(key, k ->
+                new ResourceReference<>(name, type, resolver, () -> getVersion(type, name)));
+        }
+
+        void addReloadListener(KeyId type, KeyId name, ResourceReloadListener listener) {
+            String key = type + ":" + name;
+            reloadListeners.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet()).add(listener);
+        }
+
+        void notifyReload(KeyId type, KeyId name, ResourceObject resource) {
+            String key = type + ":" + name;
+            Set<ResourceReloadListener> listeners = reloadListeners.get(key);
+            if (listeners != null) {
+                for (ResourceReloadListener listener : listeners) {
+                    try {
+                        listener.onResourceReload(name, resource);
+                    } catch (Exception e) {
+                        System.err.println("Reload listener error: " + e.getMessage());
+                    }
+                }
+            }
+        }
+
+        void invalidateAll() {
+            for (ResourceReference<?> ref : references.values()) {
+                ref.invalidate();
+            }
+        }
+
+        void clear() {
+            references.clear();
+            resourceVersions.clear();
+            reloadListeners.clear();
+        }
+    }
+
+    /**
+     * Interface for resource reload listeners.
+     */
+    public interface ResourceReloadListener {
+        void onResourceReload(KeyId resourceName, ResourceObject newResource);
     }
 }

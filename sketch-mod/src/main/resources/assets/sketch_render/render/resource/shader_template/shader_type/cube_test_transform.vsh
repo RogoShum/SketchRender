@@ -5,12 +5,11 @@ uniform mat4 sketch_cullingViewMat;
 uniform mat4 sketch_cullingProjMat;
 
 // Vertex attributes
-layout (location=0) in vec3 Position;
-layout (location=1) in vec2 UV;
-layout (location=2) in vec3 Normal;
+in vec3 Position;
+in vec2 UV;
+in vec3 Normal;
 
-// Transform ID - index into the world matrix SSBO
-layout (location=3) in int TransformID;
+in int TransformID;
 
 // World matrices computed by the transform compute shader
 layout(std430, binding = 1) readonly buffer TransformOutputBuffer {

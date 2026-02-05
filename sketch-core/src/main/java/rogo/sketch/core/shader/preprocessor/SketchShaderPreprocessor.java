@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 /**
  * Modern shader preprocessor with advanced import and macro capabilities
  * Inspired by Minecraft's shader system but with more flexible features
- * 
+ * <p>
  * Features:
  * - #import/#include support with recursive resolution
  * - Macro processing (#define, #ifdef, etc.)
@@ -24,7 +24,7 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
             "^\\s*#\\s*(?:import|include)\\s+(?:\"([^\"]+)\"|<([^>]+)>)\\s*(?://.*)?$",
             Pattern.MULTILINE
     );
-    
+
     // Pattern for vertex attribute declarations: "in type name;"
     private static final Pattern VERTEX_ATTRIB_PATTERN = Pattern.compile(
             "^(\\s*)(in\\s+)(\\w+)(\\s+)(\\w+)(\\s*;.*?)$",
@@ -76,32 +76,12 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
     );
 
     private ShaderResourceProvider resourceProvider;
-    private ShaderVertexLayout vertexLayout;
     private final Set<KeyId> lastImportedFiles = new HashSet<>();
     private final Map<String, PreprocessorResult> cache = new HashMap<>();
 
     @Override
     public void setResourceProvider(ShaderResourceProvider resourceProvider) {
         this.resourceProvider = resourceProvider;
-    }
-    
-    /**
-     * Set the vertex layout for automatic layout injection in vertex shaders.
-     * When set, the preprocessor will automatically add layout(location=N) to
-     * vertex attribute declarations that match the layout.
-     * 
-     * @param layout The vertex layout, or null to disable auto-layout
-     */
-    public void setVertexLayout(ShaderVertexLayout layout) {
-        this.vertexLayout = layout;
-    }
-    
-    /**
-     * Get the current vertex layout.
-     * @return The vertex layout, or null if not set
-     */
-    public ShaderVertexLayout getVertexLayout() {
-        return vertexLayout;
     }
 
     @Override
@@ -115,7 +95,7 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
     }
 
     @Override
-    public PreprocessorResult process(String source, KeyId shaderKeyId, Map<String, String> macros)
+    public PreprocessorResult process(String source, KeyId shaderKeyId, Map<String, String> macros, ShaderVertexLayout vertexLayout)
             throws ShaderPreprocessorException {
 
         if (resourceProvider == null) {
@@ -124,7 +104,7 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
 
         lastImportedFiles.clear();
 
-        ProcessingContext context = new ProcessingContext(shaderKeyId, macros);
+        ProcessingContext context = new ProcessingContext(shaderKeyId, macros, vertexLayout);
         String processed = processRecursive(source, shaderKeyId, context, new HashSet<>());
 
         return new PreprocessorResult(
@@ -159,10 +139,10 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
 
             // Process macros and conditionals
             processed = processMacrosAndConditionals(processed, context);
-            
+
             // Apply automatic layout injection for vertex attributes (only for main file)
-            if (context.isMainFile && vertexLayout != null && !vertexLayout.isEmpty()) {
-                processed = injectVertexAttributeLayouts(processed);
+            if (context.isMainFile && context.vertexLayout != null && !context.vertexLayout.isEmpty()) {
+                processed = injectVertexAttributeLayouts(processed, context.vertexLayout);
             }
 
             return processed;
@@ -203,13 +183,13 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
                 Optional<String> importedSource = resourceProvider.loadShaderSource(importId);
                 if (importedSource.isPresent()) {
                     lastImportedFiles.add(importId);
-                    
+
                     // Mark as imported file (not main file)
                     boolean wasMainFile = context.isMainFile;
                     context.isMainFile = false;
 
                     String processedImport = processRecursive(importedSource.get(), importId, context, importStack);
-                    
+
                     context.isMainFile = wasMainFile;
 
                     result.append("// Begin import: ").append(importPath).append("\n");
@@ -431,58 +411,58 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
         }
         return lineNumber;
     }
-    
+
     /**
      * Inject layout(location=N) qualifiers into vertex attribute declarations.
-     * 
+     * <p>
      * Transforms:
-     *   in vec3 Position;
+     * in vec3 Position;
      * Into:
-     *   layout(location = 0) in vec3 Position;
-     * 
+     * layout(location = 0) in vec3 Position;
+     * <p>
      * Based on the vertex layout configuration from shader_program.json
      */
-    private String injectVertexAttributeLayouts(String source) {
+    private String injectVertexAttributeLayouts(String source, ShaderVertexLayout vertexLayout) {
         if (vertexLayout == null || vertexLayout.isEmpty()) {
             return source;
         }
-        
+
         Matcher matcher = VERTEX_ATTRIB_PATTERN.matcher(source);
         StringBuilder result = new StringBuilder();
         int lastEnd = 0;
-        
+
         while (matcher.find()) {
             result.append(source, lastEnd, matcher.start());
-            
+
             String indent = matcher.group(1);        // Leading whitespace
             String inKeyword = matcher.group(2);     // "in "
             String typeName = matcher.group(3);      // e.g., "vec3"
             String space = matcher.group(4);         // Space between type and name
             String attrName = matcher.group(5);      // Attribute name
             String rest = matcher.group(6);          // ";" and any trailing content
-            
+
             // Look up the attribute in the vertex layout
             VertexAttributeSpec spec = vertexLayout.getSpec(attrName);
-            
+
             if (spec != null) {
                 // Found matching attribute - inject layout qualifier
                 result.append(indent)
-                      .append("layout(location = ")
-                      .append(spec.location())
-                      .append(") ")
-                      .append(inKeyword)
-                      .append(typeName)
-                      .append(space)
-                      .append(attrName)
-                      .append(rest);
+                        .append("layout(location = ")
+                        .append(spec.location())
+                        .append(") ")
+                        .append(inKeyword)
+                        .append(typeName)
+                        .append(space)
+                        .append(attrName)
+                        .append(rest);
             } else {
                 // No matching attribute - keep original
                 result.append(matcher.group(0));
             }
-            
+
             lastEnd = matcher.end();
         }
-        
+
         result.append(source.substring(lastEnd));
         return result.toString();
     }
@@ -490,13 +470,15 @@ public class SketchShaderPreprocessor implements ShaderPreprocessor {
     private static class ProcessingContext {
         final KeyId shaderKeyId;
         final Map<String, String> macros;
+        final ShaderVertexLayout vertexLayout;
         final List<String> warnings = new ArrayList<>();
         int finalGlslVersion = 0;
         boolean isMainFile = true;
 
-        ProcessingContext(KeyId shaderKeyId, Map<String, String> macros) {
+        ProcessingContext(KeyId shaderKeyId, Map<String, String> macros, ShaderVertexLayout vertexLayout) {
             this.shaderKeyId = shaderKeyId;
             this.macros = new HashMap<>(macros);
+            this.vertexLayout = vertexLayout;
         }
     }
 

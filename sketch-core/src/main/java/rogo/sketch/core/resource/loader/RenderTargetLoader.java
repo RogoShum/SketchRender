@@ -1,6 +1,5 @@
 package rogo.sketch.core.resource.loader;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -8,12 +7,9 @@ import org.lwjgl.opengl.GL30;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.RenderTarget;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.StandardRenderTarget;
 import rogo.sketch.core.util.KeyId;
-
-import java.io.InputStream;
-import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * Loader for RenderTarget resources from JSON with smart texture loading
@@ -21,13 +17,17 @@ import java.util.function.Function;
 public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
 
     @Override
-    public RenderTarget load(KeyId keyId, ResourceData data, Gson gson, Function<KeyId, Optional<InputStream>> resourceProvider) {
-        try {
-            String jsonData = data.getString();
-            if (jsonData == null)
-                return null;
+    public KeyId getResourceType() {
+        return ResourceTypes.RENDER_TARGET;
+    }
 
-            JsonObject json = gson.fromJson(jsonData, JsonObject.class);
+    @Override
+    public RenderTarget load(ResourceLoadContext context) {
+        try {
+            KeyId keyId = context.getResourceId();
+            JsonObject json = context.getJson();
+            if (json == null)
+                return null;
 
             // Parse resolution mode
             StandardRenderTarget.ResolutionMode mode = StandardRenderTarget.ResolutionMode.FIXED;

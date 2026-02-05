@@ -1,11 +1,11 @@
 package rogo.sketch.core.shader;
 
 import org.lwjgl.opengl.GL43;
-import rogo.sketch.core.api.ResourceReloadable;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.shader.preprocessor.ShaderPreprocessor;
+import rogo.sketch.core.shader.vertex.ShaderVertexLayout;
 import rogo.sketch.core.util.KeyId;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
@@ -13,46 +13,22 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Compute shader program for general purpose GPU computing
- * Supports automatic recompilation when configuration or dependencies change
+ * Compute shader program for general purpose GPU computing.
+ * <p>
+ * Note: For reloadable/recompilable shaders, use {@link rogo.sketch.core.shader.variant.ShaderTemplate}
+ * instead. ShaderTemplate handles macro variants and automatic recompilation via MacroContext.
  */
-public class ComputeShader extends Shader implements ResourceReloadable<Shader> {
-    
-    private final ReloadableShader reloadableSupport;
-
+public class ComputeShader extends Shader {
     /**
-     * Create a compute shader from GLSL source code
-     */
-    public ComputeShader(KeyId keyId, String computeShaderSource) throws IOException {
-        super(keyId, ShaderType.COMPUTE, computeShaderSource);
-        this.reloadableSupport = null; // Non-reloadable by default
-    }
-    
-    /**
-     * Create a reloadable compute shader with preprocessing support
+     * Create a compute shader with preprocessing support and macros
      */
     public ComputeShader(KeyId keyId,
                          String computeShaderSource,
                          ShaderPreprocessor preprocessor,
-                         Function<KeyId, Optional<InputStream>> resourceProvider) throws IOException {
-        // Use parent class preprocessing constructor
-        super(keyId, ShaderType.COMPUTE, computeShaderSource, preprocessor, resourceProvider);
-        
-        // Create reloadable support with original source
-        this.reloadableSupport = new ReloadableShader(
-                keyId,
-            Map.of(ShaderType.COMPUTE, computeShaderSource),
-            preprocessor,
-            resourceProvider
-        ) {
-            @Override
-            protected Shader createShaderInstance(Map<ShaderType, String> processedSources) throws IOException {
-                return new ComputeShader(keyId, processedSources.get(ShaderType.COMPUTE));
-            }
-        };
-        
-        // Initialize the reloadable support for future reloads
-        reloadableSupport.initialize();
+                         Function<KeyId, Optional<InputStream>> resourceProvider,
+                         Map<String, String> macros,
+                         ShaderVertexLayout shaderVertexLayout) throws IOException {
+        super(keyId, ShaderType.COMPUTE, computeShaderSource, preprocessor, resourceProvider, macros, shaderVertexLayout);
     }
 
     @Override
@@ -78,7 +54,7 @@ public class ComputeShader extends Shader implements ResourceReloadable<Shader> 
      * @param numGroupsZ Number of work groups in Z dimension
      */
     public void dispatch(int numGroupsX, int numGroupsY, int numGroupsZ) {
-        GL43.glDispatchCompute(numGroupsX, numGroupsY, numGroupsZ);
+        GraphicsDriver.getCurrentAPI().dispatchCompute(numGroupsX, numGroupsY, numGroupsZ);
     }
 
     /**
@@ -101,7 +77,7 @@ public class ComputeShader extends Shader implements ResourceReloadable<Shader> 
      * @param barriers Bitfield of barrier types (e.g., GL_SHADER_STORAGE_BARRIER_BIT)
      */
     public void memoryBarrier(int barriers) {
-        GL43.glMemoryBarrier(barriers);
+        GraphicsDriver.getCurrentAPI().memoryBarrier(barriers);
     }
 
     /**
@@ -116,133 +92,5 @@ public class ComputeShader extends Shader implements ResourceReloadable<Shader> 
      */
     public void allBarriers() {
         memoryBarrier(GL43.GL_ALL_BARRIER_BITS);
-    }
-
-    /**
-     * Get the maximum work group count for each dimension
-     */
-    public static int[] getMaxWorkGroupCount() {
-        int[] maxCount = new int[3];
-        maxCount[0] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0);
-        maxCount[1] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1);
-        maxCount[2] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2);
-        return maxCount;
-    }
-
-    /**
-     * Get the maximum work group size for each dimension
-     */
-    public static int[] getMaxWorkGroupSize() {
-        int[] maxSize = new int[3];
-        maxSize[0] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0);
-        maxSize[1] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1);
-        maxSize[2] = GL43.glGetIntegeri(GL43.GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2);
-        return maxSize;
-    }
-
-    /**
-     * Get the maximum total work group size
-     */
-    public static int getMaxWorkGroupInvocations() {
-        return GL43.glGetInteger(GL43.GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS);
-    }
-    
-    /**
-     * Create a reloadable compute shader from source code
-     */
-    public static ComputeShader reloadable(KeyId keyId,
-                                           String computeSource,
-                                           ShaderPreprocessor preprocessor,
-                                           Function<KeyId, Optional<InputStream>> resourceProvider) throws IOException {
-        return new ComputeShader(keyId, computeSource, preprocessor, resourceProvider);
-    }
-    
-    // ResourceReloadable implementation
-    
-    @Override
-    public boolean needsReload() {
-        return reloadableSupport != null && reloadableSupport.needsReload();
-    }
-    
-    @Override
-    public void reload() throws IOException {
-        if (reloadableSupport != null) {
-            reloadableSupport.reload();
-        }
-    }
-    
-    @Override
-    public void forceReload() throws IOException {
-        if (reloadableSupport != null) {
-            reloadableSupport.forceReload();
-        }
-    }
-    
-    @Override
-    public Shader getCurrentResource() {
-        return reloadableSupport != null ? reloadableSupport.getCurrentResource() : this;
-    }
-    
-    @Override
-    public KeyId getResourceIdentifier() {
-        return keyId;
-    }
-    
-    @Override
-    public java.util.Set<KeyId> getDependencies() {
-        return reloadableSupport != null ? reloadableSupport.getDependencies() : java.util.Collections.emptySet();
-    }
-    
-    @Override
-    public boolean hasDependencyChanges() {
-        return reloadableSupport != null && reloadableSupport.hasDependencyChanges();
-    }
-    
-    @Override
-    public void updateDependencyTimestamps() {
-        if (reloadableSupport != null) {
-            reloadableSupport.updateDependencyTimestamps();
-        }
-    }
-    
-    @Override
-    public void addReloadListener(java.util.function.Consumer<Shader> listener) {
-        if (reloadableSupport != null) {
-            reloadableSupport.addReloadListener(listener);
-        }
-    }
-    
-    @Override
-    public void removeReloadListener(java.util.function.Consumer<Shader> listener) {
-        if (reloadableSupport != null) {
-            reloadableSupport.removeReloadListener(listener);
-        }
-    }
-    
-    @Override
-    public ReloadMetadata getLastReloadMetadata() {
-        return reloadableSupport != null ? reloadableSupport.getLastReloadMetadata() : null;
-    }
-    
-    /**
-     * Check if this shader supports reloading
-     */
-    public boolean isReloadable() {
-        return reloadableSupport != null;
-    }
-    
-    /**
-     * Get the original shader sources (if reloadable)
-     */
-    public java.util.Map<ShaderType, String> getOriginalSources() {
-        return reloadableSupport != null ? reloadableSupport.getOriginalSources() : java.util.Collections.emptyMap();
-    }
-    
-    @Override
-    public void dispose() {
-        if (reloadableSupport != null) {
-            reloadableSupport.dispose();
-        }
-        super.dispose();
     }
 }

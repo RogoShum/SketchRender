@@ -4,16 +4,16 @@ uniform mat4 sketch_cullingViewMat;
 uniform mat4 sketch_cullingProjMat;
 uniform float partialTicks;
 
-layout (location=0) in vec3 Position;
-layout (location=1) in vec2 UV;
-layout (location=2) in vec3 Normal;
+in vec3 Position;
+in vec2 UV;
+in vec3 Normal;
 
-layout (location=3) in vec3 InstancedPosPrev;
-layout (location=4) in vec3 InstancedPosCurrent;
+in vec3 InstancedPosPrev;
+in vec3 InstancedPosCurrent;
 
-layout (location=5) in vec3 InstancedTranslate;
-layout (location=6) in vec3 InstancedScale;
-layout (location=7) in vec3 InstancedRotation;
+in vec3 InstancedTranslate;
+in vec3 InstancedScale;
+in vec3 InstancedRotation;
 
 out vec3 normal;
 out vec2 uv;

@@ -67,12 +67,11 @@ public class RenderTargetUtil {
             KeyId texId = entry.getKey();
             List<RenderTarget> referencingRTs = entry.getValue();
 
-            Optional<Texture> textureOpt = resourceManager.getResource(ResourceTypes.TEXTURE,
+            ResourceReference<Texture> textureOpt = resourceManager.getReference(ResourceTypes.TEXTURE,
                     texId);
 
             // Check 1: Texture existence and type (Is it an RT texture?)
-            if (textureOpt.isEmpty() || !(textureOpt.get() instanceof StandardTexture stdTex)
-                    || !stdTex.isRenderTargetAttachment()) {
+            if (!textureOpt.isAvailable() || !(textureOpt.get() instanceof StandardTexture stdTex) || !stdTex.isRenderTargetAttachment()) {
                 // If it's not a StandardTexture or not an attachment, we can't resize it via
                 // this mechanism (or it might be a static image).
                 // However, if it's referenced by an RT, it SHOULD be an attachment.
@@ -80,8 +79,7 @@ public class RenderTargetUtil {
 
                 // Allow non-Standard textures to simply be skipped / ignored for resize, but
                 // log if they are Standard and NOT attachments.
-                boolean isInvalid = textureOpt.isEmpty()
-                        || (textureOpt.get() instanceof StandardTexture st && !st.isRenderTargetAttachment());
+                boolean isInvalid = !textureOpt.isAvailable() || (textureOpt.get() instanceof StandardTexture st && !st.isRenderTargetAttachment());
 
                 if (isInvalid) {
                     System.err.println(
@@ -139,7 +137,7 @@ public class RenderTargetUtil {
             // All agree on size, pick first
             Dimension dim = rtTargetDimensions.get(rts.get(0));
 
-            resourceManager.getResource(ResourceTypes.TEXTURE, texId).ifPresent(tex -> {
+            resourceManager.getReference(ResourceTypes.TEXTURE, texId).ifPresent(tex -> {
                 if (tex instanceof Resizable r) {
                     r.resize(dim.width, dim.height);
                 }
