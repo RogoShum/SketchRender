@@ -7,8 +7,6 @@ import rogo.sketch.core.state.snapshot.SnapshotScope;
 import rogo.sketch.core.util.GLFeatureChecker;
 
 import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 
 /**
  * OpenGL implementation of GraphicsAPI.
@@ -399,3 +397,4 @@ public class OpenGLAPI extends GraphicsAPI {
         GL11.glFinish();
     }
 }
+

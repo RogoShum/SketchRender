@@ -2,16 +2,16 @@ package rogo.sketch.core.resource.buffer;
 
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
-import org.lwjgl.opengl.GL33;
-import org.lwjgl.opengl.GL45;
 import rogo.sketch.core.api.BufferResourceObject;
+import rogo.sketch.core.data.DataType;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.data.format.DataElement;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.data.format.VBOComponent;
-import rogo.sketch.core.util.GLFeatureChecker;
+import rogo.sketch.core.driver.GraphicsAPI;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.LinkedHashMap;
@@ -27,6 +27,10 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     protected final Map<KeyId, VBOComponent> components = new LinkedHashMap<>();
     protected IndexBufferResource indexBuffer;
     protected boolean disposed = false;
+    
+    private static GraphicsAPI api() {
+        return GraphicsDriver.getCurrentAPI();
+    }
 
     public VertexResource(PrimitiveType primitiveType, boolean useIndexBuffer) {
         this(primitiveType, useIndexBuffer, false);
@@ -35,11 +39,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     public VertexResource(PrimitiveType primitiveType, boolean useIndexBuffer, boolean independentIndexBuffer) {
         this.primitiveType = primitiveType;
 
-        if (GLFeatureChecker.supportsDSA()) {
-            this.vao = GL45.glCreateVertexArrays();
-        } else {
-            this.vao = GL30.glGenVertexArrays();
-        }
+        this.vao = api().createVertexArray();
 
         if (useIndexBuffer) {
             if (independentIndexBuffer) {
@@ -83,13 +83,11 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
     /**
      * Setup VBO component attributes and binding.
+     * Uses unified API that handles DSA/Legacy internally.
      */
     protected void setupVBOComponent(VBOComponent component) {
-        if (GLFeatureChecker.supportsDSA()) {
-            setupComponentDSA(component);
-        } else {
-            setupComponentLegacy(component);
-        }
+        // Always use DSA-style API, strategy will handle legacy if needed
+        setupComponentUnified(component);
     }
 
     /**
@@ -106,9 +104,10 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     }
 
     /**
-     * Setup VBO component using DSA (Direct State Access).
+     * Setup VBO component using unified API (strategy handles DSA/Legacy internally).
      */
-    protected void setupComponentDSA(VBOComponent component) {
+    protected void setupComponentUnified(VBOComponent component) {
+        GraphicsAPI api = api();
         int bindingPoint = component.getBindingPoint();
         DataFormat format = component.getFormat();
         int vboHandle = component.getVboHandle();
@@ -122,76 +121,53 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         for (DataElement element : format.getElements()) {
             int attribLocation = element.getIndex(); // Explicit attribute location from DataFormat
 
-            GL45.glEnableVertexArrayAttrib(vao, attribLocation);
+            api.enableVertexAttribArray(vao, attribLocation);
 
+            DataType dataType = element.getDataType();
             // Format: type, normalized, and RELATIVE offset within the struct
-            GL45.glVertexArrayAttribFormat(vao, attribLocation,
-                    element.getComponentCount(),
-                    element.getGLType(),
-                    element.isNormalized(),
-                    element.getOffset());
+
+            if (dataType.isDoubleType()) {
+                // Use strategy directly for LFormat (not exposed in GraphicsAPI yet)
+                api.getVertexArrayStrategy().vertexAttribLFormat(vao, attribLocation,
+                        element.getComponentCount(),
+                        element.getGLType(),
+                        element.getOffset());
+            } else if (dataType.isIntegerType() && !element.isNormalized()) {
+                // Use strategy directly for IFormat (not exposed in GraphicsAPI yet)
+                api.getVertexArrayStrategy().vertexAttribIFormat(vao, attribLocation,
+                        element.getComponentCount(),
+                        element.getGLType(),
+                        element.getOffset());
+            } else {
+                api.vertexAttribFormat(vao, attribLocation,
+                        element.getComponentCount(),
+                        element.getGLType(),
+                        element.isNormalized(),
+                        element.getOffset());
+            }
 
             // Link attribute location to binding point
-            GL45.glVertexArrayAttribBinding(vao, attribLocation, bindingPoint);
+            api.vertexAttribBinding(vao, attribLocation, bindingPoint);
 
             if (component.isInstanced()) {
                 // Divisor is set PER BINDING POINT, not per attribute in DSA (actually it's per
                 // binding)
-                GL45.glVertexArrayBindingDivisor(vao, bindingPoint, 1);
+                api.getVertexArrayStrategy().vertexBindingDivisor(vao, bindingPoint, 1);
             } else {
-                GL45.glVertexArrayBindingDivisor(vao, bindingPoint, 0);
+                api.getVertexArrayStrategy().vertexBindingDivisor(vao, bindingPoint, 0);
             }
         }
 
         // Bind VBO to binding point with the global offset
-        GL45.glVertexArrayVertexBuffer(vao, bindingPoint, vboHandle, offset, format.getStride());
+        api.vertexArrayVertexBuffer(vao, bindingPoint, vboHandle, offset, format.getStride());
     }
 
-    /**
-     * Setup VBO component using legacy OpenGL.
-     */
-    protected void setupComponentLegacy(VBOComponent component) {
-        bind();
-
-        DataFormat format = component.getFormat();
-
-        // Bind VBO
-        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, component.getVboHandle());
-
-        // Setup attributes
-        for (DataElement element : format.getElements()) {
-            int attribIndex = element.getIndex();
-            GL30.glEnableVertexAttribArray(attribIndex);
-            GL30.glVertexAttribPointer(
-                    attribIndex,
-                    element.getComponentCount(),
-                    element.getGLType(),
-                    element.isNormalized(),
-                    format.getStride(),
-                    element.getOffset());
-
-            if (component.isInstanced()) {
-                GL33.glVertexAttribDivisor(attribIndex, 1);
-            }
-        }
-
-        // Unbind VBO
-        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
-        unbind();
-    }
 
     protected void attachIndexBuffer() {
         if (indexBuffer == null)
             return;
 
-        if (GLFeatureChecker.supportsDSA()) {
-            GL45.glVertexArrayElementBuffer(vao, indexBuffer.getHandle());
-        } else {
-            bind();
-            indexBuffer.bind();
-            unbind();
-            indexBuffer.unbind();
-        }
+        api().vertexArrayElementBuffer(vao, indexBuffer.getHandle());
     }
 
     // ===== Data Upload =====
@@ -238,12 +214,12 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
     @Override
     public void bind() {
-        GL30.glBindVertexArray(vao);
+        api().bindVertexArray(vao);
     }
 
     @Override
     public void unbind() {
-        GL30.glBindVertexArray(0);
+        api().bindVertexArray(0);
     }
 
     @Override
@@ -266,7 +242,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
             this.indexBuffer.dispose();
         }
 
-        GL30.glDeleteVertexArrays(vao);
+        api().deleteVertexArray(vao);
         disposed = true;
     }
 

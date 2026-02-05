@@ -4,12 +4,15 @@ import org.lwjgl.opengl.GL15;
 import rogo.sketch.core.api.BufferResourceObject;
 import rogo.sketch.core.data.IndexType;
 import rogo.sketch.core.data.builder.UnsafeBatchBuilder;
+import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.driver.internal.IGLBufferStrategy;
 
 import java.util.Objects;
 
 /**
  * Enhanced index buffer with support for different index types and sorting
  * Now maintains a persistent ByteBuffer to avoid frequent allocations
+ * Uses GraphicsAPI buffer strategy for DSA/Legacy abstraction.
  */
 public class IndexBufferResource implements BufferResourceObject {
     protected int id;
@@ -20,10 +23,17 @@ public class IndexBufferResource implements BufferResourceObject {
     protected IndexType currentIndexType = IndexType.U_INT;
     protected UnsafeBatchBuilder builder;
 
+    /**
+     * Get the buffer strategy from the current graphics API
+     */
+    private static IGLBufferStrategy getBufferStrategy() {
+        return GraphicsDriver.getCurrentAPI().getBufferStrategy();
+    }
+
     public IndexBufferResource(boolean shared) {
         this.indices = new int[0];
         this.dirty = false;
-        this.id = GL15.glGenBuffers();
+        this.id = getBufferStrategy().createBuffer();
         this.shared = shared;
     }
 
@@ -65,9 +75,9 @@ public class IndexBufferResource implements BufferResourceObject {
         }
 
         fillBuffer();
-        bind();
-        GL15.nglBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, builder.getWriteOffset(), builder.getBaseAddress(), GL15.GL_STATIC_DRAW);
-        //unbind();
+
+        IGLBufferStrategy strategy = getBufferStrategy();
+        strategy.bufferData(id, builder.getWriteOffset(), builder.getBaseAddress(), GL15.GL_STATIC_DRAW);
 
         dirty = false;
     }
@@ -101,18 +111,18 @@ public class IndexBufferResource implements BufferResourceObject {
 
     @Override
     public void bind() {
-        GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, id);
+        getBufferStrategy().bindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, id);
     }
 
     @Override
     public void unbind() {
-        GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);
+        getBufferStrategy().bindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
     @Override
     public void dispose() {
         if (id > 0) {
-            GL15.glDeleteBuffers(id);
+            getBufferStrategy().deleteBuffer(id);
             id = 0;
         }
 

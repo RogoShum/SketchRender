@@ -1,6 +1,10 @@
 package rogo.sketch.core.api;
 
-public interface BufferResourceObject extends ResourceObject {
+/**
+ * Interface for GPU buffer resources (VBO, SSBO, UBO, etc.)
+ * Extends GpuObject since buffers have native handles.
+ */
+public interface BufferResourceObject extends GpuObject {
     void bind();
 
     void unbind();

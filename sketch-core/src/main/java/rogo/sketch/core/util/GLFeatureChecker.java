@@ -56,10 +56,9 @@ public final class GLFeatureChecker {
 
     public static boolean supportsDSA() {
         ensureInitialized();
-
-        //todo need fix
-        //return cachedDSA45 || cachedDSA_ARB || cachedDSA_EXT;
-        return false;
+        // DSA support requires GL 4.5 or ARB_direct_state_access extension
+        // Note: EXT_direct_state_access has slightly different function signatures
+        return cachedDSA45 || cachedDSA_ARB;
     }
 
     public static boolean supportsDSA45() {

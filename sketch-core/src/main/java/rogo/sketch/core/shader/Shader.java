@@ -4,6 +4,9 @@ import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.*;
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.api.ShaderResource;
+import rogo.sketch.core.driver.GraphicsAPI;
+import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.driver.internal.IGLShaderStrategy;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.config.ShaderConfiguration;
 import rogo.sketch.core.shader.config.ShaderConfigurationManager;
@@ -17,7 +20,6 @@ import rogo.sketch.core.shader.uniform.UniformHookRegistry;
 import rogo.sketch.core.data.DataType;
 import rogo.sketch.core.util.KeyId;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.IntBuffer;
@@ -38,6 +40,13 @@ public abstract class Shader implements ShaderProvider {
     protected boolean disposed = false;
 
     /**
+     * Get the shader strategy from the current graphics API
+     */
+    protected static IGLShaderStrategy getShaderStrategy() {
+        return GraphicsDriver.getCurrentAPI().getShaderStrategy();
+    }
+
+    /**
      * Create a shader program from GLSL source code
      *
      * @param keyId    Unique identifier for this shader
@@ -45,7 +54,7 @@ public abstract class Shader implements ShaderProvider {
      */
     public Shader(KeyId keyId, Map<ShaderType, String> shaderSources) throws IOException {
         this.keyId = keyId;
-        this.program = GL20.glCreateProgram();
+        this.program = getShaderStrategy().createProgram();
 
         validateShaderTypes(shaderSources);
         compileAndAttachShaders(shaderSources);
@@ -69,7 +78,7 @@ public abstract class Shader implements ShaderProvider {
                   ShaderPreprocessor preprocessor,
                   Function<KeyId, Optional<InputStream>> resourceProvider) throws IOException {
         this.keyId = keyId;
-        this.program = GL20.glCreateProgram();
+        this.program = getShaderStrategy().createProgram();
 
         // Preprocess all sources before compilation
         Map<ShaderType, String> processedSources = preprocessSources(keyId, shaderSources, preprocessor, resourceProvider);
@@ -136,24 +145,26 @@ public abstract class Shader implements ShaderProvider {
     }
 
     protected void compileAndAttachShaders(Map<ShaderType, String> shaderSources) throws IOException {
+        IGLShaderStrategy strategy = getShaderStrategy();
         for (Map.Entry<ShaderType, String> entry : shaderSources.entrySet()) {
             ShaderType type = entry.getKey();
             String source = entry.getValue();
 
             int shaderId = compileShader(type, source, keyId.toString());
             shaderIds.put(type, shaderId);
-            GL20.glAttachShader(program, shaderId);
+            strategy.attachShader(program, shaderId);
         }
     }
 
     private int compileShader(ShaderType type, String source, String shaderName) throws IOException {
-        int shaderId = GL20.glCreateShader(type.getGLType());
-        GL20.glShaderSource(shaderId, source);
-        GL20.glCompileShader(shaderId);
+        IGLShaderStrategy strategy = getShaderStrategy();
+        int shaderId = strategy.createShader(type.getGLType());
+        strategy.shaderSource(shaderId, source);
+        strategy.compileShader(shaderId);
 
-        if (GL20.glGetShaderi(shaderId, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String error = GL20.glGetShaderInfoLog(shaderId);
-            GL20.glDeleteShader(shaderId);
+        if (strategy.getShaderi(shaderId, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
+            String error = strategy.getShaderInfoLog(shaderId);
+            strategy.deleteShader(shaderId);
             throw new IOException("Error compiling " + type.name().toLowerCase() + " shader [" + shaderName + "]:\n" + error);
         }
 
@@ -161,18 +172,20 @@ public abstract class Shader implements ShaderProvider {
     }
 
     protected void linkProgram() throws IOException {
-        GL20.glLinkProgram(program);
+        IGLShaderStrategy strategy = getShaderStrategy();
+        strategy.linkProgram(program);
 
-        if (GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String error = GL20.glGetProgramInfoLog(program);
+        if (strategy.getProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
+            String error = strategy.getProgramInfoLog(program);
             throw new IOException("Error linking shader program [" + keyId + "]:\n" + error);
         }
     }
 
     protected void cleanupShaders() {
+        IGLShaderStrategy strategy = getShaderStrategy();
         for (int shaderId : shaderIds.values()) {
-            GL20.glDetachShader(program, shaderId);
-            GL20.glDeleteShader(shaderId);
+            strategy.detachShader(program, shaderId);
+            strategy.deleteShader(shaderId);
         }
         shaderIds.clear();
     }
@@ -191,6 +204,7 @@ public abstract class Shader implements ShaderProvider {
      * Unified uniform and resource discovery to eliminate redundant GL queries
      */
     private UnifiedUniformInfo discoverAllUniforms() {
+        IGLShaderStrategy strategy = getShaderStrategy();
         bind();
         Map<String, ShaderResource<?>> uniforms = new HashMap<>();
         Map<KeyId, Integer> textureBindings = new HashMap<>();
@@ -200,15 +214,15 @@ public abstract class Shader implements ShaderProvider {
         IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
         IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
 
-        int uniformCount = GL20.glGetProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
+        int uniformCount = strategy.getProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
         int nextTextureUnit = 0;
 
         for (int i = 0; i < uniformCount; i++) {
             sizeBuffer.clear();
             typeBuffer.clear();
 
-            String uniformName = GL20.glGetActiveUniform(program, i, sizeBuffer, typeBuffer);
-            int location = GL20.glGetUniformLocation(program, uniformName);
+            String uniformName = strategy.getActiveUniform(program, i, sizeBuffer, typeBuffer);
+            int location = strategy.getUniformLocation(program, uniformName);
             uniformName = uniformName.replaceFirst("\\[0]$", "");
             int glType = typeBuffer.get(0);
             int glSize = sizeBuffer.get(0);
@@ -224,7 +238,7 @@ public abstract class Shader implements ShaderProvider {
 
                 if (isSamplerType(glType)) {
                     int unit = nextTextureUnit++;
-                    GL20.glUniform1i(location, unit);
+                    strategy.uniform1i(program, location, unit);
                     textureBindings.put(KeyId.of(uniformName), unit);
                     System.out.println("Discovered Texture: " + uniformName + " -> unit " + unit);
                 }
@@ -323,7 +337,6 @@ public abstract class Shader implements ShaderProvider {
         }
     }
 
-    // Texture and image binding discovery moved to discoverAllUniforms() for efficiency
 
     private boolean isSamplerType(int type) {
         return switch (type) {
@@ -389,11 +402,11 @@ public abstract class Shader implements ShaderProvider {
     protected abstract void validateShaderTypes(Map<ShaderType, String> shaderSources);
 
     public void bind() {
-        GL20.glUseProgram(program);
+        getShaderStrategy().useProgram(program);
     }
 
     public static void unbind() {
-        GL20.glUseProgram(0);
+        GraphicsDriver.getCurrentAPI().getShaderStrategy().useProgram(0);
     }
 
     @Override
@@ -417,12 +430,12 @@ public abstract class Shader implements ShaderProvider {
     }
 
     /**
-     * Dispose of all OpenGL resources
+     * Dispose of all GPU resources
      */
     @Override
     public void dispose() {
         if (program > 0) {
-            GL20.glDeleteProgram(program);
+            getShaderStrategy().deleteProgram(program);
             disposed = true;
         }
     }

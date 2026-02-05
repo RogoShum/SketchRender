@@ -6,6 +6,8 @@ import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.core.api.BindingResource;
 import rogo.sketch.core.api.DataResourceObject;
 import rogo.sketch.core.api.Resizeable;
+import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.driver.internal.IGLBufferStrategy;
 import rogo.sketch.core.util.KeyId;
 
 public class ShaderStorageBuffer implements DataResourceObject, BindingResource, Resizeable {
@@ -16,6 +18,13 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
     private long dataCount;
     private final long stride;
     public long position;
+
+    /**
+     * Get the buffer strategy from the current graphics API
+     */
+    private static IGLBufferStrategy getBufferStrategy() {
+        return GraphicsDriver.getCurrentAPI().getBufferStrategy();
+    }
 
     public ShaderStorageBuffer(long dataCount, long stride, int usage) {
         this(dataCount, stride, MemoryUtil.nmemCalloc(dataCount, stride), usage);
@@ -30,13 +39,13 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
         this.stride = stride;
         this.dataCount = dataCount;
         bufferPointer = memoryAddress;
-        id = GL15.glGenBuffers();
+
+        IGLBufferStrategy strategy = getBufferStrategy();
+        id = strategy.createBuffer();
         if (id < 0) {
             throw new RuntimeException("Failed to create a new buffer");
         }
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
-        GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, this.capacity, bufferPointer, usage);
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        strategy.bufferData(id, this.capacity, bufferPointer, usage);
     }
 
     public ShaderStorageBuffer(DataResourceObject buffer) {
@@ -44,9 +53,9 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
         this.bufferPointer = buffer.getMemoryAddress();
         this.id = buffer.getHandle();
         this.stride = buffer.getStride();
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
-        GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+
+        IGLBufferStrategy strategy = getBufferStrategy();
+        strategy.bufferData(id, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
     }
 
     public int getHandle() {
@@ -74,32 +83,24 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
 
     public void upload() {
         checkDisposed();
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
-        GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, 0, position, bufferPointer);
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        getBufferStrategy().bufferSubData(id, 0, position, bufferPointer);
     }
 
     public void upload(long index) {
         checkDisposed();
         long indexOffset = index * getStride();
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
-        GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, indexOffset, getStride(), bufferPointer + indexOffset);
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        getBufferStrategy().bufferSubData(id, indexOffset, getStride(), bufferPointer + indexOffset);
     }
 
     public void upload(long index, int stride) {
         checkDisposed();
         long indexOffset = index * stride;
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
-        GL15.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, indexOffset, stride, bufferPointer + indexOffset);
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        getBufferStrategy().bufferSubData(id, indexOffset, stride, bufferPointer + indexOffset);
     }
 
     public void resetUpload(int usage) {
         checkDisposed();
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, id);
-        GL15.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, capacity, bufferPointer, usage);
-        GL15.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        getBufferStrategy().bufferData(id, capacity, bufferPointer, usage);
     }
 
     public void ensureCapacity(int requiredCount, boolean copy, boolean force) {
@@ -141,7 +142,7 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
     public void dispose() {
         if (disposed) return;
         MemoryUtil.nmemFree(bufferPointer);
-        GL15.glDeleteBuffers(id);
+        getBufferStrategy().deleteBuffer(id);
         disposed = true;
     }
 
@@ -157,7 +158,7 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
     }
 
     public void discardBufferId() {
-        GL15.glDeleteBuffers(id);
+        getBufferStrategy().deleteBuffer(id);
     }
 
     public void discardMemory() {
@@ -167,21 +168,21 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
     @Override
     public long resize(long newCapacity) {
         checkDisposed();
-        
+
         // Calculate new aligned capacity (optional, stride alignment)
         if (newCapacity <= capacity) return bufferPointer;
-        
+
         long newPointer = MemoryUtil.nmemCalloc(newCapacity, 1);
-        
+
         // Copy old data
         if (bufferPointer != 0) {
             MemoryUtil.memCopy(bufferPointer, newPointer, Math.min(capacity, newCapacity));
             MemoryUtil.nmemFree(bufferPointer);
         }
-        
+
         this.bufferPointer = newPointer;
         this.capacity = newCapacity;
-        
+
         // Re-upload/Reset buffer storage
         // Note: For SSBO, usually we expand then upload.
         // But if this is called during mapping/writing, we just update the pointer.
@@ -190,15 +191,15 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
         // Here we just resize the client-side shadow copy.
         // We should trigger GL resize now or mark dirty?
         // Current design: ensureCapacity() calls resetUpload().
-        
+
         resetUpload(GL15.GL_DYNAMIC_DRAW);
-        
+
         return bufferPointer;
     }
 
     @Override
     public void bind(KeyId resourceType, int binding) {
         checkDisposed();
-        GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, binding, id);
+        getBufferStrategy().bindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, binding, id);
     }
 }

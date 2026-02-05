@@ -5,6 +5,7 @@ import org.lwjgl.opengl.GL42;
 import rogo.sketch.core.api.BindingResource;
 import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.driver.internal.IGLTextureStrategy;
 import rogo.sketch.core.util.KeyId;
 
 public abstract class Texture implements GpuObject, BindingResource {
@@ -19,6 +20,13 @@ public abstract class Texture implements GpuObject, BindingResource {
     protected int width;
     protected int height;
     protected boolean disposed = false;
+
+    /**
+     * Get the texture strategy from the current graphics API
+     */
+    protected static IGLTextureStrategy getTextureStrategy() {
+        return GraphicsDriver.getCurrentAPI().getTextureStrategy();
+    }
 
     public Texture(int handle, KeyId keyId, int width, int height, int format, int minFilter, int magFilter, int wrapS, int wrapT) {
         this.handle = handle;
@@ -62,11 +70,11 @@ public abstract class Texture implements GpuObject, BindingResource {
             throw new IllegalStateException("Texture has been disposed");
         }
 
+        IGLTextureStrategy strategy = getTextureStrategy();
         if (resourceType.equals(ResourceTypes.IMAGE_BUFFER)) {
-            GL42.glBindImageTexture(textureUnit, getHandle(), 0, false, 0, GL42.GL_READ_WRITE, format);
+            strategy.bindImageTexture(textureUnit, getHandle(), 0, false, 0, GL42.GL_READ_WRITE, format);
         } else {
-            GraphicsDriver.getCurrentAPI().activeTexture(textureUnit);
-            GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, getHandle());
+            strategy.bindTextureUnit(textureUnit, getHandle());
         }
     }
 
@@ -77,8 +85,7 @@ public abstract class Texture implements GpuObject, BindingResource {
      * Unbind texture from the specified unit
      */
     public static void unbind(int textureUnit) {
-        GraphicsDriver.getCurrentAPI().activeTexture(textureUnit);
-        GraphicsDriver.getCurrentAPI().bindTexture(GL11.GL_TEXTURE_2D, 0);
+        getTextureStrategy().bindTextureUnit(textureUnit, 0);
     }
 
     public static void unbind() {

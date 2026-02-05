@@ -7,6 +7,7 @@ import org.lwjgl.opengl.GL30;
 import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.api.Resizable;
 import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.driver.internal.IGLFramebufferStrategy;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -21,6 +22,13 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
     private final ResolutionMode resolutionMode;
     private final int baseWidth, baseHeight;
     private final float scaleX, scaleY;
+
+    /**
+     * Get the framebuffer strategy from the current graphics API
+     */
+    private static IGLFramebufferStrategy getFramebufferStrategy() {
+        return GraphicsDriver.getCurrentAPI().getFramebufferStrategy();
+    }
 
     public StandardRenderTarget(int handle, KeyId keyId, ResolutionMode mode, int baseWidth, int baseHeight, float scaleX, float scaleY, @Nullable KeyId linkedTexture) {
         super(handle, keyId);
@@ -107,18 +115,20 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
         GraphicsResourceManager.getInstance().getResource(ResourceTypes.TEXTURE, textureId)
                 .ifPresent(texture -> {
                     if (texture instanceof GpuObject gpuObject) {
-                        int previousFB = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
-                        GraphicsDriver.getCurrentAPI().bindFrameBuffer(getHandle());
-                        GraphicsDriver.getCurrentAPI().framebufferTexture2D(GL30.GL_FRAMEBUFFER, attachment,
+                        IGLFramebufferStrategy strategy = getFramebufferStrategy();
+                        // DSA-style: directly attach to framebuffer without binding
+                        strategy.framebufferTexture2D(getHandle(), attachment,
                                 GL11.GL_TEXTURE_2D, gpuObject.getHandle(), 0);
-                        GraphicsDriver.getCurrentAPI().bindFrameBuffer(previousFB);
                     }
                 });
     }
 
     @Override
     public void dispose() {
-        this.disposed = true;
+        if (!disposed) {
+            getFramebufferStrategy().deleteFramebuffer(getHandle());
+            this.disposed = true;
+        }
     }
 
     public int getCurrentWidth() {

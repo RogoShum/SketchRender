@@ -92,7 +92,6 @@ public interface ShaderResourceProvider {
                 return Optional.empty();
             }
 
-
             private KeyId addPathPrefix(KeyId keyId, String pathPrefix) {
                 String identifierStr = keyId.toString();
                 if (identifierStr.contains(":")) {
