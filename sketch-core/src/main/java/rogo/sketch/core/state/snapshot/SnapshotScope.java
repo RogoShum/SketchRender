@@ -23,7 +23,6 @@ public class SnapshotScope {
         DEPTH_TEST,
         DEPTH_MASK,
         CULL,
-        POLYGON_MODE,
         SCISSOR,
         STENCIL,
         VIEWPORT,
@@ -243,7 +242,6 @@ public class SnapshotScope {
             stateTypes.add(StateType.DEPTH_TEST);
             stateTypes.add(StateType.DEPTH_MASK);
             stateTypes.add(StateType.CULL);
-            stateTypes.add(StateType.POLYGON_MODE);
             stateTypes.add(StateType.SCISSOR);
             stateTypes.add(StateType.STENCIL);
             stateTypes.add(StateType.VIEWPORT);

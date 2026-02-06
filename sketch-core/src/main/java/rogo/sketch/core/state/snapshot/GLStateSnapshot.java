@@ -38,10 +38,6 @@ public class GLStateSnapshot {
     private int cullFaceMode;
     private int frontFace;
     
-    // Polygon mode
-    private int polygonModeFront;
-    private int polygonModeBack;
-    
     // Scissor state
     private boolean scissorEnabled;
     private int scissorX, scissorY, scissorW, scissorH;
@@ -116,10 +112,6 @@ public class GLStateSnapshot {
             captureCullState();
         }
         
-        if (scope.shouldCapture(StateType.POLYGON_MODE)) {
-            capturePolygonModeState();
-        }
-        
         if (scope.shouldCapture(StateType.SCISSOR)) {
             captureScissorState();
         }
@@ -172,10 +164,6 @@ public class GLStateSnapshot {
         
         if (scope.shouldCapture(StateType.CULL)) {
             restoreCullState(api);
-        }
-        
-        if (scope.shouldCapture(StateType.POLYGON_MODE)) {
-            restorePolygonModeState(api);
         }
         
         if (scope.shouldCapture(StateType.SCISSOR)) {
@@ -242,13 +230,6 @@ public class GLStateSnapshot {
         cullFaceEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         cullFaceMode = GL11.glGetInteger(GL11.GL_CULL_FACE_MODE);
         frontFace = GL11.glGetInteger(GL11.GL_FRONT_FACE);
-    }
-    
-    private void capturePolygonModeState() {
-        int[] modes = new int[2];
-        GL11.glGetIntegerv(GL11.GL_POLYGON_MODE, modes);
-        polygonModeFront = modes[0];
-        polygonModeBack = modes[1];
     }
     
     private void captureScissorState() {
@@ -357,19 +338,6 @@ public class GLStateSnapshot {
         }
         api.cullFace(cullFaceMode);
         api.frontFace(frontFace);
-    }
-    
-    private void restorePolygonModeState(GraphicsAPI api) {
-        if (polygonModeFront == polygonModeBack) {
-            api.polygonMode(GL11.GL_FRONT_AND_BACK, polygonModeFront);
-        } else {
-            if (polygonModeFront != 0) {
-                api.polygonMode(GL11.GL_FRONT, polygonModeFront);
-            }
-            if (polygonModeBack != 0) {
-                api.polygonMode(GL11.GL_BACK, polygonModeBack);
-            }
-        }
     }
     
     private void restoreScissorState(GraphicsAPI api) {

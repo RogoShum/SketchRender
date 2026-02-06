@@ -25,7 +25,6 @@ public class DefaultRenderStates {
         registerTemp(tempDefaults, new DepthTestState(true, GL11.GL_LESS));
         registerTemp(tempDefaults, new DepthMaskState(true));
         registerTemp(tempDefaults, new CullState(true, GL11.GL_BACK, GL11.GL_CCW));
-        registerTemp(tempDefaults, new PolygonModeState(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL));
         registerTemp(tempDefaults, new ScissorState(false, 0, 0, 0, 0));
         registerTemp(tempDefaults, new StencilState(false, GL11.GL_ALWAYS, 0, 0xFF, GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_KEEP));
         registerTemp(tempDefaults, new ViewportState(0, 0, 1920, 1080));

@@ -71,17 +71,18 @@ public abstract class Texture implements GpuObject, BindingResource {
         }
 
         IGLTextureStrategy strategy = getTextureStrategy();
+        int handle = getHandle();
 
         if (resourceType.equals(ResourceTypes.IMAGE_BUFFER)) {
-            strategy.bindImageTexture(textureUnit, getHandle(), 0, false, 0, GL42.GL_READ_WRITE, format);
+            strategy.bindImageTexture(textureUnit, handle, 0, false, 0, GL42.GL_READ_WRITE, format);
         } else {
-            strategy.bindTextureUnit(textureUnit,  getHandle());
+            strategy.bindTextureUnit(textureUnit,  handle);
         }
 
-        strategy.texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
-        strategy.texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, magFilter);
-        strategy.texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, wrapS);
-        strategy.texParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, wrapT);
+        strategy.texParameteri(handle, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
+        strategy.texParameteri(handle, GL11.GL_TEXTURE_MAG_FILTER, magFilter);
+        strategy.texParameteri(handle, GL11.GL_TEXTURE_WRAP_S, wrapS);
+        strategy.texParameteri(handle, GL11.GL_TEXTURE_WRAP_T, wrapT);
     }
 
     @Override
