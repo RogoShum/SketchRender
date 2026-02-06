@@ -23,12 +23,15 @@ public interface IGLBufferStrategy {
     
     /**
      * Allocate and optionally initialize buffer storage
-     * @param id The buffer handle
-     * @param size Size in bytes
-     * @param data Data pointer (can be 0 for uninitialized)
+     *
+     * @param id    The buffer handle
+     * @param size  Size in bytes
+     * @param data  Data pointer (can be 0 for uninitialized)
      * @param usage Usage hint (GL_STATIC_DRAW, GL_DYNAMIC_DRAW, etc.)
      */
     void bufferData(int id, long size, long data, int usage);
+
+    void bufferData(int target, int id, long size, long data, int usage);
     
     /**
      * Allocate and optionally initialize buffer storage from ByteBuffer
@@ -54,6 +57,8 @@ public interface IGLBufferStrategy {
      * @param data Data pointer
      */
     void bufferSubData(int id, long offset, long size, long data);
+
+    void bufferSubData(int target, int id, long offset, long size, long data);
     
     /**
      * Update a subset of buffer data from ByteBuffer

@@ -144,18 +144,6 @@ public abstract class GraphicsAPI {
     }
 
     /**
-     * Upload data to a buffer (allocate + upload)
-     *
-     * @param id    Buffer handle
-     * @param size  Size in bytes
-     * @param data  Data pointer (native address)
-     * @param usage Usage hint (GL_STATIC_DRAW, etc.)
-     */
-    public void uploadBuffer(int id, long size, long data, int usage) {
-        getBufferStrategy().bufferData(id, size, data, usage);
-    }
-
-    /**
      * Upload data to a buffer from ByteBuffer
      *
      * @param id    Buffer handle
