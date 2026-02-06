@@ -1,7 +1,6 @@
 package rogo.sketch.core.resource.buffer;
 
 import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL44;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.core.api.BufferResourceObject;
@@ -49,13 +48,8 @@ public class VertexBufferObject implements BufferResourceObject {
         getBufferStrategy().bindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 
-    public void upload(ByteBuffer data) {
-        getBufferStrategy().bufferData(handle, data, usage.getGLConstant());
-        this.size = data.limit();
-    }
-
     public void upload(long ptr, long dataSize, long maxSize) {
-        getBufferStrategy().bufferData(handle, dataSize, ptr, usage.getGLConstant());
+        getBufferStrategy().bufferData(GL15.GL_ARRAY_BUFFER, handle, dataSize, ptr, usage.getGLConstant());
         this.size = maxSize;
     }
 

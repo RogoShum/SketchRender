@@ -2,7 +2,6 @@ package rogo.sketch.core.resource;
 
 import org.joml.Vector3i;
 import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
 import rogo.sketch.core.api.BindingResource;
 import rogo.sketch.core.api.DataResourceObject;

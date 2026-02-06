@@ -45,7 +45,7 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
         if (id < 0) {
             throw new RuntimeException("Failed to create a new buffer");
         }
-        strategy.bufferData(id, this.capacity, bufferPointer, usage);
+        strategy.bufferData(GL43.GL_SHADER_STORAGE_BUFFER,id, this.capacity, bufferPointer, usage);
     }
 
     public ShaderStorageBuffer(DataResourceObject buffer) {
@@ -55,7 +55,7 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
         this.stride = buffer.getStride();
 
         IGLBufferStrategy strategy = getBufferStrategy();
-        strategy.bufferData(id, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
+        strategy.bufferData(GL43.GL_SHADER_STORAGE_BUFFER, id, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
     }
 
     public int getHandle() {
@@ -83,24 +83,24 @@ public class ShaderStorageBuffer implements DataResourceObject, BindingResource,
 
     public void upload() {
         checkDisposed();
-        getBufferStrategy().bufferSubData(id, 0, position, bufferPointer);
+        getBufferStrategy().bufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, id, 0, position, bufferPointer);
     }
 
     public void upload(long index) {
         checkDisposed();
         long indexOffset = index * getStride();
-        getBufferStrategy().bufferSubData(id, indexOffset, getStride(), bufferPointer + indexOffset);
+        getBufferStrategy().bufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, id, indexOffset, getStride(), bufferPointer + indexOffset);
     }
 
     public void upload(long index, int stride) {
         checkDisposed();
         long indexOffset = index * stride;
-        getBufferStrategy().bufferSubData(id, indexOffset, stride, bufferPointer + indexOffset);
+        getBufferStrategy().bufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, id, indexOffset, stride, bufferPointer + indexOffset);
     }
 
     public void resetUpload(int usage) {
         checkDisposed();
-        getBufferStrategy().bufferData(id, capacity, bufferPointer, usage);
+        getBufferStrategy().bufferData(GL43.GL_SHADER_STORAGE_BUFFER, id, capacity, bufferPointer, usage);
     }
 
     public void ensureCapacity(int requiredCount, boolean copy, boolean force) {
