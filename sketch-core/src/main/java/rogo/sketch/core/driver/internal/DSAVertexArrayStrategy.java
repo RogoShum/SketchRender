@@ -1,10 +1,6 @@
 package rogo.sketch.core.driver.internal;
 
-import org.lwjgl.opengl.GL30;
-import org.lwjgl.opengl.GL33;
-import org.lwjgl.opengl.GL42;
-import org.lwjgl.opengl.GL43;
-import org.lwjgl.opengl.GL45;
+import org.lwjgl.opengl.*;
 
 /**
  * DSA (Direct State Access) implementation of vertex array operations.
@@ -27,7 +23,12 @@ public class DSAVertexArrayStrategy implements IGLVertexArrayStrategy {
         // Binding is still required for draw operations
         GL30.glBindVertexArray(id);
     }
-    
+
+    @Override
+    public void bindVertexBuffer(int id) {
+        //GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, id);
+    }
+
     @Override
     public void enableVertexAttribArray(int vao, int index) {
         GL45.glEnableVertexArrayAttrib(vao, index);

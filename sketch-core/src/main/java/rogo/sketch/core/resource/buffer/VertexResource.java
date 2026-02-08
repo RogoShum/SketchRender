@@ -27,7 +27,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     protected final Map<KeyId, VBOComponent> components = new LinkedHashMap<>();
     protected IndexBufferResource indexBuffer;
     protected boolean disposed = false;
-    
+
     private static GraphicsAPI api() {
         return GraphicsDriver.getCurrentAPI();
     }
@@ -117,6 +117,8 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
         // The vertexOffset is in 'vertices', so multiply by stride to get bytes.
         long offset = (long) component.getVertexOffset() * format.getStride();
 
+        bind();
+        api().bindVertexBuffer(vboHandle);
         // Enable and format attributes
         for (DataElement element : format.getElements()) {
             int attribLocation = element.getIndex(); // Explicit attribute location from DataFormat
@@ -160,6 +162,8 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
         // Bind VBO to binding point with the global offset
         api.vertexArrayVertexBuffer(vao, bindingPoint, vboHandle, offset, format.getStride());
+        api().bindVertexBuffer(0);
+        unbind();
     }
 
 

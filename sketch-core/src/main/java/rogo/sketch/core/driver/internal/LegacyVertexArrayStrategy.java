@@ -28,7 +28,12 @@ public class LegacyVertexArrayStrategy implements IGLVertexArrayStrategy {
     public void bindVertexArray(int id) {
         GL30.glBindVertexArray(id);
     }
-    
+
+    @Override
+    public void bindVertexBuffer(int id) {
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, id);
+    }
+
     @Override
     public void enableVertexAttribArray(int vao, int index) {
         int previousVAO = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);

@@ -585,6 +585,15 @@ public abstract class GraphicsAPI {
     }
 
     /**
+     * Bind a vertex buffer object
+     *
+     * @param id VBO handle
+     */
+    public void bindVertexBuffer(int id) {
+        getVertexArrayStrategy().bindVertexBuffer(id);
+    }
+
+    /**
      * Enable a vertex attribute array
      *
      * @param vao   VAO handle

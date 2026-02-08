@@ -23,6 +23,12 @@ public interface IGLVertexArrayStrategy {
      * @param id The VAO handle (0 to unbind)
      */
     void bindVertexArray(int id);
+
+    /**
+     * Bind a vertex buffer object
+     * @param id The VBO handle (0 to unbind)
+     */
+    void bindVertexBuffer(int id);
     
     /**
      * Enable a vertex attribute array
