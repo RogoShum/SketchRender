@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketch.SketchRender;
 import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.profiler.Profiler;
 import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.PipelineUtil;
 
@@ -16,12 +17,16 @@ public class MixinMinecraft {
     @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;render(FJZ)V", shift = At.Shift.AFTER))
     public void afterRunTick(boolean p_91384_, CallbackInfo ci) {
         PipelineUtil.pipeline().renderStagesAfter(MinecraftRenderStages.RENDER_END.getIdentifier());
+        Profiler.get().end("runTick");
+        Profiler.get().close();
     }
 
     @Inject(method = "runTick", at = @At(value = "HEAD"))
     public void beforeRunTick(boolean p_91384_, CallbackInfo ci) {
         PipelineUtil.pipeline().renderStateManager().reset();
         PipelineUtil.pipeline().renderStagesBefore(MinecraftRenderStages.RENDER_START.getIdentifier());
+        Profiler.get().open();
+        Profiler.get().start("runTick");
     }
 
     @Inject(method = "setLevel", at = @At(value = "HEAD"))

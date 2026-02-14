@@ -59,6 +59,7 @@ import rogo.sketch.feature.culling.CullingRenderEvent;
 import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.gui.ConfigScreen;
+import rogo.sketch.profiler.ProfilerEventHandler;
 import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.vanilla.McPipelineRegister;
 import rogo.sketch.vanilla.MinecraftRenderStages;
@@ -99,6 +100,7 @@ public class SketchRender {
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
             MinecraftForge.EVENT_BUS.register(new CullingStateManager());
+            MinecraftForge.EVENT_BUS.register(new ProfilerEventHandler());
             ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_CONFIG);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
@@ -308,18 +310,18 @@ public class SketchRender {
             if (event.phase == TickEvent.Phase.START) {
                 // PRE TICK: wait for async task, swap data
                 PipelineUtil.pipeline().asyncGraphicsTicker().onPreTick();
-                
+
                 // Upload async transform buffer and dispatch compute shader
                 PipelineUtil.pipeline().transformStateManager().onPreTick();
-                
+
                 PipelineUtil.pipeline().tickLogic();
             } else {
                 // POST TICK: sync tick for sync graphics
                 PipelineUtil.pipeline().tickGraphics();
-                
+
                 // Upload sync transform buffer and dispatch compute shader
                 PipelineUtil.pipeline().transformStateManager().onPostTick();
-                
+
                 // Start async task (asyncTickGraphics + transform write callback)
                 PipelineUtil.pipeline().asyncGraphicsTicker().onPostTick();
             }
