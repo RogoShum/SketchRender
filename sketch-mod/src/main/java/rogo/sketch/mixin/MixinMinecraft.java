@@ -17,7 +17,7 @@ public class MixinMinecraft {
     @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;render(FJZ)V", shift = At.Shift.AFTER))
     public void afterRunTick(boolean p_91384_, CallbackInfo ci) {
         PipelineUtil.pipeline().renderStagesAfter(MinecraftRenderStages.RENDER_END.getIdentifier());
-        Profiler.get().end("runTick");
+        Profiler.get().pop("runTick");
         Profiler.get().close();
     }
 
@@ -26,7 +26,7 @@ public class MixinMinecraft {
         PipelineUtil.pipeline().renderStateManager().reset();
         PipelineUtil.pipeline().renderStagesBefore(MinecraftRenderStages.RENDER_START.getIdentifier());
         Profiler.get().open();
-        Profiler.get().start("runTick");
+        Profiler.get().push("runTick");
     }
 
     @Inject(method = "setLevel", at = @At(value = "HEAD"))

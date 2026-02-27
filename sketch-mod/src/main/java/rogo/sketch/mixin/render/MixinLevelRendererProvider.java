@@ -63,7 +63,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
         context.setNextTick(sketchlib$graphPipeline.anyNextTick());
         sketchlib$graphPipeline.resetRenderContext(context);
         sketchlib$graphPipeline.computeAllRenderCommand();
-        Profiler.get().start("renderLevel");
+        Profiler.get().push("renderLevel");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -73,7 +73,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                   Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.RENDER_START.getIdentifier(),
                 MinecraftRenderStages.CLEAR.getIdentifier());
-        Profiler.get().endStart("clear");
+        Profiler.get().popPush("clear");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -83,7 +83,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                     Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.CLEAR.getIdentifier(),
                 MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier());
-        Profiler.get().endStart("captureFrustum");
+        Profiler.get().popPush("captureFrustum");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -93,7 +93,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                 Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(),
                 MinecraftRenderStages.SKY.getIdentifier());
-        Profiler.get().endStart("sky");
+        Profiler.get().popPush("sky");
     }
 
     @Inject(method = "renderChunkLayer", at = @At(value = "HEAD"))
@@ -114,7 +114,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
         } else if (renderType == RenderType.tripwire()) {
             sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.TERRAIN_TRANSLUCENT.getIdentifier(),
                     MinecraftRenderStages.TERRAIN_TRIPWIRE.getIdentifier());
-            Profiler.get().endStart("terrain_tripwire");
+            Profiler.get().popPush("terrain_tripwire");
         }
     }
 
@@ -125,7 +125,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.TERRAIN_CUTOUT.getIdentifier(),
                 MinecraftRenderStages.ENTITIES.getIdentifier());
-        Profiler.get().endStart("entities");
+        Profiler.get().popPush("entities");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -135,7 +135,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                     Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.ENTITIES.getIdentifier(),
                 MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier());
-        Profiler.get().endStart("block_entities");
+        Profiler.get().popPush("block_entities");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -145,7 +145,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                         Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier(),
                 MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier());
-        Profiler.get().endStart("destroy_progress");
+        Profiler.get().popPush("destroy_progress");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -155,7 +155,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                 Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier(),
                 MinecraftRenderStages.BLOCK_OUTLINE.getIdentifier());
-        Profiler.get().endStart("outline");
+        Profiler.get().popPush("outline");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -165,7 +165,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                  Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.TERRAIN_TRIPWIRE.getIdentifier(),
                 MinecraftRenderStages.PARTICLE.getIdentifier());
-        Profiler.get().endStart("particles");
+        Profiler.get().popPush("particles");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -175,7 +175,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.PARTICLE.getIdentifier(),
                 MinecraftRenderStages.CLOUDS.getIdentifier());
-        Profiler.get().endStart("clouds");
+        Profiler.get().popPush("clouds");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -185,7 +185,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                                 Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.CLOUDS.getIdentifier(),
                 MinecraftRenderStages.WEATHER.getIdentifier());
-        Profiler.get().endStart("weather");
+        Profiler.get().popPush("weather");
     }
 
     @Inject(method = "renderLevel", at = @At(value = "RETURN"))
@@ -194,8 +194,8 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                              Matrix4f projectionMatrix, CallbackInfo ci) {
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.WEATHER.getIdentifier(),
                 MinecraftRenderStages.LEVEL_END.getIdentifier());
-        Profiler.get().endStart("level_end");
-        Profiler.get().end("renderLevel");
+        Profiler.get().popPush("level_end");
+        Profiler.get().pop("renderLevel");
     }
 
     @Override

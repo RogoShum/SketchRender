@@ -65,250 +65,249 @@ public class ProfilerWebServer {
 
     private static String getHtmlContent() {
         return """
-                    <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                        <title>Profiler</title>
-                        <link rel="preconnect" href="https://fonts.googleapis.com">
-                        <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-                        <style>
-                            :root {
-                                --font-ui: 'Inter', system-ui, sans-serif;
-                                --font-mono: 'JetBrains Mono', monospace;
-                                --ease: cubic-bezier(0.25, 1, 0.5, 1);
-                                --anim-dur: 0.3s;
-                            }
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                    <title>Profiler</title>
+                    <link rel="preconnect" href="https://fonts.googleapis.com">
+                    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+                    <style>
+                        :root {
+                            --font-ui: 'Inter', system-ui, sans-serif;
+                            --font-mono: 'JetBrains Mono', monospace;
+                            --ease: cubic-bezier(0.25, 1, 0.5, 1);
+                            --anim-dur: 0.3s;
+                        }
 
-                            /* === THEMES === */
-                            [data-theme="day"] {
-                                --bg: #f8f9fa; --card: #ffffff; --text: #212529; --sub: #6c757d;
-                                --border: #dee2e6; --accent: #0d6efd; --highlight: rgba(13, 110, 253, 0.1);
-                                --radius: 6px; --row-radius: 4px;
-                                --shadow: 0 2px 8px rgba(0,0,0,0.05);
-                                --deco: '☀️'; --sel-mask: rgba(13, 110, 253, 0.1); --sel-line: #0d6efd;
-                                --anim-dur: 0.25s;
-                            }
-                            [data-theme="night"] {
-                                --bg: #0d1117; --card: #161b22; --text: #e6edf3; --sub: #8b949e;
-                                --border: #30363d; --accent: #58a6ff; --highlight: rgba(88, 166, 255, 0.15);
-                                --radius: 6px; --row-radius: 4px;
-                                --shadow: 0 8px 24px rgba(0,0,0,0.4);
-                                --deco: '🌙'; --sel-mask: rgba(88, 166, 255, 0.15); --sel-line: #58a6ff;
-                                --anim-dur: 0.25s;
-                            }
-                            [data-theme="jelly"] {
-                                --bg: #f0f9ff; --card: rgba(255, 255, 255, 0.65); --text: #0369a1; --sub: #0ea5e9;
-                                --border: #e0f2fe; --accent: #0ea5e9; --highlight: rgba(14, 165, 233, 0.15);
-                                --radius: 24px; --row-radius: 12px;
-                                --shadow: 8px 8px 20px rgba(14, 165, 233, 0.15), inset 1px 1px 2px #fff;
-                                --deco: '🍬'; --sel-mask: rgba(14, 165, 233, 0.15); --sel-line: #0ea5e9;
-                                --ease: cubic-bezier(0.68, -0.6, 0.32, 1.6);
-                                --anim-dur: 0.5s;
-                            }
-                            [data-theme="jelly"] .card {
-                                backdrop-filter: blur(16px); border: 4px solid #fff;
-                                box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.25), 0 4px 10px -4px rgba(14, 165, 233, 0.1);
-                            }
-                            [data-theme="jelly"] button, [data-theme="jelly"] select {
-                                border-radius: 50px; background: linear-gradient(135deg, #fff, #e0f2fe);
-                                border: 2px solid #fff; box-shadow: 0 2px 5px rgba(14, 165, 233, 0.1);
-                            }
-                            [data-theme="fresh"] {
-                                --bg: #fff7ed; --card: #fff; --text: #431407; --sub: #9a3412;
-                                --border: #431407; --accent: #f97316; --highlight: #ffedd5;
-                                --radius: 0px; --row-radius: 0px;
-                                --shadow: 4px 4px 0 #431407;
-                                --deco: '🍊'; --sel-mask: rgba(249, 115, 22, 0.2); --sel-line: #431407;
-                                --anim-dur: 0.15s;
-                            }
-                            [data-theme="fresh"] button { box-shadow: 3px 3px 0 var(--border); transition: none; }
-                            [data-theme="fresh"] button:active { transform: translate(3px,3px); box-shadow: none; }
-                            [data-theme="fresh"] button.active { background: var(--accent); color: #fff; box-shadow: 2px 2px 0 var(--border); }
-                            [data-theme="neon"] {
-                                --bg: #020202; --card: #0a050a; --text: #fae8ff; --sub: #d946ef;
-                                --border: #4a044e; --accent: #d946ef; --highlight: rgba(217, 70, 239, 0.2);
-                                --radius: 2px; --row-radius: 2px;
-                                --shadow: 0 0 15px rgba(217, 70, 239, 0.15);
-                                --deco: '🔮'; --sel-mask: rgba(217, 70, 239, 0.15); --sel-line: #d946ef;
-                                --anim-dur: 0.2s;
-                            }
-                            [data-theme="neon"] .card { border: 1px solid #333; }
-                            [data-theme="neon"] button { text-transform: uppercase; font-size: 10px; letter-spacing: 1px; border-color: var(--accent); color: var(--accent); background: #000; }
-                            [data-theme="neon"] button:hover { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); }
-                            [data-theme="neon"] button.active { background: var(--accent); color: #000; box-shadow: 0 0 20px var(--accent); }
+                        /* === THEMES === */
+                        [data-theme="day"] {
+                            --bg: #f8f9fa; --card: #ffffff; --text: #212529; --sub: #6c757d;
+                            --border: #dee2e6; --accent: #0d6efd; --highlight: rgba(13, 110, 253, 0.1);
+                            --radius: 6px; --row-radius: 4px;
+                            --shadow: 0 2px 8px rgba(0,0,0,0.05);
+                            --deco: '☀️'; --sel-mask: rgba(13, 110, 253, 0.1); --sel-line: #0d6efd;
+                            --anim-dur: 0.25s;
+                        }
+                        [data-theme="night"] {
+                            --bg: #0d1117; --card: #161b22; --text: #e6edf3; --sub: #8b949e;
+                            --border: #30363d; --accent: #58a6ff; --highlight: rgba(88, 166, 255, 0.15);
+                            --radius: 6px; --row-radius: 4px;
+                            --shadow: 0 8px 24px rgba(0,0,0,0.4);
+                            --deco: '🌙'; --sel-mask: rgba(88, 166, 255, 0.15); --sel-line: #58a6ff;
+                            --anim-dur: 0.25s;
+                        }
+                        [data-theme="jelly"] {
+                            --bg: #f0f9ff; --card: rgba(255, 255, 255, 0.65); --text: #0369a1; --sub: #0ea5e9;
+                            --border: #e0f2fe; --accent: #0ea5e9; --highlight: rgba(14, 165, 233, 0.15);
+                            --radius: 24px; --row-radius: 12px;
+                            --shadow: 8px 8px 20px rgba(14, 165, 233, 0.15), inset 1px 1px 2px #fff;
+                            --deco: '🍬'; --sel-mask: rgba(14, 165, 233, 0.15); --sel-line: #0ea5e9;
+                            --ease: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+                            --anim-dur: 0.5s;
+                        }
+                        [data-theme="jelly"] .card {
+                            backdrop-filter: blur(16px); border: 4px solid #fff;
+                            box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.25), 0 4px 10px -4px rgba(14, 165, 233, 0.1);
+                        }
+                        [data-theme="jelly"] button, [data-theme="jelly"] select {
+                            border-radius: 50px; background: linear-gradient(135deg, #fff, #e0f2fe);
+                            border: 2px solid #fff; box-shadow: 0 2px 5px rgba(14, 165, 233, 0.1);
+                        }
+                        [data-theme="fresh"] {
+                            --bg: #fff7ed; --card: #fff; --text: #431407; --sub: #9a3412;
+                            --border: #431407; --accent: #f97316; --highlight: #ffedd5;
+                            --radius: 0px; --row-radius: 0px;
+                            --shadow: 4px 4px 0 #431407;
+                            --deco: '🍊'; --sel-mask: rgba(249, 115, 22, 0.2); --sel-line: #431407;
+                            --anim-dur: 0.15s;
+                        }
+                        [data-theme="fresh"] button { box-shadow: 3px 3px 0 var(--border); transition: none; }
+                        [data-theme="fresh"] button:active { transform: translate(3px,3px); box-shadow: none; }
+                        [data-theme="fresh"] button.active { background: var(--accent); color: #fff; box-shadow: 2px 2px 0 var(--border); }
+                        [data-theme="neon"] {
+                            --bg: #020202; --card: #0a050a; --text: #fae8ff; --sub: #d946ef;
+                            --border: #4a044e; --accent: #d946ef; --highlight: rgba(217, 70, 239, 0.2);
+                            --radius: 2px; --row-radius: 2px;
+                            --shadow: 0 0 15px rgba(217, 70, 239, 0.15);
+                            --deco: '🔮'; --sel-mask: rgba(217, 70, 239, 0.15); --sel-line: #d946ef;
+                            --anim-dur: 0.2s;
+                        }
+                        [data-theme="neon"] .card { border: 1px solid #333; }
+                        [data-theme="neon"] button { text-transform: uppercase; font-size: 10px; letter-spacing: 1px; border-color: var(--accent); color: var(--accent); background: #000; }
+                        [data-theme="neon"] button:hover { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); }
+                        [data-theme="neon"] button.active { background: var(--accent); color: #000; box-shadow: 0 0 20px var(--accent); }
 
-                            /* === LAYOUT === */
-                            body { margin: 0; padding: 20px; background: var(--bg); color: var(--text); font-family: var(--font-ui); transition: background 0.3s; overflow-y: scroll; min-height: 100vh; display: flex; flex-direction: column; }
-                            .container { max-width: 1920px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 20px; flex: 1; }
+                        /* === LAYOUT === */
+                        body { margin: 0; padding: 20px; background: var(--bg); color: var(--text); font-family: var(--font-ui); transition: background 0.3s; overflow-y: scroll; min-height: 100vh; display: flex; flex-direction: column; }
+                        .container { max-width: 1920px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 20px; flex: 1; }
 
-                            header { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between; }
-                            h1 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
-                            h1::after { content: var(--deco); animation: bounce 2s infinite; font-size: 1.2rem; }
-                            @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+                        header { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between; }
+                        h1 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
+                        h1::after { content: var(--deco); animation: bounce 2s infinite; font-size: 1.2rem; }
+                        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
 
-                            .controls-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-                            .btn-group { display: flex; gap: 0; }
+                        .controls-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+                        .btn-group { display: flex; gap: 0; }
 
-                            button, select {
-                                height: 30px; padding: 0 12px; font-family: inherit; font-size: 12px; font-weight: 600;
-                                background: var(--card); color: var(--text); border: 1px solid var(--border);
-                                border-radius: var(--radius); cursor: pointer; outline: none;
-                                transition: all 0.2s var(--ease); display: flex; align-items: center; justify-content: center;
-                            }
-                            button:hover, select:hover { filter: brightness(0.97); z-index: 1; }
-                            button.active { background: var(--accent); color: #fff; border-color: var(--accent); z-index: 2; }
+                        button, select {
+                            height: 30px; padding: 0 12px; font-family: inherit; font-size: 12px; font-weight: 600;
+                            background: var(--card); color: var(--text); border: 1px solid var(--border);
+                            border-radius: var(--radius); cursor: pointer; outline: none;
+                            transition: all 0.2s var(--ease); display: flex; align-items: center; justify-content: center;
+                        }
+                        button:hover, select:hover { filter: brightness(0.97); z-index: 1; }
+                        button.active { background: var(--accent); color: #fff; border-color: var(--accent); z-index: 2; }
 
-                            .btn-l { border-radius: var(--radius) 0 0 var(--radius) !important; border-right-width: 0; }
-                            .btn-m { border-radius: 0 !important; border-right-width: 0; }
-                            .btn-r { border-radius: 0 var(--radius) var(--radius) 0 !important; }
+                        .btn-l { border-radius: var(--radius) 0 0 var(--radius) !important; border-right-width: 0; }
+                        .btn-m { border-radius: 0 !important; border-right-width: 0; }
+                        .btn-r { border-radius: 0 var(--radius) var(--radius) 0 !important; }
 
-                            .dashboard { display: grid; grid-template-columns: 1fr 1.4fr; gap: 20px; align-items: start; }
-                            .col-left { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 20px; height: fit-content; }
+                        .dashboard { display: grid; grid-template-columns: 1fr 1.4fr; gap: 20px; align-items: start; }
+                        .col-left { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 20px; height: fit-content; }
 
-                            .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 15px; display: flex; flex-direction: column; border: 1px solid var(--border); transition: transform 0.3s var(--ease); }
-                            .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px solid rgba(0,0,0,0.03); padding-bottom: 8px; }
-                            .card-title { font-weight: 700; font-size: 13px; color: var(--sub); text-transform: uppercase; letter-spacing: 0.5px; }
+                        .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 15px; display: flex; flex-direction: column; border: 1px solid var(--border); transition: transform 0.3s var(--ease); }
+                        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px solid rgba(0,0,0,0.03); padding-bottom: 8px; }
+                        .card-title { font-weight: 700; font-size: 13px; color: var(--sub); text-transform: uppercase; letter-spacing: 0.5px; }
 
-                            .vis-container { width: 100%; position: relative; background: rgba(0,0,0,0.015); border-radius: 4px; overflow: hidden; }
-                            .timeline-wrap { height: 220px; cursor: crosshair; }
+                        .vis-container { width: 100%; position: relative; background: rgba(0,0,0,0.015); border-radius: 4px; overflow: hidden; }
+                        .timeline-wrap { height: 220px; cursor: crosshair; }
 
-                            .pie-card-body { width: 100%; display: flex; justify-content: center; align-items: center; transition: height var(--anim-dur) var(--ease); overflow: hidden; }
-                            .pie-wrap { width: 100%; aspect-ratio: 1 / 1; transition: all var(--anim-dur) var(--ease); opacity: 1; display: flex; align-items: center; justify-content: center; }
-                            .pie-wrap.collapsed { height: 0; opacity: 0; margin: 0; aspect-ratio: auto; }
-                            canvas { display: block; width: 100%; height: 100%; }
+                        .pie-card-body { width: 100%; display: flex; justify-content: center; align-items: center; transition: height var(--anim-dur) var(--ease); overflow: hidden; }
+                        .pie-wrap { width: 100%; aspect-ratio: 1 / 1; transition: all var(--anim-dur) var(--ease); opacity: 1; display: flex; align-items: center; justify-content: center; }
+                        .pie-wrap.collapsed { height: 0; opacity: 0; margin: 0; aspect-ratio: auto; }
+                        canvas { display: block; width: 100%; height: 100%; }
 
-                            .col-right { display: flex; flex-direction: column; min-width: 0; }
-                            .table-card { flex: 1; display: flex; flex-direction: column; padding: 0; overflow: visible; height: auto; transition: min-height 0.2s; }
+                        .col-right { display: flex; flex-direction: column; min-width: 0; }
+                        .table-card { flex: 1; display: flex; flex-direction: column; padding: 0; overflow: visible; height: auto; transition: min-height 0.2s; }
 
-                            .table-header-box {
-                                padding: 15px; background: var(--bg); border-bottom: 2px solid rgba(0,0,0,0.03);
-                                display: flex; justify-content: space-between; align-items: center;
-                                position: sticky; top: 0; z-index: 20; border-radius: var(--radius) var(--radius) 0 0;
-                            }
-                            .table-card .table-header-box { margin: 0; background: var(--card); border-radius: var(--radius) var(--radius) 0 0; }
+                        .table-header-box {
+                            padding: 15px; background: var(--bg); border-bottom: 2px solid rgba(0,0,0,0.03);
+                            display: flex; justify-content: space-between; align-items: center;
+                            position: sticky; top: 0; z-index: 20; border-radius: var(--radius) var(--radius) 0 0;
+                        }
+                        .table-card .table-header-box { margin: 0; background: var(--card); border-radius: var(--radius) var(--radius) 0 0; }
 
-                            .table-container { flex: 1; overflow: visible; user-select: none; }
+                        .table-container { flex: 1; overflow: visible; user-select: none; }
 
-                            table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; table-layout: fixed; }
-                            th { text-align: left; padding: 10px 12px; color: var(--sub); background: var(--card); border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
-                            th:hover { color: var(--accent); background: var(--highlight); }
-                            td { border-bottom: 1px solid var(--border); padding: 0; vertical-align: middle; }
+                        table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; table-layout: fixed; }
+                        th { text-align: left; padding: 10px 12px; color: var(--sub); background: var(--card); border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+                        th:hover { color: var(--accent); background: var(--highlight); }
+                        td { border-bottom: 1px solid var(--border); padding: 0; vertical-align: middle; }
 
-                            .row-inner {
-                                display: flex; align-items: center; padding: 6px 12px; height: 34px;
-                                cursor: pointer;
-                            }
+                        .row-inner {
+                            display: flex; align-items: center; padding: 6px 12px; height: 34px;
+                            cursor: pointer;
+                        }
 
-                            /* Selection Styles */
-                            tr:hover td { background: rgba(0,0,0,0.03); }
-                            tr.selected td { background: var(--highlight); border-top: 1px solid var(--sel-line); border-bottom: 1px solid var(--sel-line); }
+                        /* Selection Styles */
+                        tr:hover td { background: rgba(0,0,0,0.03); }
+                        tr.selected td { background: var(--highlight); border-top: 1px solid var(--sel-line); border-bottom: 1px solid var(--sel-line); }
 
-                            tr.selected td:first-child {
-                                border-left: 1px solid var(--sel-line);
-                                border-top-left-radius: var(--row-radius);
-                                border-bottom-left-radius: var(--row-radius);
-                            }
-                            tr.selected td:last-child {
-                                border-right: 1px solid var(--sel-line);
-                                border-top-right-radius: var(--row-radius);
-                                border-bottom-right-radius: var(--row-radius);
-                            }
+                        tr.selected td:first-child {
+                            border-left: 1px solid var(--sel-line);
+                            border-top-left-radius: var(--row-radius);
+                            border-bottom-left-radius: var(--row-radius);
+                        }
+                        tr.selected td:last-child {
+                            border-right: 1px solid var(--sel-line);
+                            border-top-right-radius: var(--row-radius);
+                            border-bottom-right-radius: var(--row-radius);
+                        }
 
-                            tr.dimmed td { opacity: 0.3; filter: grayscale(1); transition: opacity 0.2s; }
-                            tr.dimmed:hover td { opacity: 0.7; }
+                        tr.dimmed td { opacity: 0.3; filter: grayscale(1); transition: opacity 0.2s; }
+                        tr.dimmed:hover td { opacity: 0.7; }
 
-                            .toggle {
-                                width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center;
-                                margin-right: 6px; color: var(--sub); border-radius: 3px; font-size: 9px; cursor: pointer;
-                                transition: transform 0.2s var(--ease), background 0.2s;
-                            }
-                            .toggle:hover { background: var(--highlight); color: var(--accent); }
-                            .toggle.closed { transform: rotate(-90deg); }
+                        .toggle {
+                            width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center;
+                            margin-right: 6px; color: var(--sub); border-radius: 3px; font-size: 9px; cursor: pointer;
+                            transition: transform 0.2s var(--ease), background 0.2s;
+                        }
+                        .toggle:hover { background: var(--highlight); color: var(--accent); }
+                        .toggle.closed { transform: rotate(-90deg); }
 
-                            .metric-cell { font-family: var(--font-mono); text-align: right; padding-right: 12px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+                        .metric-cell { font-family: var(--font-mono); text-align: right; padding-right: 12px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
-                            .pct-track {
-                                width: 90%; height: 16px; margin-left: auto; margin-right: 12px;
-                                position: relative; display: flex; align-items: center;
-                                border: 1px solid var(--border);
-                                border-radius: 4px; background: rgba(0,0,0,0.02); overflow: hidden;
-                            }
-                            .pct-bar { height: 100%; border-radius: 2px; transition: width 0.3s; position: absolute; left: 0; top: 0; }
-                            .pct-text { position: absolute; right: 4px; font-size: 10px; font-family: var(--font-mono); color: var(--text); z-index: 2; font-weight: 600; text-shadow: 0 0 5px var(--bg); mix-blend-mode: hard-light; }
-                            [data-theme="day"] .pct-text { mix-blend-mode: multiply; }
+                        .pct-track {
+                            width: 90%; height: 16px; margin-left: auto; margin-right: 12px;
+                            position: relative; display: flex; align-items: center;
+                            border: 1px solid var(--border);
+                            border-radius: 4px; background: rgba(0,0,0,0.02); overflow: hidden;
+                        }
+                        .pct-bar { height: 100%; border-radius: 2px; transition: width 0.3s; position: absolute; left: 0; top: 0; }
+                        .pct-text { position: absolute; right: 4px; font-size: 10px; font-family: var(--font-mono); color: var(--text); z-index: 2; font-weight: 600; text-shadow: 0 0 5px var(--bg); mix-blend-mode: hard-light; }
+                        [data-theme="day"] .pct-text { mix-blend-mode: multiply; }
 
-                            #tooltip {
-                                position: fixed; background: rgba(10, 10, 10, 0.95); color: #fff;
-                                padding: 8px 12px; border-radius: 6px; font-size: 12px;
-                                pointer-events: none; z-index: 9999; display: none;
-                                box-shadow: 0 8px 20px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(8px);
-                            }
-                            .tt-head { color: var(--accent); font-weight: 700; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; }
-                            .tt-row { display: flex; justify-content: space-between; gap: 15px; font-family: var(--font-mono); margin-top: 2px; opacity: 0.9; }
+                        #tooltip {
+                            position: fixed; background: rgba(10, 10, 10, 0.95); color: #fff;
+                            padding: 8px 12px; border-radius: 6px; font-size: 12px;
+                            pointer-events: none; z-index: 9999; display: none;
+                            box-shadow: 0 8px 20px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(8px);
+                        }
+                        .tt-head { color: var(--accent); font-weight: 700; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; }
+                        .tt-row { display: flex; justify-content: space-between; gap: 15px; font-family: var(--font-mono); margin-top: 2px; opacity: 0.9; }
 
-                            @media (max-width: 900px) {
-                                .dashboard { grid-template-columns: 1fr; }
-                                .col-left { position: static; }
-                                .pie-wrap { max-width: 400px; margin: 0 auto; }
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div id="tooltip"></div>
-                        <div class="container">
-                            <header>
-                                <h1>Profiler</h1>
-                                <div class="controls-row">
-                                    <span id="loading-txt" style="font-size:11px; color:var(--sub); font-family:var(--font-mono)"></span>
-                                    <select id="theme-sel" onchange="App.setTheme(this.value)">
-                                        <option value="day">☀️ Day</option>
-                                        <option value="night">🌙 Night</option>
-                                        <option value="jelly">🍬 Jelly</option>
-                                        <option value="fresh">🍊 Fresh</option>
-                                        <option value="neon">🔮 Neon</option>
-                                    </select>
-                                    <div class="btn-group">
-                                        <button onclick="App.setUnit('ms')" id="btn-ms" class="btn-l active">ms</button>
-                                        <button onclick="App.setUnit('us')" id="btn-us" class="btn-m">μs</button>
-                                        <button onclick="App.setUnit('ns')" id="btn-ns" class="btn-r">ns</button>
-                                    </div>
-                                    <button onclick="App.resetView()">Reset</button>
+                        @media (max-width: 900px) {
+                            .dashboard { grid-template-columns: 1fr; }
+                            .col-left { position: static; }
+                            .pie-wrap { max-width: 400px; margin: 0 auto; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div id="tooltip"></div>
+                    <div class="container">
+                        <header>
+                            <h1>Profiler</h1>
+                            <div class="controls-row">
+                                <span id="loading-txt" style="font-size:11px; color:var(--sub); font-family:var(--font-mono)"></span>
+                                <select id="theme-sel" onchange="App.setTheme(this.value)">
+                                    <option value="day">☀️ Day</option>
+                                    <option value="night">🌙 Night</option>
+                                    <option value="jelly">🍬 Jelly</option>
+                                    <option value="fresh">🍊 Fresh</option>
+                                    <option value="neon">🔮 Neon</option>
+                                </select>
+                                <div class="btn-group">
+                                    <button onclick="App.setUnit('ms')" id="btn-ms" class="btn-l active">ms</button>
+                                    <button onclick="App.setUnit('us')" id="btn-us" class="btn-m">μs</button>
+                                    <button onclick="App.setUnit('ns')" id="btn-ns" class="btn-r">ns</button>
                                 </div>
-                            </header>
-                            <div class="dashboard">
-                                <div class="col-left">
-                                    <div class="card">
-                                        <div class="card-header">
-                                            <span class="card-title">Timeline</span>
-                                            <span id="tl-info" style="font-family:var(--font-mono); font-weight:400; opacity:0.8; font-size:11px;"></span>
-                                        </div>
-                                        <div class="vis-container timeline-wrap"><canvas id="c-timeline"></canvas></div>
+                                <button onclick="App.resetView()">Reset</button>
+                            </div>
+                        </header>
+                        <div class="dashboard">
+                            <div class="col-left">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <span class="card-title">Timeline</span>
+                                        <span id="tl-info" style="font-family:var(--font-mono); font-weight:400; opacity:0.8; font-size:11px;"></span>
                                     </div>
-                                    <div class="card" id="card-dist">
-                                        <div class="card-header">
-                                            <span class="card-title">Distribution</span>
-                                            <button style="height:20px; font-size:10px; padding:0 8px;" onclick="App.togglePie()">Toggle</button>
-                                        </div>
-                                        <div class="pie-card-body">
-                                            <div class="vis-container pie-wrap" id="pie-box"><canvas id="c-pie"></canvas></div>
-                                        </div>
+                                    <div class="vis-container timeline-wrap"><canvas id="c-timeline"></canvas></div>
+                                </div>
+                                <div class="card" id="card-dist">
+                                    <div class="card-header">
+                                        <span class="card-title">Distribution</span>
+                                        <button style="height:20px; font-size:10px; padding:0 8px;" onclick="App.togglePie()">Toggle</button>
+                                    </div>
+                                    <div class="pie-card-body">
+                                        <div class="vis-container pie-wrap" id="pie-box"><canvas id="c-pie"></canvas></div>
                                     </div>
                                 </div>
-                                <div class="col-right" id="col-metrics">
-                                    <div class="card table-card" id="table-card">
-                                        <div class="table-header-box">
-                                            <span class="card-title">Metrics</span>
-                                            <div class="btn-group">
-                                                <button id="chk-avg" class="btn-l active" onclick="App.toggleMetric('avg')">Avg</button>
-                                                <button id="chk-min" class="btn-m" onclick="App.toggleMetric('min')">Min</button>
-                                                <button id="chk-max" class="btn-r" onclick="App.toggleMetric('max')">Max</button>
-                                            </div>
+                            </div>
+                            <div class="col-right" id="col-metrics">
+                                <div class="card table-card" id="table-card">
+                                    <div class="table-header-box">
+                                        <span class="card-title">Metrics</span>
+                                        <div class="btn-group">
+                                            <button id="chk-avg" class="btn-l active" onclick="App.toggleMetric('avg')">Avg</button>
+                                            <button id="chk-min" class="btn-m" onclick="App.toggleMetric('min')">Min</button>
+                                            <button id="chk-max" class="btn-r" onclick="App.toggleMetric('max')">Max</button>
                                         </div>
-                                        <div class="table-container">
-                                            <table id="tree-table"><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
-                                        </div>
+                                    </div>
+                                    <div class="table-container">
+                                        <table id="tree-table"><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
                                     </div>
                                 </div>
                             </div>
@@ -332,16 +331,17 @@ public class ProfilerWebServer {
                                     try {
                                         const res = await fetch('/api/data');
                                         const json = await res.json();
-                                        if(!json.cycles || !json.cycles.length) throw new Error("No Data");
+                                        if(!json.lastFrame) throw new Error("No Data");
                                         App.rawData = json;
-                                        // CHANGED: Use backend stats if available
+                                        
+                                        // 1. Load Stats
+                                        App.globalStats.clear();
                                         if(json.stats) {
-                                            App.globalStats.clear();
                                             for(let k in json.stats) App.globalStats.set(k, json.stats[k]);
-                                        } else {
-                                            App.calcGlobalStats(json.cycles);
                                         }
-                                        App.buildTree(json.cycles.find(c => c.length > 0) || []);
+
+                                        // 2. Build Tree from recursive structure with Lane Packing
+                                        App.processFrameTree(json.lastFrame);
 
                                         App.resetView();
                                         App.setupCanvas();
@@ -351,36 +351,73 @@ public class ProfilerWebServer {
                                         App.setUnit(App.unit);
 
                                         App.setupTableInteractions();
-                                        document.getElementById('loading-txt').textContent = `${json.cycles.length} Frames`;
-                                    } catch(e) { console.error(e); }
+                                        document.getElementById('loading-txt').textContent = "Last Frame";
+                                    } catch(e) { console.error(e); document.getElementById('loading-txt').textContent = "Error"; }
                                 },
 
-                                calcGlobalStats: function(cycles) {
-                                    App.globalStats.clear();
-                                    cycles.forEach(events => {
-                                        if(!events.length) return;
-                                        const stack = []; const t0 = events[0].ts;
-                                        events.forEach(e => {
-                                            const t = e.ts - t0;
-                                            if(e.t === 'START') {
-                                                const p = stack.length ? stack[stack.length-1].path : "Root";
-                                                const path = (stack.length === 0 && e.n === 'root') ? "Root" : (p + "/" + e.n);
-                                                stack.push({path, start:t});
-                                            } else if(e.t === 'LINEAR') {
-                                                if(stack.length) {
-                                                    const p = stack[stack.length-1];
-                                                    if(p.lastL) App.recStat(p.lastL.path, t - p.lastL.start);
-                                                    p.lastL = { path: p.path+"/"+e.n, start:t };
-                                                }
-                                            } else if(e.t === 'END') {
-                                                if(!stack.length) return;
-                                                const n = stack.pop();
-                                                App.recStat(n.path, t - n.start);
-                                                if(n.lastL) App.recStat(n.lastL.path, t - n.lastL.start);
+                                processFrameTree: function(root) {
+                                    const t0 = root.start;
+                                    const flat = [];
+                                    let maxD = 0;
+                                    
+                                    // Levels: Array where index is the Visual Row (depth),
+                                    // and value is the timestamp when that row becomes free.
+                                    // This implements the "4 axes" logic for overlapping siblings.
+                                    const levels = [];
+
+                                    function traverse(node, minDepth, parentPath, parentObj) {
+                                        const startRel = node.start - t0;
+                                        const endRel = node.end - t0;
+                                        const path = parentPath ? (parentPath + "/" + node.name) : node.name;
+                                        
+                                        // --- Lane Packing Logic ---
+                                        // Start checking from minDepth (parent + 1)
+                                        let depth = minDepth;
+                                        while(true) {
+                                            // If level is undefined (fresh track) or free before we start
+                                            if (!levels[depth] || levels[depth] <= startRel) {
+                                                break;
                                             }
-                                        });
-                                    });
-                                    for(let s of App.globalStats.values()) s.avg = s.total / s.count;
+                                            depth++; // Collision detected, try next track
+                                        }
+                                        // Occupy this track
+                                        levels[depth] = endRel;
+                                        // --------------------------
+
+                                        const newNode = {
+                                            name: node.name,
+                                            path: path,
+                                            start: startRel,
+                                            end: endRel,
+                                            depth: depth, // Using Visual Depth instead of Tree Depth
+                                            children: [],
+                                            parent: parentObj
+                                        };
+
+                                        flat.push(newNode);
+                                        maxD = Math.max(maxD, depth);
+                                        App.animState.set(path, 1.0);
+
+                                        if(node.children && node.children.length > 0) {
+                                            // Important: Sort children by time to ensure tight packing
+                                            const sortedChildren = [...node.children].sort((a,b) => a.start - b.start);
+                                            
+                                            sortedChildren.forEach(child => {
+                                                // Children must visually start strictly below the parent
+                                                const childObj = traverse(child, depth + 1, path, newNode);
+                                                newNode.children.push(childObj);
+                                            });
+                                        }
+                                        return newNode;
+                                    }
+
+                                    // Start packing. Root is usually at 0 (visual top).
+                                    const newRoot = traverse(root, 0, null, null);
+                                    
+                                    App.rootNode = newRoot;
+                                    App.flatNodes = flat;
+                                    App.totalDur = Math.max(1, newRoot.end);
+                                    App.maxDepth = maxD + 1;
                                 },
 
                                 calcSelectionStatsRevised: function() {
@@ -388,6 +425,16 @@ public class ProfilerWebServer {
                                     const tS = App.selection.active ? App.selection.start : App.viewStart;
                                     const tE = App.selection.active ? App.selection.end : App.viewEnd;
                                     const hasSel = App.selectedPaths.size > 0;
+
+                                    // Ensure Root is included for Ratio Base calculation
+                                    const rootNode = App.flatNodes.find(n => n.name === 'Root');
+                                    if (rootNode) {
+                                         const s = Math.max(tS, rootNode.start);
+                                         const e = Math.min(tE, rootNode.end);
+                                         const dur = Math.max(0, e - s);
+                                         const g = App.globalStats.get('Root') || {min:0, max:0};
+                                         map.set('Root', { min: g.min, max: g.max, avg: dur, total: dur, count: 1 });
+                                    }
 
                                     App.flatNodes.forEach(n => {
                                         if(n.name === 'Root') return;
@@ -398,56 +445,17 @@ public class ProfilerWebServer {
                                         const intersectDur = Math.max(0, e - s);
 
                                         if(intersectDur > 0) {
-                                            if(!map.has(n.path)) map.set(n.path, {
-                                                min:intersectDur, max:intersectDur, total:intersectDur, count:1
+                                            const g = App.globalStats.get(n.path) || {min:0, max:0};
+                                            map.set(n.path, {
+                                                min: g.min,
+                                                max: g.max,
+                                                avg: intersectDur,
+                                                total: intersectDur,
+                                                count: 1
                                             });
-                                            else {
-                                                const r = map.get(n.path);
-                                                r.min = Math.min(r.min, intersectDur);
-                                                r.max = Math.max(r.max, intersectDur);
-                                                r.total += intersectDur;
-                                                r.count++;
-                                            }
                                         }
                                     });
-                                    for(let v of map.values()) {
-                                        v.avg = v.total / v.count;
-                                    }
                                     return map;
-                                },
-
-                                recStat: function(path, dur) {
-                                    let s = App.globalStats.get(path);
-                                    if(!s) App.globalStats.set(path, { min:dur, max:dur, total:dur, count:1, avg:0 });
-                                    else { s.min = Math.min(s.min, dur); s.max = Math.max(s.max, dur); s.total += dur; s.count++; }
-                                },
-                                buildTree: function(events) {
-                                    const t0 = events[0].ts;
-                                    const root = { name: 'Root', path: 'Root', start: 0, end: 0, depth: 0, children: [] };
-                                    const stack = [root]; const flat = [root]; let maxD = 0;
-                                    events.forEach(e => {
-                                        const t = e.ts - t0;
-                                        const p = stack[stack.length-1];
-                                        if(e.t === 'START') {
-                                            if(e.n === 'root') return;
-                                            const path = p.path + "/" + e.n;
-                                            const n = { name:e.n, path, start:t, end:-1, depth:p.depth+1, children:[], parent:p };
-                                            p.children.push(n); stack.push(n); flat.push(n); maxD = Math.max(maxD, n.depth);
-                                            App.animState.set(n.path, 1.0);
-                                        } else if(e.t === 'LINEAR') {
-                                            const last = p.children[p.children.length-1];
-                                            if(last && last.type==='L' && last.end===-1) last.end=t;
-                                            const path = p.path + "/" + e.n;
-                                            const n = { name:e.n, path, start:t, end:-1, depth:p.depth+1, children:[], parent:p, type:'L' };
-                                            p.children.push(n); flat.push(n);
-                                            App.animState.set(n.path, 1.0);
-                                        } else if(e.t === 'END') {
-                                            if(stack.length>1) { const n = stack.pop(); n.end=t; n.children.forEach(c => { if(c.end===-1) c.end=t; }); } else stack[0].end = t;
-                                        }
-                                    });
-                                    const finalT = events[events.length-1].ts - t0;
-                                    flat.forEach(n => { if(n.end === -1) n.end = finalT; });
-                                    App.rootNode = root; App.flatNodes = flat; App.totalDur = Math.max(1, root.end); App.maxDepth = Math.max(1, maxD);
                                 },
 
                                 setTheme: function(t) {
@@ -486,7 +494,6 @@ public class ProfilerWebServer {
                                     App.renderTable();
                                 },
 
-                                // CHANGED: Simple Toggle (Add/Remove) logic for Multi-select
                                 toggleSelectPath: function(path) {
                                     if(App.selectedPaths.has(path)) App.selectedPaths.delete(path);
                                     else App.selectedPaths.add(path);
@@ -498,7 +505,6 @@ public class ProfilerWebServer {
                                     App.draw(); App.renderTable();
                                 },
 
-                                // CHANGED: Recursive visibility check for proper nesting
                                 isNodeVisible: function(n) {
                                     let p = n.parent;
                                     while(p) {
@@ -543,6 +549,7 @@ public class ProfilerWebServer {
                                         if(n.end < App.viewStart || n.start > App.viewEnd) return;
                                         const x = ((n.start - App.viewStart)/range) * w;
                                         const bw = Math.max(1, ((n.end - n.start)/range) * w);
+                                        // depth is now the visually computed row index
                                         const y = TOP + (n.depth-1)*(ROW_H+GAP);
 
                                         const dimmed = hasSel && !isSelected;
@@ -586,6 +593,11 @@ public class ProfilerWebServer {
                                         if(n.name==='Root') return;
                                         const s = Math.max(tS, n.start);
                                         const e = Math.min(tE, n.end);
+                                        // Use tree hierarchy depth for Ring visualization to maintain logical grouping
+                                        // We can estimate tree depth by counting slashes in path for simplicity
+                                        // or pass treeDepth separately if needed.
+                                        // Here we stick to visual depth or we might need to store treeDepth in traverse.
+                                        // For simplicity, let's assume Visual Depth correlates well enough for Pie.
                                         if (e > s) visibleMaxDepth = Math.max(visibleMaxDepth, n.depth);
                                     });
                                     visibleMaxDepth = Math.max(1, visibleMaxDepth);
@@ -687,7 +699,6 @@ public class ProfilerWebServer {
                                         });
 
                                         sorted.forEach(node => {
-                                            // CHANGED: Recursive folded check
                                             if(!App.isNodeVisible(node)) return;
 
                                             const stats = dynStats.get(node.path) || {min:0,max:0,avg:0,total:0};
@@ -695,21 +706,30 @@ public class ProfilerWebServer {
                                             const primaryVal = stats[App.sort.col] || stats.avg || 0;
                                             const isDimmed = isSel && (primaryVal === 0);
 
-                                            // CHANGED: Fix ratio denominator
-                                            let maxRef;
-                                            if (isSel) {
-                                                maxRef = App.selection.end - App.selection.start;
+                                            // Ratio Calculation
+                                            let pctVal = stats[App.sort.col] || 0;
+                                            let pctBase = 1;
+                                            
+                                            if (App.sort.col === 'avg' || App.sort.col === 'total') {
+                                                // For time, use the full range (Selection or View) as base
+                                                pctBase = isSel ? (App.selection.end - App.selection.start) : (App.rootNode.end - App.rootNode.start);
                                             } else {
-                                                // FIX: Use Root node total time for global view ratio
-                                                maxRef = App.rootNode.end - App.rootNode.start;
+                                                // For Min/Max, use Root's stats
+                                                const rootStats = dynStats.get('Root');
+                                                if (rootStats) pctBase = rootStats[App.sort.col] || 1;
                                             }
-
-                                            const pct = maxRef > 0 ? Math.min(100, (stats.total / maxRef) * 100) : 0;
-                                            const indent = (node.depth-1)*18;
+                                            
+                                            const pct = pctBase > 0 ? Math.min(100, (pctVal / pctBase) * 100) : 0;
+                                            
+                                            // Indent based on Tree Hierarchy? 
+                                            // Since flatNodes now uses visual depth, we should estimate tree depth for indentation
+                                            // Or just use the path length.
+                                            const treeDepth = (node.path.match(/\\//g) || []).length;
+                                            const indent = treeDepth * 18;
+                                            
                                             const col = App.getColor(node.name);
                                             const hasKids = node.children.length > 0;
                                             const isCol = App.collapsed.has(node.path);
-                                            // CHANGED: Added onmousedown="event.stopPropagation()"
                                             const tog = hasKids ? `<div class="toggle ${isCol?'closed':''}" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); App.toggleNode('${node.path}')">▼</div>` : `<div class="toggle"></div>`;
 
                                             const isSelected = App.selectedPaths.has(node.path);
@@ -717,12 +737,12 @@ public class ProfilerWebServer {
                                             const dimClass = isDimmed ? 'dimmed' : '';
 
                                             html += `<tr class="${selClass} ${dimClass}" data-path="${node.path}">
-                                                <td><div class="row-inner"><div style="padding-left:${indent}px; display:flex; height:100%">${Array(node.depth-1).fill('<div class="tree-spacer"><div class="tree-line"></div></div>').join('')}</div>${tog}<span style="color:${col}; margin-right:6px">●</span><b>${node.name}</b></div></td>
+                                                <td><div class="row-inner"><div style="padding-left:${indent}px; display:flex; height:100%">${Array(treeDepth).fill('<div class="tree-spacer"><div class="tree-line"></div></div>').join('')}</div>${tog}<span style="color:${col}; margin-right:6px">●</span><b>${node.name}</b></div></td>
                                                 ${mCols.map(k => `<td class="metric-cell">${App.fmt(stats[k])}</td>`).join('')}
                                                 <td><div class="pct-track"><div class="pct-bar" style="width:${pct}%; background:${col}"></div><span class="pct-text">${pct.toFixed(1)}%</span></div></td>
                                             </tr>`;
 
-                                            if(hasKids) build(node.children); // Traverse children, visibility handled by check at top
+                                            if(hasKids) build(node.children);
                                         });
                                     }
                                     if(App.rootNode) build(App.rootNode.children);
@@ -784,14 +804,11 @@ public class ProfilerWebServer {
 
                                     window.addEventListener('mouseup', (e) => {
                                         if (drag && isTimeDrag) {
-                                            // If drag distance was very small, treat as click
                                             const pos = App.getMousePos(tl, e);
                                             if (Math.abs(pos.x - ds) < 5) {
                                                 if(App.hoverNode) {
-                                                    // Clicked a Node: Toggle Selection (Multi-select)
                                                     App.toggleSelectPath(App.hoverNode.path);
                                                 } else {
-                                                    // CHANGED: Click Empty Space -> Reset View (Requirement 4)
                                                     App.resetView();
                                                 }
                                             }
@@ -806,7 +823,6 @@ public class ProfilerWebServer {
                                         const t = App.viewStart + (x/w)*range;
 
                                         if(drag && isTimeDrag) {
-                                            // Time Range Drag
                                             if(Math.abs(x - ds) > 5) {
                                                 const tS = App.viewStart + (ds/w)*range;
                                                 App.selection.active=true; App.selection.start=Math.min(tS,t); App.selection.end=Math.max(tS,t);
@@ -817,9 +833,6 @@ public class ProfilerWebServer {
                                             let hit = null; const top=16, rowH=28;
                                             for(let i=App.flatNodes.length-1; i>=0; i--) {
                                                 const n = App.flatNodes[i];
-                                                // REMOVED FILTER to allow Multi-select in Timeline hover
-                                                // if (hasSel && !App.selectedPaths.has(n.path)) continue;
-
                                                 if(n.name!=='Root' && t >= n.start && t <= n.end) {
                                                     const ny = top + (n.depth-1)*rowH;
                                                     if(pos.y >= ny && pos.y <= ny+22) { hit = n; break; }
@@ -830,19 +843,36 @@ public class ProfilerWebServer {
                                         }
                                     });
 
-                                    // Zoom
+                                    // --- CHANGED: Zoom Limits ---
                                     tl.addEventListener('wheel', e => {
                                         e.preventDefault();
                                         const pos = App.getMousePos(tl, e);
                                         const w = tl.width;
                                         const range = App.viewEnd - App.viewStart;
-                                        const t = App.viewStart + (pos.x/w) * range;
-                                        const zoom = e.deltaY > 0 ? 1.1 : 0.9;
-                                        const newRange = range * zoom;
-                                        App.viewStart = t - (t - App.viewStart) * zoom;
-                                        App.viewEnd = t + (App.viewEnd - t) * zoom;
+                                        
+                                        const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+                                        let newRange = range * zoomFactor;
+
+                                        // Limit Zoom Out (Max 1:1 relative to total duration)
+                                        if (newRange > App.totalDur) newRange = App.totalDur;
+                                        // Limit Zoom In (Min 10ns)
+                                        if (newRange < 10) newRange = 10;
+
+                                        const mouseRatio = pos.x / w;
+                                        const tMouse = App.viewStart + mouseRatio * range;
+                                        
+                                        let newStart = tMouse - mouseRatio * newRange;
+                                        let newEnd = newStart + newRange;
+
+                                        // Clamp to bounds
+                                        if (newStart < 0) { newStart = 0; newEnd = newRange; }
+                                        if (newEnd > App.totalDur) { newEnd = App.totalDur; newStart = newEnd - newRange; }
+
+                                        App.viewStart = newStart;
+                                        App.viewEnd = newEnd;
                                         App.draw(); App.renderTable();
                                     }, {passive: false});
+                                    // ----------------------------
 
                                     tl.addEventListener('mouseleave', () => { App.hoverNode=null; document.getElementById('tooltip').style.display='none'; App.draw(); });
 
@@ -864,9 +894,8 @@ public class ProfilerWebServer {
                                             let normAng = ang + Math.PI/2;
                                             if(normAng < 0) normAng += Math.PI*2;
                                             const tHit = tS + (normAng / (Math.PI*2)) * dur;
+                                            // Relaxing visible depth check for pie interaction
                                             hit = App.flatNodes.find(n => n.depth === depth && tHit >= n.start && tHit <= n.end && App.isNodeVisible(n));
-                                            // REMOVED FILTER to allow Multi-select in Pie hover
-                                            // if(App.selectedPaths.size > 0 && hit && !App.selectedPaths.has(hit.path)) hit = null;
                                         }
                                         if(App.hoverNode!==hit) { App.hoverNode=hit; pie.style.cursor=hit?'pointer':'default'; App.draw(); App.showTooltip(e,hit); }
                                         else if(hit) App.showTooltip(e,hit);
@@ -876,7 +905,6 @@ public class ProfilerWebServer {
                                         if(App.hoverNode) {
                                             App.toggleSelectPath(App.hoverNode.path);
                                         } else {
-                                            // CHANGED: Click Empty in Pie -> Clear Selection Only (Requirement 2)
                                             App.clearSelection();
                                         }
                                     });
@@ -893,7 +921,6 @@ public class ProfilerWebServer {
 
                                         drag = true;
                                         const path = tr.dataset.path;
-                                        // CHANGED: Table selection also follows Toggle logic
                                         App.toggleSelectPath(path);
                                     });
 
