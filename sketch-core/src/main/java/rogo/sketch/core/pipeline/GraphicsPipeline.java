@@ -518,4 +518,22 @@ public class GraphicsPipeline<C extends RenderContext> {
             return resourceManagers.get(pt);
         });
     }
+
+    public KeyId getNextStage(KeyId stageId) {
+        List<GraphicsStage> orderedList = this.stages.getOrderedList();
+        int size = orderedList.size();
+
+        for (int i = 0; i < size; i++) {
+            GraphicsStage stage = orderedList.get(i);
+            if (stage.getIdentifier().equals(stageId)) {
+                if (i == orderedList.size() - 1) {
+                    return orderedList.get(0).getIdentifier();
+                } else {
+                    return orderedList.get(i + 1).getIdentifier();
+                }
+            }
+        }
+
+        return stageId;
+    }
 }

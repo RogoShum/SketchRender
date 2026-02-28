@@ -27,7 +27,8 @@ import javax.annotation.Nullable;
 @Mixin(LevelRenderer.class)
 public abstract class MixinLevelRendererProvider implements LevelPipelineProvider {
     @Shadow
-    private int ticks;
+    public abstract int getTicks();
+
     @Shadow
     @Nullable
     private Frustum capturedFrustum;
@@ -57,7 +58,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
         }
 
         McRenderContext context = new McRenderContext((LevelRenderer) (Object) this, modelViewMatrix, projectionMatrix,
-                camera, frustum, this.ticks, partialTicks);
+                camera, frustum, this.getTicks(), partialTicks);
         sketchlib$graphPipeline.tickFrame();
         context.setRenderStateManager(sketchlib$graphPipeline.renderStateManager());
         context.setTransformStateManager(sketchlib$graphPipeline.transformStateManager());

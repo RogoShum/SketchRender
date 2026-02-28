@@ -143,6 +143,14 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
+afterEvaluate {
+    if (gradle.startParameter.taskNames.any { it.toLowerCase().contains("build") }) {
+        dependencies {
+            annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+        }
+    }
+}
+
 tasks.register("runRenderDoc", Exec.class) {
     group = "forgegradle runs"
 
