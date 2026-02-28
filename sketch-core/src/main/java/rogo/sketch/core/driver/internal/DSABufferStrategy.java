@@ -2,6 +2,9 @@ package rogo.sketch.core.driver.internal;
 
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL31;
+import org.lwjgl.opengl.GL43;
+import org.lwjgl.opengl.GL44;
 import org.lwjgl.opengl.GL45;
 
 import java.nio.ByteBuffer;
@@ -27,11 +30,6 @@ public class DSABufferStrategy implements IGLBufferStrategy {
     public void bufferData(int id, long size, long data, int usage) {
         GL45.nglNamedBufferData(id, size, data, usage);
     }
-
-    @Override
-    public void bufferData(int target, int id, long size, long data, int usage) {
-        GL45.nglNamedBufferData(id, size, data, usage);
-    }
     
     @Override
     public void bufferData(int id, ByteBuffer data, int usage) {
@@ -46,11 +44,6 @@ public class DSABufferStrategy implements IGLBufferStrategy {
     @Override
     public void bufferSubData(int id, long offset, long size, long data) {
         GL45.nglNamedBufferSubData(id, offset, size, data);
-    }
-
-    @Override
-    public void bufferSubData(int target, int id, long offset, long size, long data) {
-        bufferSubData(id, size, data, GL15.GL_STREAM_DRAW);
     }
     
     @Override

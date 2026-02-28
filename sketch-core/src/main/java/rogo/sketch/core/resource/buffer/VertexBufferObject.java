@@ -48,8 +48,13 @@ public class VertexBufferObject implements BufferResourceObject {
         GraphicsDriver.getCurrentAPI().bindVertexBuffer(0);
     }
 
+    public void upload(ByteBuffer data) {
+        getBufferStrategy().bufferData(handle, data, usage.getGLConstant());
+        this.size = data.limit();
+    }
+
     public void upload(long ptr, long dataSize, long maxSize) {
-        getBufferStrategy().bufferData(GL15.GL_ARRAY_BUFFER, handle, dataSize, ptr, usage.getGLConstant());
+        getBufferStrategy().bufferData(handle, dataSize, ptr, usage.getGLConstant());
         this.size = maxSize;
     }
 

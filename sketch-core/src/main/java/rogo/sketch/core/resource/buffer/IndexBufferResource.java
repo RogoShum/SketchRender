@@ -77,7 +77,7 @@ public class IndexBufferResource implements BufferResourceObject {
         fillBuffer();
 
         IGLBufferStrategy strategy = getBufferStrategy();
-        strategy.bufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, id, builder.getWriteOffset(), builder.getBaseAddress(), GL15.GL_STATIC_DRAW);
+        strategy.bufferData(id, builder.getWriteOffset(), builder.getBaseAddress(), GL15.GL_STATIC_DRAW);
 
         dirty = false;
     }

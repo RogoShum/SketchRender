@@ -71,7 +71,6 @@ public class MultiDrawRenderCommand extends DrawRenderCommand {
         if (primitiveType.requiresIndexBuffer()) {
             if (resource.getIndexBuffer().isDirty()) {
                 resource.getIndexBuffer().upload();
-                resource.getIndexBuffer().bind();
             }
 
             GL43.glMultiDrawElementsIndirect(

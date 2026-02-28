@@ -36,7 +36,7 @@ public class OpenGLAPI extends GraphicsAPI {
 
         // Initialize strategies based on capabilities
         if (useDSA) {
-            this.bufferStrategy = new LegacyBufferStrategy();
+            this.bufferStrategy = new DSABufferStrategy();
             this.textureStrategy = new DSATextureStrategy();
             this.shaderStrategy = new DSAShaderStrategy();
             this.framebufferStrategy = new DSAFramebufferStrategy();
