@@ -16,6 +16,7 @@ public abstract class MixinGameRender {
     @Inject(method = "render", at = @At(value = "HEAD"))
     public void onRenderHead(float p_109094_, long p_109095_, boolean p_109096_, CallbackInfo ci) {
         Profiler.get().push("game render");
+        Profiler.get().push("pre level");
     }
 
     @Inject(method = "render", at = @At(value = "RETURN"))
@@ -25,7 +26,8 @@ public abstract class MixinGameRender {
 
     @Inject(method = "renderLevel", at = @At(value = "HEAD"))
     public void onRenderLevelHead(float p_109090_, long p_109091_, PoseStack p_109092_, CallbackInfo ci) {
-        Profiler.get().popPush("pre level");
+        Profiler.get().pop("pre level");
+        Profiler.get().push("game level");
     }
 
     @Inject(method = "renderLevel", at = @At(value = "INVOKE", shift = At.Shift.AFTER, target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/vertex/PoseStack;FJZLnet/minecraft/client/Camera;Lnet/minecraft/client/renderer/GameRenderer;Lnet/minecraft/client/renderer/LightTexture;Lorg/joml/Matrix4f;)V"))
@@ -35,8 +37,11 @@ public abstract class MixinGameRender {
 
     @Inject(method = "renderLevel", at = @At(value = "RETURN"))
     public void onRenderHand(float p_109090_, long p_109091_, PoseStack p_109092_, CallbackInfo ci) {
+        Profiler.get().pop("level_end");
+        Profiler.get().push("sketch_hand");
         PipelineUtil.pipeline().renderStagesBetween(MinecraftRenderStages.HAND.getIdentifier(), MinecraftRenderStages.POST_PROGRESS.getIdentifier());
-        Profiler.get().popPush("game level");
+        Profiler.get().pop("sketch_hand");
+        Profiler.get().pop("game level");
     }
 
     @Inject(method = "render", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/pipeline/RenderTarget;bindWrite(Z)V"))
@@ -45,7 +50,12 @@ public abstract class MixinGameRender {
     }
 
     @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screens/Overlay;render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V"))
-    public void onGUI(float p_109094_, long p_109095_, boolean p_109096_, CallbackInfo ci) {
-        Profiler.get().popPush("gui");
+    public void beforeGUI(float p_109094_, long p_109095_, boolean p_109096_, CallbackInfo ci) {
+        Profiler.get().push("gui");
+    }
+
+    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screens/Overlay;render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V", shift = At.Shift.AFTER))
+    public void afterGUI(float p_109094_, long p_109095_, boolean p_109096_, CallbackInfo ci) {
+        Profiler.get().pop("gui");
     }
 }

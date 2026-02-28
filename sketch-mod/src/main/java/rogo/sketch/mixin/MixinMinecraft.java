@@ -14,7 +14,7 @@ import rogo.sketch.vanilla.PipelineUtil;
 
 @Mixin(Minecraft.class)
 public class MixinMinecraft {
-    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;render(FJZ)V", shift = At.Shift.AFTER))
+    @Inject(method = "runTick", at = @At(value = "RETURN"))
     public void afterRunTick(boolean p_91384_, CallbackInfo ci) {
         PipelineUtil.pipeline().renderStagesAfter(MinecraftRenderStages.RENDER_END.getIdentifier());
         Profiler.get().pop("runTick");
@@ -27,6 +27,26 @@ public class MixinMinecraft {
         PipelineUtil.pipeline().renderStagesBefore(MinecraftRenderStages.RENDER_START.getIdentifier());
         Profiler.get().open();
         Profiler.get().push("runTick");
+    }
+
+    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/pipeline/RenderTarget;blitToScreen(II)V"))
+    public void beforeBlitToScreen(boolean p_91384_, CallbackInfo ci) {
+        Profiler.get().push("blit_screen");
+    }
+
+    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/pipeline/RenderTarget;blitToScreen(II)V", shift = At.Shift.AFTER))
+    public void afterBlitToScreen(boolean p_91384_, CallbackInfo ci) {
+        Profiler.get().pop("blit_screen");
+    }
+
+    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/Window;updateDisplay()V"))
+    public void beforeUpdateDisplay(boolean p_91384_, CallbackInfo ci) {
+        Profiler.get().push("update_display");
+    }
+
+    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/Window;updateDisplay()V", shift = At.Shift.AFTER))
+    public void afterUpdateDisplay(boolean p_91384_, CallbackInfo ci) {
+        Profiler.get().pop("update_display");
     }
 
     @Inject(method = "setLevel", at = @At(value = "HEAD"))

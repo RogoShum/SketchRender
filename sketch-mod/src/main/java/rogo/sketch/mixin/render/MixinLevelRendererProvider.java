@@ -48,6 +48,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void onRenderStart(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().push("sketch_prepare");
         Frustum frustum;
         if (capturedFrustum != null) {
             frustum = this.capturedFrustum;
@@ -63,7 +64,8 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
         context.setNextTick(sketchlib$graphPipeline.anyNextTick());
         sketchlib$graphPipeline.resetRenderContext(context);
         sketchlib$graphPipeline.computeAllRenderCommand();
-        Profiler.get().push("renderLevel");
+        Profiler.get().pop("sketch_prepare");
+        Profiler.get().push("vanilla_prepare");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -71,9 +73,10 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void beforeClearStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                   boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                   Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_clear");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.RENDER_START.getIdentifier(),
                 MinecraftRenderStages.CLEAR.getIdentifier());
-        Profiler.get().popPush("clear");
+        Profiler.get().popPush("vanilla_clear");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -81,9 +84,10 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void beforeFrustumStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                     boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                     Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_capture_frustum");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.CLEAR.getIdentifier(),
                 MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier());
-        Profiler.get().popPush("captureFrustum");
+        Profiler.get().popPush("vanilla_capture_frustum");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -91,30 +95,40 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void beforeSkyStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                 boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                 Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_sky");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(),
                 MinecraftRenderStages.SKY.getIdentifier());
-        Profiler.get().popPush("sky");
+        Profiler.get().popPush("vanilla_sky");
     }
 
     @Inject(method = "renderChunkLayer", at = @At(value = "HEAD"))
     private void beforeSkyStage(RenderType renderType, PoseStack p_172995_, double p_172996_, double p_172997_,
                                 double p_172998_, Matrix4f p_254039_, CallbackInfo ci) {
         if (renderType == RenderType.solid()) {
+            Profiler.get().popPush("sketch_solid");
             sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.SKY.getIdentifier(),
                     MinecraftRenderStages.TERRAIN_SOLID.getIdentifier());
+            Profiler.get().popPush("vanilla_solid");
         } else if (renderType == RenderType.cutoutMipped()) {
+            Profiler.get().popPush("sketch_cutout_mipped");
             sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.TERRAIN_SOLID.getIdentifier(),
                     MinecraftRenderStages.TERRAIN_CUTOUT_MIPPED.getIdentifier());
+            Profiler.get().popPush("vanilla_mipped");
         } else if (renderType == RenderType.cutout()) {
+            Profiler.get().popPush("sketch_cutout");
             sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.TERRAIN_CUTOUT_MIPPED.getIdentifier(),
                     MinecraftRenderStages.TERRAIN_CUTOUT.getIdentifier());
+            Profiler.get().popPush("vanilla_cutout");
         } else if (renderType == RenderType.translucent()) {
+            Profiler.get().popPush("sketch_translucent");
             sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.BLOCK_OUTLINE.getIdentifier(),
                     MinecraftRenderStages.TERRAIN_TRANSLUCENT.getIdentifier());
+            Profiler.get().popPush("vanilla_translucent");
         } else if (renderType == RenderType.tripwire()) {
+            Profiler.get().popPush("sketch_tripwire");
             sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.TERRAIN_TRANSLUCENT.getIdentifier(),
                     MinecraftRenderStages.TERRAIN_TRIPWIRE.getIdentifier());
-            Profiler.get().popPush("terrain_tripwire");
+            Profiler.get().popPush("vanilla_tripwire");
         }
     }
 
@@ -123,9 +137,10 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void onEntityStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_entities");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.TERRAIN_CUTOUT.getIdentifier(),
                 MinecraftRenderStages.ENTITIES.getIdentifier());
-        Profiler.get().popPush("entities");
+        Profiler.get().popPush("vanilla_entities");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -133,9 +148,10 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void onBlockEntityStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                     boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                     Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_block_entities");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.ENTITIES.getIdentifier(),
                 MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier());
-        Profiler.get().popPush("block_entities");
+        Profiler.get().popPush("vanilla_block_entities");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -143,9 +159,10 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void onDestroyProgressStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                         boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                         Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_destroy_progress");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.BLOCK_ENTITIES.getIdentifier(),
                 MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier());
-        Profiler.get().popPush("destroy_progress");
+        Profiler.get().popPush("vanilla_destroy_progress");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -153,9 +170,10 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void onOutlineStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                 boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                 Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_outline");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.DESTROY_PROGRESS.getIdentifier(),
                 MinecraftRenderStages.BLOCK_OUTLINE.getIdentifier());
-        Profiler.get().popPush("outline");
+        Profiler.get().popPush("vanilla_outline");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -163,9 +181,10 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void onParticleStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                  boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                  Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_particles");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.TERRAIN_TRIPWIRE.getIdentifier(),
                 MinecraftRenderStages.PARTICLE.getIdentifier());
-        Profiler.get().popPush("particles");
+        Profiler.get().popPush("vanilla_particles");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -173,9 +192,10 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void onCloudsStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_clouds");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.PARTICLE.getIdentifier(),
                 MinecraftRenderStages.CLOUDS.getIdentifier());
-        Profiler.get().popPush("clouds");
+        Profiler.get().popPush("vanilla_clouds");
     }
 
     @Inject(method = {"renderLevel"}, at = {
@@ -183,19 +203,20 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
     private void onWeatherStage(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                                 boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                                 Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_weather");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.CLOUDS.getIdentifier(),
                 MinecraftRenderStages.WEATHER.getIdentifier());
-        Profiler.get().popPush("weather");
+        Profiler.get().popPush("vanilla_weather");
     }
 
     @Inject(method = "renderLevel", at = @At(value = "RETURN"))
     private void onRenderEnd(PoseStack modelViewMatrix, float partialTicks, long nanoTime,
                              boolean shouldRenderBlockOutline, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
                              Matrix4f projectionMatrix, CallbackInfo ci) {
+        Profiler.get().popPush("sketch_level_end");
         sketchlib$graphPipeline.renderStagesBetween(MinecraftRenderStages.WEATHER.getIdentifier(),
                 MinecraftRenderStages.LEVEL_END.getIdentifier());
         Profiler.get().popPush("level_end");
-        Profiler.get().pop("renderLevel");
     }
 
     @Override
