@@ -51,7 +51,6 @@ import rogo.sketch.core.pipeline.flow.RenderFlowRegistry;
 import rogo.sketch.core.shader.uniform.UniformHookRegistry;
 import rogo.sketch.core.state.DefaultRenderStates;
 import rogo.sketch.core.util.CommandCallTimer;
-import rogo.sketch.core.util.GLFeatureChecker;
 import rogo.sketch.core.util.RenderCallTimer;
 import rogo.sketch.core.util.TimerUtil;
 import rogo.sketch.event.ForgeEventBusImplementation;
@@ -301,6 +300,9 @@ public class SketchRender {
                 TimerUtil.COMMAND_TIMER.calculateAverageTimes(CullingStateManager.FPS);
                 TimerUtil.RENDER_TIMER.calculateAverageTimes(CullingStateManager.FPS);
             }
+            //PipelineUtil.pipeline().asyncGraphicsTicker().onPostRender();
+        } else {
+            PipelineUtil.pipeline().asyncGraphicsTicker().onPreRender();
         }
     }
 

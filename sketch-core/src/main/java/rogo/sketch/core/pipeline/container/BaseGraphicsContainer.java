@@ -4,7 +4,6 @@ import rogo.sketch.core.api.graphics.AsyncTickable;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.api.graphics.Tickable;
 import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
@@ -13,10 +12,9 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-public abstract class BaseGraphicsContainer<C extends RenderContext> implements GraphicsContainer<C> {
+public abstract class BaseGraphicsContainer<C extends RenderContext> implements VisibilityIndexContainer<C> {
     protected final Collection<Tickable> tickableInstances = new LinkedHashSet<>();
     protected final Collection<AsyncTickable> asyncTickableInstances = new LinkedHashSet<>();
-    protected final List<ContainerListener> listeners = new ArrayList<>();
 
     @Override
     public void add(Graphics graphics) {
@@ -32,7 +30,6 @@ public abstract class BaseGraphicsContainer<C extends RenderContext> implements 
             if (graphics instanceof AsyncTickable at) {
                 asyncTickableInstances.add(at);
             }
-            notifyInstanceAdded(graphics, renderParameter);
         }
     }
 
@@ -49,7 +46,6 @@ public abstract class BaseGraphicsContainer<C extends RenderContext> implements 
             if (removed instanceof AsyncTickable at) {
                 asyncTickableInstances.remove(at);
             }
-            notifyInstanceRemoved(removed);
         }
     }
 
@@ -91,50 +87,6 @@ public abstract class BaseGraphicsContainer<C extends RenderContext> implements 
 
     @Override
     public void dirtyCheck() {
-        for (Tickable tickable : tickableInstances) {
-            if (tickable instanceof Graphics g && g.isBatchDirty()) {
-                notifyInstanceDirty(g);
-                g.clearBatchDirtyFlags();
-            }
-        }
-        // Also check AsyncTickables? They might be dirty too.
-        for (AsyncTickable asyncTickable : asyncTickableInstances) {
-            if (asyncTickable instanceof Graphics g && g.isBatchDirty()) {
-                notifyInstanceDirty(g);
-                g.clearBatchDirtyFlags();
-            }
-        }
-    }
-
-    // ===== Listener Support =====
-
-    @Override
-    public void addListener(ContainerListener listener) {
-        if (!listeners.contains(listener)) {
-            listeners.add(listener);
-        }
-    }
-
-    @Override
-    public void removeListener(ContainerListener listener) {
-        listeners.remove(listener);
-    }
-
-    protected void notifyInstanceAdded(Graphics graphics, RenderParameter renderParameter) {
-        for (ContainerListener listener : listeners) {
-            listener.onInstanceAdded(graphics, renderParameter, getContainerType());
-        }
-    }
-
-    protected void notifyInstanceRemoved(Graphics graphics) {
-        for (ContainerListener listener : listeners) {
-            listener.onInstanceRemoved(graphics);
-        }
-    }
-
-    protected void notifyInstanceDirty(Graphics graphics) {
-        for (ContainerListener listener : listeners) {
-            listener.onInstanceDirty(graphics);
-        }
+        // Dirty reconciliation is orchestrated by AbstractMergedBatchContainer.
     }
 }

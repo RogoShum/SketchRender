@@ -4,6 +4,7 @@ import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.graphics.AsyncTickable;
 import rogo.sketch.core.api.graphics.DispatchableGraphics;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.flow.dirty.DirtyReason;
 import rogo.sketch.core.shader.ComputeShader;
 import rogo.sketch.core.util.KeyId;
 
@@ -15,7 +16,7 @@ public abstract class ComputeGraphics implements DispatchableGraphics, AsyncTick
     private final Runnable tick;
     private final BiConsumer<RenderContext, ComputeShader> dispatch;
     private int priority;
-    protected boolean batchDirty = false;
+    protected DirtyReason batchDirty = DirtyReason.NOT;
 
     public ComputeGraphics(KeyId keyId, @Nullable Runnable tick,
                            BiConsumer<RenderContext, ComputeShader> dispatchCommand) {
@@ -56,12 +57,12 @@ public abstract class ComputeGraphics implements DispatchableGraphics, AsyncTick
     }
 
     @Override
-    public void clearBatchDirtyFlags() {
-        batchDirty = false;
+    public void resetBatchDirtyFlags() {
+        batchDirty = DirtyReason.NOT;
     }
 
     @Override
-    public boolean isBatchDirty() {
+    public DirtyReason getBatchDirtyFlags() {
         return batchDirty;
     }
 

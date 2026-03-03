@@ -5,10 +5,10 @@ import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
 /**
- * Listener for container events to synchronize with BatchContainer.
+ * Listener for instance lifecycle events emitted by BatchContainer.
  * <p>
- * BatchContainer implementations should implement this interface to receive
- * notifications when graphics instances are added, removed, or become dirty.
+ * This interface is used by systems such as TransformManager to track graphics
+ * registration changes without coupling to concrete container internals.
  * </p>
  */
 public interface ContainerListener {
@@ -28,12 +28,4 @@ public interface ContainerListener {
      * @param graphics The graphics instance being removed
      */
     void onInstanceRemoved(Graphics graphics);
-    
-    /**
-     * Called when a graphics instance becomes dirty (renderSetting or mesh changed).
-     * This is typically triggered by the graphics instance itself.
-     *
-     * @param graphics The graphics instance that became dirty
-     */
-    void onInstanceDirty(Graphics graphics);
 }

@@ -52,8 +52,7 @@ public class FunctionFlowStrategy implements RenderFlowStrategy<FunctionalGraphi
         Map<RenderSetting, List<FunctionalGraphics>> groupedFunctions = new LinkedHashMap<>();
 
         for (RenderBatch<FunctionInstanceInfo> batch : activeBatches) {
-            // Filter visible instances
-            List<FunctionInstanceInfo> visibleInfos = filterVisible(batch.getInstances());
+            List<FunctionInstanceInfo> visibleInfos = batch.getVisibleInstances();
             if (visibleInfos.isEmpty()) {
                 continue;
             }
@@ -77,19 +76,6 @@ public class FunctionFlowStrategy implements RenderFlowStrategy<FunctionalGraphi
         return commands;
     }
     
-    /**
-     * Filter visible instances from a batch.
-     */
-    private List<FunctionInstanceInfo> filterVisible(List<FunctionInstanceInfo> infos) {
-        List<FunctionInstanceInfo> visible = new ArrayList<>();
-        for (FunctionInstanceInfo info : infos) {
-            if (info.getInstance().shouldRender()) {
-                visible.add(info);
-            }
-        }
-        return visible;
-    }
-
     @Override
     public boolean supportsBatching() {
         return false;

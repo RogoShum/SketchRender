@@ -40,8 +40,8 @@ public class QueueContainer<C extends RenderContext> extends BaseGraphicsContain
     }
 
     @Override
-    public Collection<Graphics> getVisibleInstances(C context) {
-        Collection<Graphics> visible = new ArrayList<>();
+    public List<Graphics> getVisibleInstances(C context) {
+        List<Graphics> visible = new ArrayList<>();
         for (Graphics graphics : instances.values()) {
             if (graphics.shouldRender()) {
                 visible.add(graphics);

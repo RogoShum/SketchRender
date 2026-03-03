@@ -2,11 +2,12 @@ package rogo.sketch.core.instance;
 
 import rogo.sketch.core.api.graphics.MeshProvider;
 import rogo.sketch.core.api.graphics.MeshBasedGraphics;
+import rogo.sketch.core.pipeline.flow.dirty.DirtyReason;
 import rogo.sketch.core.util.KeyId;
 
 public abstract class MeshGraphics implements MeshProvider, MeshBasedGraphics {
     private final KeyId id;
-    protected boolean batchDirty = false;
+    protected DirtyReason batchDirty = DirtyReason.NOT;
 
     public MeshGraphics(KeyId keyId) {
         this.id = keyId;
@@ -18,12 +19,12 @@ public abstract class MeshGraphics implements MeshProvider, MeshBasedGraphics {
     }
 
     @Override
-    public void clearBatchDirtyFlags() {
-        batchDirty = false;
+    public void resetBatchDirtyFlags() {
+        batchDirty = DirtyReason.NOT;
     }
 
     @Override
-    public boolean isBatchDirty() {
+    public DirtyReason getBatchDirtyFlags() {
         return batchDirty;
     }
 }

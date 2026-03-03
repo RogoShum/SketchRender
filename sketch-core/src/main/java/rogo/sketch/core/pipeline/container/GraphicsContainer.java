@@ -2,11 +2,11 @@ package rogo.sketch.core.pipeline.container;
 
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Container for graphics instances with different storage and culling
@@ -21,10 +21,7 @@ public interface GraphicsContainer<C extends RenderContext> {
     void add(Graphics graphics);
     
     /**
-     * Add a graphics instance with render parameter (for listener notification).
-     *
-     * @param graphics The graphics instance
-     * @param renderParameter The render parameter for batch assignment
+     * Add a graphics instance with render parameter context.
      */
     default void add(Graphics graphics, RenderParameter renderParameter) {
         add(graphics);
@@ -57,11 +54,11 @@ public interface GraphicsContainer<C extends RenderContext> {
     /**
      * Get instances that are visible from the current camera frustum.
      * Implementations may use frustum culling for optimization.
-     * 
+     *
      * @param context Render context containing frustum information
-     * @return Collection of visible graphics instances
+     * @return List of visible graphics instances
      */
-    Collection<Graphics> getVisibleInstances(C context);
+    List<Graphics> getVisibleInstances(C context);
 
     /**
      * Clear all instances from the container.
@@ -80,26 +77,6 @@ public interface GraphicsContainer<C extends RenderContext> {
      */
     default boolean isEmpty() {
         return size() == 0;
-    }
-    
-    // ===== Listener Support =====
-    
-    /**
-     * Add a container listener for batch synchronization.
-     *
-     * @param listener The listener to add
-     */
-    default void addListener(ContainerListener listener) {
-        // Default: no-op, subclasses should override
-    }
-    
-    /**
-     * Remove a container listener.
-     *
-     * @param listener The listener to remove
-     */
-    default void removeListener(ContainerListener listener) {
-        // Default: no-op, subclasses should override
     }
     
     /**

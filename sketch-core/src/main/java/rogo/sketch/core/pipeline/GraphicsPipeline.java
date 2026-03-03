@@ -14,7 +14,9 @@ import rogo.sketch.core.pipeline.flow.RenderFlowRegistry;
 import rogo.sketch.core.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessor;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
+import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
+import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
 import rogo.sketch.core.pipeline.parmeter.FunctionParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
@@ -24,6 +26,7 @@ import rogo.sketch.core.util.transform.TransformStateManager;
 import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 public class GraphicsPipeline<C extends RenderContext> {
     private final OrderedList<GraphicsStage> stages;
@@ -171,11 +174,11 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public void addCompute(KeyId stageId, Graphics graph) {
-        addGraphInstance(stageId, graph, ComputeParameter.COMPUTE_PARAMETER, PipelineType.COMPUTE, GraphicsBatch.PRIORITY_CONTAINER);
+        addGraphInstance(stageId, graph, ComputeParameter.COMPUTE_PARAMETER, PipelineType.COMPUTE, DefaultBatchContainers.PRIORITY);
     }
 
     public void addFunction(KeyId stageId, Graphics graph) {
-        addGraphInstance(stageId, graph, FunctionParameter.FUNCTION_PARAMETER, PipelineType.FUNCTION, GraphicsBatch.PRIORITY_CONTAINER);
+        addGraphInstance(stageId, graph, FunctionParameter.FUNCTION_PARAMETER, PipelineType.FUNCTION, DefaultBatchContainers.PRIORITY);
     }
 
     /**
@@ -189,7 +192,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Add a GraphInstance to a specific stage with specified pipeline type.
      */
     public void addGraphInstance(KeyId stageId, Graphics graph, RenderParameter renderParameter, PipelineType pipelineType) {
-        addGraphInstance(stageId, graph, renderParameter, pipelineType, GraphicsBatch.DEFAULT_CONTAINER);
+        addGraphInstance(stageId, graph, renderParameter, pipelineType, DefaultBatchContainers.DEFAULT);
     }
 
     /**
@@ -197,9 +200,24 @@ public class GraphicsPipeline<C extends RenderContext> {
      * type.
      */
     public void addGraphInstance(KeyId stageId, Graphics graph, RenderParameter renderParameter, PipelineType pipelineType, KeyId containerType) {
+        addGraphInstance(stageId, graph, renderParameter, pipelineType, containerType, null);
+    }
+
+    public void addGraphInstance(
+            KeyId stageId,
+            Graphics graph,
+            RenderParameter renderParameter,
+            PipelineType pipelineType,
+            KeyId containerType,
+            Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier) {
         GraphicsStage stage = idToStage.get(stageId);
         if (stage != null) {
-            passMap.get(stage).addGraphInstance(graph, renderParameter, pipelineTypes.get(pipelineType.getIdentifier()), containerType);
+            passMap.get(stage).addGraphInstance(
+                    graph,
+                    renderParameter,
+                    pipelineTypes.get(pipelineType.getIdentifier()),
+                    containerType,
+                    containerSupplier);
         }
     }
 

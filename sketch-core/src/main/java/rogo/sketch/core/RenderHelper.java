@@ -2,10 +2,7 @@ package rogo.sketch.core;
 
 import org.jetbrains.annotations.NotNull;
 import rogo.sketch.core.api.ShaderProvider;
-import rogo.sketch.core.api.graphics.DispatchableGraphics;
-import rogo.sketch.core.api.graphics.FunctionalGraphics;
 import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.api.graphics.MeshBasedGraphics;
 import rogo.sketch.core.command.RenderCommand;
 import rogo.sketch.core.command.prosessor.GeometryBatchProcessor;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
@@ -82,7 +79,8 @@ public class RenderHelper {
         batchContainer.clear();
 
         // Register instance to persistent container
-        registerInstanceToContainer(batchContainer, flowType, instance, renderParameter);
+        registerInstanceToContainer(batchContainer, instance, renderParameter);
+        batchContainer.prepareVisibility(context);
 
         // Create commands using new createCommands method
         @SuppressWarnings("unchecked")
@@ -131,19 +129,8 @@ public class RenderHelper {
     @SuppressWarnings("unchecked")
     private void registerInstanceToContainer(
             BatchContainer<?, ?> container,
-            RenderFlowType flowType,
             Graphics instance,
             RenderParameter renderParameter) {
-
-        if (flowType == RenderFlowType.RASTERIZATION && instance instanceof MeshBasedGraphics rasterizable) {
-            ((RasterizationBatchContainer) container).registerInstance(rasterizable, renderParameter);
-        } else if (flowType == RenderFlowType.COMPUTE && instance instanceof DispatchableGraphics dispatchable) {
-            ((ComputeBatchContainer) container).registerInstance(dispatchable, renderParameter);
-        } else if (flowType == RenderFlowType.FUNCTION && instance instanceof FunctionalGraphics function) {
-            ((FunctionBatchContainer) container).registerInstance(function, renderParameter);
-        } else {
-            throw new IllegalArgumentException(
-                    "Unsupported graphics type for flow type " + flowType + ": " + instance.getClass().getName());
-        }
+        container.addGraphicsInstance(instance, renderParameter);
     }
 }

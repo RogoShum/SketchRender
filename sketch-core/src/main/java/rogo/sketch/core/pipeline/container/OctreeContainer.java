@@ -87,7 +87,7 @@ public class OctreeContainer<C extends RenderContext> extends BaseGraphicsContai
     }
 
     @Override
-    public Collection<Graphics> getVisibleInstances(C context) {
+    public List<Graphics> getVisibleInstances(C context) {
         FrustumIntersection frustum = context.getFrustum();
         if (frustum == null || root == null) {
             List<Graphics> all = new ArrayList<>();

@@ -3,50 +3,42 @@ package rogo.sketch.core.pipeline;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.command.RenderCommand;
 import rogo.sketch.core.command.prosessor.GeometryBatchProcessor;
+import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.data.PipelineDataStore;
 import rogo.sketch.core.pipeline.flow.BatchContainer;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
+import rogo.sketch.core.pipeline.flow.container.ContainerDescriptor;
+import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.flow.impl.ComputeBatchContainer;
 import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.flow.impl.FunctionBatchContainer;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationBatchContainer;
-import rogo.sketch.core.pipeline.information.InstanceInfo;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.VertexResourceManager;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static rogo.sketch.core.pipeline.PipelineType.*;
 
 /**
- * Container for graphics instances grouped by pipeline type and render
- * settings.
+ * Stage-local container that routes graphics instances to per-pipeline
+ * {@link BatchContainer} implementations.
  * <p>
- * This class manages instances across multiple pipeline types (compute,
- * rasterization, translucent),
- * Each pipeline type has its own batch groups and batch processor with
- * dedicated resource managers.
- * </p>
- * <p>
- * Responsibilities:
- * <ul>
- * <li>Storing and organizing graphics instances by pipeline type and render
- * setting</li>
- * <li>Ticking instances each frame across all pipeline types</li>
- * <li>Creating render commands for each pipeline type</li>
- * <li>Managing instance lifecycle (cleanup, clear)</li>
- * </ul>
+ * The legacy per-RenderParameter {@code GraphicsBatch} layer has been removed.
+ * Batch organization, visibility preparation and dirty reconciliation are now
+ * handled by each pipeline's merged {@link BatchContainer}.
  * </p>
  */
 public class GraphicsBatchGroup<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
     private final KeyId stageKeyId;
-    private final Map<PipelineType, Map<RenderParameter, GraphicsBatch<C>>> pipelineGroups = new LinkedHashMap<>();
     private final Map<PipelineType, GeometryBatchProcessor> batchProcessors = new LinkedHashMap<>();
 
     // BatchContainers for each pipeline type
@@ -63,16 +55,16 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     private void initializePipeline(PipelineType pipelineType) {
-        pipelineGroups.put(pipelineType, new LinkedHashMap<>());
         VertexResourceManager resourceManager = graphicsPipeline.getVertexResourceManager(pipelineType);
         PipelineDataStore dataStore = graphicsPipeline.getPipelineDataStore(pipelineType);
         batchProcessors.put(pipelineType, new GeometryBatchProcessor(resourceManager, dataStore));
 
         // Create appropriate BatchContainer for this pipeline type
         BatchContainer<?, ?> container = createBatchContainer(pipelineType);
-        if (container != null) {
-            batchContainers.put(pipelineType, container);
+        for (ContainerListener listener : graphicsPipeline.getGlobalContainerListeners()) {
+            container.registerContainerListener(listener);
         }
+        batchContainers.put(pipelineType, container);
     }
 
     /**
@@ -89,29 +81,27 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     public void addGraphInstance(Graphics instance, RenderParameter renderParameter, PipelineType pipelineType) {
-        addGraphInstance(instance, renderParameter, pipelineType, GraphicsBatch.DEFAULT_CONTAINER);
+        addGraphInstance(instance, renderParameter, pipelineType, DefaultBatchContainers.DEFAULT);
     }
 
     public void addGraphInstance(Graphics instance, RenderParameter renderParameter, PipelineType pipelineType, KeyId containerType) {
-        Map<RenderParameter, GraphicsBatch<C>> groups = pipelineGroups.get(pipelineType);
-        if (groups == null) {
+        addGraphInstance(instance, renderParameter, pipelineType, containerType, null);
+    }
+
+    public void addGraphInstance(
+            Graphics instance,
+            RenderParameter renderParameter,
+            PipelineType pipelineType,
+            KeyId containerType,
+            Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier) {
+        BatchContainer<?, ?> container = batchContainers.get(pipelineType);
+        if (container == null) {
             throw new IllegalArgumentException("Pipeline type " + pipelineType + " does not contain any pipeline groups");
         }
 
-        GraphicsBatch<C> batch = groups.computeIfAbsent(renderParameter, s -> {
-            GraphicsBatch<C> newBatch = new GraphicsBatch<>();
-            // Register BatchContainer as listener for all containers in this batch
-            BatchContainer<?, ?> batchContainer = batchContainers.get(pipelineType);
-            if (batchContainer != null) {
-                newBatch.registerBatchContainerListener(batchContainer);
-            }
-            // Register global container listeners (e.g., TransformManager)
-            for (ContainerListener listener : graphicsPipeline.getGlobalContainerListeners()) {
-                newBatch.registerContainerListener(listener);
-            }
-            return newBatch;
-        });
-        batch.addGraphInstance(instance, containerType, renderParameter);
+        Supplier<? extends GraphicsContainer<? extends RenderContext>> supplier =
+                containerSupplier != null ? containerSupplier : resolveContainerSupplier(containerType);
+        container.addGraphicsInstance(instance, renderParameter, containerType, supplier);
     }
 
     /**
@@ -120,26 +110,20 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * @param context The render context
      */
     public void tick(C context) {
-        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
-            for (GraphicsBatch<C> batch : groups.values()) {
-                batch.tick(context);
-            }
+        for (BatchContainer<?, ?> container : batchContainers.values()) {
+            container.tick(context);
         }
     }
 
     public void asyncTick(C context) {
-        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
-            for (GraphicsBatch<C> batch : groups.values()) {
-                batch.asyncTick(context);
-            }
+        for (BatchContainer<?, ?> container : batchContainers.values()) {
+            container.asyncTick(context);
         }
     }
 
     public void swapData() {
-        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
-            for (GraphicsBatch<C> batch : groups.values()) {
-                batch.swapData();
-            }
+        for (BatchContainer<?, ?> container : batchContainers.values()) {
+            container.swapData();
         }
     }
 
@@ -160,11 +144,14 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * @param postProcessors Post processors
      * @return Map of render settings to command lists
      */
-    @SuppressWarnings("unchecked")
     public Map<RenderSetting, List<RenderCommand>> createRenderCommands(PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
         try {
             BatchContainer<?, ?> batchContainer = batchContainers.get(pipelineType);
-            if (batchContainer == null || batchContainer.getActiveBatches().isEmpty()) {
+            if (batchContainer == null) {
+                return Collections.emptyMap();
+            }
+            batchContainer.prepareVisibility(context);
+            if (batchContainer.getActiveBatches().isEmpty()) {
                 return Collections.emptyMap();
             }
 
@@ -176,8 +163,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             // Get the flow type for this pipeline type
             RenderFlowType flowType = pipelineType.getDefaultFlowType();
 
-            return processor.createCommands(
-                    (BatchContainer) batchContainer,
+            return processor.createCommandsUnchecked(
+                    batchContainer,
                     flowType,
                     stageKeyId,
                     postProcessors,
@@ -199,7 +186,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> allCommands = new LinkedHashMap<>();
 
         //SketchRender.COMMAND_TIMER.start("compute command -> " + this.stageKeyId);
-        for (PipelineType pipelineType : pipelineGroups.keySet()) {
+        for (PipelineType pipelineType : batchContainers.keySet()) {
             Map<RenderSetting, List<RenderCommand>> commands = createRenderCommands(pipelineType, context, postProcessors);
             if (!commands.isEmpty()) {
                 allCommands.put(pipelineType, commands);
@@ -214,9 +201,14 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * Also marks discarded instances for batch removal.
      */
     public void cleanupDiscardedInstances() {
-        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
-            for (GraphicsBatch<C> batch : groups.values()) {
-                batch.cleanupDiscardedInstances();
+        for (BatchContainer<?, ?> container : batchContainers.values()) {
+            for (GraphicsContainer<? extends RenderContext> graphicsContainer : container.getActiveGraphicsContainers().values()) {
+                List<Graphics> all = new ArrayList<>(graphicsContainer.getAllInstances());
+                for (Graphics graphics : all) {
+                    if (graphics.shouldDiscard()) {
+                        container.removeGraphicsInstance(graphics);
+                    }
+                }
             }
         }
     }
@@ -238,9 +230,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * @param pipelineType The pipeline type
      * @return The BatchContainer, or null if not found
      */
-    @SuppressWarnings("unchecked")
-    public <T extends InstanceInfo<Graphics>> BatchContainer<?, T> getBatchContainer(PipelineType pipelineType) {
-        return (BatchContainer<?, T>) batchContainers.get(pipelineType);
+    public BatchContainer<?, ?> getBatchContainer(PipelineType pipelineType) {
+        return batchContainers.get(pipelineType);
     }
 
 
@@ -248,8 +239,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * Clear all instance groups across all pipeline types.
      */
     public void clear() {
-        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
-            groups.clear();
+        for (BatchContainer<?, ?> container : batchContainers.values()) {
+            container.clear();
         }
     }
 
@@ -260,9 +251,9 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      */
     public int getTotalInstanceCount() {
         int total = 0;
-        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
-            for (GraphicsBatch<C> batch : groups.values()) {
-                total += batch.getAllInstances().size();
+        for (BatchContainer<?, ?> container : batchContainers.values()) {
+            for (rogo.sketch.core.pipeline.flow.RenderBatch<?> batch : container.getActiveBatches()) {
+                total += batch.getInstanceCount();
             }
         }
         return total;
@@ -274,13 +265,16 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * @return true if there are instances
      */
     public boolean hasInstances() {
-        for (Map<RenderParameter, GraphicsBatch<C>> groups : pipelineGroups.values()) {
-            for (GraphicsBatch<C> batch : groups.values()) {
-                if (!batch.getAllInstances().isEmpty()) {
-                    return true;
-                }
+        for (BatchContainer<?, ?> container : batchContainers.values()) {
+            if (!container.getActiveBatches().isEmpty()) {
+                return true;
             }
         }
         return false;
+    }
+
+    private Supplier<? extends GraphicsContainer<? extends RenderContext>> resolveContainerSupplier(KeyId containerType) {
+        ContainerDescriptor<RenderContext> descriptor = DefaultBatchContainers.find(containerType).orElse(null);
+        return descriptor != null ? descriptor.supplier() : null;
     }
 }

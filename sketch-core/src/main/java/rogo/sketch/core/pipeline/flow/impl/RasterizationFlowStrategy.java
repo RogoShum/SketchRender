@@ -73,9 +73,8 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy<MeshBasedGr
         // Filter visible instances and update uniforms for each batch
         List<RenderBatch<RasterizationInstanceInfo>> batchesWithVisible = new ArrayList<>();
         for (RenderBatch<RasterizationInstanceInfo> batch : activeBatches) {
-            List<RasterizationInstanceInfo> visibleInfos = filterVisible(batch.getInstances());
+            List<RasterizationInstanceInfo> visibleInfos = batch.getVisibleInstances();
             if (!visibleInfos.isEmpty()) {
-                batch.setVisibleInstances(visibleInfos);
                 batch.updateUniformsForVisible();
                 batchesWithVisible.add(batch);
             }
@@ -144,19 +143,6 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy<MeshBasedGr
     }
 
     // ===== Helper Methods =====
-
-    /**
-     * Filter visible instances from a batch.
-     */
-    private List<RasterizationInstanceInfo> filterVisible(List<RasterizationInstanceInfo> infos) {
-        List<RasterizationInstanceInfo> visible = new ArrayList<>();
-        for (RasterizationInstanceInfo info : infos) {
-            if (info.getInstance().shouldRender()) {
-                visible.add(info);
-            }
-        }
-        return visible;
-    }
 
     /**
      * Group render batches by their VertexBufferKey.

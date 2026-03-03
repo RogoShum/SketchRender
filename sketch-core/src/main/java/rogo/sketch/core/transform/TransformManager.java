@@ -76,9 +76,4 @@ public interface TransformManager extends ContainerListener {
             }
         }
     }
-    
-    @Override
-    default void onInstanceDirty(Graphics graphics) {
-        // Transform dirty state is handled internally
-    }
 }

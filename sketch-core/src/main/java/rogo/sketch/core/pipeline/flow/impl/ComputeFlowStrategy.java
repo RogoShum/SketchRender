@@ -58,8 +58,7 @@ public class ComputeFlowStrategy implements RenderFlowStrategy<DispatchableGraph
         Map<RenderSetting, List<RenderCommand>> commandsMap = new LinkedHashMap<>();
 
         for (RenderBatch<ComputeInstanceInfo> batch : activeBatches) {
-            // Filter visible instances
-            List<ComputeInstanceInfo> visibleInfos = filterVisible(batch.getInstances());
+            List<ComputeInstanceInfo> visibleInfos = batch.getVisibleInstances();
             if (visibleInfos.isEmpty()) {
                 continue;
             }
@@ -86,19 +85,6 @@ public class ComputeFlowStrategy implements RenderFlowStrategy<DispatchableGraph
         return commandsMap;
     }
     
-    /**
-     * Filter visible instances from a batch.
-     */
-    private List<ComputeInstanceInfo> filterVisible(List<ComputeInstanceInfo> infos) {
-        List<ComputeInstanceInfo> visible = new ArrayList<>();
-        for (ComputeInstanceInfo info : infos) {
-            if (info.getInstance().shouldRender()) {
-                visible.add(info);
-            }
-        }
-        return visible;
-    }
-
     @Override
     public boolean supportsBatching() {
         return false;

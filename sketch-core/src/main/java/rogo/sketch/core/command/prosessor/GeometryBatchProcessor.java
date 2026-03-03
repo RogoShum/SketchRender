@@ -71,4 +71,17 @@ public class GeometryBatchProcessor {
 
         return commands;
     }
+
+    /**
+     * Variant for callsites with wildcard-typed containers.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public Map<RenderSetting, List<RenderCommand>> createCommandsUnchecked(
+            BatchContainer<?, ?> batchContainer,
+            RenderFlowType flowType,
+            KeyId stageId,
+            RenderPostProcessors postProcessors,
+            RenderContext context) {
+        return createCommands((BatchContainer) batchContainer, flowType, stageId, postProcessors, context);
+    }
 }

@@ -63,7 +63,7 @@ public class PriorityContainer<C extends RenderContext> extends BaseGraphicsCont
     }
 
     @Override
-    public Collection<Graphics> getVisibleInstances(C context) {
+    public List<Graphics> getVisibleInstances(C context) {
         if (dirty)
             ensureSorted();
         List<Graphics> visible = new ArrayList<>();

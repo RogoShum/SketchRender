@@ -4,13 +4,14 @@ import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.api.graphics.FunctionalGraphics;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.flow.dirty.DirtyReason;
 import rogo.sketch.core.util.KeyId;
 
 public abstract class FunctionGraphics implements FunctionalGraphics, ResourceObject, Comparable<FunctionGraphics> {
     private final KeyId id;
     private boolean disposed = false;
     private int priority = 100;
-    protected boolean batchDirty = false;
+    protected DirtyReason batchDirty = DirtyReason.NOT;
 
     public FunctionGraphics(KeyId keyId) {
         this.id = keyId;
@@ -68,12 +69,12 @@ public abstract class FunctionGraphics implements FunctionalGraphics, ResourceOb
     }
 
     @Override
-    public void clearBatchDirtyFlags() {
-        batchDirty = false;
+    public void resetBatchDirtyFlags() {
+        batchDirty = DirtyReason.NOT;
     }
 
     @Override
-    public boolean isBatchDirty() {
+    public DirtyReason getBatchDirtyFlags() {
         return batchDirty;
     }
 }

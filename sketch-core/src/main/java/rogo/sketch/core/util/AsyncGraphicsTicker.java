@@ -9,19 +9,20 @@ import java.util.concurrent.Executors;
 public class AsyncGraphicsTicker {
     private static final ExecutorService EXECUTOR = Executors.newWorkStealingPool();
     private final GraphicsPipeline<?> pipeline;
-    private CompletableFuture<Void> currentTask = CompletableFuture.completedFuture(null);
-    
+    private CompletableFuture<Void> tickTask = CompletableFuture.completedFuture(null);
+    private CompletableFuture<Void> renderCalcTask = CompletableFuture.completedFuture(null);
+
     // Callback for post-async-tick processing (no GL context available)
     private Runnable asyncTickCompleteCallback;
 
     public AsyncGraphicsTicker(GraphicsPipeline<?> pipeline) {
         this.pipeline = pipeline;
     }
-    
+
     /**
      * Set a callback that will be called after asyncTickGraphics() completes.
      * This callback runs in the async thread, so no GL calls are allowed.
-     * 
+     *
      * @param callback The callback to run after async tick
      */
     public void setAsyncTickCompleteCallback(Runnable callback) {
@@ -29,7 +30,7 @@ public class AsyncGraphicsTicker {
     }
 
     public void onPostTick() {
-        currentTask = CompletableFuture.runAsync(() -> {
+        tickTask = CompletableFuture.runAsync(() -> {
             pipeline.asyncTickGraphics();
             // Call the callback after async tick completes (still in async thread)
             if (asyncTickCompleteCallback != null) {
@@ -38,14 +39,28 @@ public class AsyncGraphicsTicker {
         }, EXECUTOR);
     }
 
+    public void onPostRender() {
+        renderCalcTask = CompletableFuture.runAsync(pipeline::computeAllRenderCommand, EXECUTOR);
+    }
+
     public void onPreTick() {
-        if (!currentTask.isDone()) {
+        if (!tickTask.isDone()) {
             try {
-                currentTask.join();
+                tickTask.join();
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
         pipeline.swapGraphicsData();
+    }
+
+    public void onPreRender() {
+        if (!renderCalcTask.isDone()) {
+            try {
+                renderCalcTask.join();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

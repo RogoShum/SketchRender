@@ -3,8 +3,12 @@ package rogo.sketch.core.event;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.PipelineType;
+import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
+
+import java.util.function.Supplier;
 
 public class RegisterStaticGraphicsEvent {
     private final GraphicsPipeline<?> pipeline;
@@ -31,5 +35,15 @@ public class RegisterStaticGraphicsEvent {
 
     public void register(KeyId stageId, Graphics graph, RenderParameter renderParameter, PipelineType pipelineType, KeyId containerType) {
         this.pipeline.addGraphInstance(stageId, graph, renderParameter, pipelineType, containerType);
+    }
+
+    public void register(
+            KeyId stageId,
+            Graphics graph,
+            RenderParameter renderParameter,
+            PipelineType pipelineType,
+            KeyId containerType,
+            Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier) {
+        this.pipeline.addGraphInstance(stageId, graph, renderParameter, pipelineType, containerType, containerSupplier);
     }
 }

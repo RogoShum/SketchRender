@@ -58,7 +58,8 @@ public interface RenderFlowStrategy<G extends Graphics, I extends InstanceInfo<G
     /**
      * Create render commands from a BatchContainer.
      * <p>
-     * This method gets batches from the container, filters visible instances,
+     * This method consumes batches from the container, reads precomputed visible
+     * instances prepared by {@link BatchContainer#prepareVisibility(RenderContext)},
      * updates uniforms, and generates render commands.
      * </p>
      *
