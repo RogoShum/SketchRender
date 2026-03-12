@@ -2,6 +2,7 @@ package rogo.sketch.core.shader.variant;
 
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.api.ShaderProvider;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.shader.*;
 import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.shader.preprocessor.ShaderPreprocessor;
@@ -260,8 +261,17 @@ public class ShaderTemplate implements ResourceObject, ShaderProvider {
     
     /**
      * Compile a shader variant.
+     * <p>
+     * The calling thread is expected to have a GL context (either the main thread
+     * or the render worker thread when GL_WORKER_ENABLED). This is guaranteed by
+     * the pipeline pass execution model.
      */
     private ShaderVariantInfo compileVariant(ShaderVariantKey variantKey) throws IOException {
+        GraphicsDriver.getCurrentAPI().assertGLContext("ShaderTemplate.compileVariant");
+        return compileVariantInternal(variantKey);
+    }
+
+    private ShaderVariantInfo compileVariantInternal(ShaderVariantKey variantKey) throws IOException {
         // Get merged macros from context + dynamic flags + macro templates
         Map<String, String> macros = MacroContext.getInstance()
                 .getMergedMacros(variantKey.getFlags());

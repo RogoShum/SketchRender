@@ -11,6 +11,10 @@ import rogo.sketch.core.util.KeyId;
  * Implemented by MatrixManager in sketch-mod.
  * 
  * This interface serves as a bridge between sketch-core (no GL) and sketch-mod (with GL).
+ * 
+ * @deprecated The {@link ContainerListener} extension is deprecated.
+ *             Use {@link rogo.sketch.core.pipeline.module.TransformModule} for
+ *             module-based attachment instead.
  */
 public interface TransformManager extends ContainerListener {
     

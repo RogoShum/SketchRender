@@ -29,6 +29,8 @@ import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.flow.impl.ComputeFlowStrategy;
 import rogo.sketch.core.pipeline.flow.impl.FunctionFlowStrategy;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationFlowStrategy;
+import rogo.sketch.core.pipeline.kernel.PipelineKernel;
+import rogo.sketch.core.pipeline.module.TransformModule;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
@@ -448,13 +450,15 @@ public class VanillaPipelineEventHandler {
 
         switch (pipeLineInitEvent.getPhase()) {
             case EARLY -> {
-                // Set async tick callback for transform data writing
-                mcPipeline.asyncGraphicsTicker().setAsyncTickCompleteCallback(
-                        mcPipeline.transformStateManager()::onAsyncTickComplete
-                );
-
                 // Register vanilla stages first
                 MinecraftRenderStages.registerVanillaStages(mcPipeline);
+
+                RenderSystem.recordRenderCall(() -> {
+                    // Initialize PipelineKernel for the new architecture (dual-track)
+                    PipelineKernel<?> kernel = mcPipeline.getOrCreateKernel();
+                    // Register TransformModule
+                    kernel.moduleRegistry().register(new TransformModule());
+                });
             }
             case NORMAL -> {
                 // Register extra stages that might be added by mods
@@ -468,6 +472,14 @@ public class VanillaPipelineEventHandler {
                     SketchRender.LOGGER.warn("Warning: {} stages are still pending",
                             mcPipeline.getPendingStages().size());
                 }
+
+                RenderSystem.recordRenderCall(() -> {
+                    // Initialize the kernel (compiles render graph with contributed passes)
+                    PipelineKernel<?> kernel = mcPipeline.kernel();
+                    if (kernel != null) {
+                        kernel.initialize();
+                    }
+                });
             }
         }
     }

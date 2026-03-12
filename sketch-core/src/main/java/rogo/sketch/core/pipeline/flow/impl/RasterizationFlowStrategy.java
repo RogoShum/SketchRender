@@ -123,11 +123,8 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy<MeshBasedGr
             }
         }
 
-        indirectBufferData.getAll().values().forEach(buffer -> {
-            buffer.bind();
-            buffer.upload();
-        });
-        IndirectCommandBuffer.unBind();
+        // GL upload is deferred to RasterizationPostProcessor.execute() on sync thread.
+        indirectBufferData.getAll().values().forEach(processor::addIndirectUpload);
 
         return commandsMap;
     }
@@ -207,7 +204,16 @@ public class RasterizationFlowStrategy implements RenderFlowStrategy<MeshBasedGr
         }
 
         VertexResource resource = resourceManager.get(key, source);
-        IndirectCommandBuffer indirectBuffer = indirectBuffers.computeIfAbsent(key.renderParameter(), k -> new IndirectCommandBuffer(1280));
+        if (resource == null) {
+            // Planned on async thread; will be materialized on sync thread and consumed next frame.
+            return null;
+        }
+
+        IndirectCommandBuffer indirectBuffer = indirectBuffers.get(key.renderParameter());
+        if (indirectBuffer == null) {
+            indirectBufferData.planCreate(key.renderParameter());
+            return null;
+        }
         AtomicInteger batchCurrentInstancedCount = instancedOffsets.computeIfAbsent(key.renderParameter(), k -> new AtomicInteger(0));
 
         VertexResourceManager.BuilderPair[] builders = resourceManager.createBuilder(key.renderParameter());

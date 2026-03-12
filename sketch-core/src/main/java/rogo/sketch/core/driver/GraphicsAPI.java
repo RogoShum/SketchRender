@@ -11,8 +11,167 @@ import java.nio.FloatBuffer;
  * Abstract graphics API providing a unified interface for graphics operations.
  * Supports both DSA (Direct State Access) and Legacy OpenGL modes through strategy pattern.
  * Designed for future Vulkan compatibility.
+ * <p>
+ * Thread model: the API manages a main thread (always has graphics context) and an optional
+ * render worker thread that may hold a shared graphics context (OpenGL) or natively access
+ * device resources (Vulkan). Use {@link GLRuntimeFlags} to control which operations are
+ * routed to the worker.
  */
 public abstract class GraphicsAPI {
+
+    private volatile Thread mainThread;
+    private volatile Thread workerThread;
+    private volatile boolean renderWorkerReady = false;
+    private static final boolean GUARD_ENABLED = Boolean.getBoolean("sketch.threadguard.enabled");
+
+    // ==================== Render Worker Context Lifecycle ====================
+
+    /**
+     * Initialize the render worker context from the main thread.
+     * OpenGL: creates a hidden shared GLFW window. Vulkan: no-op (VkDevice is thread-visible).
+     *
+     * @param mainWindowHandle platform window handle (e.g. GLFW window pointer)
+     */
+    public void initRenderWorkerContext(long mainWindowHandle) { }
+
+    /**
+     * Called once on the render worker thread at startup.
+     * OpenGL: glfwMakeContextCurrent(shared) + GL.createCapabilities(). Vulkan: no-op.
+     */
+    public void onWorkerThreadStart() { }
+
+    /**
+     * Called once on the render worker thread at shutdown.
+     * OpenGL: glfwMakeContextCurrent(0). Vulkan: no-op.
+     */
+    public void onWorkerThreadEnd() { }
+
+    /**
+     * Destroy the render worker context. Called from the main thread.
+     */
+    public void destroyRenderWorkerContext() { }
+
+    /**
+     * Whether the render worker context has been initialized and is ready.
+     */
+    public boolean isRenderWorkerReady() {
+        return renderWorkerReady;
+    }
+
+    protected void setRenderWorkerReady(boolean ready) {
+        this.renderWorkerReady = ready;
+    }
+
+    // ==================== Thread Management ====================
+
+    /**
+     * Register the main/render thread. Called once during initialization.
+     */
+    public void registerMainThread() {
+        this.mainThread = Thread.currentThread();
+    }
+
+    /**
+     * Register the worker thread. Called by the scheduler's thread factory.
+     */
+    public void registerWorkerThread() {
+        this.workerThread = Thread.currentThread();
+    }
+
+    /**
+     * Whether the current thread is the registered main thread.
+     */
+    public boolean isMainThread() {
+        return mainThread != null && Thread.currentThread() == mainThread;
+    }
+
+    /**
+     * Whether the current thread is the registered worker thread.
+     */
+    public boolean isWorkerThread() {
+        return workerThread != null && Thread.currentThread() == workerThread;
+    }
+
+    /**
+     * Whether the current thread has a graphics context available.
+     * True for the main thread (always) and the worker thread (if GL_WORKER_ENABLED).
+     */
+    public boolean isCurrentThreadGLCapable() {
+        if (isMainThread()) return true;
+        return GLRuntimeFlags.GL_WORKER_ENABLED && renderWorkerReady && isWorkerThread();
+    }
+
+    /**
+     * Assert that the current thread has a graphics context.
+     * No-op when guard is disabled.
+     *
+     * @param caller description for error message
+     * @throws IllegalStateException if no context on current thread
+     */
+    public void assertGLContext(String caller) {
+        if (!GUARD_ENABLED) return;
+        if (!isCurrentThreadGLCapable()) {
+            throw new IllegalStateException(
+                    "[GraphicsAPI] GL context required for '" + caller +
+                    "' but current thread [" + Thread.currentThread().getName() +
+                    "] has no context. Main=[" + (mainThread != null ? mainThread.getName() : "null") +
+                    "], Worker=[" + (workerThread != null ? workerThread.getName() : "null") +
+                    "], workerReady=" + renderWorkerReady);
+        }
+    }
+
+    /**
+     * Assert that the current thread is the main thread.
+     * No-op when guard is disabled.
+     *
+     * @param caller description for error message
+     * @throws IllegalStateException if not the main thread
+     */
+    public void assertMainThread(String caller) {
+        if (!GUARD_ENABLED) return;
+        if (mainThread == null) return;
+        if (Thread.currentThread() != mainThread) {
+            throw new IllegalStateException(
+                    "[GraphicsAPI] Main thread required for '" + caller +
+                    "' but called from [" + Thread.currentThread().getName() + "]");
+        }
+    }
+
+    // ==================== Sync Primitives ====================
+
+    /**
+     * Create a GPU fence sync object.
+     * OpenGL: glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0). Vulkan: VkFence.
+     *
+     * @return fence handle (0 if not supported)
+     */
+    public long createFenceSync() { return 0; }
+
+    /**
+     * Wait for a fence sync to be signaled.
+     *
+     * @param fence         fence handle from {@link #createFenceSync()}
+     * @param timeoutNanos  maximum wait time in nanoseconds
+     * @return true if the fence was signaled within the timeout
+     */
+    public boolean clientWaitSync(long fence, long timeoutNanos) { return true; }
+
+    /**
+     * Delete a fence sync object.
+     *
+     * @param fence fence handle
+     */
+    public void deleteFenceSync(long fence) { }
+
+    /**
+     * Flush a range of a persistently mapped buffer to ensure GPU visibility.
+     * OpenGL: glFlushMappedBufferRange. Vulkan: vkFlushMappedMemoryRanges.
+     *
+     * @param bufferHandle the buffer handle
+     * @param offset       offset in bytes
+     * @param length       length in bytes
+     */
+    public void flushMappedBufferRange(int bufferHandle, long offset, long length) { }
 
     // ==================== Strategy Accessors ====================
 

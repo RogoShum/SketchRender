@@ -1,5 +1,6 @@
 package rogo.sketch.core.driver;
 
+import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.*;
 import rogo.sketch.core.driver.internal.*;
 import rogo.sketch.core.state.snapshot.GLStateSnapshot;
@@ -22,6 +23,9 @@ public class OpenGLAPI extends GraphicsAPI {
     private final IGLVertexArrayStrategy vertexArrayStrategy;
 
     private final boolean useDSA;
+
+    // Shared GL context for render worker thread
+    private long sharedWindowHandle = 0;
 
     public OpenGLAPI() {
         // Initialize GLFeatureChecker if not already done
@@ -395,6 +399,70 @@ public class OpenGLAPI extends GraphicsAPI {
     @Override
     public void finish() {
         GL11.glFinish();
+    }
+
+    // ==================== Render Worker Context Lifecycle ====================
+
+    @Override
+    public void initRenderWorkerContext(long mainWindowHandle) {
+        if (sharedWindowHandle != 0) return; // already initialized
+        // Create hidden GLFW window that shares lists with the main context
+        GLFW.glfwDefaultWindowHints();
+        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+        sharedWindowHandle = GLFW.glfwCreateWindow(1, 1, "Sketch-RenderWorker", 0, mainWindowHandle);
+        if (sharedWindowHandle == 0) {
+            throw new RuntimeException("[OpenGLAPI] Failed to create shared GLFW window for render worker");
+        }
+        setRenderWorkerReady(true);
+    }
+
+    @Override
+    public void onWorkerThreadStart() {
+        if (sharedWindowHandle == 0) return;
+        registerWorkerThread();
+        GLFW.glfwMakeContextCurrent(sharedWindowHandle);
+        GL.createCapabilities();
+    }
+
+    @Override
+    public void onWorkerThreadEnd() {
+        GLFW.glfwMakeContextCurrent(0);
+    }
+
+    @Override
+    public void destroyRenderWorkerContext() {
+        if (sharedWindowHandle != 0) {
+            GLFW.glfwDestroyWindow(sharedWindowHandle);
+            sharedWindowHandle = 0;
+            setRenderWorkerReady(false);
+        }
+    }
+
+    // ==================== Sync Primitives ====================
+
+    @Override
+    public long createFenceSync() {
+        return GL32.glFenceSync(GL32.GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    }
+
+    @Override
+    public boolean clientWaitSync(long fence, long timeoutNanos) {
+        int result = GL32.glClientWaitSync(fence, GL32.GL_SYNC_FLUSH_COMMANDS_BIT, timeoutNanos);
+        return result == GL32.GL_ALREADY_SIGNALED || result == GL32.GL_CONDITION_SATISFIED;
+    }
+
+    @Override
+    public void deleteFenceSync(long fence) {
+        if (fence != 0) {
+            GL32.glDeleteSync(fence);
+        }
+    }
+
+    @Override
+    public void flushMappedBufferRange(int bufferHandle, long offset, long length) {
+        getBufferStrategy().bindBuffer(GL15.GL_ARRAY_BUFFER, bufferHandle);
+        GL30.glFlushMappedBufferRange(GL15.GL_ARRAY_BUFFER, offset, length);
+        getBufferStrategy().bindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 }
 

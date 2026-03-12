@@ -37,6 +37,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     }
 
     public VertexResource(PrimitiveType primitiveType, boolean useIndexBuffer, boolean independentIndexBuffer) {
+        api().assertMainThread("VertexResource.<init>"); // VAO creation
         this.primitiveType = primitiveType;
 
         this.vao = api().createVertexArray();
@@ -61,6 +62,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      * @param vbo  The vertex buffer object (owned by this resource)
      */
     public void attachVBO(ComponentSpec spec, VertexBufferObject vbo) {
+        api().assertMainThread("VertexResource.attachVBO"); // VAO attribute setup
         VBOComponent component = new VBOComponent(vbo, spec);
         components.put(spec.getId(), component);
         setupVBOComponent(component);
@@ -75,6 +77,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      * @param vertexOffset      The offset in vertices
      */
     public void attachExternalVBO(ComponentSpec spec, int externalVBOHandle, int vertexOffset) {
+        api().assertMainThread("VertexResource.attachExternalVBO"); // VAO attribute setup
         VBOComponent component = new VBOComponent(externalVBOHandle, spec.getId(), spec.getFormat(),
                 spec.getBindingPoint(), spec.isInstanced(), vertexOffset);
         components.put(spec.getId(), component);
@@ -96,6 +99,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      * Useful for extending a BakedMesh's static VBOs with new dynamic ones.
      */
     public void shareComponentsFrom(VertexResource other) {
+        api().assertMainThread("VertexResource.shareComponentsFrom"); // VAO attribute setup
         for (VBOComponent otherComp : other.getAllComponents().values()) {
             VBOComponent shared = VBOComponent.external(otherComp);
             components.put(shared.getSpec().getId(), shared);
@@ -107,6 +111,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      * Setup VBO component using unified API (strategy handles DSA/Legacy internally).
      */
     protected void setupComponentUnified(VBOComponent component) {
+        api().assertMainThread("VertexResource.setupComponentUnified"); // VAO attribute setup
         GraphicsAPI api = api();
         int bindingPoint = component.getBindingPoint();
         DataFormat format = component.getFormat();
@@ -168,6 +173,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
 
     protected void attachIndexBuffer() {
+        api().assertMainThread("VertexResource.attachIndexBuffer"); // VAO element buffer
         if (indexBuffer == null)
             return;
 
@@ -183,6 +189,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
      * @param builder The vertex data builder
      */
     public void upload(KeyId id, VertexStreamBuilder builder) {
+        api().assertGLContext("VertexResource.upload"); // VBO data upload can happen on worker
         VBOComponent component = components.get(id);
         if (component == null) {
             throw new IllegalStateException("No VBO component attached for id " + id);
@@ -218,11 +225,13 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
     @Override
     public void bind() {
+        api().assertMainThread("VertexResource.bind"); // VAO bind
         api().bindVertexArray(vao);
     }
 
     @Override
     public void unbind() {
+        api().assertMainThread("VertexResource.unbind"); // VAO unbind
         api().bindVertexArray(0);
     }
 
@@ -233,6 +242,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
 
     @Override
     public void dispose() {
+        api().assertMainThread("VertexResource.dispose"); // VAO deletion
         if (disposed)
             return;
 
@@ -271,6 +281,7 @@ public class VertexResource implements BufferResourceObject, AutoCloseable {
     }
 
     public void setIndexBuffer(IndexBufferResource indexBuffer) {
+        api().assertMainThread("VertexResource.setIndexBuffer"); // VAO element buffer
         if (this.indexBuffer != null && !this.indexBuffer.isShared()) {
             this.indexBuffer.dispose();
         }

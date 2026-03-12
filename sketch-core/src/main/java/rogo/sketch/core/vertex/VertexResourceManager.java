@@ -8,12 +8,14 @@ import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.data.format.VertexBufferKey;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 import rogo.sketch.core.resource.buffer.VertexBufferObject;
 import rogo.sketch.core.resource.buffer.VertexResource;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -26,6 +28,7 @@ public class VertexResourceManager {
     private final Map<VertexBufferKey, VertexResource> resourceCache = new ConcurrentHashMap<>();
     private final Map<RasterizationParameter.BuilderKey, VertexStreamBuilder> builderCache = new ConcurrentHashMap<>();
     private final Map<RasterizationParameter.BuilderBatchKey, BuilderPair[]> builderBatchCache = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedQueue<PendingVertexResourceRequest> pendingMaterialization = new ConcurrentLinkedQueue<>();
 
     public VertexResourceManager() {
     }
@@ -42,11 +45,26 @@ public class VertexResourceManager {
      * Use this when the key might involve a shared source resource (e.g. BakedMesh)
      * that is needed for creation.
      */
+    /**
+     * Get or create a VertexResource for the given key.
+     * Async threads may only plan creation; VAO materialization remains main-thread-only.
+     */
     public VertexResource get(VertexBufferKey key, @Nullable VertexResource sourceProvider) {
         if (key == null)
             return null;
 
-        return resourceCache.computeIfAbsent(key, k -> createVertexResource(k, sourceProvider));
+        VertexResource existing = resourceCache.get(key);
+        if (existing != null) {
+            return existing;
+        }
+
+        // Never create VAO resources off the main thread.
+        if (!GraphicsDriver.getCurrentAPI().isMainThread()) {
+            planMaterialization(key, sourceProvider);
+            return null;
+        }
+
+        return materialize(key, sourceProvider);
     }
 
     /**
@@ -63,6 +81,59 @@ public class VertexResourceManager {
      */
     public VertexResource get(RasterizationParameter parameter) {
         return get(VertexBufferKey.fromParameter(parameter));
+    }
+
+    /**
+     * Returns a cached resource only (never creates).
+     */
+    public VertexResource getIfPresent(VertexBufferKey key) {
+        return key == null ? null : resourceCache.get(key);
+    }
+
+    /**
+     * Plan a resource creation request for the sync thread.
+     */
+    public void planMaterialization(VertexBufferKey key, @Nullable VertexResource sourceProvider) {
+        if (key == null) {
+            return;
+        }
+        if (resourceCache.containsKey(key)) {
+            return;
+        }
+        pendingMaterialization.offer(new PendingVertexResourceRequest(key, sourceProvider));
+    }
+
+    /**
+     * Materialize one resource immediately on main thread.
+     */
+    /**
+     * Materialize one resource immediately on main thread (VAO creation).
+     */
+    public VertexResource materialize(VertexBufferKey key, @Nullable VertexResource sourceProvider) {
+        if (key == null) {
+            return null;
+        }
+        GraphicsDriver.getCurrentAPI().assertMainThread("VertexResourceManager.materialize");
+        return resourceCache.computeIfAbsent(key, k -> createVertexResource(k, sourceProvider));
+    }
+
+    /**
+     * Drain all planned resource creations.
+     */
+    /**
+     * Drain all planned resource creations (VAO materialization on main thread).
+     */
+    public int materializePending() {
+        GraphicsDriver.getCurrentAPI().assertMainThread("VertexResourceManager.materializePending");
+        int count = 0;
+        PendingVertexResourceRequest req;
+        while ((req = pendingMaterialization.poll()) != null) {
+            if (!resourceCache.containsKey(req.key())) {
+                materialize(req.key(), req.sourceProvider());
+                count++;
+            }
+        }
+        return count;
     }
 
     private VertexResource createVertexResource(VertexBufferKey key, @Nullable VertexResource sourceProvider) {
@@ -127,6 +198,7 @@ public class VertexResourceManager {
     public void clearAll() {
         resourceCache.values().forEach(VertexResource::dispose);
         resourceCache.clear();
+        pendingMaterialization.clear();
     }
 
     /**
@@ -169,5 +241,8 @@ public class VertexResourceManager {
     }
 
     public record BuilderPair(KeyId key, VertexStreamBuilder builder, boolean tickUpdate) {
+    }
+
+    private record PendingVertexResourceRequest(VertexBufferKey key, @Nullable VertexResource sourceProvider) {
     }
 }

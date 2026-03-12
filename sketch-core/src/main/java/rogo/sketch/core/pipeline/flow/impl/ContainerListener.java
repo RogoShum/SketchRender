@@ -10,7 +10,12 @@ import rogo.sketch.core.util.KeyId;
  * This interface is used by systems such as TransformManager to track graphics
  * registration changes without coupling to concrete container internals.
  * </p>
+ *
+ * @deprecated Use {@link rogo.sketch.core.pipeline.module.GraphicsModule} instead.
+ *             The module system provides explicit attachment/detachment without
+ *             coupling to container internals.
  */
+@Deprecated
 public interface ContainerListener {
     
     /**

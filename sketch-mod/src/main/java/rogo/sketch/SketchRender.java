@@ -48,6 +48,8 @@ import rogo.sketch.core.event.RenderFlowRegisterEvent;
 import rogo.sketch.core.event.UniformHookRegisterEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
 import rogo.sketch.core.pipeline.flow.RenderFlowRegistry;
+import rogo.sketch.core.pipeline.kernel.PipelineKernel;
+import rogo.sketch.core.pipeline.kernel.ThreadDomainGuard;
 import rogo.sketch.core.shader.uniform.UniformHookRegistry;
 import rogo.sketch.core.state.DefaultRenderStates;
 import rogo.sketch.core.util.CommandCallTimer;
@@ -300,9 +302,6 @@ public class SketchRender {
                 TimerUtil.COMMAND_TIMER.calculateAverageTimes(CullingStateManager.FPS);
                 TimerUtil.RENDER_TIMER.calculateAverageTimes(CullingStateManager.FPS);
             }
-            //PipelineUtil.pipeline().asyncGraphicsTicker().onPostRender();
-        } else {
-            PipelineUtil.pipeline().asyncGraphicsTicker().onPreRender();
         }
     }
 
@@ -310,27 +309,23 @@ public class SketchRender {
     public void onLevelTick(TickEvent.LevelTickEvent event) {
         if (event.side == LogicalSide.CLIENT) {
             if (event.phase == TickEvent.Phase.START) {
-                // PRE TICK: wait for async task, swap data
-                PipelineUtil.pipeline().asyncGraphicsTicker().onPreTick();
-
-                // Upload async transform buffer and dispatch compute shader
-                PipelineUtil.pipeline().transformStateManager().onPreTick();
-
+                PipelineKernel<?> kernel = PipelineUtil.pipeline().kernel();
+                if (kernel != null) {
+                    kernel.onPreTick();
+                }
                 PipelineUtil.pipeline().tickLogic();
             } else {
-                // POST TICK: sync tick for sync graphics
-                PipelineUtil.pipeline().tickGraphics();
-
-                // Upload sync transform buffer and dispatch compute shader
-                PipelineUtil.pipeline().transformStateManager().onPostTick();
-
-                // Start async task (asyncTickGraphics + transform write callback)
-                PipelineUtil.pipeline().asyncGraphicsTicker().onPostTick();
+                PipelineKernel<?> kernel = PipelineUtil.pipeline().kernel();
+                if (kernel != null) {
+                    kernel.onPostTick();
+                }
             }
         }
     }
 
     public void initClient(FMLClientSetupEvent event) {
+        // Register main thread for thread-domain guards
+        ThreadDomainGuard.registerMainThread();
         McPipelineRegister.initPipeline();
         UniformHookRegistry.getInstance().init();
         RenderFlowRegistry.getInstance().init();

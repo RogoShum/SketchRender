@@ -64,7 +64,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
         context.setTransformStateManager(sketchlib$graphPipeline.transformStateManager());
         context.setNextTick(sketchlib$graphPipeline.anyNextTick());
         sketchlib$graphPipeline.resetRenderContext(context);
-        sketchlib$graphPipeline.computeAllRenderCommand();
+        sketchlib$graphPipeline.kernel().executeFrame(context);
         Profiler.get().pop("sketch_prepare");
         Profiler.get().push("vanilla_prepare");
     }

@@ -1,27 +1,25 @@
 package rogo.sketch.core.pipeline;
 
+import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.RenderHelper;
 import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.command.RenderCommand;
 import rogo.sketch.core.command.RenderCommandQueue;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
-import rogo.sketch.core.pipeline.data.IndirectBufferData;
-import rogo.sketch.core.pipeline.data.InstancedOffsetData;
-import rogo.sketch.core.pipeline.data.PipelineDataStore;
-import rogo.sketch.core.pipeline.flow.RenderFlowRegistry;
-import rogo.sketch.core.pipeline.flow.RenderFlowStrategy;
-import rogo.sketch.core.pipeline.flow.RenderPostProcessor;
-import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
+import rogo.sketch.core.pipeline.container.GraphicsContainer;
+import rogo.sketch.core.pipeline.data.*;
 import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
-import rogo.sketch.core.pipeline.container.GraphicsContainer;
+import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
 import rogo.sketch.core.pipeline.parmeter.FunctionParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pool.InstancePoolManager;
-import rogo.sketch.core.util.*;
+import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.util.OrderedList;
+import rogo.sketch.core.util.RenderTargetUtil;
 import rogo.sketch.core.util.transform.TransformStateManager;
 import rogo.sketch.core.vertex.VertexResourceManager;
 
@@ -34,13 +32,13 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final Map<KeyId, GraphicsStage> idToStage = new LinkedHashMap<>();
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
-    private final AsyncGraphicsTicker asyncGraphicsTicker;
     private final RenderCommandQueue<C> renderCommandQueue;
     private final TransformStateManager transformStateManager;
     private final RenderHelper renderHelper;
     private final Map<KeyId, PipelineType> pipelineTypes = new HashMap<>();
     private final Map<PipelineType, VertexResourceManager> resourceManagers = new LinkedHashMap<>();
     private final Map<PipelineType, PipelineDataStore> pipelineDataStores = new LinkedHashMap<>();
+    private final Map<PipelineType, FrameDataStore> frameDataStores = new LinkedHashMap<>();
 
     private final PipelineConfig config;
     private C currentContext;
@@ -50,9 +48,12 @@ public class GraphicsPipeline<C extends RenderContext> {
     private boolean[] nextTick = new boolean[20];
     private boolean initialized = false;
     private boolean initializedStaticGraphics = false;
-    
+
     // Global container listeners (e.g., TransformManager) that track graphics instances
     private final List<ContainerListener> globalContainerListeners = new ArrayList<>();
+
+    // New architecture: kernel
+    private PipelineKernel<C> kernel;
 
     public GraphicsPipeline(PipelineConfig config, C defaultContext) {
         this.config = config;
@@ -60,9 +61,21 @@ public class GraphicsPipeline<C extends RenderContext> {
         this.currentContext = defaultContext;
         initPipelineData();
         this.renderCommandQueue = new RenderCommandQueue<>(this);
-        this.asyncGraphicsTicker = new AsyncGraphicsTicker(this);
         this.transformStateManager = new TransformStateManager(this);
         this.renderHelper = new RenderHelper(this);
+
+        // Bridge container removals to module detach path while legacy listeners are still present.
+        registerGlobalContainerListener(new ContainerListener() {
+            @Override
+            public void onInstanceAdded(Graphics graphics, RenderParameter renderParameter, KeyId containerType) {
+                // Add path is handled explicitly in addGraphInstance() to avoid listener-only coupling.
+            }
+
+            @Override
+            public void onInstanceRemoved(Graphics graphics) {
+                notifyGraphicsRemoved(graphics);
+            }
+        });
     }
 
     private void initPipelineData() {
@@ -76,29 +89,42 @@ public class GraphicsPipeline<C extends RenderContext> {
     private void initializePipeline(PipelineType pipelineType) {
         pipelineTypes.put(pipelineType.getIdentifier(), pipelineType);
         VertexResourceManager manager = new VertexResourceManager();
-        PipelineDataStore dataStore = new PipelineDataStore();
+        PipelineDataStore renderStore = new PipelineDataStore();
+        PipelineDataStore asyncStore = new PipelineDataStore();
 
         // Register standard pipeline data
-        dataStore.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
-        dataStore.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
+        registerDefaultPipelineData(renderStore);
+        registerDefaultPipelineData(asyncStore);
+
+        FrameDataStore frameStore = new FrameDataStore(renderStore, asyncStore);
+        PipelineDataStore threadAwareStore = new ThreadAwarePipelineDataStore(frameStore);
 
         resourceManagers.put(pipelineType, manager);
-        pipelineDataStores.put(pipelineType, dataStore);
+        frameDataStores.put(pipelineType, frameStore);
+        pipelineDataStores.put(pipelineType, threadAwareStore);
+    }
+
+    private void registerDefaultPipelineData(PipelineDataStore dataStore) {
+        dataStore.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
+        dataStore.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
     }
 
     public PipelineConfig getConfig() {
         return config;
     }
 
-    // ==================== Global Container Listeners ====================
+    // ==================== Global Container Listeners (Legacy) ====================
 
     /**
      * Register a global container listener that will be notified when graphics instances
      * are added/removed from any container in any batch.
      * Used by systems like TransformManager to track TransformableGraphics instances.
-     * 
+     *
      * @param listener The container listener to register
+     * @deprecated Use {@link rogo.sketch.core.pipeline.module.GraphicsModule} and
+     * {@link rogo.sketch.core.pipeline.module.ModuleRegistry} instead.
      */
+    @Deprecated
     public void registerGlobalContainerListener(ContainerListener listener) {
         if (!globalContainerListeners.contains(listener)) {
             globalContainerListeners.add(listener);
@@ -107,9 +133,11 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     /**
      * Unregister a global container listener.
-     * 
+     *
      * @param listener The container listener to unregister
+     * @deprecated Use {@link rogo.sketch.core.pipeline.module.GraphicsModule} instead.
      */
+    @Deprecated
     public void unregisterGlobalContainerListener(ContainerListener listener) {
         globalContainerListeners.remove(listener);
     }
@@ -117,9 +145,11 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Get the list of global container listeners.
      * Used by GraphicsBatchGroup to register listeners when creating new batches.
-     * 
+     *
      * @return Unmodifiable list of global container listeners
+     * @deprecated Will be removed when module system fully replaces listeners.
      */
+    @Deprecated
     public List<ContainerListener> getGlobalContainerListeners() {
         return Collections.unmodifiableList(globalContainerListeners);
     }
@@ -209,6 +239,7 @@ public class GraphicsPipeline<C extends RenderContext> {
             RenderParameter renderParameter,
             PipelineType pipelineType,
             KeyId containerType,
+            @Nullable
             Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier) {
         GraphicsStage stage = idToStage.get(stageId);
         if (stage != null) {
@@ -218,76 +249,11 @@ public class GraphicsPipeline<C extends RenderContext> {
                     pipelineTypes.get(pipelineType.getIdentifier()),
                     containerType,
                     containerSupplier);
-        }
-    }
 
-    public void computeAllRenderCommand() {
-        try {
-            // Reset all pipeline data stores
-            for (PipelineDataStore dataStore : pipelineDataStores.values()) {
-                dataStore.reset();
-            }
-
-            // Prepare all batch groups for new frame (handle dirty instances)
-            for (GraphicsStage stage : stages.getOrderedList()) {
-                GraphicsBatchGroup<C> group = passMap.get(stage);
-                if (group != null) {
-                    group.prepareForFrame();
-                }
-            }
-
-            RenderPostProcessors postProcessors = new RenderPostProcessors();
-            for (RenderFlowStrategy strategy : RenderFlowRegistry.getInstance().getAllStrategies()) {
-                RenderPostProcessor processor = strategy.createPostProcessor();
-                if (processor != null) {
-                    postProcessors.register(strategy.getFlowType(), processor);
-                }
-            }
-
-            // Create render commands for all pipeline types
-            Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> allRenderCommands = createRenderCommandsByPipeline(
-                    postProcessors);
-
-            renderCommandQueue.clear();
-            // Add commands for each pipeline type
-            for (Map.Entry<PipelineType, Map<RenderSetting, List<RenderCommand>>> entry : allRenderCommands
-                    .entrySet()) {
-                renderCommandQueue.addCommands(entry.getKey(), entry.getValue());
-            }
-
-            postProcessors.executeAll();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * Create render commands from all stages grouped by pipeline type
-     */
-    private Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> createRenderCommandsByPipeline(
-            RenderPostProcessors postProcessors) {
-        Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> allCommands = new LinkedHashMap<>();
-
-        for (GraphicsStage stage : stages.getOrderedList()) {
-            GraphicsBatchGroup<C> batchGroup = passMap.get(stage);
-            if (batchGroup != null) {
-                Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> stageCommands = batchGroup.createAllRenderCommands(currentContext, postProcessors);
-
-                // Merge into allCommands by pipeline type
-                for (Map.Entry<PipelineType, Map<RenderSetting, List<RenderCommand>>> pipelineEntry : stageCommands.entrySet()) {
-                    PipelineType pipelineType = pipelineEntry.getKey();
-                    Map<RenderSetting, List<RenderCommand>> commands = pipelineEntry.getValue();
-                    Map<RenderSetting, List<RenderCommand>> pipelineCommands = allCommands.computeIfAbsent(pipelineType, k -> new LinkedHashMap<>());
-
-                    for (Map.Entry<RenderSetting, List<RenderCommand>> entry : commands.entrySet()) {
-                        pipelineCommands.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
-                                .addAll(entry.getValue());
-                    }
-                }
+            if (kernel != null && kernel.moduleRegistry().isInitialized()) {
+                kernel.moduleRegistry().onGraphicsAdded(graph, renderParameter, containerType);
             }
         }
-
-        return allCommands;
     }
 
     /**
@@ -443,10 +409,6 @@ public class GraphicsPipeline<C extends RenderContext> {
         }
     }
 
-    public AsyncGraphicsTicker asyncGraphicsTicker() {
-        return asyncGraphicsTicker;
-    }
-
     /**
      * Cleanup discarded instances and return them to pools
      */
@@ -478,6 +440,10 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public boolean isNextLoop() {
         return nextTick[0];
+    }
+
+    public int currentFrameTick() {
+        return currentFrameTick;
     }
 
     public int currentLogicTick() {
@@ -553,5 +519,117 @@ public class GraphicsPipeline<C extends RenderContext> {
         }
 
         return stageId;
+    }
+
+    // ==================== New Architecture Accessors ====================
+
+    /**
+     * Get the batch group for a specific stage.
+     */
+    public GraphicsBatchGroup<C> getBatchGroup(GraphicsStage stage) {
+        return passMap.get(stage);
+    }
+
+    /**
+     * Get all pipeline data stores (for passes that need to reset them).
+     */
+    public java.util.Collection<PipelineDataStore> getAllPipelineDataStores() {
+        return pipelineDataStores.values();
+    }
+
+    public java.util.Collection<FrameDataStore> getAllFrameDataStores() {
+        return frameDataStores.values();
+    }
+
+    public void swapFrameDataStores() {
+        for (FrameDataStore dataStore : frameDataStores.values()) {
+            dataStore.swap();
+        }
+    }
+
+
+    public FrameDataStore getFrameDataStore(PipelineType pipelineType) {
+        return frameDataStores.get(pipelineType);
+    }
+
+    public void materializePendingVertexResources() {
+        for (VertexResourceManager manager : resourceManagers.values()) {
+            manager.materializePending();
+        }
+    }
+
+    /**
+     * Get or create the PipelineKernel for the new architecture.
+     */
+    public PipelineKernel<C> getOrCreateKernel() {
+        if (kernel == null) {
+            kernel = new PipelineKernel<>(this);
+        }
+        return kernel;
+    }
+
+    /**
+     * Get the existing kernel, or null if not created.
+     */
+    public PipelineKernel<C> kernel() {
+        return kernel;
+    }
+
+    public void notifyGraphicsRemoved(Graphics graphics) {
+        if (graphics == null) {
+            return;
+        }
+        if (kernel != null && kernel.moduleRegistry().isInitialized()) {
+            kernel.moduleRegistry().onGraphicsRemoved(graphics);
+        }
+    }
+
+    private static final class ThreadAwarePipelineDataStore extends PipelineDataStore {
+        private final FrameDataStore frameDataStore;
+
+        private ThreadAwarePipelineDataStore(FrameDataStore frameDataStore) {
+            this.frameDataStore = frameDataStore;
+        }
+
+        private PipelineDataStore activeStore() {
+            return GraphicsDriver.getCurrentAPI().isMainThread() ? frameDataStore.readBuffer() : frameDataStore.writeBuffer();
+        }
+
+        @Override
+        public void register(KeyId key, RenderPipelineData data) {
+            // Keep both buffers schema-consistent.
+            frameDataStore.readBuffer().register(key, data);
+            frameDataStore.writeBuffer().register(key, duplicateForWriteBuffer(data));
+        }
+
+        @Override
+        public <T extends RenderPipelineData> T get(KeyId key) {
+            return activeStore().get(key);
+        }
+
+        @Override
+        public void reset() {
+            frameDataStore.resetAll();
+        }
+
+        @Override
+        public java.util.Collection<RenderPipelineData> getAll() {
+            return activeStore().getAll();
+        }
+
+        private RenderPipelineData duplicateForWriteBuffer(
+                RenderPipelineData data) {
+            if (data == null) {
+                return null;
+            }
+            try {
+                java.lang.reflect.Constructor<?> ctor = data.getClass().getDeclaredConstructor();
+                ctor.setAccessible(true);
+                return (RenderPipelineData) ctor.newInstance();
+            } catch (Exception ignored) {
+                // Fallback: share instance if no default constructor available.
+                return data;
+            }
+        }
     }
 }
