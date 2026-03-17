@@ -4,7 +4,6 @@ import org.lwjgl.opengl.GL15;
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.core.transform.Transform;
-import rogo.sketch.core.transform.TransformManager;
 
 /**
  * MatrixManager - Refactored GPU Transform System
@@ -12,11 +11,11 @@ import rogo.sketch.core.transform.TransformManager;
  * Separates Sync and Async transforms into distinct pipelines to prevent blocking the main thread.
  * Uses a shared ID registry so all results land in a common Output SSBO.
  */
-public class MatrixManager implements TransformManager {
+public class MatrixManager {
 
     // Shared Resources
     private final SharedIdRegistry idRegistry = new SharedIdRegistry();
-    private ShaderStorageBuffer outputSSBO; // Binding 1 (Output)
+    private final ShaderStorageBuffer outputSSBO; // Binding 1 (Output)
 
     // Pipelines
     private final TransformPipeline syncPipeline;
@@ -33,9 +32,6 @@ public class MatrixManager implements TransformManager {
         this.outputSSBO = new ShaderStorageBuffer(currentOutputCapacity, OUTPUT_STRIDE, GL15.GL_DYNAMIC_DRAW);
     }
 
-    // ================== Interface Implementation ==================
-
-    @Override
     public int registerTransform(Transform transform) {
         if (transform == null) throw new NullPointerException();
         if (transform.getRegisteredId() != -1) return transform.getRegisteredId();
@@ -54,7 +50,6 @@ public class MatrixManager implements TransformManager {
         return id;
     }
 
-    @Override
     public void unregisterTransform(Transform transform) {
         int id = transform.getRegisteredId();
         if (id == -1) return;
@@ -79,7 +74,6 @@ public class MatrixManager implements TransformManager {
         }
     }
 
-    @Override
     public Transform getTransform(int id) {
         // Not implemented: Dual pipeline makes O(1) reverse lookup hard.
         // If needed, MatrixManager must maintain a separate Int2ObjectMap<Transform>.
@@ -87,18 +81,15 @@ public class MatrixManager implements TransformManager {
         return null;
     }
 
-    @Override
     public boolean isRegistered(Transform transform) {
         return transform.getRegisteredId() != -1;
     }
 
-    @Override
     public void swapTransformData() {
         // Only for sync objects if needed
         // Async objects usually handle double buffering internally or don't need explicit swap
     }
 
-    @Override
     public int getActiveCount() {
         // Just a metric
         return idRegistry.getMaxId(); // Approximation

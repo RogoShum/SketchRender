@@ -61,7 +61,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                 camera, frustum, this.getTicks(), partialTicks);
         sketchlib$graphPipeline.tickFrame();
         context.setRenderStateManager(sketchlib$graphPipeline.renderStateManager());
-        context.setTransformStateManager(sketchlib$graphPipeline.transformStateManager());
+        context.setTransformStateManager(sketchlib$graphPipeline.getModuleByName("transform"));
         context.setNextTick(sketchlib$graphPipeline.anyNextTick());
         sketchlib$graphPipeline.resetRenderContext(context);
         sketchlib$graphPipeline.kernel().executeFrame(context);

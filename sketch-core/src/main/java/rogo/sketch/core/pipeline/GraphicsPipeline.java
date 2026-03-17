@@ -11,8 +11,8 @@ import rogo.sketch.core.event.bridge.EventBusBridge;
 import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.data.*;
 import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
-import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
+import rogo.sketch.core.pipeline.module.PipelineModule;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
 import rogo.sketch.core.pipeline.parmeter.FunctionParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
@@ -20,7 +20,6 @@ import rogo.sketch.core.pool.InstancePoolManager;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.util.OrderedList;
 import rogo.sketch.core.util.RenderTargetUtil;
-import rogo.sketch.core.util.transform.TransformStateManager;
 import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.util.*;
@@ -33,7 +32,6 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final RenderCommandQueue<C> renderCommandQueue;
-    private final TransformStateManager transformStateManager;
     private final RenderHelper renderHelper;
     private final Map<KeyId, PipelineType> pipelineTypes = new HashMap<>();
     private final Map<PipelineType, VertexResourceManager> resourceManagers = new LinkedHashMap<>();
@@ -49,9 +47,6 @@ public class GraphicsPipeline<C extends RenderContext> {
     private boolean initialized = false;
     private boolean initializedStaticGraphics = false;
 
-    // Global container listeners (e.g., TransformManager) that track graphics instances
-    private final List<ContainerListener> globalContainerListeners = new ArrayList<>();
-
     // New architecture: kernel
     private PipelineKernel<C> kernel;
 
@@ -61,21 +56,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         this.currentContext = defaultContext;
         initPipelineData();
         this.renderCommandQueue = new RenderCommandQueue<>(this);
-        this.transformStateManager = new TransformStateManager(this);
         this.renderHelper = new RenderHelper(this);
-
-        // Bridge container removals to module detach path while legacy listeners are still present.
-        registerGlobalContainerListener(new ContainerListener() {
-            @Override
-            public void onInstanceAdded(Graphics graphics, RenderParameter renderParameter, KeyId containerType) {
-                // Add path is handled explicitly in addGraphInstance() to avoid listener-only coupling.
-            }
-
-            @Override
-            public void onInstanceRemoved(Graphics graphics) {
-                notifyGraphicsRemoved(graphics);
-            }
-        });
     }
 
     private void initPipelineData() {
@@ -111,47 +92,6 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public PipelineConfig getConfig() {
         return config;
-    }
-
-    // ==================== Global Container Listeners (Legacy) ====================
-
-    /**
-     * Register a global container listener that will be notified when graphics instances
-     * are added/removed from any container in any batch.
-     * Used by systems like TransformManager to track TransformableGraphics instances.
-     *
-     * @param listener The container listener to register
-     * @deprecated Use {@link rogo.sketch.core.pipeline.module.GraphicsModule} and
-     * {@link rogo.sketch.core.pipeline.module.ModuleRegistry} instead.
-     */
-    @Deprecated
-    public void registerGlobalContainerListener(ContainerListener listener) {
-        if (!globalContainerListeners.contains(listener)) {
-            globalContainerListeners.add(listener);
-        }
-    }
-
-    /**
-     * Unregister a global container listener.
-     *
-     * @param listener The container listener to unregister
-     * @deprecated Use {@link rogo.sketch.core.pipeline.module.GraphicsModule} instead.
-     */
-    @Deprecated
-    public void unregisterGlobalContainerListener(ContainerListener listener) {
-        globalContainerListeners.remove(listener);
-    }
-
-    /**
-     * Get the list of global container listeners.
-     * Used by GraphicsBatchGroup to register listeners when creating new batches.
-     *
-     * @return Unmodifiable list of global container listeners
-     * @deprecated Will be removed when module system fully replaces listeners.
-     */
-    @Deprecated
-    public List<ContainerListener> getGlobalContainerListeners() {
-        return Collections.unmodifiableList(globalContainerListeners);
     }
 
     /**
@@ -465,10 +405,6 @@ public class GraphicsPipeline<C extends RenderContext> {
         return renderHelper;
     }
 
-    public TransformStateManager transformStateManager() {
-        return transformStateManager;
-    }
-
     public C currentContext() {
         return currentContext;
     }
@@ -573,6 +509,16 @@ public class GraphicsPipeline<C extends RenderContext> {
      */
     public PipelineKernel<C> kernel() {
         return kernel;
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public <M extends PipelineModule> M getModuleByName(String name) {
+        if (kernel.moduleRegistry().containsModule(name)) {
+            return (M) kernel.moduleRegistry().moduleByName(name);
+        }
+
+        return null;
     }
 
     public void notifyGraphicsRemoved(Graphics graphics) {

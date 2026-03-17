@@ -34,7 +34,6 @@ public abstract class AbstractMergedBatchContainer<G extends Graphics, I extends
 
     private final Map<KeyId, ContainerDescriptor<RenderContext>> descriptors = new ConcurrentHashMap<>();
     private final Map<KeyId, GraphicsContainer<RenderContext>> activeContainers = new ConcurrentHashMap<>();
-    private final List<ContainerListener> externalListeners = Collections.synchronizedList(new ArrayList<>());
 
     protected AbstractMergedBatchContainer() {
         registerContainerDescriptor(DefaultBatchContainers.QUEUE_DESCRIPTOR);
@@ -45,19 +44,6 @@ public abstract class AbstractMergedBatchContainer<G extends Graphics, I extends
         @SuppressWarnings("unchecked")
         ContainerDescriptor<RenderContext> casted = (ContainerDescriptor<RenderContext>) descriptor;
         descriptors.put(casted.id(), casted);
-    }
-
-    @Override
-    public void registerContainerListener(ContainerListener listener) {
-        if (listener == null || externalListeners.contains(listener)) {
-            return;
-        }
-        externalListeners.add(listener);
-    }
-
-    @Override
-    public void unregisterContainerListener(ContainerListener listener) {
-        externalListeners.remove(listener);
     }
 
     @Override
@@ -401,15 +387,15 @@ public abstract class AbstractMergedBatchContainer<G extends Graphics, I extends
     }
 
     private void notifyExternalAdded(Graphics graphics, RenderParameter renderParameter, KeyId containerId) {
-        for (ContainerListener listener : externalListeners) {
-            listener.onInstanceAdded(graphics, renderParameter, containerId);
-        }
+//        for (ContainerListener listener : externalListeners) {
+//            listener.onInstanceAdded(graphics, renderParameter, containerId);
+//        }
     }
 
     private void notifyExternalRemoved(Graphics graphics) {
-        for (ContainerListener listener : externalListeners) {
-            listener.onInstanceRemoved(graphics);
-        }
+//        for (ContainerListener listener : externalListeners) {
+//            listener.onInstanceRemoved(graphics);
+//        }
     }
 }
 

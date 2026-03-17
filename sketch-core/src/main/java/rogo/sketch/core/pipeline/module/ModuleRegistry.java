@@ -19,6 +19,7 @@ import java.util.*;
  */
 public final class ModuleRegistry {
     private final List<PipelineModule> modules = new ArrayList<>();
+    private final Map<String, PipelineModule> nameToModules = new HashMap<>();
     private final List<GraphicsModule> graphicsModules = new ArrayList<>();
     private final ModuleBindingIndex bindingIndex = new ModuleBindingIndex();
     private boolean initialized = false;
@@ -30,6 +31,12 @@ public final class ModuleRegistry {
         if (initialized) {
             throw new IllegalStateException("Cannot register modules after initialization");
         }
+
+        if (nameToModules.containsKey(module.name())) {
+            throw new IllegalStateException("Duplicate module name: " + module.name());
+        }
+
+        nameToModules.put(module.name(), module);
         modules.add(module);
         if (module instanceof GraphicsModule gm) {
             graphicsModules.add(gm);
@@ -97,6 +104,14 @@ public final class ModuleRegistry {
         return Collections.unmodifiableList(modules);
     }
 
+    public boolean containsModule(String name) {
+        return nameToModules.containsKey(name);
+    }
+
+    public PipelineModule moduleByName(String name) {
+        return nameToModules.get(name);
+    }
+
     /**
      * Get the binding index for inspection.
      */
@@ -108,4 +123,3 @@ public final class ModuleRegistry {
         return initialized;
     }
 }
-

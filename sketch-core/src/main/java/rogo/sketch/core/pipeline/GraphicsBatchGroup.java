@@ -11,18 +11,13 @@ import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.flow.container.ContainerDescriptor;
 import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.flow.impl.ComputeBatchContainer;
-import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.flow.impl.FunctionBatchContainer;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationBatchContainer;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.VertexResourceManager;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static rogo.sketch.core.pipeline.PipelineType.*;
@@ -61,9 +56,6 @@ public class GraphicsBatchGroup<C extends RenderContext> {
 
         // Create appropriate BatchContainer for this pipeline type
         BatchContainer<?, ?> container = createBatchContainer(pipelineType);
-        for (ContainerListener listener : graphicsPipeline.getGlobalContainerListeners()) {
-            container.registerContainerListener(listener);
-        }
         batchContainers.put(pipelineType, container);
     }
 

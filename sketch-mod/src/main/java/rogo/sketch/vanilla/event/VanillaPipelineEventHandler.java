@@ -164,8 +164,8 @@ public class VanillaPipelineEventHandler {
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "transform_input_async"),
                 () -> {
-                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getAsyncPipeline().inputSSBO();
+                    if (PipelineUtil.pipeline().getModuleByName("transform") != null && ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager() != null) {
+                        return ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager().getAsyncPipeline().inputSSBO();
                     } else {
                         return null;
                     }
@@ -174,8 +174,8 @@ public class VanillaPipelineEventHandler {
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "transform_index_async"),
                 () -> {
-                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getAsyncPipeline().indexSSBO();
+                    if (PipelineUtil.pipeline().getModuleByName("transform") != null && ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager() != null) {
+                        return ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager().getAsyncPipeline().indexSSBO();
                     } else {
                         return null;
                     }
@@ -184,8 +184,8 @@ public class VanillaPipelineEventHandler {
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "transform_input_sync"),
                 () -> {
-                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getSyncPipeline().inputSSBO();
+                    if (PipelineUtil.pipeline().getModuleByName("transform") != null && ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager() != null) {
+                        return ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager().getSyncPipeline().inputSSBO();
                     } else {
                         return null;
                     }
@@ -194,8 +194,8 @@ public class VanillaPipelineEventHandler {
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "transform_index_sync"),
                 () -> {
-                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getSyncPipeline().indexSSBO();
+                    if (PipelineUtil.pipeline().getModuleByName("transform") != null && ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager() != null) {
+                        return ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager().getSyncPipeline().indexSSBO();
                     } else {
                         return null;
                     }
@@ -204,8 +204,8 @@ public class VanillaPipelineEventHandler {
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "transform_output"),
                 () -> {
-                    if (PipelineUtil.pipeline().transformStateManager() != null && PipelineUtil.pipeline().transformStateManager().matrixManager != null) {
-                        return PipelineUtil.pipeline().transformStateManager().matrixManager.getOutputSSBO();
+                    if (PipelineUtil.pipeline().getModuleByName("transform") != null && ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager() != null) {
+                        return ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager().getOutputSSBO();
                     } else {
                         return null;
                     }
@@ -427,8 +427,8 @@ public class VanillaPipelineEventHandler {
         // Transform system uniforms
         uniformEvent.register(KeyId.of("u_transformCount"), ValueGetter.create((instance) -> {
             RenderContext context = (RenderContext) instance;
-            if (context.transformStateManager() != null && context.transformStateManager().matrixManager != null) {
-                return context.transformStateManager().matrixManager.getActiveCount();
+            if (context.transformModule() != null && context.transformModule().matrixManager() != null) {
+                return context.transformModule().matrixManager().getActiveCount();
             }
             return 0;
         }, Integer.class, RenderContext.class));
@@ -635,7 +635,7 @@ public class VanillaPipelineEventHandler {
     }
 
     private static void registerTransformGraphics(RegisterStaticGraphicsEvent registerEvent, boolean sync) {
-        Graphics graphics = new TransformComputeGraphics(KeyId.of("sketch_render", "transform_matrix_compute_" + (sync ? "sync" : "async")), KeyId.of("sketch_render", "transform_matrix_" + (sync ? "sync" : "async")), sync, PipelineUtil.pipeline().transformStateManager().matrixManager).setPriority(99);
+        Graphics graphics = new TransformComputeGraphics(KeyId.of("sketch_render", "transform_matrix_compute_" + (sync ? "sync" : "async")), KeyId.of("sketch_render", "transform_matrix_" + (sync ? "sync" : "async")), sync, PipelineUtil.pipeline().kernel().moduleRegistry().allModules().stream().filter((pipelineModule -> pipelineModule instanceof TransformModule)).map(pipelineModule -> (TransformModule)pipelineModule).findFirst().get().matrixManager()).setPriority(99);
         registerEvent.registerCompute(MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(), graphics);
     }
 }

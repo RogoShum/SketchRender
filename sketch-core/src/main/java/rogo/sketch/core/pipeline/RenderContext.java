@@ -4,8 +4,8 @@ import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import rogo.sketch.core.api.ShaderProvider;
+import rogo.sketch.core.pipeline.module.TransformModule;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.core.util.transform.TransformStateManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,7 +16,7 @@ public class RenderContext {
     private final Matrix4f modelMatrix = new Matrix4f();
     private final Matrix4f projectionMatrix = new Matrix4f();
     protected RenderStateManager renderStateManager;
-    protected TransformStateManager transformStateManager;
+    protected TransformModule transformModule;
     protected Vector3f cameraPosition = new Vector3f();
     protected Vector3f cameraDirection = new Vector3f();
     protected Vector3f cameraUp = new Vector3f();
@@ -89,12 +89,12 @@ public class RenderContext {
         return renderStateManager;
     }
 
-    public void setTransformStateManager(TransformStateManager transformStateManager) {
-        this.transformStateManager = transformStateManager;
+    public void setTransformStateManager(TransformModule transformModule) {
+        this.transformModule = transformModule;
     }
 
-    public TransformStateManager transformStateManager() {
-        return transformStateManager;
+    public TransformModule transformModule() {
+        return transformModule;
     }
 
     public FrustumIntersection getFrustum() {

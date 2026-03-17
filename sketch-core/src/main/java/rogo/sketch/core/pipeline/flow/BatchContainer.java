@@ -4,7 +4,6 @@ import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.flow.container.ContainerDescriptor;
-import rogo.sketch.core.pipeline.flow.impl.ContainerListener;
 import rogo.sketch.core.pipeline.information.InstanceInfo;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
@@ -16,11 +15,6 @@ import java.util.function.Supplier;
 
 /**
  * Container for managing RenderBatches with automatic instance assignment.
- * <p>
- * BatchContainer implements {@link ContainerListener} to receive notifications
- * from {@link rogo.sketch.core.pipeline.container.GraphicsContainer} and automatically
- * assign graphics instances to appropriate batches based on their RenderSetting
- * and other grouping criteria.
  * </p>
  * <p>
  * Unlike per-frame batch reconstruction, BatchContainer maintains persistent batches
@@ -188,21 +182,6 @@ public interface BatchContainer<G extends Graphics, T extends InstanceInfo<G>> {
      * Register a descriptor for lazy graphics container creation.
      */
     default void registerContainerDescriptor(ContainerDescriptor<? extends RenderContext> descriptor) {
-        // Default: no-op for legacy implementations.
-    }
-
-    /**
-     * Register an external container listener. Implementations should attach this
-     * listener to current and future graphics containers.
-     */
-    default void registerContainerListener(ContainerListener listener) {
-        // Default: no-op for legacy implementations.
-    }
-
-    /**
-     * Unregister an external container listener.
-     */
-    default void unregisterContainerListener(ContainerListener listener) {
         // Default: no-op for legacy implementations.
     }
 
