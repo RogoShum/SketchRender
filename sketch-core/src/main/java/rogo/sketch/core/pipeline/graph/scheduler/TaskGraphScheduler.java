@@ -12,46 +12,44 @@ import rogo.sketch.core.util.TimerUtil;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Executes a compiled graph using a staged async-tail scheduler.
  * <p>
- * The render worker thread (Sketch-RenderTask-Worker) acquires the shared GL context
- * on first task execution and releases it on shutdown, managed via
- * {@link GraphicsAPI#onWorkerThreadStart()} / {@link GraphicsAPI#onWorkerThreadEnd()}.
+ * Async work is collected during graph iteration and submitted once at the tail.
+ * The scheduler waits for the previous async batch at the beginning of the next execute.
+ * Worker-thread GL context setup is instance-owned so different schedulers may target
+ * different worker lanes such as the render worker or the dedicated tick GL worker.
  * </p>
  * <p>
  * SYNC passes run on the calling (main) thread.
  * ASYNC passes are collected during graph iteration and submitted once at the end.
- * The scheduler waits for the previous async batch at the beginning of the next execute.
  * ANY passes run on the current thread.
  * </p>
  */
 public class TaskGraphScheduler {
-
-    private static final AtomicBoolean workerContextInitialized = new AtomicBoolean(false);
-
-    private static final ExecutorService WORKER_POOL =
-            Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "Sketch-RenderTask-Worker");
-                t.setDaemon(true);
-                return t;
-            });
+    public enum WorkerContextMode {
+        NONE,
+        RENDER_GL,
+        TICK_GL
+    }
 
     private final ExecutorService workerPool;
-    private final boolean manageGlContext;
+    private final WorkerContextMode workerContextMode;
+    private final boolean ownsWorkerPool;
+    private final AtomicBoolean workerContextInitialized = new AtomicBoolean(false);
     private CompletableFuture<Void> pendingAsyncBatch = CompletableFuture.completedFuture(null);
     private volatile String pendingAsyncPassName = "none";
 
-    public TaskGraphScheduler() {
-        this(WORKER_POOL, true);
-    }
-
-    public TaskGraphScheduler(ExecutorService workerPool, boolean manageGlContext) {
+    public TaskGraphScheduler(ExecutorService workerPool, WorkerContextMode workerContextMode, boolean ownsWorkerPool) {
         this.workerPool = workerPool;
-        this.manageGlContext = manageGlContext;
+        this.workerContextMode = workerContextMode;
+        this.ownsWorkerPool = ownsWorkerPool;
     }
 
     /**
@@ -121,6 +119,13 @@ public class TaskGraphScheduler {
     }
 
     /**
+     * Wait for this scheduler's previously submitted async batch.
+     */
+    public void awaitPendingAsync() {
+        waitForPendingAsync();
+    }
+
+    /**
      * Wait for any pending async work to complete.
      */
     private void waitForPendingAsync() {
@@ -156,45 +161,51 @@ public class TaskGraphScheduler {
         SimpleProfiler.get().end("Submit AsyncBatch", "MainThread");
     }
 
-    /**
-     * Initialize the GL context on the worker thread if not already done.
-     * Called once on the worker thread.
-     */
-    private static void ensureWorkerContextInitialized() {
+    private void ensureWorkerReady() {
+        if (workerContextMode == WorkerContextMode.NONE) {
+            return;
+        }
         if (GLRuntimeFlags.GL_WORKER_ENABLED && workerContextInitialized.compareAndSet(false, true)) {
             GraphicsAPI api = GraphicsDriver.getCurrentAPI();
-            api.onWorkerThreadStart();
-        }
-    }
-
-    private void ensureWorkerReady() {
-        if (manageGlContext) {
-            TaskGraphScheduler.ensureWorkerContextInitialized();
+            switch (workerContextMode) {
+                case RENDER_GL -> api.onRenderWorkerThreadStart();
+                case TICK_GL -> api.onTickWorkerThreadStart();
+                case NONE -> {
+                }
+            }
         }
     }
 
     /**
-     * Shut down the worker pool and release GL context.
+     * Shut down this scheduler and release its worker context if needed.
      */
-    public static void shutdown() {
-        // Submit context cleanup task
+    public void shutdown() {
+        waitForPendingAsync();
         if (workerContextInitialized.get()) {
             try {
-                WORKER_POOL.submit(() -> {
-                    GraphicsDriver.getCurrentAPI().onWorkerThreadEnd();
+                workerPool.submit(() -> {
+                    GraphicsAPI api = GraphicsDriver.getCurrentAPI();
+                    switch (workerContextMode) {
+                        case RENDER_GL -> api.onRenderWorkerThreadEnd();
+                        case TICK_GL -> api.onTickWorkerThreadEnd();
+                        case NONE -> {
+                        }
+                    }
                 }).get(2, TimeUnit.SECONDS);
             } catch (Exception e) {
                 System.err.println("[TaskGraphScheduler] Failed to cleanup worker GL context: " + e.getMessage());
             }
         }
-        WORKER_POOL.shutdown();
-        try {
-            if (!WORKER_POOL.awaitTermination(5, TimeUnit.SECONDS)) {
-                WORKER_POOL.shutdownNow();
+        if (ownsWorkerPool) {
+            workerPool.shutdown();
+            try {
+                if (!workerPool.awaitTermination(5, TimeUnit.SECONDS)) {
+                    workerPool.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                workerPool.shutdownNow();
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            WORKER_POOL.shutdownNow();
-            Thread.currentThread().interrupt();
         }
     }
 }

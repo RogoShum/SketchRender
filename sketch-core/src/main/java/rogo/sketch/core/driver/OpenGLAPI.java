@@ -24,8 +24,9 @@ public class OpenGLAPI extends GraphicsAPI {
 
     private final boolean useDSA;
 
-    // Shared GL context for render worker thread
-    private long sharedWindowHandle = 0;
+    // Shared GL contexts for worker threads
+    private long sharedRenderWindowHandle = 0;
+    private long sharedTickWindowHandle = 0;
 
     public OpenGLAPI() {
         // Initialize GLFeatureChecker if not already done
@@ -405,36 +406,69 @@ public class OpenGLAPI extends GraphicsAPI {
 
     @Override
     public void initRenderWorkerContext(long mainWindowHandle) {
-        if (sharedWindowHandle != 0) return; // already initialized
-        // Create hidden GLFW window that shares lists with the main context
+        if (sharedRenderWindowHandle != 0) return;
         GLFW.glfwDefaultWindowHints();
         GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
-        sharedWindowHandle = GLFW.glfwCreateWindow(1, 1, "Sketch-RenderWorker", 0, mainWindowHandle);
-        if (sharedWindowHandle == 0) {
+        sharedRenderWindowHandle = GLFW.glfwCreateWindow(1, 1, "Sketch-RenderWorker", 0, mainWindowHandle);
+        if (sharedRenderWindowHandle == 0) {
             throw new RuntimeException("[OpenGLAPI] Failed to create shared GLFW window for render worker");
         }
         setRenderWorkerReady(true);
     }
 
     @Override
-    public void onWorkerThreadStart() {
-        if (sharedWindowHandle == 0) return;
-        registerWorkerThread();
-        GLFW.glfwMakeContextCurrent(sharedWindowHandle);
+    public void initTickWorkerContext(long mainWindowHandle) {
+        if (sharedTickWindowHandle != 0) return;
+        GLFW.glfwDefaultWindowHints();
+        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+        sharedTickWindowHandle = GLFW.glfwCreateWindow(1, 1, "Sketch-TickWorker", 0, mainWindowHandle);
+        if (sharedTickWindowHandle == 0) {
+            throw new RuntimeException("[OpenGLAPI] Failed to create shared GLFW window for tick worker");
+        }
+        setTickWorkerReady(true);
+    }
+
+    @Override
+    public void onRenderWorkerThreadStart() {
+        if (sharedRenderWindowHandle == 0) return;
+        registerRenderWorkerThread();
+        GLFW.glfwMakeContextCurrent(sharedRenderWindowHandle);
         GL.createCapabilities();
     }
 
     @Override
-    public void onWorkerThreadEnd() {
+    public void onTickWorkerThreadStart() {
+        if (sharedTickWindowHandle == 0) return;
+        registerTickWorkerThread();
+        GLFW.glfwMakeContextCurrent(sharedTickWindowHandle);
+        GL.createCapabilities();
+    }
+
+    @Override
+    public void onRenderWorkerThreadEnd() {
+        GLFW.glfwMakeContextCurrent(0);
+    }
+
+    @Override
+    public void onTickWorkerThreadEnd() {
         GLFW.glfwMakeContextCurrent(0);
     }
 
     @Override
     public void destroyRenderWorkerContext() {
-        if (sharedWindowHandle != 0) {
-            GLFW.glfwDestroyWindow(sharedWindowHandle);
-            sharedWindowHandle = 0;
+        if (sharedRenderWindowHandle != 0) {
+            GLFW.glfwDestroyWindow(sharedRenderWindowHandle);
+            sharedRenderWindowHandle = 0;
             setRenderWorkerReady(false);
+        }
+    }
+
+    @Override
+    public void destroyTickWorkerContext() {
+        if (sharedTickWindowHandle != 0) {
+            GLFW.glfwDestroyWindow(sharedTickWindowHandle);
+            sharedTickWindowHandle = 0;
+            setTickWorkerReady(false);
         }
     }
 

@@ -11,6 +11,7 @@ import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
 import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
 import rogo.sketch.core.pipeline.graph.pass.*;
 import rogo.sketch.core.pipeline.graph.scheduler.TaskGraphScheduler;
+import rogo.sketch.core.pipeline.graph.scheduler.TaskGraphScheduler.WorkerContextMode;
 import rogo.sketch.core.pipeline.module.ModuleRegistry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,6 +22,7 @@ import java.util.concurrent.Executors;
  * Thread model:
  * <ul>
  *   <li><b>Sketch-TickTask-Worker</b> -- pure CPU, no GL context</li>
+ *   <li><b>Sketch-TickGL-Worker</b> -- dedicated shared GL context for tick-owned transform async work</li>
  *   <li><b>Sketch-RenderTask-Worker</b> -- shared GL context (if {@link GLRuntimeFlags#GL_WORKER_ENABLED})</li>
  * </ul>
  * <p>
@@ -34,15 +36,13 @@ import java.util.concurrent.Executors;
  * @param <C> Concrete RenderContext type
  */
 public class PipelineKernel<C extends RenderContext> {
-    private static final ExecutorService TICK_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "Sketch-TickTask-Worker");
-        t.setDaemon(true);
-        return t;
-    });
-
     private final GraphicsPipeline<C> pipeline;
     private final ModuleRegistry moduleRegistry;
+    private final ExecutorService tickExecutor;
+    private final ExecutorService tickGlExecutor;
+    private final ExecutorService frameExecutor;
     private final TaskGraphScheduler tickScheduler;
+    private final TaskGraphScheduler tickGlScheduler;
     private final TaskGraphScheduler frameScheduler;
     private final PendingBuildSlot pendingBuildSlot = new PendingBuildSlot();
 
@@ -53,8 +53,24 @@ public class PipelineKernel<C extends RenderContext> {
     public PipelineKernel(GraphicsPipeline<C> pipeline) {
         this.pipeline = pipeline;
         this.moduleRegistry = new ModuleRegistry();
-        this.tickScheduler = new TaskGraphScheduler(TICK_EXECUTOR, false);
-        this.frameScheduler = new TaskGraphScheduler();
+        this.tickExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "Sketch-TickTask-Worker");
+            t.setDaemon(true);
+            return t;
+        });
+        this.tickGlExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "Sketch-TickGL-Worker");
+            t.setDaemon(true);
+            return t;
+        });
+        this.frameExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "Sketch-RenderTask-Worker");
+            t.setDaemon(true);
+            return t;
+        });
+        this.tickScheduler = new TaskGraphScheduler(tickExecutor, WorkerContextMode.NONE, true);
+        this.tickGlScheduler = new TaskGraphScheduler(tickGlExecutor, WorkerContextMode.TICK_GL, true);
+        this.frameScheduler = new TaskGraphScheduler(frameExecutor, WorkerContextMode.RENDER_GL, true);
     }
 
     /**
@@ -64,10 +80,10 @@ public class PipelineKernel<C extends RenderContext> {
     public void initialize() {
         ThreadDomainGuard.registerMainThread();
 
-        // Initialize render worker context if GL worker is enabled
         if (GLRuntimeFlags.GL_WORKER_ENABLED) {
             long mainWindow = GLFW.glfwGetCurrentContext();
             GraphicsDriver.getCurrentAPI().initRenderWorkerContext(mainWindow);
+            GraphicsDriver.getCurrentAPI().initTickWorkerContext(mainWindow);
         }
 
         moduleRegistry.initialize(pipeline);
@@ -86,7 +102,11 @@ public class PipelineKernel<C extends RenderContext> {
                 .addPostTickPass(new PostTickAsyncGraphicsPass<>(), PostTickGraphicsPass.NAME);
 
         moduleRegistry.contributeToTickGraph(tickBuilder);
-        tickBuilder.addPreTickPass(new PreTickSwapDataPass<>());
+        if (tickBuilder.hasPreTickPass("transform_tick_swap")) {
+            tickBuilder.addPreTickPass(new PreTickSwapDataPass<>(), "transform_tick_swap");
+        } else {
+            tickBuilder.addPreTickPass(new PreTickSwapDataPass<>());
+        }
         this.compiledTickGraph = tickBuilder.compile();
 
         RenderGraphBuilder<C> frameBuilder = new RenderGraphBuilder<>(pipeline);
@@ -94,10 +114,10 @@ public class PipelineKernel<C extends RenderContext> {
         // Core pipeline passes: 3-pass cross-frame pipeline
         frameBuilder
                 .addPass(new SyncCommitPass<>())
-                .addPass(new SyncPreparePass<>(), SyncCommitPass.NAME)
-                .addPass(new AsyncRenderPass<>(), SyncPreparePass.NAME);
+                .addPass(new SyncPreparePass<>(), SyncCommitPass.NAME);
 
         moduleRegistry.contributeToFrameGraph(frameBuilder);
+        frameBuilder.addPass(new AsyncRenderPass<>(), SyncPreparePass.NAME);
 
         this.compiledFrameGraph = frameBuilder.compile();
     }
@@ -105,15 +125,17 @@ public class PipelineKernel<C extends RenderContext> {
     // ==================== Tick Lifecycle ====================
 
     /**
-     * PRE TICK: wait for the previous tick's async collection, upload the
-     * interpolation data that render will consume, then rotate per-tick buffers.
+     * PRE TICK: wait for the previous tick's async collection, prepare the
+     * interpolation builders that render will upload later, then rotate per-tick buffers.
      */
     public void onPreTick() {
         if (compiledTickGraph == null) {
             return;
         }
         TickContext<C> tickCtx = new TickContext<>(pipeline, this, pipeline.currentContext(), pipeline.currentLogicTick());
-        tickScheduler.execute(compiledTickGraph.preTickGraph(), tickCtx, true);
+        tickScheduler.awaitPendingAsync();
+        tickGlScheduler.awaitPendingAsync();
+        tickScheduler.execute(compiledTickGraph.preTickGraph(), tickCtx, false);
     }
 
     /**
@@ -126,6 +148,9 @@ public class PipelineKernel<C extends RenderContext> {
         }
         TickContext<C> tickCtx = new TickContext<>(pipeline, this, pipeline.currentContext(), pipeline.currentLogicTick());
         tickScheduler.execute(compiledTickGraph.postTickGraph(), tickCtx, false);
+        if (compiledTickGraph.postTickGlAsyncGraph().passCount() > 0) {
+            tickGlScheduler.execute(compiledTickGraph.postTickGlAsyncGraph(), tickCtx, false);
+        }
     }
 
     // ==================== Render Lifecycle ====================
@@ -152,6 +177,7 @@ public class PipelineKernel<C extends RenderContext> {
     public GraphicsPipeline<C> pipeline() { return pipeline; }
     public ModuleRegistry moduleRegistry() { return moduleRegistry; }
     public TaskGraphScheduler tickScheduler() { return tickScheduler; }
+    public TaskGraphScheduler tickGlScheduler() { return tickGlScheduler; }
     public TaskGraphScheduler frameScheduler() { return frameScheduler; }
 
     public boolean isGraphCompiled() {
@@ -166,5 +192,17 @@ public class PipelineKernel<C extends RenderContext> {
 
     public BuildResult consumeBuildResult() {
         return pendingBuildSlot.consume();
+    }
+
+    public void cleanup() {
+        moduleRegistry.cleanup();
+        tickScheduler.shutdown();
+        tickGlScheduler.shutdown();
+        frameScheduler.shutdown();
+
+        if (GLRuntimeFlags.GL_WORKER_ENABLED) {
+            GraphicsDriver.getCurrentAPI().destroyTickWorkerContext();
+            GraphicsDriver.getCurrentAPI().destroyRenderWorkerContext();
+        }
     }
 }

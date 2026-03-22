@@ -3,7 +3,7 @@ package rogo.sketch.vanilla.graphics;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import rogo.sketch.core.api.graphics.SyncTickTransformSource;
+import rogo.sketch.core.api.graphics.FrameTransformSource;
 import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.instance.MeshGraphics;
@@ -12,9 +12,9 @@ import rogo.sketch.core.transform.TransformWriter;
 import rogo.sketch.core.util.KeyId;
 
 /**
- * Player transform provider collected once per game tick after entity updates.
+ * Player transform provider collected in the frame graph after sync frame prepare.
  */
-public class PlayerGraphics extends MeshGraphics implements SyncTickTransformSource {
+public class PlayerGraphics extends MeshGraphics implements FrameTransformSource {
 
     public PlayerGraphics(KeyId keyId) {
         super(keyId);
@@ -48,10 +48,10 @@ public class PlayerGraphics extends MeshGraphics implements SyncTickTransformSou
     }
 
     @Override
-    public void writeSyncTickTransform(TransformWriter writer) {
+    public void writeFrameTransform(TransformWriter writer) {
         Player player = Minecraft.getInstance().player;
         if (player != null) {
-            Vec3 pos = player.position();
+            Vec3 pos = player.getPosition(Minecraft.getInstance().getPartialTick());
 
             writer.setPosition((float) pos.x, (float) pos.y, (float) pos.z);
 

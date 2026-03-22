@@ -10,14 +10,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * GPU upload pipeline for a subset of transform bindings.
+ * CPU/GPU upload pipeline for a subset of transform bindings.
  * <p>
- * At tick start it serializes interpolation data using:
+ * Tick-side and frame-side transform collection only mutate CPU-side builders.
+ * The frame graph performs the final SSBO upload after all authored data is ready.
+ * At interpolation-build time it serializes transform data using:
  * <ul>
  *   <li>the current tick buffer as the previous interpolation sample</li>
  *   <li>the pending write buffer as the current interpolation sample</li>
  * </ul>
- * The resulting buffers are later consumed by the transform compute graphics.
+ * Frame-authored bindings contribute a frame-local sample that is written as both
+ * interpolation endpoints.
  */
 public class TransformPipeline {
     private static final int INPUT_STRIDE = 128;
@@ -40,6 +43,7 @@ public class TransformPipeline {
     // State flags
     private boolean structureDirty = true;
     private boolean dataReady = false;
+    private boolean indexReady = false;
 
     // Dispatch ranges for Compute Shader
     private final List<LayerDispatchRange> dispatchRanges = new ArrayList<>();
@@ -70,7 +74,8 @@ public class TransformPipeline {
         maxDepth = Math.max(maxDepth, depth);
         activeCount++;
         structureDirty = true; // Indexes must be rebuilt
-        checkCapacity();
+        indexReady = false;
+        ensureCapacity();
     }
 
     public void remove(TransformBinding binding) {
@@ -87,6 +92,7 @@ public class TransformPipeline {
                 layer.remove(lastIdx);
                 activeCount--;
                 structureDirty = true;
+                indexReady = false;
             }
         }
     }
@@ -102,9 +108,10 @@ public class TransformPipeline {
         depthLayers.get(depth).add(binding);
         maxDepth = Math.max(maxDepth, depth);
         structureDirty = true;
+        indexReady = false;
     }
 
-    private void checkCapacity() {
+    private void ensureCapacity() {
         long currentCap = inputSSBO.getDataCount();
         if (activeCount > currentCap) {
             int newCap = Math.max(activeCount, (int) (currentCap * 1.5));
@@ -122,6 +129,7 @@ public class TransformPipeline {
             indexBuilder = UnsafeBatchBuilder.createInternal((long) newCap * INDEX_STRIDE);
 
             structureDirty = true; // Force index rebuild
+            indexReady = false;
         }
     }
 
@@ -131,26 +139,48 @@ public class TransformPipeline {
      * Build transform upload data for interpolation.
      * Uses the current tick buffer as previous and the pending write buffer as current.
      */
-    public void prepareInterpolationData() {
+    public void prepareInterpolationData(boolean frameSync) {
         if (activeCount == 0) return;
 
         inputBuilder.reset();
 
         long currentPtr = inputBuilder.getBaseAddress();
 
-        for (int d = 0; d <= maxDepth; d++) {
-            if (d >= depthLayers.size()) break;
-            List<TransformBinding> layer = depthLayers.get(d);
+        if (frameSync) {
+            for (int d = 0; d <= maxDepth; d++) {
+                if (d >= depthLayers.size()) break;
+                List<TransformBinding> layer = depthLayers.get(d);
 
-            for (int i = 0; i < layer.size(); i++) {
-                TransformBinding binding = layer.get(i);
-                TransformData.writeToBuffer(
-                        binding.currentTickData(),
-                        binding.pendingTickData(),
-                        currentPtr,
-                        binding.parentTransformId());
+                for (int i = 0; i < layer.size(); i++) {
+                    TransformBinding binding = layer.get(i);
 
-                currentPtr += INPUT_STRIDE;
+
+                    if (binding.updateDomain() == TransformUpdateDomain.SYNC_FRAME) {
+                        TransformData.writeToBuffer(
+                                binding.frameData(),
+                                binding.frameData(),
+                                currentPtr,
+                                binding.parentTransformId());
+                    }
+
+                    currentPtr += INPUT_STRIDE;
+                }
+            }
+        } else {
+            for (int d = 0; d <= maxDepth; d++) {
+                if (d >= depthLayers.size()) break;
+                List<TransformBinding> layer = depthLayers.get(d);
+
+                for (int i = 0; i < layer.size(); i++) {
+                    TransformBinding binding = layer.get(i);
+                    TransformData.writeToBuffer(
+                            binding.currentTickData(),
+                            binding.pendingTickData(),
+                            currentPtr,
+                            binding.parentTransformId());
+
+                    currentPtr += INPUT_STRIDE;
+                }
             }
         }
 
@@ -194,16 +224,24 @@ public class TransformPipeline {
         }
     }
 
+    public void prepareStructureBuffers() {
+        ensureCapacity();
+        if (!structureDirty) {
+            return;
+        }
+        rebuildIndices();
+        structureDirty = false;
+        indexReady = true;
+    }
+
     // ================== GPU Upload (Main Thread) ==================
 
     public void upload() {
         if (activeCount == 0) return;
 
-        if (structureDirty) {
-            rebuildIndices();
-
+        if (indexReady) {
             GraphicsDriver.getCurrentAPI().updateBuffer(indexSSBO.getHandle(), 0, indexBuilder.getWriteOffset(), indexBuilder.getBaseAddress());
-            structureDirty = false;
+            indexReady = false;
         }
 
         if (dataReady) {
@@ -230,6 +268,14 @@ public class TransformPipeline {
 
     public void markDataDirty() {
         dataReady = true;
+    }
+
+    public boolean isStructureDirty() {
+        return structureDirty;
+    }
+
+    public boolean isDataReady() {
+        return dataReady;
     }
 
     public void cleanup() {

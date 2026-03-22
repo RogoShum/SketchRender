@@ -327,6 +327,9 @@ public class SketchRender {
         // Register main thread for thread-domain guards
         ThreadDomainGuard.registerMainThread();
         McPipelineRegister.initPipeline();
+        RenderSystem.recordRenderCall(() -> {
+            McPipelineRegister.initKernel();
+        });
         UniformHookRegistry.getInstance().init();
         RenderFlowRegistry.getInstance().init();
         DefaultRenderStates.init();

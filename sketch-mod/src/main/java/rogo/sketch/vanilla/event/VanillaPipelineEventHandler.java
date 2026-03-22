@@ -452,11 +452,8 @@ public class VanillaPipelineEventHandler {
             case EARLY -> {
                 // Register vanilla stages first
                 MinecraftRenderStages.registerVanillaStages(mcPipeline);
-
                 RenderSystem.recordRenderCall(() -> {
-                    // Initialize PipelineKernel for the new architecture (dual-track)
-                    PipelineKernel<?> kernel = mcPipeline.getOrCreateKernel();
-                    // Register TransformModule
+                    PipelineKernel<?> kernel = mcPipeline.kernel();
                     kernel.moduleRegistry().register(new TransformModule());
                 });
             }
@@ -472,14 +469,6 @@ public class VanillaPipelineEventHandler {
                     SketchRender.LOGGER.warn("Warning: {} stages are still pending",
                             mcPipeline.getPendingStages().size());
                 }
-
-                RenderSystem.recordRenderCall(() -> {
-                    // Initialize the kernel (compiles render graph with contributed passes)
-                    PipelineKernel<?> kernel = mcPipeline.kernel();
-                    if (kernel != null) {
-                        kernel.initialize();
-                    }
-                });
             }
         }
     }

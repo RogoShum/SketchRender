@@ -12,11 +12,13 @@ public final class TickGraphBuilder<C extends RenderContext> {
     private final GraphicsPipeline<C> pipeline;
     private final RenderGraphBuilder<C> preTickBuilder;
     private final RenderGraphBuilder<C> postTickBuilder;
+    private final RenderGraphBuilder<C> postTickGlAsyncBuilder;
 
     public TickGraphBuilder(GraphicsPipeline<C> pipeline) {
         this.pipeline = pipeline;
         this.preTickBuilder = new RenderGraphBuilder<>(pipeline);
         this.postTickBuilder = new RenderGraphBuilder<>(pipeline);
+        this.postTickGlAsyncBuilder = new RenderGraphBuilder<>(pipeline);
     }
 
     public TickGraphBuilder<C> addPreTickPass(PipelinePass<C> pass, String... dependsOn) {
@@ -29,6 +31,11 @@ public final class TickGraphBuilder<C extends RenderContext> {
         return this;
     }
 
+    public TickGraphBuilder<C> addPostTickGlAsyncPass(PipelinePass<C> pass, String... dependsOn) {
+        postTickGlAsyncBuilder.addPass(pass, dependsOn);
+        return this;
+    }
+
     public boolean hasPreTickPass(String name) {
         return preTickBuilder.hasPass(name);
     }
@@ -37,11 +44,19 @@ public final class TickGraphBuilder<C extends RenderContext> {
         return postTickBuilder.hasPass(name);
     }
 
+    public boolean hasPostTickGlAsyncPass(String name) {
+        return postTickGlAsyncBuilder.hasPass(name);
+    }
+
     public GraphicsPipeline<C> pipeline() {
         return pipeline;
     }
 
     public CompiledTickGraph<C> compile() {
-        return new CompiledTickGraph<>(preTickBuilder.compile(), postTickBuilder.compile(), pipeline);
+        return new CompiledTickGraph<>(
+                preTickBuilder.compile(),
+                postTickBuilder.compile(),
+                postTickGlAsyncBuilder.compile(),
+                pipeline);
     }
 }

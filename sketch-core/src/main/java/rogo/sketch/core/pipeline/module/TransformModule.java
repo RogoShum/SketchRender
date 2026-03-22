@@ -1,38 +1,35 @@
 package rogo.sketch.core.pipeline.module;
 
-import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.api.graphics.AsyncTickTransformSource;
-import rogo.sketch.core.api.graphics.StaticTransformSource;
-import rogo.sketch.core.api.graphics.SyncTickTransformSource;
-import rogo.sketch.core.api.graphics.TransformIdAware;
+import rogo.sketch.core.api.graphics.*;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.PipelinePass;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
 import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
-import rogo.sketch.core.pipeline.graph.pass.PostTickAsyncGraphicsPass;
 import rogo.sketch.core.pipeline.graph.pass.PostTickGraphicsPass;
+import rogo.sketch.core.pipeline.graph.pass.SyncPreparePass;
 import rogo.sketch.core.pipeline.kernel.FrameContext;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
 import rogo.sketch.core.pipeline.kernel.annotation.AsyncOnly;
 import rogo.sketch.core.pipeline.kernel.annotation.SyncOnly;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.util.transform.MatrixManager;
 import rogo.sketch.core.util.transform.TransformBinding;
 import rogo.sketch.core.util.transform.TransformUpdateDomain;
-import rogo.sketch.core.util.transform.MatrixManager;
 
 /**
- * Tick-driven transform module.
+ * Mixed tick/frame transform module.
  * <p>
- * The module owns transform bindings and keeps transform work in the tick graph:
+ * The module owns transform bindings and keeps interpolation timing tick-owned:
  * <ul>
- *   <li>tick-start upload of interpolation data</li>
+ *   <li>tick-start interpolation builder preparation</li>
  *   <li>tick-start transform buffer rotation</li>
  *   <li>post-tick sync transform collection</li>
- *   <li>post-tick async transform collection submission</li>
+ *   <li>post-tick GL async transform collection submission</li>
+ *   <li>frame-pass collection for explicit SYNC_FRAME authors</li>
+ *   <li>frame-pass SSBO upload after all CPU-side data is ready</li>
  * </ul>
- * Render frames only consume the transform data prepared at tick boundaries.
  */
 public class TransformModule implements GraphicsModule {
     public static final String MODULE_NAME = "transform";
@@ -40,14 +37,20 @@ public class TransformModule implements GraphicsModule {
     private static final String PASS_TICK_SWAP = "transform_tick_swap";
     private static final String PASS_SYNC_TICK_COLLECT = "transform_sync_tick_collect";
     private static final String PASS_ASYNC_TICK_COLLECT = "transform_async_tick_collect";
+    private static final String PASS_FRAME_COLLECT = "transform_frame_collect";
+    private static final String PASS_FRAME_UPLOAD = "transform_frame_upload";
 
     private MatrixManager matrixManager;
 
     @Override
-    public String name() { return MODULE_NAME; }
+    public String name() {
+        return MODULE_NAME;
+    }
 
     @Override
-    public int priority() { return 100; } // Initialize early
+    public int priority() {
+        return 100;
+    } // Initialize early
 
     @Override
     public void initialize(GraphicsPipeline<?> pipeline) {
@@ -58,6 +61,7 @@ public class TransformModule implements GraphicsModule {
     public boolean supports(Graphics graphics) {
         return graphics instanceof SyncTickTransformSource
                 || graphics instanceof AsyncTickTransformSource
+                || graphics instanceof FrameTransformSource
                 || graphics instanceof StaticTransformSource;
     }
 
@@ -95,14 +99,13 @@ public class TransformModule implements GraphicsModule {
                 .addPreTickPass(new TransformTickUploadPass<>())
                 .addPreTickPass(new TransformTickSwapPass<>(), PASS_TICK_UPLOAD)
                 .addPostTickPass(new TransformSyncTickPass<>(), PostTickGraphicsPass.NAME)
-                .addPostTickPass(new TransformAsyncTickPass<>(), PASS_SYNC_TICK_COLLECT, PostTickAsyncGraphicsPass.NAME);
+                .addPostTickGlAsyncPass(new TransformAsyncTickPass<>());
     }
 
     @Override
     public <C extends RenderContext> void contributeToFrameGraph(RenderGraphBuilder<C> builder) {
-        // Transform interpolation data is prepared on tick boundaries.
-        // The render graph consumes the uploaded SSBO data and does not
-        // rebuild tick-owned transform snapshots.
+        builder.addPass(new TransformFrameCollectPass<>(), SyncPreparePass.NAME);
+        builder.addPass(new TransformFrameUploadPass<>(), PASS_FRAME_COLLECT);
     }
 
     @Override
@@ -129,6 +132,10 @@ public class TransformModule implements GraphicsModule {
             resolved = TransformUpdateDomain.ASYNC_TICK;
             domainCount++;
         }
+        if (graphics instanceof FrameTransformSource) {
+            resolved = TransformUpdateDomain.SYNC_FRAME;
+            domainCount++;
+        }
         if (graphics instanceof StaticTransformSource) {
             resolved = TransformUpdateDomain.STATIC;
             domainCount++;
@@ -149,26 +156,34 @@ public class TransformModule implements GraphicsModule {
 
     private class TransformTickUploadPass<C extends RenderContext> implements PipelinePass<C> {
         @Override
-        public String name() { return PASS_TICK_UPLOAD; }
+        public String name() {
+            return PASS_TICK_UPLOAD;
+        }
 
         @Override
-        public ThreadDomain threadDomain() { return ThreadDomain.SYNC; }
+        public ThreadDomain threadDomain() {
+            return ThreadDomain.SYNC;
+        }
 
         @Override
-        @SyncOnly("Upload previous/current tick transform data")
+        @SyncOnly("Prepare previous/current tick interpolation builders")
         public void execute(FrameContext<C> ctx) {
             if (matrixManager != null) {
-                matrixManager.uploadInterpolationData();
+                //matrixManager.uploadFrameBuffers();
             }
         }
     }
 
     private class TransformTickSwapPass<C extends RenderContext> implements PipelinePass<C> {
         @Override
-        public String name() { return PASS_TICK_SWAP; }
+        public String name() {
+            return PASS_TICK_SWAP;
+        }
 
         @Override
-        public ThreadDomain threadDomain() { return ThreadDomain.SYNC; }
+        public ThreadDomain threadDomain() {
+            return ThreadDomain.SYNC;
+        }
 
         @Override
         @SyncOnly("Rotate transform tick buffers")
@@ -181,10 +196,14 @@ public class TransformModule implements GraphicsModule {
 
     private class TransformSyncTickPass<C extends RenderContext> implements PipelinePass<C> {
         @Override
-        public String name() { return PASS_SYNC_TICK_COLLECT; }
+        public String name() {
+            return PASS_SYNC_TICK_COLLECT;
+        }
 
         @Override
-        public ThreadDomain threadDomain() { return ThreadDomain.SYNC; }
+        public ThreadDomain threadDomain() {
+            return ThreadDomain.SYNC;
+        }
 
         @Override
         @SyncOnly("Collect sync transform data on main thread")
@@ -197,16 +216,62 @@ public class TransformModule implements GraphicsModule {
 
     private class TransformAsyncTickPass<C extends RenderContext> implements PipelinePass<C> {
         @Override
-        public String name() { return PASS_ASYNC_TICK_COLLECT; }
+        public String name() {
+            return PASS_ASYNC_TICK_COLLECT;
+        }
 
         @Override
-        public ThreadDomain threadDomain() { return ThreadDomain.ASYNC; }
+        public ThreadDomain threadDomain() {
+            return ThreadDomain.ASYNC;
+        }
 
         @Override
         @AsyncOnly("Collect async transform data on tick worker")
         public void execute(FrameContext<C> ctx) {
             if (matrixManager != null) {
                 matrixManager.collectAsyncTickTransforms();
+                matrixManager.prepareTickBuffers();
+            }
+        }
+    }
+
+    private class TransformFrameCollectPass<C extends RenderContext> implements PipelinePass<C> {
+        @Override
+        public String name() {
+            return PASS_FRAME_COLLECT;
+        }
+
+        @Override
+        public ThreadDomain threadDomain() {
+            return ThreadDomain.SYNC;
+        }
+
+        @Override
+        @SyncOnly("Collect frame-authored transform data on main thread")
+        public void execute(FrameContext<C> ctx) {
+            if (matrixManager != null) {
+                matrixManager.collectFrameTransforms();
+                matrixManager.prepareFrameBuffer();
+            }
+        }
+    }
+
+    private class TransformFrameUploadPass<C extends RenderContext> implements PipelinePass<C> {
+        @Override
+        public String name() {
+            return PASS_FRAME_UPLOAD;
+        }
+
+        @Override
+        public ThreadDomain threadDomain() {
+            return ThreadDomain.SYNC;
+        }
+
+        @Override
+        @SyncOnly("Upload transform SSBOs after frame collect")
+        public void execute(FrameContext<C> ctx) {
+            if (matrixManager != null) {
+                matrixManager.uploadFrameBuffers();
             }
         }
     }

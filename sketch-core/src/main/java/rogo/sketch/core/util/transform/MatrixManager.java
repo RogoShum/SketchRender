@@ -3,6 +3,7 @@ package rogo.sketch.core.util.transform;
 import org.lwjgl.opengl.GL15;
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.api.graphics.AsyncTickTransformSource;
+import rogo.sketch.core.api.graphics.FrameTransformSource;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.api.graphics.StaticTransformSource;
 import rogo.sketch.core.api.graphics.SyncTickTransformSource;
@@ -17,12 +18,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Tick-driven transform manager.
+ * Mixed tick/frame transform manager.
  * <p>
- * Each binding owns three tick buffers:
- * one older tick buffer, one current tick buffer, and one pending write buffer.
- * At tick start we upload interpolation data from current/write, then rotate the
- * buffers so the pending write data becomes the new current tick baseline.
+ * Tick lifecycle owns interpolation timing through previous/current/write buffers.
+ * Frame lifecycle may contribute additional {@link TransformUpdateDomain#SYNC_FRAME}
+ * samples before the final SSBO upload.
  */
 public class MatrixManager {
     private static final int OUTPUT_STRIDE = 64;
@@ -69,6 +69,10 @@ public class MatrixManager {
             binding.seedAllTickBuffers(initial);
         }
 
+        if (updateDomain == TransformUpdateDomain.SYNC_FRAME) {
+            binding.frameData().reset();
+        }
+
         if (updateDomain == TransformUpdateDomain.ASYNC_TICK) {
             asyncPipeline.add(binding);
         } else {
@@ -111,25 +115,27 @@ public class MatrixManager {
     }
 
     /**
-     * Upload interpolation data for the upcoming render frames.
+     * Prepare CPU-side interpolation builders for the upcoming render frames.
      * Called at tick start after previous async transform collection is finished.
      */
-    public void uploadInterpolationData() {
-        ensureOutputCapacity();
+    public void prepareTickBuffers() {
         resolveAllHierarchy();
-        syncPipeline.prepareInterpolationData();
-        asyncPipeline.prepareInterpolationData();
-        syncPipeline.upload();
-        asyncPipeline.upload();
+        ensureOutputCapacity();
+        syncPipeline.prepareStructureBuffers();
+        asyncPipeline.prepareStructureBuffers();
+        syncPipeline.prepareInterpolationData(false);
+        asyncPipeline.prepareInterpolationData(false);
     }
 
     /**
-     * Rotate tick buffers after interpolation data has been uploaded.
+     * Rotate tick buffers after interpolation builders have been prepared.
      * After rotation the previously pending write buffer becomes the new current tick state.
      */
     public void swapTickBuffers() {
         for (TransformBinding binding : bindingsById.values()) {
-            binding.swapTickBuffers();
+            if (binding.updateDomain() != TransformUpdateDomain.SYNC_FRAME) {
+                binding.swapTickBuffers();
+            }
         }
     }
 
@@ -157,14 +163,28 @@ public class MatrixManager {
         }
     }
 
-    public TransformData interpolationPreviousTickData(int transformId) {
-        TransformBinding binding = bindingsById.get(transformId);
-        return binding != null ? binding.currentTickData() : null;
+    /**
+     * Collect frame-authored transforms after SyncPreparePass.
+     */
+    public void collectFrameTransforms() {
+        for (TransformBinding binding : bindingsById.values()) {
+            if (binding.updateDomain() == TransformUpdateDomain.SYNC_FRAME && binding.graphics() instanceof FrameTransformSource source) {
+                source.writeFrameTransform(binding.frameData());
+            }
+        }
     }
 
-    public TransformData interpolationCurrentTickData(int transformId) {
-        TransformBinding binding = bindingsById.get(transformId);
-        return binding != null ? binding.pendingTickData() : null;
+    public void prepareFrameBuffer() {
+        syncPipeline.prepareInterpolationData(true);
+    }
+
+    /**
+     * Upload the prepared transform builders after both tick-owned and frame-owned
+     * CPU buffers are up to date.
+     */
+    public void uploadFrameBuffers() {
+        syncPipeline.upload();
+        asyncPipeline.upload();
     }
 
     public ResourceObject getOutputSSBO() {

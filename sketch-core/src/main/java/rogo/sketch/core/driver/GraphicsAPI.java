@@ -20,8 +20,10 @@ import java.nio.FloatBuffer;
 public abstract class GraphicsAPI {
 
     private volatile Thread mainThread;
-    private volatile Thread workerThread;
+    private volatile Thread renderWorkerThread;
+    private volatile Thread tickWorkerThread;
     private volatile boolean renderWorkerReady = false;
+    private volatile boolean tickWorkerReady = false;
     private static final boolean GUARD_ENABLED = Boolean.getBoolean("sketch.threadguard.enabled");
 
     // ==================== Render Worker Context Lifecycle ====================
@@ -35,21 +37,46 @@ public abstract class GraphicsAPI {
     public void initRenderWorkerContext(long mainWindowHandle) { }
 
     /**
+     * Initialize the dedicated tick GL worker context from the main thread.
+     * OpenGL: creates another hidden shared GLFW window. Vulkan: no-op.
+     *
+     * @param mainWindowHandle platform window handle (e.g. GLFW window pointer)
+     */
+    public void initTickWorkerContext(long mainWindowHandle) { }
+
+    /**
      * Called once on the render worker thread at startup.
      * OpenGL: glfwMakeContextCurrent(shared) + GL.createCapabilities(). Vulkan: no-op.
      */
-    public void onWorkerThreadStart() { }
+    public void onRenderWorkerThreadStart() { }
+
+    /**
+     * Called once on the dedicated tick GL worker thread at startup.
+     * OpenGL: glfwMakeContextCurrent(shared) + GL.createCapabilities(). Vulkan: no-op.
+     */
+    public void onTickWorkerThreadStart() { }
 
     /**
      * Called once on the render worker thread at shutdown.
      * OpenGL: glfwMakeContextCurrent(0). Vulkan: no-op.
      */
-    public void onWorkerThreadEnd() { }
+    public void onRenderWorkerThreadEnd() { }
+
+    /**
+     * Called once on the dedicated tick GL worker thread at shutdown.
+     * OpenGL: glfwMakeContextCurrent(0). Vulkan: no-op.
+     */
+    public void onTickWorkerThreadEnd() { }
 
     /**
      * Destroy the render worker context. Called from the main thread.
      */
     public void destroyRenderWorkerContext() { }
+
+    /**
+     * Destroy the dedicated tick worker context. Called from the main thread.
+     */
+    public void destroyTickWorkerContext() { }
 
     /**
      * Whether the render worker context has been initialized and is ready.
@@ -60,6 +87,14 @@ public abstract class GraphicsAPI {
 
     protected void setRenderWorkerReady(boolean ready) {
         this.renderWorkerReady = ready;
+    }
+
+    public boolean isTickWorkerReady() {
+        return tickWorkerReady;
+    }
+
+    protected void setTickWorkerReady(boolean ready) {
+        this.tickWorkerReady = ready;
     }
 
     // ==================== Thread Management ====================
@@ -74,8 +109,15 @@ public abstract class GraphicsAPI {
     /**
      * Register the worker thread. Called by the scheduler's thread factory.
      */
-    public void registerWorkerThread() {
-        this.workerThread = Thread.currentThread();
+    public void registerRenderWorkerThread() {
+        this.renderWorkerThread = Thread.currentThread();
+    }
+
+    /**
+     * Register the dedicated tick GL worker thread.
+     */
+    public void registerTickWorkerThread() {
+        this.tickWorkerThread = Thread.currentThread();
     }
 
     /**
@@ -88,8 +130,15 @@ public abstract class GraphicsAPI {
     /**
      * Whether the current thread is the registered worker thread.
      */
-    public boolean isWorkerThread() {
-        return workerThread != null && Thread.currentThread() == workerThread;
+    public boolean isRenderWorkerThread() {
+        return renderWorkerThread != null && Thread.currentThread() == renderWorkerThread;
+    }
+
+    /**
+     * Whether the current thread is the dedicated tick GL worker thread.
+     */
+    public boolean isTickWorkerThread() {
+        return tickWorkerThread != null && Thread.currentThread() == tickWorkerThread;
     }
 
     /**
@@ -98,7 +147,11 @@ public abstract class GraphicsAPI {
      */
     public boolean isCurrentThreadGLCapable() {
         if (isMainThread()) return true;
-        return GLRuntimeFlags.GL_WORKER_ENABLED && renderWorkerReady && isWorkerThread();
+        if (!GLRuntimeFlags.GL_WORKER_ENABLED) {
+            return false;
+        }
+        return (renderWorkerReady && isRenderWorkerThread())
+                || (tickWorkerReady && isTickWorkerThread());
     }
 
     /**
@@ -115,8 +168,10 @@ public abstract class GraphicsAPI {
                     "[GraphicsAPI] GL context required for '" + caller +
                     "' but current thread [" + Thread.currentThread().getName() +
                     "] has no context. Main=[" + (mainThread != null ? mainThread.getName() : "null") +
-                    "], Worker=[" + (workerThread != null ? workerThread.getName() : "null") +
-                    "], workerReady=" + renderWorkerReady);
+                    "], RenderWorker=[" + (renderWorkerThread != null ? renderWorkerThread.getName() : "null") +
+                    "], TickWorker=[" + (tickWorkerThread != null ? tickWorkerThread.getName() : "null") +
+                    "], renderWorkerReady=" + renderWorkerReady +
+                    ", tickWorkerReady=" + tickWorkerReady);
         }
     }
 

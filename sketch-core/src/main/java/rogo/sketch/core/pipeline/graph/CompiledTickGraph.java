@@ -11,6 +11,7 @@ import rogo.sketch.core.pipeline.RenderContext;
 public record CompiledTickGraph<C extends RenderContext>(
         CompiledRenderGraph<C> preTickGraph,
         CompiledRenderGraph<C> postTickGraph,
+        CompiledRenderGraph<C> postTickGlAsyncGraph,
         GraphicsPipeline<C> pipeline
 ) {
 }

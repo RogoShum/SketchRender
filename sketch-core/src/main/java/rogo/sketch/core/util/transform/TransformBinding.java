@@ -16,6 +16,7 @@ public final class TransformBinding {
     @Nullable
     private final TransformParentSource parentSource;
     private final TripleBuffer<TransformData> tickBuffers = new TripleBuffer<>(TransformData::new);
+    private final TransformData frameData = new TransformData();
     private int parentTransformId = -1;
     private int depth = 0;
 
@@ -70,6 +71,10 @@ public final class TransformBinding {
 
     public TransformData pendingTickData() {
         return tickBuffers.getWrite();
+    }
+
+    public TransformData frameData() {
+        return frameData;
     }
 
     public void swapTickBuffers() {

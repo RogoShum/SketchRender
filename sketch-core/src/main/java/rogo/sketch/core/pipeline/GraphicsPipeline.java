@@ -257,16 +257,21 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Initialize the pipeline and post initialization events
      */
-    public void initialize() {
+    public void initPipeline() {
         if (initialized) {
             return;
         }
 
+        createKernel();
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.EARLY));
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.NORMAL));
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.LATE));
 
         initialized = true;
+    }
+
+    public void initKernel() {
+        kernel.initialize();
     }
 
     public void initStaticGraphics() {
@@ -497,7 +502,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Get or create the PipelineKernel for the new architecture.
      */
-    public PipelineKernel<C> getOrCreateKernel() {
+    protected PipelineKernel<C> createKernel() {
         if (kernel == null) {
             kernel = new PipelineKernel<>(this);
         }
