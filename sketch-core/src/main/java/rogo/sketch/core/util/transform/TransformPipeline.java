@@ -4,27 +4,28 @@ import org.lwjgl.opengl.GL15;
 import rogo.sketch.core.data.builder.UnsafeBatchBuilder;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
-import rogo.sketch.core.transform.Transform;
+import rogo.sketch.core.transform.TransformData;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A standalone pipeline that manages a subset of transforms (Sync or Async).
- * Handles:
- * - Depth-sorted storage
- * - Input Data generation (CPU -> Builder)
- * - Index Data generation (Structure -> Builder)
- * - GPU Upload
+ * GPU upload pipeline for a subset of transform bindings.
+ * <p>
+ * At tick start it serializes interpolation data using:
+ * <ul>
+ *   <li>the current tick buffer as the previous interpolation sample</li>
+ *   <li>the pending write buffer as the current interpolation sample</li>
+ * </ul>
+ * The resulting buffers are later consumed by the transform compute graphics.
  */
 public class TransformPipeline {
-    // 128 bytes input stride
-    private static final int INPUT_STRIDE = Transform.SSBO_STRIDE;
+    private static final int INPUT_STRIDE = 128;
     // 4 bytes index stride (int)
     private static final int INDEX_STRIDE = 4;
 
-    // Hierarchy management: List of Layers, each Layer is a List of Transforms
-    private final List<List<Transform>> depthLayers = new ArrayList<>();
+    // Hierarchy management: List of Layers, each Layer is a List of bindings
+    private final List<List<TransformBinding>> depthLayers = new ArrayList<>();
     private int maxDepth = 0;
     private int activeCount = 0;
 
@@ -37,8 +38,8 @@ public class TransformPipeline {
     private UnsafeBatchBuilder indexBuilder;
 
     // State flags
-    private boolean structureDirty = true; // True if objects added/removed/depth-changed
-    private boolean dataReady = false;     // True if logic processed and ready for upload
+    private boolean structureDirty = true;
+    private boolean dataReady = false;
 
     // Dispatch ranges for Compute Shader
     private final List<LayerDispatchRange> dispatchRanges = new ArrayList<>();
@@ -60,24 +61,24 @@ public class TransformPipeline {
 
     // ================== Management (Main Thread) ==================
 
-    public void add(Transform t) {
-        int depth = t.getDepth();
+    public void add(TransformBinding binding) {
+        int depth = binding.depth();
         while (depthLayers.size() <= depth) {
             depthLayers.add(new ArrayList<>());
         }
-        depthLayers.get(depth).add(t);
+        depthLayers.get(depth).add(binding);
         maxDepth = Math.max(maxDepth, depth);
         activeCount++;
         structureDirty = true; // Indexes must be rebuilt
         checkCapacity();
     }
 
-    public void remove(Transform t) {
-        int depth = t.getDepth();
+    public void remove(TransformBinding binding) {
+        int depth = binding.depth();
         if (depth < depthLayers.size()) {
-            List<Transform> layer = depthLayers.get(depth);
+            List<TransformBinding> layer = depthLayers.get(depth);
             // Use swap-remove for O(1), order change is fine because we rebuild indices
-            int idx = layer.indexOf(t);
+            int idx = layer.indexOf(binding);
             if (idx != -1) {
                 int lastIdx = layer.size() - 1;
                 if (idx != lastIdx) {
@@ -90,14 +91,17 @@ public class TransformPipeline {
         }
     }
 
-    public void onDepthChanged(Transform t, int oldDepth) {
-        // Remove from old layer (manual logic to avoid full remove() overhead if needed)
+    public void onDepthChanged(TransformBinding binding, int oldDepth) {
         if (oldDepth < depthLayers.size()) {
-            depthLayers.get(oldDepth).remove(t); // Optimization: Swap-remove here too
+            depthLayers.get(oldDepth).remove(binding);
         }
-        // Add to new
-        add(t);
-        // Note: activeCount doesn't change, but structure is dirty
+        int depth = binding.depth();
+        while (depthLayers.size() <= depth) {
+            depthLayers.add(new ArrayList<>());
+        }
+        depthLayers.get(depth).add(binding);
+        maxDepth = Math.max(maxDepth, depth);
+        structureDirty = true;
     }
 
     private void checkCapacity() {
@@ -121,42 +125,37 @@ public class TransformPipeline {
         }
     }
 
-    // ================== Logic Processing (Thread Agnostic) ==================
+    // ================== Tick Upload Preparation ==================
 
     /**
-     * Processing Logic.
-     * Can be called from Main Thread (Sync) or Worker Thread (Async).
-     * Writes Transform data to the Input Builder.
+     * Build transform upload data for interpolation.
+     * Uses the current tick buffer as previous and the pending write buffer as current.
      */
-    public void processLogic() {
+    public void prepareInterpolationData() {
         if (activeCount == 0) return;
 
         inputBuilder.reset();
 
-        // 1. 获取起始内存地址
         long currentPtr = inputBuilder.getBaseAddress();
 
-        // IMPORTANT: Must iterate in exactly the same order as rebuildIndices()
-        // We iterate depth 0 -> maxDepth
         for (int d = 0; d <= maxDepth; d++) {
             if (d >= depthLayers.size()) break;
-            List<Transform> layer = depthLayers.get(d);
+            List<TransformBinding> layer = depthLayers.get(d);
 
             for (int i = 0; i < layer.size(); i++) {
-                Transform t = layer.get(i);
-                int parentId = (t.getParent() != null) ? t.getParent().getRegisteredId() : -1;
+                TransformBinding binding = layer.get(i);
+                TransformData.writeToBuffer(
+                        binding.currentTickData(),
+                        binding.pendingTickData(),
+                        currentPtr,
+                        binding.parentTransformId());
 
-                // 2. 写入数据到当前指针位置 (使用 ptr)
-                t.swapData();
-                t.writeToBuffer(currentPtr, parentId);
-
-                // 3. 关键修正：指针后移一个 Stride (128字节)，指向下一个对象的内存槽位
                 currentPtr += INPUT_STRIDE;
             }
         }
 
         inputBuilder.setWriteOffset(currentPtr - inputBuilder.getBaseAddress());
-        dataReady = true;
+        markDataDirty();
     }
 
     // ================== Structure Update (Main Thread) ==================
@@ -177,7 +176,7 @@ public class TransformPipeline {
                 continue;
             }
 
-            List<Transform> layer = depthLayers.get(d);
+            List<TransformBinding> layer = depthLayers.get(d);
             int count = layer.size();
 
             if (count > 0) {
@@ -186,7 +185,7 @@ public class TransformPipeline {
 
                 // Write Real IDs to builder
                 for (int i = 0; i < count; i++) {
-                    indexBuilder.put(layer.get(i).getRegisteredId());
+                    indexBuilder.put(layer.get(i).transformId());
                 }
                 currentOffset += count;
             } else {
@@ -200,7 +199,6 @@ public class TransformPipeline {
     public void upload() {
         if (activeCount == 0) return;
 
-        // 1. Handle Structure Changes (Index Buffer)
         if (structureDirty) {
             rebuildIndices();
 
@@ -208,7 +206,6 @@ public class TransformPipeline {
             structureDirty = false;
         }
 
-        // 2. Handle Data Update (Input Buffer)
         if (dataReady) {
             GraphicsDriver.getCurrentAPI().updateBuffer(inputSSBO.getHandle(), 0, inputBuilder.getWriteOffset(), inputBuilder.getBaseAddress());
             dataReady = false;
@@ -229,6 +226,10 @@ public class TransformPipeline {
 
     public int getMaxDepth() {
         return maxDepth;
+    }
+
+    public void markDataDirty() {
+        dataReady = true;
     }
 
     public void cleanup() {

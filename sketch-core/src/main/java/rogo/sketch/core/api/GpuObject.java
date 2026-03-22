@@ -11,4 +11,3 @@ public interface GpuObject extends ResourceObject {
      */
     int getHandle();
 }
-

@@ -469,11 +469,11 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Get all pipeline data stores (for passes that need to reset them).
      */
-    public java.util.Collection<PipelineDataStore> getAllPipelineDataStores() {
+    public Collection<PipelineDataStore> getAllPipelineDataStores() {
         return pipelineDataStores.values();
     }
 
-    public java.util.Collection<FrameDataStore> getAllFrameDataStores() {
+    public Collection<FrameDataStore> getAllFrameDataStores() {
         return frameDataStores.values();
     }
 

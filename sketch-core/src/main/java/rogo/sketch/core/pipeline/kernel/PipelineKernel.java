@@ -1,17 +1,17 @@
 package rogo.sketch.core.pipeline.kernel;
 
+import org.lwjgl.glfw.GLFW;
 import rogo.sketch.core.driver.GLRuntimeFlags;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.graph.CompiledTickGraph;
 import rogo.sketch.core.pipeline.graph.CompiledRenderGraph;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
+import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
 import rogo.sketch.core.pipeline.graph.pass.*;
 import rogo.sketch.core.pipeline.graph.scheduler.TaskGraphScheduler;
 import rogo.sketch.core.pipeline.module.ModuleRegistry;
-import rogo.sketch.core.util.TimerUtil;
-
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -42,17 +42,19 @@ public class PipelineKernel<C extends RenderContext> {
 
     private final GraphicsPipeline<C> pipeline;
     private final ModuleRegistry moduleRegistry;
-    private final TaskGraphScheduler scheduler;
+    private final TaskGraphScheduler tickScheduler;
+    private final TaskGraphScheduler frameScheduler;
     private final PendingBuildSlot pendingBuildSlot = new PendingBuildSlot();
 
-    private CompiledRenderGraph<C> compiledGraph;
+    private CompiledTickGraph<C> compiledTickGraph;
+    private CompiledRenderGraph<C> compiledFrameGraph;
     private long frameNumber = 0;
-    private CompletableFuture<Void> asyncTickTask = CompletableFuture.completedFuture(null);
 
     public PipelineKernel(GraphicsPipeline<C> pipeline) {
         this.pipeline = pipeline;
         this.moduleRegistry = new ModuleRegistry();
-        this.scheduler = new TaskGraphScheduler();
+        this.tickScheduler = new TaskGraphScheduler(TICK_EXECUTOR, false);
+        this.frameScheduler = new TaskGraphScheduler();
     }
 
     /**
@@ -64,58 +66,66 @@ public class PipelineKernel<C extends RenderContext> {
 
         // Initialize render worker context if GL worker is enabled
         if (GLRuntimeFlags.GL_WORKER_ENABLED) {
-            long mainWindow = org.lwjgl.glfw.GLFW.glfwGetCurrentContext();
+            long mainWindow = GLFW.glfwGetCurrentContext();
             GraphicsDriver.getCurrentAPI().initRenderWorkerContext(mainWindow);
         }
 
         moduleRegistry.initialize(pipeline);
-        rebuildGraph();
+        rebuildGraphs();
     }
 
     /**
-     * Rebuild the render graph from the current module set.
+     * Rebuild the tick and frame graphs from the current module set.
+     * Tick graph prepares interpolation data at tick boundaries, while the
+     * frame graph remains a staged sync-front / async-tail render pipeline.
      */
-    public void rebuildGraph() {
-        RenderGraphBuilder<C> builder = new RenderGraphBuilder<>(pipeline);
+    public void rebuildGraphs() {
+        TickGraphBuilder<C> tickBuilder = new TickGraphBuilder<>(pipeline);
+        tickBuilder
+                .addPostTickPass(new PostTickGraphicsPass<>())
+                .addPostTickPass(new PostTickAsyncGraphicsPass<>(), PostTickGraphicsPass.NAME);
+
+        moduleRegistry.contributeToTickGraph(tickBuilder);
+        tickBuilder.addPreTickPass(new PreTickSwapDataPass<>());
+        this.compiledTickGraph = tickBuilder.compile();
+
+        RenderGraphBuilder<C> frameBuilder = new RenderGraphBuilder<>(pipeline);
 
         // Core pipeline passes: 3-pass cross-frame pipeline
-        builder
+        frameBuilder
                 .addPass(new SyncCommitPass<>())
                 .addPass(new SyncPreparePass<>(), SyncCommitPass.NAME)
                 .addPass(new AsyncRenderPass<>(), SyncPreparePass.NAME);
 
-        // Let each module contribute passes
-        moduleRegistry.contributeToGraph(builder);
+        moduleRegistry.contributeToFrameGraph(frameBuilder);
 
-        this.compiledGraph = builder.compile();
+        this.compiledFrameGraph = frameBuilder.compile();
     }
 
     // ==================== Tick Lifecycle ====================
 
     /**
-     * PRE TICK: wait for async tick, swap data.
+     * PRE TICK: wait for the previous tick's async collection, upload the
+     * interpolation data that render will consume, then rotate per-tick buffers.
      */
     public void onPreTick() {
-        if (!asyncTickTask.isDone()) {
-            final String waitTimerName = "wait.async_tick_task";
-            TimerUtil.COMMAND_TIMER.start(waitTimerName);
-            try {
-                asyncTickTask.join();
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                TimerUtil.COMMAND_TIMER.end(waitTimerName);
-            }
+        if (compiledTickGraph == null) {
+            return;
         }
-        pipeline.swapGraphicsData();
+        TickContext<C> tickCtx = new TickContext<>(pipeline, this, pipeline.currentContext(), pipeline.currentLogicTick());
+        tickScheduler.execute(compiledTickGraph.preTickGraph(), tickCtx, true);
     }
 
     /**
-     * POST TICK: sync tick, then launch async tick.
+     * POST TICK: after the game tick updates world state, collect sync transform
+     * data and enqueue async transform collection for the remaining tick budget.
      */
     public void onPostTick() {
-        pipeline.tickGraphics();
-        asyncTickTask = CompletableFuture.runAsync(pipeline::asyncTickGraphics, TICK_EXECUTOR);
+        if (compiledTickGraph == null) {
+            return;
+        }
+        TickContext<C> tickCtx = new TickContext<>(pipeline, this, pipeline.currentContext(), pipeline.currentLogicTick());
+        tickScheduler.execute(compiledTickGraph.postTickGraph(), tickCtx, false);
     }
 
     // ==================== Render Lifecycle ====================
@@ -130,10 +140,10 @@ public class PipelineKernel<C extends RenderContext> {
         FrameContext<C> frameCtx = new FrameContext<>(
                 pipeline, this, renderContext, frameNumber++);
 
-        if (compiledGraph != null) {
+        if (compiledFrameGraph != null) {
             // Cross-frame: async pass publishes result to PendingBuildSlot;
             // waitAtFrameEnd=false so we don't block on the current frame's async build.
-            scheduler.execute(compiledGraph, frameCtx);
+            frameScheduler.execute(compiledFrameGraph, frameCtx, false);
         }
     }
 
@@ -141,10 +151,11 @@ public class PipelineKernel<C extends RenderContext> {
 
     public GraphicsPipeline<C> pipeline() { return pipeline; }
     public ModuleRegistry moduleRegistry() { return moduleRegistry; }
-    public TaskGraphScheduler scheduler() { return scheduler; }
+    public TaskGraphScheduler tickScheduler() { return tickScheduler; }
+    public TaskGraphScheduler frameScheduler() { return frameScheduler; }
 
     public boolean isGraphCompiled() {
-        return compiledGraph != null;
+        return compiledTickGraph != null && compiledFrameGraph != null;
     }
 
     public void publishBuildResult(BuildResult buildResult) {

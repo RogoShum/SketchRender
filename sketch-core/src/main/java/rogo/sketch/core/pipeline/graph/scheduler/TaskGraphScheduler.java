@@ -11,14 +11,12 @@ import rogo.sketch.core.pipeline.kernel.ThreadDomain;
 import rogo.sketch.core.util.TimerUtil;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Executes a {@link CompiledRenderGraph} respecting thread-domain constraints.
+ * Executes a compiled graph using a staged async-tail scheduler.
  * <p>
  * The render worker thread (Sketch-RenderTask-Worker) acquires the shared GL context
  * on first task execution and releases it on shutdown, managed via
@@ -26,7 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </p>
  * <p>
  * SYNC passes run on the calling (main) thread.
- * ASYNC passes are dispatched to the single render worker thread.
+ * ASYNC passes are collected during graph iteration and submitted once at the end.
+ * The scheduler waits for the previous async batch at the beginning of the next execute.
  * ANY passes run on the current thread.
  * </p>
  */
@@ -41,15 +40,34 @@ public class TaskGraphScheduler {
                 return t;
             });
 
+    private final ExecutorService workerPool;
+    private final boolean manageGlContext;
     private CompletableFuture<Void> pendingAsyncBatch = CompletableFuture.completedFuture(null);
     private volatile String pendingAsyncPassName = "none";
 
+    public TaskGraphScheduler() {
+        this(WORKER_POOL, true);
+    }
+
+    public TaskGraphScheduler(ExecutorService workerPool, boolean manageGlContext) {
+        this.workerPool = workerPool;
+        this.manageGlContext = manageGlContext;
+    }
 
     /**
      * Execute all passes in the compiled graph.
      *
      */
     public <C extends RenderContext> void execute(CompiledRenderGraph<C> graph, FrameContext<C> ctx) {
+        execute(graph, ctx, false);
+    }
+
+    /**
+     * Execute all passes in the compiled graph and optionally wait for the async
+     * tail batch before returning.
+     */
+    public <C extends RenderContext> void execute(CompiledRenderGraph<C> graph, FrameContext<C> ctx,
+                                                  boolean waitForAsyncAtEnd) {
         SimpleProfiler.get().begin("execute", "MainThread");
 
         waitForPendingAsync();
@@ -93,18 +111,10 @@ public class TaskGraphScheduler {
         }
 
         if (!asyncTaskQueue.isEmpty()) {
-            SimpleProfiler.get().begin("Submit AsyncBatch", "MainThread");
-
-            pendingAsyncBatch = CompletableFuture.runAsync(() -> {
-                ensureWorkerContextInitialized();
-
-                Runnable task;
-                while ((task = asyncTaskQueue.poll()) != null) {
-                    task.run();
-                }
-            }, WORKER_POOL);
-
-            SimpleProfiler.get().end("Submit AsyncBatch", "MainThread");
+            submitAsyncQueue(asyncTaskQueue);
+            if (waitForAsyncAtEnd) {
+                waitForPendingAsync();
+            }
         }
 
         SimpleProfiler.get().end("execute", "MainThread");
@@ -131,6 +141,21 @@ public class TaskGraphScheduler {
         }
     }
 
+    private void submitAsyncQueue(Queue<Runnable> asyncTaskQueue) {
+        SimpleProfiler.get().begin("Submit AsyncBatch", "MainThread");
+
+        pendingAsyncBatch = CompletableFuture.runAsync(() -> {
+            ensureWorkerReady();
+
+            Runnable task;
+            while ((task = asyncTaskQueue.poll()) != null) {
+                task.run();
+            }
+        }, workerPool);
+
+        SimpleProfiler.get().end("Submit AsyncBatch", "MainThread");
+    }
+
     /**
      * Initialize the GL context on the worker thread if not already done.
      * Called once on the worker thread.
@@ -139,6 +164,12 @@ public class TaskGraphScheduler {
         if (GLRuntimeFlags.GL_WORKER_ENABLED && workerContextInitialized.compareAndSet(false, true)) {
             GraphicsAPI api = GraphicsDriver.getCurrentAPI();
             api.onWorkerThreadStart();
+        }
+    }
+
+    private void ensureWorkerReady() {
+        if (manageGlContext) {
+            TaskGraphScheduler.ensureWorkerContextInitialized();
         }
     }
 

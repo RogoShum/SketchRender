@@ -613,9 +613,9 @@ public class VanillaPipelineEventHandler {
                 KeyId.of(SketchRender.MOD_ID, "cube_test_" + UUID.randomUUID()), renderSetting, meshName,
                 offset, scale, rotation);
 
-        // Set player transform as parent (if available)
+        // Set player graphics as transform parent (if available)
         if (playerGraphics != null) {
-            cubeTestGraphics.setParentTransform(playerGraphics.getPlayerTransform());
+            cubeTestGraphics.setParentGraphics(playerGraphics);
         }
 
         // Vertex layout now uses transform ID instead of raw position lerp

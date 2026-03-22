@@ -36,4 +36,3 @@ public interface PipelinePass<C extends RenderContext> {
      */
     void execute(FrameContext<C> ctx);
 }
-

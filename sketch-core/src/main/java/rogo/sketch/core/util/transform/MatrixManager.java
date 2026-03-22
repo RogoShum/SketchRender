@@ -2,138 +2,170 @@ package rogo.sketch.core.util.transform;
 
 import org.lwjgl.opengl.GL15;
 import rogo.sketch.core.api.ResourceObject;
+import rogo.sketch.core.api.graphics.AsyncTickTransformSource;
+import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.api.graphics.StaticTransformSource;
+import rogo.sketch.core.api.graphics.SyncTickTransformSource;
+import rogo.sketch.core.api.graphics.TransformParentSource;
 import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
-import rogo.sketch.core.transform.Transform;
+import rogo.sketch.core.transform.TransformData;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * MatrixManager - Refactored GPU Transform System
+ * Tick-driven transform manager.
  * <p>
- * Separates Sync and Async transforms into distinct pipelines to prevent blocking the main thread.
- * Uses a shared ID registry so all results land in a common Output SSBO.
+ * Each binding owns three tick buffers:
+ * one older tick buffer, one current tick buffer, and one pending write buffer.
+ * At tick start we upload interpolation data from current/write, then rotate the
+ * buffers so the pending write data becomes the new current tick baseline.
  */
 public class MatrixManager {
+    private static final int OUTPUT_STRIDE = 64;
 
-    // Shared Resources
     private final SharedIdRegistry idRegistry = new SharedIdRegistry();
-    private final ShaderStorageBuffer outputSSBO; // Binding 1 (Output)
-
-    // Pipelines
+    private final ShaderStorageBuffer outputSSBO;
+    private final Map<Integer, TransformBinding> bindingsById = new HashMap<>();
+    private final IdentityHashMap<Graphics, TransformBinding> bindingsByGraphics = new IdentityHashMap<>();
     private final TransformPipeline syncPipeline;
     private final TransformPipeline asyncPipeline;
 
-    // Output Capacity Management
-    private static final int OUTPUT_STRIDE = 64; // mat4
     private int currentOutputCapacity = 64;
 
     public MatrixManager() {
         this.syncPipeline = new TransformPipeline(64);
-        this.asyncPipeline = new TransformPipeline(1024); // Async usually has more objects
-
+        this.asyncPipeline = new TransformPipeline(1024);
         this.outputSSBO = new ShaderStorageBuffer(currentOutputCapacity, OUTPUT_STRIDE, GL15.GL_DYNAMIC_DRAW);
     }
 
-    public int registerTransform(Transform transform) {
-        if (transform == null) throw new NullPointerException();
-        if (transform.getRegisteredId() != -1) return transform.getRegisteredId();
+    public TransformBinding registerBinding(Graphics graphics, TransformUpdateDomain updateDomain) {
+        if (graphics == null) {
+            throw new NullPointerException();
+        }
 
-        // 1. Allocate Shared ID
+        TransformBinding existing = bindingsByGraphics.get(graphics);
+        if (existing != null) {
+            return existing;
+        }
+
         int id = idRegistry.allocate();
-        transform.setRegisteredId(id);
+        TransformBinding binding = new TransformBinding(
+                graphics,
+                id,
+                updateDomain,
+                graphics instanceof TransformParentSource parentSource ? parentSource : null);
 
-        // 2. Route to correct pipeline
-        if (transform.asyncTick()) {
-            asyncPipeline.add(transform);
-        } else {
-            syncPipeline.add(transform);
+        bindingsById.put(id, binding);
+        bindingsByGraphics.put(graphics, binding);
+
+        if (updateDomain == TransformUpdateDomain.STATIC && graphics instanceof StaticTransformSource staticSource) {
+            TransformData initial = new TransformData();
+            initial.reset();
+            staticSource.writeStaticTransform(initial);
+            binding.seedAllTickBuffers(initial);
         }
 
-        return id;
+        if (updateDomain == TransformUpdateDomain.ASYNC_TICK) {
+            asyncPipeline.add(binding);
+        } else {
+            syncPipeline.add(binding);
+        }
+
+        return binding;
     }
 
-    public void unregisterTransform(Transform transform) {
-        int id = transform.getRegisteredId();
-        if (id == -1) return;
+    public void unregisterBinding(TransformBinding binding) {
+        if (binding == null) {
+            return;
+        }
 
-        // 1. Recycle ID
-        idRegistry.recycle(id);
-        transform.setRegisteredId(-1);
+        bindingsById.remove(binding.transformId());
+        bindingsByGraphics.remove(binding.graphics());
+        idRegistry.recycle(binding.transformId());
 
-        // 2. Remove from pipeline
-        if (transform.asyncTick()) {
-            asyncPipeline.remove(transform);
+        if (binding.updateDomain() == TransformUpdateDomain.ASYNC_TICK) {
+            asyncPipeline.remove(binding);
         } else {
-            syncPipeline.remove(transform);
+            syncPipeline.remove(binding);
         }
     }
 
-    public void onDepthChanged(Transform transform, int oldDepth) {
-        if (transform.asyncTick()) {
-            asyncPipeline.onDepthChanged(transform, oldDepth);
-        } else {
-            syncPipeline.onDepthChanged(transform, oldDepth);
-        }
+    public TransformBinding bindingFor(Graphics graphics) {
+        return bindingsByGraphics.get(graphics);
     }
 
-    public Transform getTransform(int id) {
-        // Not implemented: Dual pipeline makes O(1) reverse lookup hard.
-        // If needed, MatrixManager must maintain a separate Int2ObjectMap<Transform>.
-        // For rendering, this is usually not needed.
-        return null;
+    public boolean isRegistered(Graphics graphics) {
+        return bindingsByGraphics.containsKey(graphics);
     }
 
-    public boolean isRegistered(Transform transform) {
-        return transform.getRegisteredId() != -1;
-    }
-
-    public void swapTransformData() {
-        // Only for sync objects if needed
-        // Async objects usually handle double buffering internally or don't need explicit swap
+    public TransformBinding bindingById(int id) {
+        return bindingsById.get(id);
     }
 
     public int getActiveCount() {
-        // Just a metric
-        return idRegistry.getMaxId(); // Approximation
-    }
-
-    // ================== Tick & Render Flow ==================
-
-    /**
-     * Main Thread Tick.
-     * Processes logic for Sync objects.
-     */
-    public void syncTick() {
-        syncPipeline.processLogic();
+        return bindingsById.size();
     }
 
     /**
-     * Worker Thread Tick.
-     * Processes logic for Async objects.
+     * Upload interpolation data for the upcoming render frames.
+     * Called at tick start after previous async transform collection is finished.
      */
-    public void asyncTick() {
-        asyncPipeline.processLogic();
-    }
-
-    /**
-     * Pre-Render Update (Main Thread).
-     * Uploads all data and resizes Output buffer if needed.
-     */
-    public void preRender() {
-        // 1. Resize Shared Output SSBO if needed
-        int maxId = idRegistry.getMaxId();
-        if (maxId > currentOutputCapacity) {
-            int newCap = Math.max(maxId, (int) (currentOutputCapacity * 1.5));
-            newCap = ((newCap + 63) / 64) * 64;
-            outputSSBO.ensureCapacity(newCap, false);
-            currentOutputCapacity = newCap;
-        }
-
-        // 2. Upload Data (Sync & Async)
-        // Note: Async logic must be finished before calling this!
+    public void uploadInterpolationData() {
+        ensureOutputCapacity();
+        resolveAllHierarchy();
+        syncPipeline.prepareInterpolationData();
+        asyncPipeline.prepareInterpolationData();
         syncPipeline.upload();
         asyncPipeline.upload();
     }
 
-    // ================== Getters for Compute Shader ==================
+    /**
+     * Rotate tick buffers after interpolation data has been uploaded.
+     * After rotation the previously pending write buffer becomes the new current tick state.
+     */
+    public void swapTickBuffers() {
+        for (TransformBinding binding : bindingsById.values()) {
+            binding.swapTickBuffers();
+        }
+    }
+
+    /**
+     * Collect main-thread transform updates after the game tick has updated entity state.
+     */
+    public void collectSyncTickTransforms() {
+        for (TransformBinding binding : bindingsById.values()) {
+            if (binding.updateDomain() == TransformUpdateDomain.SYNC_TICK &&
+                    binding.graphics() instanceof SyncTickTransformSource source) {
+                source.writeSyncTickTransform(binding.pendingTickData());
+            }
+        }
+    }
+
+    /**
+     * Collect worker-thread transform updates in the remaining time before the next tick.
+     */
+    public void collectAsyncTickTransforms() {
+        for (TransformBinding binding : bindingsById.values()) {
+            if (binding.updateDomain() == TransformUpdateDomain.ASYNC_TICK &&
+                    binding.graphics() instanceof AsyncTickTransformSource source) {
+                source.writeAsyncTickTransform(binding.pendingTickData());
+            }
+        }
+    }
+
+    public TransformData interpolationPreviousTickData(int transformId) {
+        TransformBinding binding = bindingsById.get(transformId);
+        return binding != null ? binding.currentTickData() : null;
+    }
+
+    public TransformData interpolationCurrentTickData(int transformId) {
+        TransformBinding binding = bindingsById.get(transformId);
+        return binding != null ? binding.pendingTickData() : null;
+    }
 
     public ResourceObject getOutputSSBO() {
         return outputSSBO;
@@ -147,9 +179,68 @@ public class MatrixManager {
         return asyncPipeline;
     }
 
-    // ================== Cleanup ==================
+    private void ensureOutputCapacity() {
+        int maxId = idRegistry.getMaxId();
+        if (maxId > currentOutputCapacity) {
+            int newCap = Math.max(maxId, (int) (currentOutputCapacity * 1.5));
+            newCap = ((newCap + 63) / 64) * 64;
+            outputSSBO.ensureCapacity(newCap, false);
+            currentOutputCapacity = newCap;
+        }
+    }
+
+    private void resolveAllHierarchy() {
+        for (TransformBinding binding : bindingsById.values()) {
+            resolveParentAndDepth(binding, new HashSet<>());
+        }
+    }
+
+    private int resolveParentAndDepth(TransformBinding binding, Set<Integer> visited) {
+        if (!visited.add(binding.transformId())) {
+            int oldDepth = binding.depth();
+            binding.setParentTransformId(-1);
+            binding.setDepth(0);
+            updatePipelineDepth(binding, oldDepth);
+            return binding.depth();
+        }
+
+        Graphics parentGraphics = binding.parentSource() != null ? binding.parentSource().getTransformParent() : null;
+        if (parentGraphics == null) {
+            int oldDepth = binding.depth();
+            binding.setParentTransformId(-1);
+            binding.setDepth(0);
+            updatePipelineDepth(binding, oldDepth);
+            return 0;
+        }
+
+        TransformBinding parentBinding = bindingsByGraphics.get(parentGraphics);
+        if (parentBinding == null) {
+            int oldDepth = binding.depth();
+            binding.setParentTransformId(-1);
+            binding.setDepth(0);
+            updatePipelineDepth(binding, oldDepth);
+            return 0;
+        }
+
+        int parentDepth = resolveParentAndDepth(parentBinding, visited);
+        binding.setParentTransformId(parentBinding.transformId());
+        int oldDepth = binding.depth();
+        binding.setDepth(parentDepth + 1);
+        updatePipelineDepth(binding, oldDepth);
+        return binding.depth();
+    }
+
+    private void updatePipelineDepth(TransformBinding binding, int oldDepth) {
+        TransformPipeline targetPipeline =
+                binding.updateDomain() == TransformUpdateDomain.ASYNC_TICK ? asyncPipeline : syncPipeline;
+        if (oldDepth != binding.depth()) {
+            targetPipeline.onDepthChanged(binding, oldDepth);
+        }
+    }
 
     public void cleanup() {
+        bindingsById.clear();
+        bindingsByGraphics.clear();
         syncPipeline.cleanup();
         asyncPipeline.cleanup();
         outputSSBO.dispose();

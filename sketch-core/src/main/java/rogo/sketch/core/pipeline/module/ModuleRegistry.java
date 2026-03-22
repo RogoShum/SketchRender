@@ -4,6 +4,7 @@ import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
+import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
@@ -57,9 +58,18 @@ public final class ModuleRegistry {
     /**
      * Let all modules contribute passes to the render graph builder.
      */
-    public <C extends RenderContext> void contributeToGraph(RenderGraphBuilder<C> builder) {
+    public <C extends RenderContext> void contributeToTickGraph(TickGraphBuilder<C> builder) {
         for (PipelineModule module : modules) {
-            module.contributeToGraph(builder);
+            module.contributeToTickGraph(builder);
+        }
+    }
+
+    /**
+     * Let all modules contribute passes to the frame graph builder.
+     */
+    public <C extends RenderContext> void contributeToFrameGraph(RenderGraphBuilder<C> builder) {
+        for (PipelineModule module : modules) {
+            module.contributeToFrameGraph(builder);
         }
     }
 

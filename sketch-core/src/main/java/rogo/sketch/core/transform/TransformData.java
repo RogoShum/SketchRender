@@ -1,7 +1,10 @@
 package rogo.sketch.core.transform;
 
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import rogo.sketch.core.util.GraphicsData;
+import rogo.sketch.core.data.builder.UnsafeHelper;
+import sun.misc.Unsafe;
 
 /**
  * Triple-buffered transform data for thread-safe async updates.
@@ -10,7 +13,7 @@ import rogo.sketch.core.util.GraphicsData;
  * <p>
  * Rotation uses Euler angles in radians with ZYX convention (Roll-Yaw-Pitch).
  */
-public class TransformData extends GraphicsData<TransformData> {
+public class TransformData extends GraphicsData<TransformData> implements TransformWriter {
     // Previous frame transform data (for interpolation)
     public final Vector3f pos = new Vector3f();
     public final Vector3f rot = new Vector3f(); // Euler angles (pitch, yaw, roll) in radians
@@ -28,8 +31,8 @@ public class TransformData extends GraphicsData<TransformData> {
     /**
      * Set the current position.
      */
-    public void setPosition(Vector3f pos) {
-        rot.set(pos);
+    public void setPosition(Vector3fc pos) {
+        this.pos.set(pos);
     }
 
     /**
@@ -49,8 +52,8 @@ public class TransformData extends GraphicsData<TransformData> {
      *
      * @param rot Vector containing (pitch, yaw, roll) in radians
      */
-    public void setRotation(Vector3f rot) {
-        rot.set(rot);
+    public void setRotation(Vector3fc rot) {
+        this.rot.set(rot);
     }
 
     /**
@@ -85,8 +88,8 @@ public class TransformData extends GraphicsData<TransformData> {
     /**
      * Set the current scale.
      */
-    public void setScale(Vector3f scale) {
-        scale.set(scale);
+    public void setScale(Vector3fc scale) {
+        this.scale.set(scale);
     }
 
     /**
@@ -99,7 +102,7 @@ public class TransformData extends GraphicsData<TransformData> {
     /**
      * Set the pivot point.
      */
-    public void setPivot(Vector3f pivot) {
+    public void setPivot(Vector3fc pivot) {
         this.pivot.set(pivot);
     }
 
@@ -119,5 +122,43 @@ public class TransformData extends GraphicsData<TransformData> {
         rot.set(0, 0, 0);
         scale.set(1, 1, 1);
         pivot.set(0, 0, 0);
+    }
+
+    public static void writeToBuffer(TransformData previous, TransformData current, long ptr, int parentId) {
+        Unsafe unsafe = UnsafeHelper.getUnsafe();
+        long base = ptr;
+
+        unsafe.putFloat(base + 0, previous.pos.x);
+        unsafe.putFloat(base + 4, previous.pos.y);
+        unsafe.putFloat(base + 8, previous.pos.z);
+
+        unsafe.putFloat(base + 16, previous.rot.x);
+        unsafe.putFloat(base + 20, previous.rot.y);
+        unsafe.putFloat(base + 24, previous.rot.z);
+
+        unsafe.putFloat(base + 32, previous.scale.x);
+        unsafe.putFloat(base + 36, previous.scale.y);
+        unsafe.putFloat(base + 40, previous.scale.z);
+
+        unsafe.putFloat(base + 48, current.pos.x);
+        unsafe.putFloat(base + 52, current.pos.y);
+        unsafe.putFloat(base + 56, current.pos.z);
+
+        unsafe.putFloat(base + 64, current.rot.x);
+        unsafe.putFloat(base + 68, current.rot.y);
+        unsafe.putFloat(base + 72, current.rot.z);
+
+        unsafe.putFloat(base + 80, current.scale.x);
+        unsafe.putFloat(base + 84, current.scale.y);
+        unsafe.putFloat(base + 88, current.scale.z);
+
+        unsafe.putFloat(base + 96, current.pivot.x);
+        unsafe.putFloat(base + 100, current.pivot.y);
+        unsafe.putFloat(base + 104, current.pivot.z);
+
+        unsafe.putInt(base + 112, parentId);
+        unsafe.putInt(base + 116, 0);
+        unsafe.putInt(base + 120, 0);
+        unsafe.putInt(base + 124, 0);
     }
 }

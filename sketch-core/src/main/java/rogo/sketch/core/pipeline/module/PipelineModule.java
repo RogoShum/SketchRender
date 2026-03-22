@@ -3,6 +3,7 @@ package rogo.sketch.core.pipeline.module;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
+import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
 
 /**
  * Lifecycle interface for pipeline modules.
@@ -40,7 +41,27 @@ public interface PipelineModule {
      * @param builder The render graph builder
      * @param <C>     Concrete RenderContext type
      */
-    <C extends RenderContext> void contributeToGraph(RenderGraphBuilder<C> builder);
+    default <C extends RenderContext> void contributeToTickGraph(TickGraphBuilder<C> builder) {
+    }
+
+    /**
+     * Contribute passes to the frame graph.
+     *
+     * @param builder The frame graph builder
+     * @param <C>     Concrete RenderContext type
+     */
+    default <C extends RenderContext> void contributeToFrameGraph(RenderGraphBuilder<C> builder) {
+    }
+
+    /**
+     * Backward-compatible alias for legacy modules. New code should override
+     * {@link #contributeToFrameGraph(RenderGraphBuilder)} and/or
+     * {@link #contributeToTickGraph(TickGraphBuilder)} instead.
+     */
+    @Deprecated
+    default <C extends RenderContext> void contributeToGraph(RenderGraphBuilder<C> builder) {
+        contributeToFrameGraph(builder);
+    }
 
     /**
      * Called when the pipeline is shutting down. Release resources here.

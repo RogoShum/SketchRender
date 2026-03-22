@@ -8,7 +8,7 @@ import rogo.sketch.core.pipeline.RenderContext;
  *
  * @param <C> Concrete RenderContext type
  */
-public final class FrameContext<C extends RenderContext> {
+public class FrameContext<C extends RenderContext> {
     private final GraphicsPipeline<C> pipeline;
     private final PipelineKernel<C> kernel;
     private final C renderContext;
