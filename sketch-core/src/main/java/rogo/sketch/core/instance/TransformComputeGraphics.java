@@ -7,8 +7,8 @@ import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.ComputeShader;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.core.util.transform.MatrixManager;
-import rogo.sketch.core.util.transform.TransformPipeline;
+import rogo.sketch.module.transform.manager.MatrixManager;
+import rogo.sketch.module.transform.manager.TransformPipeline;
 
 /**
  * TransformComputeGraphics - Compute Shader for Transform Matrix Calculation

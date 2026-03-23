@@ -1,4 +1,4 @@
-package rogo.sketch.core.util.transform;
+package rogo.sketch.module.transform.manager;
 
 /**
  * Lifecycle domain for authored transform updates.

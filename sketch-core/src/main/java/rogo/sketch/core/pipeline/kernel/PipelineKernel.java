@@ -36,6 +36,9 @@ import java.util.concurrent.Executors;
  * @param <C> Concrete RenderContext type
  */
 public class PipelineKernel<C extends RenderContext> {
+    public static final KernelResourceKey<BuildResult> BUILD_RESULT_RESOURCE =
+            KernelResourceKey.of("pipeline.build_result", BuildResult.class);
+
     private final GraphicsPipeline<C> pipeline;
     private final ModuleRegistry moduleRegistry;
     private final ExecutorService tickExecutor;
@@ -44,7 +47,7 @@ public class PipelineKernel<C extends RenderContext> {
     private final TaskGraphScheduler tickScheduler;
     private final TaskGraphScheduler tickGlScheduler;
     private final TaskGraphScheduler frameScheduler;
-    private final PendingBuildSlot pendingBuildSlot = new PendingBuildSlot();
+    private final KernelResourceBus resources = new KernelResourceBus();
 
     private CompiledTickGraph<C> compiledTickGraph;
     private CompiledRenderGraph<C> compiledFrameGraph;
@@ -166,7 +169,7 @@ public class PipelineKernel<C extends RenderContext> {
                 pipeline, this, renderContext, frameNumber++);
 
         if (compiledFrameGraph != null) {
-            // Cross-frame: async pass publishes result to PendingBuildSlot;
+            // Cross-frame: async pass publishes result to the kernel resource bus;
             // waitAtFrameEnd=false so we don't block on the current frame's async build.
             frameScheduler.execute(compiledFrameGraph, frameCtx, false);
         }
@@ -179,6 +182,7 @@ public class PipelineKernel<C extends RenderContext> {
     public TaskGraphScheduler tickScheduler() { return tickScheduler; }
     public TaskGraphScheduler tickGlScheduler() { return tickGlScheduler; }
     public TaskGraphScheduler frameScheduler() { return frameScheduler; }
+    public KernelResourceBus resources() { return resources; }
 
     public boolean isGraphCompiled() {
         return compiledTickGraph != null && compiledFrameGraph != null;
@@ -186,12 +190,25 @@ public class PipelineKernel<C extends RenderContext> {
 
     public void publishBuildResult(BuildResult buildResult) {
         if (buildResult != null) {
-            pendingBuildSlot.publish(buildResult);
+            resources.publish(BUILD_RESULT_RESOURCE, buildResult.frameNumber(), buildResult);
         }
     }
 
+    public <T> PublishedKernelResource<T> publishResource(KernelResourceKey<T> key, long epoch, T payload) {
+        return resources.publish(key, epoch, payload);
+    }
+
+    public <T> PublishedKernelResource<T> peekResource(KernelResourceKey<T> key) {
+        return resources.peek(key);
+    }
+
+    public <T> PublishedKernelResource<T> consumeResource(KernelResourceKey<T> key) {
+        return resources.consume(key);
+    }
+
     public BuildResult consumeBuildResult() {
-        return pendingBuildSlot.consume();
+        PublishedKernelResource<BuildResult> resource = resources.consume(BUILD_RESULT_RESOURCE);
+        return resource != null ? resource.payload() : null;
     }
 
     public void cleanup() {

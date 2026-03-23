@@ -24,7 +24,7 @@ import java.util.Map;
  *   <li>If {@code allowShaderWorker()}: compile needed shader variants directly (thread has GL context)</li>
  *   <li>Build render commands from all stages</li>
  *   <li>If {@code allowUploadWorker()}: execute post-processor uploads (VBO upload on worker)</li>
- *   <li>Publish {@link BuildResult} to cross-frame slot</li>
+ *   <li>Publish {@link BuildResult} to the kernel resource bus</li>
  * </ol>
  * When uploads are NOT allowed on the worker, the post-processors are still created
  * and included in the BuildResult so the main thread can execute them in SyncCommitPass.

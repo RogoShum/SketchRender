@@ -1,4 +1,4 @@
-package rogo.sketch.core.pipeline.module;
+package rogo.sketch.module.transform;
 
 import rogo.sketch.core.api.graphics.*;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
@@ -12,28 +12,28 @@ import rogo.sketch.core.pipeline.kernel.FrameContext;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
 import rogo.sketch.core.pipeline.kernel.annotation.AsyncOnly;
 import rogo.sketch.core.pipeline.kernel.annotation.SyncOnly;
+import rogo.sketch.core.pipeline.module.GraphicsModule;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.core.util.transform.MatrixManager;
-import rogo.sketch.core.util.transform.TransformBinding;
-import rogo.sketch.core.util.transform.TransformUpdateDomain;
+import rogo.sketch.module.transform.manager.MatrixManager;
+import rogo.sketch.module.transform.manager.TransformBinding;
+import rogo.sketch.module.transform.manager.TransformUpdateDomain;
 
 /**
  * Mixed tick/frame transform module.
  * <p>
- * The module owns transform bindings and keeps interpolation timing tick-owned:
+ * The module owns transform bindings and keeps tick-authored snapshots separate
+ * from render-owned GPU upload state:
  * <ul>
- *   <li>tick-start interpolation builder preparation</li>
  *   <li>tick-start transform buffer rotation</li>
  *   <li>post-tick sync transform collection</li>
- *   <li>post-tick GL async transform collection submission</li>
+ *   <li>post-tick async transform collection and snapshot publication</li>
  *   <li>frame-pass collection for explicit SYNC_FRAME authors</li>
- *   <li>frame-pass SSBO upload after all CPU-side data is ready</li>
+ *   <li>frame-pass snapshot consumption and SSBO upload</li>
  * </ul>
  */
 public class TransformModule implements GraphicsModule {
     public static final String MODULE_NAME = "transform";
-    private static final String PASS_TICK_UPLOAD = "transform_tick_upload";
     private static final String PASS_TICK_SWAP = "transform_tick_swap";
     private static final String PASS_SYNC_TICK_COLLECT = "transform_sync_tick_collect";
     private static final String PASS_ASYNC_TICK_COLLECT = "transform_async_tick_collect";
@@ -95,9 +95,7 @@ public class TransformModule implements GraphicsModule {
 
     @Override
     public <C extends RenderContext> void contributeToTickGraph(TickGraphBuilder<C> builder) {
-        builder
-                .addPreTickPass(new TransformTickUploadPass<>())
-                .addPreTickPass(new TransformTickSwapPass<>(), PASS_TICK_UPLOAD)
+        builder.addPreTickPass(new TransformTickSwapPass<>())
                 .addPostTickPass(new TransformSyncTickPass<>(), PostTickGraphicsPass.NAME)
                 .addPostTickGlAsyncPass(new TransformAsyncTickPass<>());
     }
@@ -153,26 +151,6 @@ public class TransformModule implements GraphicsModule {
     }
 
     // ==================== Internal Passes ====================
-
-    private class TransformTickUploadPass<C extends RenderContext> implements PipelinePass<C> {
-        @Override
-        public String name() {
-            return PASS_TICK_UPLOAD;
-        }
-
-        @Override
-        public ThreadDomain threadDomain() {
-            return ThreadDomain.SYNC;
-        }
-
-        @Override
-        @SyncOnly("Prepare previous/current tick interpolation builders")
-        public void execute(FrameContext<C> ctx) {
-            if (matrixManager != null) {
-                //matrixManager.uploadFrameBuffers();
-            }
-        }
-    }
 
     private class TransformTickSwapPass<C extends RenderContext> implements PipelinePass<C> {
         @Override
@@ -230,7 +208,7 @@ public class TransformModule implements GraphicsModule {
         public void execute(FrameContext<C> ctx) {
             if (matrixManager != null) {
                 matrixManager.collectAsyncTickTransforms();
-                matrixManager.prepareTickBuffers();
+                matrixManager.prepareAndPublishTickSnapshot(ctx.kernel(), ctx.logicTickEpoch());
             }
         }
     }
@@ -251,7 +229,7 @@ public class TransformModule implements GraphicsModule {
         public void execute(FrameContext<C> ctx) {
             if (matrixManager != null) {
                 matrixManager.collectFrameTransforms();
-                matrixManager.prepareFrameBuffer();
+                matrixManager.prepareFrameBuffer(ctx.kernel());
             }
         }
     }

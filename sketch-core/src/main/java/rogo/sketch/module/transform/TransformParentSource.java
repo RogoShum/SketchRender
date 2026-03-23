@@ -1,6 +1,7 @@
-package rogo.sketch.core.api.graphics;
+package rogo.sketch.module.transform;
 
 import org.jetbrains.annotations.Nullable;
+import rogo.sketch.core.api.graphics.Graphics;
 
 /**
  * Optional parent relationship provider for transform-authored graphics.

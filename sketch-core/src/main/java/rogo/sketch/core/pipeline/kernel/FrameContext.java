@@ -26,4 +26,6 @@ public class FrameContext<C extends RenderContext> {
     public PipelineKernel<C> kernel() { return kernel; }
     public C renderContext() { return renderContext; }
     public long frameNumber() { return frameNumber; }
+    public long renderFrameEpoch() { return frameNumber; }
+    public long logicTickEpoch() { return -1L; }
 }

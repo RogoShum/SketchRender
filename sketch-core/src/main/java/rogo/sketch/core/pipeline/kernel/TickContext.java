@@ -20,4 +20,14 @@ public final class TickContext<C extends RenderContext> extends FrameContext<C> 
     public long logicTick() {
         return logicTick;
     }
+
+    @Override
+    public long renderFrameEpoch() {
+        return -1L;
+    }
+
+    @Override
+    public long logicTickEpoch() {
+        return logicTick;
+    }
 }

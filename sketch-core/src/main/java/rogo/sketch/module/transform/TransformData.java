@@ -1,4 +1,4 @@
-package rogo.sketch.core.transform;
+package rogo.sketch.module.transform;
 
 import org.joml.Vector3f;
 import org.joml.Vector3fc;

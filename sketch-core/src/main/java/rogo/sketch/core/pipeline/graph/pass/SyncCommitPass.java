@@ -6,17 +6,13 @@ import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderSetting;
-import rogo.sketch.core.pipeline.data.FrameDataStore;
 import rogo.sketch.core.pipeline.data.IndirectBufferData;
-import rogo.sketch.core.pipeline.data.InstancedOffsetData;
 import rogo.sketch.core.pipeline.data.PipelineDataStore;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.graph.PipelinePass;
 import rogo.sketch.core.pipeline.kernel.BuildResult;
 import rogo.sketch.core.pipeline.kernel.FrameContext;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
-import rogo.sketch.core.pipeline.parmeter.RenderParameter;
-import rogo.sketch.core.resource.buffer.IndirectCommandBuffer;
 
 import java.util.List;
 import java.util.Map;
@@ -24,7 +20,7 @@ import java.util.Map;
 /**
  * Synchronous pass that consumes the previous frame's async-built {@link BuildResult}.
  * <ol>
- *   <li>Consume BuildResult from PendingBuildSlot</li>
+ *   <li>Consume BuildResult from the kernel resource bus</li>
  *   <li>If uploads were NOT completed on the worker, execute post-processors on main thread</li>
  *   <li>Materialize any new VAOs queued during async build</li>
  *   <li>Swap FrameDataStores (publish async-written data to sync/read side)</li>
