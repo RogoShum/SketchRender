@@ -12,10 +12,8 @@ import java.util.Map;
  */
 public class TransformUploadSnapshot {
     public static final int INPUT_STRIDE = 128;
-    public static final int INDEX_STRIDE = 4;
 
     private UnsafeBatchBuilder inputBuilder;
-    private UnsafeBatchBuilder indexBuilder;
     private final List<TransformDispatchRange> dispatchRanges = new ArrayList<>();
     private final Map<Integer, Integer> bindingOffsets = new HashMap<>();
     private int capacity;
@@ -25,13 +23,11 @@ public class TransformUploadSnapshot {
     public TransformUploadSnapshot(int initialCapacity) {
         capacity = Math.max(1, initialCapacity);
         inputBuilder = UnsafeBatchBuilder.createInternal((long) capacity * INPUT_STRIDE);
-        indexBuilder = UnsafeBatchBuilder.createInternal((long) capacity * INDEX_STRIDE);
     }
 
     public void beginBuild(int requiredCount, int maxDepth) {
         ensureCapacity(Math.max(requiredCount, 1));
         inputBuilder.reset();
-        indexBuilder.reset();
         dispatchRanges.clear();
         bindingOffsets.clear();
         activeCount = requiredCount;
@@ -40,10 +36,6 @@ public class TransformUploadSnapshot {
 
     public UnsafeBatchBuilder inputBuilder() {
         return inputBuilder;
-    }
-
-    public UnsafeBatchBuilder indexBuilder() {
-        return indexBuilder;
     }
 
     public void addDispatchRange(int offset, int count) {
@@ -74,18 +66,10 @@ public class TransformUploadSnapshot {
         return inputBuilder.getWriteOffset();
     }
 
-    public long indexSizeBytes() {
-        return indexBuilder.getWriteOffset();
-    }
-
     public void cleanup() {
         if (inputBuilder != null) {
             inputBuilder.close();
             inputBuilder = null;
-        }
-        if (indexBuilder != null) {
-            indexBuilder.close();
-            indexBuilder = null;
         }
         dispatchRanges.clear();
         bindingOffsets.clear();
@@ -101,8 +85,6 @@ public class TransformUploadSnapshot {
         capacity = newCapacity;
 
         inputBuilder.close();
-        indexBuilder.close();
         inputBuilder = UnsafeBatchBuilder.createInternal((long) capacity * INPUT_STRIDE);
-        indexBuilder = UnsafeBatchBuilder.createInternal((long) capacity * INDEX_STRIDE);
     }
 }

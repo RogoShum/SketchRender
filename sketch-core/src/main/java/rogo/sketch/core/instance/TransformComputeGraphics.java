@@ -7,7 +7,7 @@ import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.ComputeShader;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.module.transform.manager.MatrixManager;
+import rogo.sketch.module.transform.manager.TransformManager;
 import rogo.sketch.module.transform.manager.TransformPipeline;
 
 /**
@@ -19,19 +19,19 @@ import rogo.sketch.module.transform.manager.TransformPipeline;
  */
 public class TransformComputeGraphics extends ComputeGraphics {
     private final ResourceReference<PartialRenderSetting> transformMatrixSetting;
-    private final MatrixManager matrixManager;
+    private final TransformManager transformManager;
 
-    public TransformComputeGraphics(KeyId keyId, KeyId renderSetting, boolean sync, MatrixManager matrixManager) {
+    public TransformComputeGraphics(KeyId keyId, KeyId renderSetting, boolean sync, TransformManager transformManager) {
         super(keyId, null, (context, shader) -> {
             if (sync) {
-                dispatchPipeline(shader, matrixManager.getSyncPipeline());
+                dispatchPipeline(shader, transformManager.getSyncPipeline());
             } else {
-                dispatchPipeline(shader, matrixManager.getAsyncPipeline());
+                dispatchPipeline(shader, transformManager.getAsyncPipeline());
             }
             shader.shaderStorageBarrier();
         });
 
-        this.matrixManager = matrixManager;
+        this.transformManager = transformManager;
         this.transformMatrixSetting = GraphicsResourceManager.getInstance().getReference(ResourceTypes.PARTIAL_RENDER_SETTING, renderSetting);
     }
 
@@ -48,7 +48,7 @@ public class TransformComputeGraphics extends ComputeGraphics {
 
             if (range.count() > 0) {
                 uniformHookGroup.getUniform("u_batchOffset").set(range.offset());
-                uniformHookGroup.getUniform("u_batchCount").set(range.count()); // Logic moved to Indirection
+                uniformHookGroup.getUniform("u_batchCount").set(range.count());
 
                 int groups = (range.count() + 63) / 64;
                 shader.dispatch(groups, 1, 1);
@@ -76,13 +76,13 @@ public class TransformComputeGraphics extends ComputeGraphics {
 
     @Override
     public boolean shouldRender() {
-        return matrixManager.getActiveCount() > 0;
+        return transformManager.getActiveCount() > 0;
     }
 
     /**
      * Get the associated MatrixManager.
      */
-    public MatrixManager getMatrixManager() {
-        return matrixManager;
+    public TransformManager getMatrixManager() {
+        return transformManager;
     }
 }

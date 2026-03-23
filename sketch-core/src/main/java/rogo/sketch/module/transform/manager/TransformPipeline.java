@@ -1,7 +1,5 @@
 package rogo.sketch.module.transform.manager;
 
-import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
-
 import java.util.List;
 
 /**
@@ -26,11 +24,7 @@ public class TransformPipeline {
         gpuInputSet.upload();
     }
 
-    public ShaderStorageBuffer indexSSBO() {
-        return gpuInputSet.indexSSBO();
-    }
-
-    public ShaderStorageBuffer inputSSBO() {
+    public rogo.sketch.core.resource.buffer.ShaderStorageBuffer inputSSBO() {
         return gpuInputSet.inputSSBO();
     }
 

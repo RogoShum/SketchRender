@@ -172,30 +172,10 @@ public class VanillaPipelineEventHandler {
                 });
 
         GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
-                KeyId.of(SketchRender.MOD_ID, "transform_index_async"),
-                () -> {
-                    if (PipelineUtil.pipeline().getModuleByName("transform") != null && ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager() != null) {
-                        return ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager().getAsyncPipeline().indexSSBO();
-                    } else {
-                        return null;
-                    }
-                });
-
-        GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of(SketchRender.MOD_ID, "transform_input_sync"),
                 () -> {
                     if (PipelineUtil.pipeline().getModuleByName("transform") != null && ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager() != null) {
                         return ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager().getSyncPipeline().inputSSBO();
-                    } else {
-                        return null;
-                    }
-                });
-
-        GraphicsResourceManager.getInstance().registerBuiltIn(ResourceTypes.SHADER_STORAGE_BUFFER,
-                KeyId.of(SketchRender.MOD_ID, "transform_index_sync"),
-                () -> {
-                    if (PipelineUtil.pipeline().getModuleByName("transform") != null && ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager() != null) {
-                        return ((TransformModule)PipelineUtil.pipeline().getModuleByName("transform")).matrixManager().getSyncPipeline().indexSSBO();
                     } else {
                         return null;
                     }

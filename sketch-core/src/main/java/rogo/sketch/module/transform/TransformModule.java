@@ -15,7 +15,7 @@ import rogo.sketch.core.pipeline.kernel.annotation.SyncOnly;
 import rogo.sketch.core.pipeline.module.GraphicsModule;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.module.transform.manager.MatrixManager;
+import rogo.sketch.module.transform.manager.TransformManager;
 import rogo.sketch.module.transform.manager.TransformBinding;
 import rogo.sketch.module.transform.manager.TransformUpdateDomain;
 
@@ -40,7 +40,7 @@ public class TransformModule implements GraphicsModule {
     private static final String PASS_FRAME_COLLECT = "transform_frame_collect";
     private static final String PASS_FRAME_UPLOAD = "transform_frame_upload";
 
-    private MatrixManager matrixManager;
+    private TransformManager transformManager;
 
     @Override
     public String name() {
@@ -54,7 +54,7 @@ public class TransformModule implements GraphicsModule {
 
     @Override
     public void initialize(GraphicsPipeline<?> pipeline) {
-        this.matrixManager = new MatrixManager();
+        this.transformManager = new TransformManager();
     }
 
     @Override
@@ -67,12 +67,12 @@ public class TransformModule implements GraphicsModule {
 
     @Override
     public void onAttach(Graphics graphics, RenderParameter renderParameter, KeyId containerType) {
-        if (matrixManager == null || matrixManager.isRegistered(graphics)) {
+        if (transformManager == null || transformManager.isRegistered(graphics)) {
             return;
         }
 
         TransformUpdateDomain updateDomain = detectUpdateDomain(graphics);
-        TransformBinding binding = matrixManager.registerBinding(graphics, updateDomain);
+        TransformBinding binding = transformManager.registerBinding(graphics, updateDomain);
         if (graphics instanceof TransformIdAware idAware) {
             idAware.setTransformId(binding.transformId());
         }
@@ -80,13 +80,13 @@ public class TransformModule implements GraphicsModule {
 
     @Override
     public void onDetach(Graphics graphics) {
-        if (matrixManager == null) {
+        if (transformManager == null) {
             return;
         }
 
-        TransformBinding binding = matrixManager.bindingFor(graphics);
+        TransformBinding binding = transformManager.bindingFor(graphics);
         if (binding != null) {
-            matrixManager.unregisterBinding(binding);
+            transformManager.unregisterBinding(binding);
             if (graphics instanceof TransformIdAware idAware) {
                 idAware.setTransformId(-1);
             }
@@ -108,14 +108,14 @@ public class TransformModule implements GraphicsModule {
 
     @Override
     public void cleanup() {
-        if (matrixManager != null) {
-            matrixManager.cleanup();
-            matrixManager = null;
+        if (transformManager != null) {
+            transformManager.cleanup();
+            transformManager = null;
         }
     }
 
-    public MatrixManager matrixManager() {
-        return matrixManager;
+    public TransformManager matrixManager() {
+        return transformManager;
     }
 
     private TransformUpdateDomain detectUpdateDomain(Graphics graphics) {
@@ -166,8 +166,8 @@ public class TransformModule implements GraphicsModule {
         @Override
         @SyncOnly("Rotate transform tick buffers")
         public void execute(FrameContext<C> ctx) {
-            if (matrixManager != null) {
-                matrixManager.swapTickBuffers();
+            if (transformManager != null) {
+                transformManager.swapTickBuffers();
             }
         }
     }
@@ -186,8 +186,8 @@ public class TransformModule implements GraphicsModule {
         @Override
         @SyncOnly("Collect sync transform data on main thread")
         public void execute(FrameContext<C> ctx) {
-            if (matrixManager != null) {
-                matrixManager.collectSyncTickTransforms();
+            if (transformManager != null) {
+                transformManager.collectSyncTickTransforms();
             }
         }
     }
@@ -206,9 +206,9 @@ public class TransformModule implements GraphicsModule {
         @Override
         @AsyncOnly("Collect async transform data on tick worker")
         public void execute(FrameContext<C> ctx) {
-            if (matrixManager != null) {
-                matrixManager.collectAsyncTickTransforms();
-                matrixManager.prepareAndPublishTickSnapshot(ctx.kernel(), ctx.logicTickEpoch());
+            if (transformManager != null) {
+                transformManager.collectAsyncTickTransforms();
+                transformManager.prepareAndPublishTickSnapshot(ctx.kernel(), ctx.logicTickEpoch());
             }
         }
     }
@@ -227,9 +227,9 @@ public class TransformModule implements GraphicsModule {
         @Override
         @SyncOnly("Collect frame-authored transform data on main thread")
         public void execute(FrameContext<C> ctx) {
-            if (matrixManager != null) {
-                matrixManager.collectFrameTransforms();
-                matrixManager.prepareFrameBuffer(ctx.kernel());
+            if (transformManager != null) {
+                transformManager.collectFrameTransforms();
+                transformManager.prepareFrameBuffer(ctx.kernel());
             }
         }
     }
@@ -248,8 +248,8 @@ public class TransformModule implements GraphicsModule {
         @Override
         @SyncOnly("Upload transform SSBOs after frame collect")
         public void execute(FrameContext<C> ctx) {
-            if (matrixManager != null) {
-                matrixManager.uploadFrameBuffers();
+            if (transformManager != null) {
+                transformManager.uploadFrameBuffers();
             }
         }
     }

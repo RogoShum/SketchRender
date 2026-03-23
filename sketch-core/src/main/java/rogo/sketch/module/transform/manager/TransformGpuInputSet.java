@@ -15,28 +15,22 @@ import java.util.List;
  */
 public class TransformGpuInputSet {
     private ShaderStorageBuffer inputSSBO;
-    private ShaderStorageBuffer indexSSBO;
     private UnsafeBatchBuilder inputBuilder;
-    private UnsafeBatchBuilder indexBuilder;
     private final List<TransformDispatchRange> dispatchRanges = new ArrayList<>();
     private int maxDepth = 0;
     private int capacity;
     private boolean inputDirty = false;
-    private boolean indexDirty = false;
 
     public TransformGpuInputSet(int initialCapacity) {
         capacity = Math.max(1, initialCapacity);
         inputSSBO = new ShaderStorageBuffer(capacity, TransformUploadSnapshot.INPUT_STRIDE, GL15.GL_DYNAMIC_DRAW);
-        indexSSBO = new ShaderStorageBuffer(capacity, TransformUploadSnapshot.INDEX_STRIDE, GL15.GL_DYNAMIC_DRAW);
         inputBuilder = UnsafeBatchBuilder.createInternal((long) capacity * TransformUploadSnapshot.INPUT_STRIDE);
-        indexBuilder = UnsafeBatchBuilder.createInternal((long) capacity * TransformUploadSnapshot.INDEX_STRIDE);
     }
 
     public void loadSnapshot(TransformUploadSnapshot snapshot) {
         ensureCapacity(Math.max(snapshot.activeCount(), 1));
 
         inputBuilder.reset();
-        indexBuilder.reset();
         dispatchRanges.clear();
         dispatchRanges.addAll(snapshot.dispatchRanges());
         maxDepth = snapshot.maxDepth();
@@ -49,16 +43,7 @@ public class TransformGpuInputSet {
             inputBuilder.setWriteOffset(snapshot.inputSizeBytes());
         }
 
-        if (snapshot.indexSizeBytes() > 0) {
-            MemoryUtil.memCopy(
-                    snapshot.indexBuilder().getBaseAddress(),
-                    indexBuilder.getBaseAddress(),
-                    snapshot.indexSizeBytes());
-            indexBuilder.setWriteOffset(snapshot.indexSizeBytes());
-        }
-
         inputDirty = true;
-        indexDirty = true;
     }
 
     public void applyFrameOverrides(List<TransformBinding> frameBindings, TransformUploadSnapshot baseSnapshot) {
@@ -73,12 +58,19 @@ public class TransformGpuInputSet {
                 continue;
             }
 
+            int flags = TransformData.computeFlags(
+                    binding.frameData(),
+                    binding.frameData(),
+                    binding.parentTransformId());
+
             long ptr = inputBuilder.getBaseAddress() + (long) offset * TransformUploadSnapshot.INPUT_STRIDE;
             TransformData.writeToBuffer(
                     binding.frameData(),
                     binding.frameData(),
                     ptr,
-                    binding.parentTransformId());
+                    binding.parentTransformId(),
+                    binding.transformId(),
+                    flags);
             patched = true;
         }
 
@@ -88,12 +80,6 @@ public class TransformGpuInputSet {
     }
 
     public void upload() {
-        if (indexDirty) {
-            GraphicsDriver.getCurrentAPI().updateBuffer(
-                    indexSSBO.getHandle(), 0, indexBuilder.getWriteOffset(), indexBuilder.getBaseAddress());
-            indexDirty = false;
-        }
-
         if (inputDirty) {
             GraphicsDriver.getCurrentAPI().updateBuffer(
                     inputSSBO.getHandle(), 0, inputBuilder.getWriteOffset(), inputBuilder.getBaseAddress());
@@ -103,10 +89,6 @@ public class TransformGpuInputSet {
 
     public ShaderStorageBuffer inputSSBO() {
         return inputSSBO;
-    }
-
-    public ShaderStorageBuffer indexSSBO() {
-        return indexSSBO;
     }
 
     public List<TransformDispatchRange> dispatchRanges() {
@@ -123,17 +105,9 @@ public class TransformGpuInputSet {
             inputSSBO.dispose();
             inputSSBO = null;
         }
-        if (indexSSBO != null) {
-            indexSSBO.dispose();
-            indexSSBO = null;
-        }
         if (inputBuilder != null) {
             inputBuilder.close();
             inputBuilder = null;
-        }
-        if (indexBuilder != null) {
-            indexBuilder.close();
-            indexBuilder = null;
         }
     }
 
@@ -146,11 +120,8 @@ public class TransformGpuInputSet {
         newCapacity = ((newCapacity + 63) / 64) * 64;
         capacity = newCapacity;
         inputSSBO.ensureCapacity(newCapacity, false);
-        indexSSBO.ensureCapacity(newCapacity, false);
 
         inputBuilder.close();
-        indexBuilder.close();
         inputBuilder = UnsafeBatchBuilder.createInternal((long) capacity * TransformUploadSnapshot.INPUT_STRIDE);
-        indexBuilder = UnsafeBatchBuilder.createInternal((long) capacity * TransformUploadSnapshot.INDEX_STRIDE);
     }
 }

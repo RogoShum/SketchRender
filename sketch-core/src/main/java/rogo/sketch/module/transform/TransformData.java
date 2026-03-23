@@ -14,6 +14,12 @@ import sun.misc.Unsafe;
  * Rotation uses Euler angles in radians with ZYX convention (Roll-Yaw-Pitch).
  */
 public class TransformData extends GraphicsData<TransformData> implements TransformWriter {
+    public static final int FLAG_HAS_PARENT = 1;
+    public static final int FLAG_HAS_PIVOT = 1 << 1;
+    public static final int FLAG_IDENTITY_ROTATION = 1 << 2;
+    public static final int FLAG_IDENTITY_SCALE = 1 << 3;
+    private static final float EPSILON = 1.0e-6f;
+
     // Previous frame transform data (for interpolation)
     public final Vector3f pos = new Vector3f();
     public final Vector3f rot = new Vector3f(); // Euler angles (pitch, yaw, roll) in radians
@@ -124,7 +130,35 @@ public class TransformData extends GraphicsData<TransformData> implements Transf
         pivot.set(0, 0, 0);
     }
 
-    public static void writeToBuffer(TransformData previous, TransformData current, long ptr, int parentId) {
+    public static int computeFlags(TransformData previous, TransformData current, int parentId) {
+        int flags = 0;
+        if (parentId >= 0) {
+            flags |= FLAG_HAS_PARENT;
+        }
+        if (!isApproximatelyZero(current.pivot.x)
+                || !isApproximatelyZero(current.pivot.y)
+                || !isApproximatelyZero(current.pivot.z)) {
+            flags |= FLAG_HAS_PIVOT;
+        }
+        if (isApproximatelyZero(previous.rot.x) && isApproximatelyZero(previous.rot.y) && isApproximatelyZero(previous.rot.z)
+                && isApproximatelyZero(current.rot.x) && isApproximatelyZero(current.rot.y) && isApproximatelyZero(current.rot.z)) {
+            flags |= FLAG_IDENTITY_ROTATION;
+        }
+        if (isApproximatelyOne(previous.scale.x) && isApproximatelyOne(previous.scale.y) && isApproximatelyOne(previous.scale.z)
+                && isApproximatelyOne(current.scale.x) && isApproximatelyOne(current.scale.y) && isApproximatelyOne(current.scale.z)) {
+            flags |= FLAG_IDENTITY_SCALE;
+        }
+        return flags;
+    }
+
+    public static void writeToBuffer(
+            TransformData previous,
+            TransformData current,
+            long ptr,
+            int parentId,
+            int selfId,
+            int flags
+    ) {
         Unsafe unsafe = UnsafeHelper.getUnsafe();
         long base = ptr;
 
@@ -157,8 +191,16 @@ public class TransformData extends GraphicsData<TransformData> implements Transf
         unsafe.putFloat(base + 104, current.pivot.z);
 
         unsafe.putInt(base + 112, parentId);
-        unsafe.putInt(base + 116, 0);
-        unsafe.putInt(base + 120, 0);
+        unsafe.putInt(base + 116, selfId);
+        unsafe.putInt(base + 120, flags);
         unsafe.putInt(base + 124, 0);
+    }
+
+    private static boolean isApproximatelyZero(float value) {
+        return Math.abs(value) <= EPSILON;
+    }
+
+    private static boolean isApproximatelyOne(float value) {
+        return Math.abs(value - 1.0f) <= EPSILON;
     }
 }

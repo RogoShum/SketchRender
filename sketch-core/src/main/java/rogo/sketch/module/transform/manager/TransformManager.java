@@ -9,7 +9,7 @@ import rogo.sketch.core.pipeline.kernel.PublishedKernelResource;
 /**
  * Transform system facade coordinating registration, CPU state, hierarchy, snapshots, and GPU upload.
  */
-public class MatrixManager {
+public class TransformManager {
     public static final KernelResourceKey<TransformPreparedTickSnapshot> TICK_SNAPSHOT_RESOURCE =
             KernelResourceKey.of("transform.tick_snapshot", TransformPreparedTickSnapshot.class);
 

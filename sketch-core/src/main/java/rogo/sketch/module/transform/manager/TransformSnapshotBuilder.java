@@ -58,14 +58,19 @@ public class TransformSnapshotBuilder {
             snapshot.addDispatchRange(flattenedOffset, layer.size());
 
             for (TransformBinding binding : layer) {
-                snapshot.indexBuilder().put(binding.transformId());
                 snapshot.putBindingOffset(binding.transformId(), flattenedOffset);
+                int flags = TransformData.computeFlags(
+                        binding.currentTickData(),
+                        binding.pendingTickData(),
+                        binding.parentTransformId());
 
                 TransformData.writeToBuffer(
                         binding.currentTickData(),
                         binding.pendingTickData(),
                         inputPtr,
-                        binding.parentTransformId());
+                        binding.parentTransformId(),
+                        binding.transformId(),
+                        flags);
 
                 inputPtr += TransformUploadSnapshot.INPUT_STRIDE;
                 flattenedOffset++;
