@@ -8,10 +8,10 @@ import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.resource.GraphicsResourceManager;
-import rogo.sketch.core.resource.RenderTarget;
+import rogo.sketch.core.resource.vision.RenderTarget;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.StandardRenderTarget;
-import rogo.sketch.core.state.gl.ColorMaskState;
+import rogo.sketch.core.resource.vision.StandardRenderTarget;
+import rogo.sketch.core.driver.state.gl.ColorMaskState;
 import rogo.sketch.core.util.KeyId;
 
 import java.nio.IntBuffer;

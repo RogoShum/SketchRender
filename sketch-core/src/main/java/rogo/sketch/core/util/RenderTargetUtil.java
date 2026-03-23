@@ -2,6 +2,10 @@ package rogo.sketch.core.util;
 
 import rogo.sketch.core.resource.*;
 import rogo.sketch.core.api.Resizable;
+import rogo.sketch.core.resource.vision.RenderTarget;
+import rogo.sketch.core.resource.vision.StandardRenderTarget;
+import rogo.sketch.core.resource.vision.StandardTexture;
+import rogo.sketch.core.resource.vision.Texture;
 
 import java.util.*;
 

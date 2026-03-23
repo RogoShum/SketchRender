@@ -3,8 +3,8 @@ package rogo.sketch.core.driver;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.*;
 import rogo.sketch.core.driver.internal.*;
-import rogo.sketch.core.state.snapshot.GLStateSnapshot;
-import rogo.sketch.core.state.snapshot.SnapshotScope;
+import rogo.sketch.core.driver.state.snapshot.GLStateSnapshot;
+import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
 import rogo.sketch.core.util.GLFeatureChecker;
 
 import java.nio.ByteBuffer;

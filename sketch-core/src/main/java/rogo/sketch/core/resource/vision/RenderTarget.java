@@ -1,4 +1,4 @@
-package rogo.sketch.core.resource;
+package rogo.sketch.core.resource.vision;
 
 import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.driver.GraphicsDriver;

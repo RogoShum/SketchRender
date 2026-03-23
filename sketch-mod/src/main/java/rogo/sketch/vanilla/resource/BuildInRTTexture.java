@@ -1,7 +1,7 @@
 package rogo.sketch.vanilla.resource;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import rogo.sketch.core.resource.Texture;
+import rogo.sketch.core.resource.vision.Texture;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.function.Supplier;

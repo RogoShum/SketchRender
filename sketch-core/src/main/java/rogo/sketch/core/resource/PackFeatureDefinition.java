@@ -39,5 +39,3 @@ public record PackFeatureDefinition(
         return features.isEmpty() && macros.isEmpty();
     }
 }
-
-

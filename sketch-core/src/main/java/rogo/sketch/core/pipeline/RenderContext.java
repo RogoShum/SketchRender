@@ -4,7 +4,7 @@ import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import rogo.sketch.core.api.ShaderProvider;
-import rogo.sketch.core.pipeline.module.TransformModule;
+import rogo.sketch.module.transform.TransformModule;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.HashMap;

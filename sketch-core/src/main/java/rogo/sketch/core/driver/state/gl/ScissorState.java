@@ -1,4 +1,4 @@
-package rogo.sketch.core.state.gl;
+package rogo.sketch.core.driver.state.gl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;

@@ -1,10 +1,10 @@
-package rogo.sketch.core.state.snapshot;
+package rogo.sketch.core.driver.state.snapshot;
 
 import rogo.sketch.core.api.ShaderProvider;
+import rogo.sketch.core.driver.state.FullRenderState;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.state.FullRenderState;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.*;

@@ -30,7 +30,7 @@ import rogo.sketch.core.pipeline.flow.impl.ComputeFlowStrategy;
 import rogo.sketch.core.pipeline.flow.impl.FunctionFlowStrategy;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationFlowStrategy;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
-import rogo.sketch.core.pipeline.module.TransformModule;
+import rogo.sketch.module.transform.TransformModule;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;

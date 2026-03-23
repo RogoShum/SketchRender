@@ -11,7 +11,7 @@ import rogo.sketch.core.shader.uniform.UniformHook;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.core.shader.variant.ShaderTemplate;
-import rogo.sketch.core.state.gl.ShaderState;
+import rogo.sketch.core.driver.state.gl.ShaderState;
 
 import java.util.ArrayList;
 import java.util.HashMap;

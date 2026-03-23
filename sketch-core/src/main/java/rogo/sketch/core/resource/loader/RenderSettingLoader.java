@@ -10,13 +10,11 @@ import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.shader.variant.ShaderVariantKey;
-import rogo.sketch.core.state.DefaultRenderStates;
-import rogo.sketch.core.state.FullRenderState;
+import rogo.sketch.core.driver.state.DefaultRenderStates;
+import rogo.sketch.core.driver.state.FullRenderState;
 import rogo.sketch.core.util.KeyId;
 
-import java.io.InputStream;
 import java.util.*;
-import java.util.function.Function;
 
 /**
  * Loader for PartialRenderSetting resources from JSON

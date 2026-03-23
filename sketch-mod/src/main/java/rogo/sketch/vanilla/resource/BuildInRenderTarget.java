@@ -1,6 +1,6 @@
 package rogo.sketch.vanilla.resource;
 
-import rogo.sketch.core.resource.RenderTarget;
+import rogo.sketch.core.resource.vision.RenderTarget;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.function.Supplier;

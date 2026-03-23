@@ -6,7 +6,7 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL42;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.Texture;
+import rogo.sketch.core.resource.vision.Texture;
 import rogo.sketch.core.util.KeyId;
 
 import javax.annotation.Nullable;

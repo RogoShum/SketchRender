@@ -1,13 +1,12 @@
 package rogo.sketch.core.resource.loader;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.lwjgl.opengl.*;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.driver.internal.IGLTextureStrategy;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.StandardTexture;
-import rogo.sketch.core.resource.Texture;
+import rogo.sketch.core.resource.vision.StandardTexture;
+import rogo.sketch.core.resource.vision.Texture;
 import rogo.sketch.core.util.ImageUtil;
 import rogo.sketch.core.util.KeyId;
 
@@ -15,8 +14,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.function.Function;
-
-import static org.lwjgl.opengl.GL31.GL_RGB8_SNORM;
 
 /**
  * Loader for Texture resources from JSON.

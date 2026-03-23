@@ -2,8 +2,7 @@ package rogo.sketch.core.pipeline;
 
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.resource.ResourceBinding;
-import rogo.sketch.core.state.FullRenderState;
-import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.driver.state.FullRenderState;
 
 import java.util.Objects;
 

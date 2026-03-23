@@ -1,4 +1,4 @@
-package rogo.sketch.core.resource;
+package rogo.sketch.core.resource.vision;
 
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.opengl.GL11;

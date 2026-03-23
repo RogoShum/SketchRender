@@ -6,9 +6,9 @@ import com.google.gson.JsonObject;
 import org.lwjgl.opengl.GL30;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.GraphicsResourceManager;
-import rogo.sketch.core.resource.RenderTarget;
+import rogo.sketch.core.resource.vision.RenderTarget;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.StandardRenderTarget;
+import rogo.sketch.core.resource.vision.StandardRenderTarget;
 import rogo.sketch.core.util.KeyId;
 
 /**

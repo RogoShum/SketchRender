@@ -1,4 +1,4 @@
-package rogo.sketch.core.util.transform;
+package rogo.sketch.core.util;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 

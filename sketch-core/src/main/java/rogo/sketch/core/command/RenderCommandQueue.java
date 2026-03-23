@@ -11,9 +11,9 @@ import rogo.sketch.core.pipeline.*;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.variant.ShaderTemplate;
-import rogo.sketch.core.state.gl.ShaderState;
-import rogo.sketch.core.state.snapshot.GLStateSnapshot;
-import rogo.sketch.core.state.snapshot.SnapshotScope;
+import rogo.sketch.core.driver.state.gl.ShaderState;
+import rogo.sketch.core.driver.state.snapshot.GLStateSnapshot;
+import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.*;

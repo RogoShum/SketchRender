@@ -1,4 +1,4 @@
-package rogo.sketch.core.resource;
+package rogo.sketch.core.resource.vision;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL42;
@@ -6,6 +6,7 @@ import rogo.sketch.core.api.BindingResource;
 import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.driver.internal.IGLTextureStrategy;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 
 public abstract class Texture implements GpuObject, BindingResource {

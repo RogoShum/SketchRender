@@ -1,11 +1,10 @@
-package rogo.sketch.core.state.gl;
+package rogo.sketch.core.driver.state.gl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import rogo.sketch.core.api.RenderStateComponent;
-import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.resource.GraphicsResourceManager;

@@ -1,4 +1,4 @@
-package rogo.sketch.core.state.gl;
+package rogo.sketch.core.driver.state.gl;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -11,6 +11,8 @@ import org.lwjgl.opengl.GL30;
 import rogo.sketch.core.api.RenderStateComponent;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.resource.*;
+import rogo.sketch.core.resource.vision.RenderTarget;
+import rogo.sketch.core.resource.vision.StandardRenderTarget;
 import rogo.sketch.core.util.KeyId;
 
 import java.nio.IntBuffer;

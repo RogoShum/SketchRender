@@ -1,4 +1,4 @@
-package rogo.sketch.core.resource;
+package rogo.sketch.core.resource.vision;
 
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2i;
@@ -8,6 +8,8 @@ import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.api.Resizable;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.driver.internal.IGLFramebufferStrategy;
+import rogo.sketch.core.resource.GraphicsResourceManager;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
