@@ -1,9 +1,9 @@
-package rogo.sketch.core.state.snapshot;
+package rogo.sketch.core.driver.state.snapshot;
 
 import org.lwjgl.opengl.*;
 import rogo.sketch.core.driver.GraphicsAPI;
 import rogo.sketch.core.driver.GraphicsDriver;
-import rogo.sketch.core.state.snapshot.SnapshotScope.StateType;
+import rogo.sketch.core.driver.state.snapshot.SnapshotScope.StateType;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;

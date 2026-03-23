@@ -3,10 +3,10 @@ package rogo.sketch.vanilla.graphics;
 import net.minecraft.client.Minecraft;
 import org.joml.Vector3f;
 import rogo.sketch.SketchRender;
-import rogo.sketch.core.api.graphics.AsyncTickTransformSource;
+import rogo.sketch.module.transform.AsyncTickTransformSource;
 import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.api.graphics.TransformIdAware;
-import rogo.sketch.core.api.graphics.TransformParentSource;
+import rogo.sketch.module.transform.TransformIdAware;
+import rogo.sketch.module.transform.TransformParentSource;
 import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.instance.MeshGraphics;
@@ -15,7 +15,7 @@ import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.transform.TransformWriter;
+import rogo.sketch.module.transform.TransformWriter;
 import rogo.sketch.core.util.KeyId;
 
 /**

@@ -5,14 +5,11 @@ import rogo.sketch.core.instance.FunctionGraphics;
 import rogo.sketch.core.instance.StandardFunctionGraphics;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.state.gl.ColorMaskState;
+import rogo.sketch.core.driver.state.gl.ColorMaskState;
 import rogo.sketch.core.util.KeyId;
 
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.function.Function;
 
 public class FunctionGraphicsLoader implements ResourceLoader<FunctionGraphics> {
     private final GraphicsPipeline<?> graphicsPipeline;

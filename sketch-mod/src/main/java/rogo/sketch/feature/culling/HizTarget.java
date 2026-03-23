@@ -7,7 +7,7 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL30;
-import rogo.sketch.core.resource.Texture;
+import rogo.sketch.core.resource.vision.Texture;
 import rogo.sketch.vanilla.resource.BuildInRTTexture;
 
 public class HizTarget extends RenderTarget {

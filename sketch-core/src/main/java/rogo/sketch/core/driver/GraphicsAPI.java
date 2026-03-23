@@ -1,8 +1,8 @@
 package rogo.sketch.core.driver;
 
 import rogo.sketch.core.driver.internal.*;
-import rogo.sketch.core.state.snapshot.GLStateSnapshot;
-import rogo.sketch.core.state.snapshot.SnapshotScope;
+import rogo.sketch.core.driver.state.snapshot.GLStateSnapshot;
+import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
 
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;

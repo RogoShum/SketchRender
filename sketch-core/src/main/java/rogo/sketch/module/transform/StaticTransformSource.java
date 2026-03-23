@@ -1,6 +1,4 @@
-package rogo.sketch.core.api.graphics;
-
-import rogo.sketch.core.transform.TransformWriter;
+package rogo.sketch.module.transform;
 
 /**
  * Graphics with transform state that is authored once and then treated as static.

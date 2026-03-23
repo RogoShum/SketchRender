@@ -3,12 +3,12 @@ package rogo.sketch.vanilla.graphics;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import rogo.sketch.core.api.graphics.FrameTransformSource;
+import rogo.sketch.module.transform.FrameTransformSource;
 import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.data.builder.VertexStreamBuilder;
 import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
-import rogo.sketch.core.transform.TransformWriter;
+import rogo.sketch.module.transform.TransformWriter;
 import rogo.sketch.core.util.KeyId;
 
 /**
