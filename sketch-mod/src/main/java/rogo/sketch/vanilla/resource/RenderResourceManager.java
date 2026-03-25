@@ -11,6 +11,7 @@ import rogo.sketch.core.resource.PackFeatureDefinition;
 import rogo.sketch.core.resource.ResourceScanProvider;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.vanilla.McPipelineRegister;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -47,6 +48,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener, Res
         // Set this as the scan provider and trigger reload
         GraphicsResourceManager.getInstance().setScanProvider(this);
         GraphicsResourceManager.getInstance().reload();
+        McPipelineRegister.onResourceReload();
     }
     
     // ===== ResourceScanProvider Implementation =====

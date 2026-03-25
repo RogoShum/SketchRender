@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
@@ -280,10 +281,22 @@ public class SketchRender {
 
     @SubscribeEvent
     public void onEnterLevel(LevelEvent.Load event) {
+        if (!(event.getLevel() instanceof ClientLevel)) {
+            return;
+        }
+
         if (!initializedStaticGraphics) {
             McPipelineRegister.initGraphics();
             initializedStaticGraphics = true;
         }
+    }
+
+    @SubscribeEvent
+    public void onEnterLevel(LevelEvent.Unload event) {
+        if (!(event.getLevel() instanceof ClientLevel)) {
+            return;
+        }
+        McPipelineRegister.leaveWorld();
     }
 
     public static ShaderManager getShaderManager() {
@@ -327,6 +340,10 @@ public class SketchRender {
         // Register main thread for thread-domain guards
         ThreadDomainGuard.registerMainThread();
         McPipelineRegister.initPipeline();
+        if (PipelineUtil.pipeline().kernel() != null
+                && PipelineUtil.pipeline().kernel().moduleRegistry().runtimeHost() != null) {
+            Config.attachCoreSettings(PipelineUtil.pipeline().kernel().moduleRegistry().runtimeHost().settingRegistry());
+        }
         RenderSystem.recordRenderCall(() -> {
             McPipelineRegister.initKernel();
         });

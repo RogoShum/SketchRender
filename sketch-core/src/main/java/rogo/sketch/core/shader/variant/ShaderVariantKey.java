@@ -169,5 +169,9 @@ public final class ShaderVariantKey {
         }
         return String.join("+", flags);
     }
+
+    public ShaderMacroSignature toMacroSignature() {
+        return ShaderMacroSignature.of(flags, Collections.emptyMap());
+    }
 }
 

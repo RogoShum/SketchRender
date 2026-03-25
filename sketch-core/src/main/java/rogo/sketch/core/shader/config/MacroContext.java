@@ -1,6 +1,7 @@
 package rogo.sketch.core.shader.config;
 
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,11 +25,13 @@ public class MacroContext {
     private final Map<String, String> globalMacros = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> resourcePackMacros = new ConcurrentHashMap<>();
     private final Map<String, String> configMacros = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, String>> moduleMacros = new ConcurrentHashMap<>();
     
     // Flags (boolean macros, just define with value "1")
     private final Set<String> globalFlags = ConcurrentHashMap.newKeySet();
     private final Map<String, Set<String>> resourcePackFlags = new ConcurrentHashMap<>();
     private final Set<String> configFlags = ConcurrentHashMap.newKeySet();
+    private final Map<String, Set<String>> moduleFlags = new ConcurrentHashMap<>();
     
     // Change listeners
     private final List<Consumer<MacroChangeEvent>> changeListeners = new ArrayList<>();
@@ -183,6 +186,65 @@ public class MacroContext {
             notifyChange(MacroLayer.CONFIG, name, oldValue, null);
         }
     }
+
+    // ===== Module Macros (Runtime-owned feature projection) =====
+
+    public void setModuleMacro(String moduleId, String name, String value) {
+        Map<String, String> macros = moduleMacros.computeIfAbsent(moduleId, ignored -> new ConcurrentHashMap<>());
+        String oldValue = macros.put(name, value);
+        if (!Objects.equals(oldValue, value)) {
+            notifyChange(MacroLayer.MODULE, name, oldValue, value);
+        }
+    }
+
+    public void removeModuleMacro(String moduleId, String name) {
+        Map<String, String> macros = moduleMacros.get(moduleId);
+        if (macros == null) {
+            return;
+        }
+        String oldValue = macros.remove(name);
+        if (oldValue != null) {
+            notifyChange(MacroLayer.MODULE, name, oldValue, null);
+        }
+        if (macros.isEmpty()) {
+            moduleMacros.remove(moduleId);
+        }
+    }
+
+    public void enableModuleFlag(String moduleId, String flag) {
+        Set<String> flags = moduleFlags.computeIfAbsent(moduleId, ignored -> ConcurrentHashMap.newKeySet());
+        if (flags.add(flag)) {
+            notifyChange(MacroLayer.MODULE, flag, null, "1");
+        }
+    }
+
+    public void disableModuleFlag(String moduleId, String flag) {
+        Set<String> flags = moduleFlags.get(moduleId);
+        if (flags == null) {
+            return;
+        }
+        if (flags.remove(flag)) {
+            notifyChange(MacroLayer.MODULE, flag, "1", null);
+        }
+        if (flags.isEmpty()) {
+            moduleFlags.remove(moduleId);
+        }
+    }
+
+    public void clearModuleEntries(String moduleId) {
+        Map<String, String> removedMacros = moduleMacros.remove(moduleId);
+        if (removedMacros != null) {
+            for (Map.Entry<String, String> entry : removedMacros.entrySet()) {
+                notifyChange(MacroLayer.MODULE, entry.getKey(), entry.getValue(), null);
+            }
+        }
+        Set<String> removedFlags = moduleFlags.remove(moduleId);
+        if (removedFlags != null) {
+            for (String flag : removedFlags) {
+                notifyChange(MacroLayer.MODULE, flag, "1", null);
+            }
+        }
+    }
     
     // ===== Merged Macro Queries =====
     
@@ -207,6 +269,11 @@ public class MacroContext {
         
         // Add config macros (lowest priority)
         merged.putAll(configMacros);
+
+        // Add module-projected macros
+        for (Map<String, String> macros : moduleMacros.values()) {
+            merged.putAll(macros);
+        }
         
         // Add resource pack macros
         for (Map<String, String> packMacros : resourcePackMacros.values()) {
@@ -219,6 +286,11 @@ public class MacroContext {
         // Add all flags as "1"
         for (String flag : configFlags) {
             merged.put(flag, "1");
+        }
+        for (Set<String> flags : moduleFlags.values()) {
+            for (String flag : flags) {
+                merged.put(flag, "1");
+            }
         }
         for (Set<String> packFlags : resourcePackFlags.values()) {
             for (String flag : packFlags) {
@@ -248,6 +320,16 @@ public class MacroContext {
         }
         if (configMacros.containsKey(name) || configFlags.contains(name)) {
             return true;
+        }
+        for (Map<String, String> macros : moduleMacros.values()) {
+            if (macros.containsKey(name)) {
+                return true;
+            }
+        }
+        for (Set<String> flags : moduleFlags.values()) {
+            if (flags.contains(name)) {
+                return true;
+            }
         }
         for (Map<String, String> packMacros : resourcePackMacros.values()) {
             if (packMacros.containsKey(name)) {
@@ -371,7 +453,7 @@ public class MacroContext {
             try {
                 listener.accept(event);
             } catch (Exception e) {
-                System.err.println("Error in macro change listener: " + e.getMessage());
+                SketchDiagnostics.get().warn("macro-context", "Error in macro change listener", e);
             }
         }
     }
@@ -386,6 +468,8 @@ public class MacroContext {
         resourcePackFlags.clear();
         configMacros.clear();
         configFlags.clear();
+        moduleMacros.clear();
+        moduleFlags.clear();
         macroToShaders.clear();
     }
     
@@ -430,7 +514,7 @@ public class MacroContext {
                     Collections.emptySet()
                 ));
             } catch (Exception e) {
-                System.err.println("Error in reload complete listener: " + e.getMessage());
+                SketchDiagnostics.get().warn("macro-context", "Error in reload complete listener", e);
             }
         }
     }
@@ -444,6 +528,7 @@ public class MacroContext {
         GLOBAL,         // Third-party libraries
         RESOURCE_PACK,  // Resource packs
         CONFIG,         // User configuration
+        MODULE,         // Runtime module projection
         DYNAMIC         // Runtime variant selection
     }
     

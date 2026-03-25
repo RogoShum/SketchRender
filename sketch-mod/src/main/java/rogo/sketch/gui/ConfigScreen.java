@@ -18,11 +18,17 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
+import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
+import rogo.sketch.core.pipeline.module.setting.*;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.core.util.GLFeatureChecker;
+import rogo.sketch.core.util.KeyId;
+import rogo.sketch.module.culling.CullingModuleDescriptor;
 import rogo.sketch.util.TranslationUtil;
+import rogo.sketch.vanilla.PipelineUtil;
 import rogo.sketch.vanilla.ShaderManager;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -142,56 +148,173 @@ public class ConfigScreen extends Screen {
                     .setDetailMessage(() -> TranslationUtil.fromLang(".detail.check_texture"));
         }
 
-        addConfigButton(() -> Config.getDepthUpdateDelay() / 10d, (value) -> {
-            double step = 0.5;
-            double formatted = Math.round(value * 10 / step) * step;
-            Config.setDepthUpdateDelay(formatted);
-            return Math.max(formatted * 0.1, 0.1f);
-        }, (value) -> {
-            double step = 0.5;
-            double formatted = Math.round(value * 10 / step) * step;
-            return String.valueOf(formatted);
-        }, () -> TranslationUtil.fromLang(".culling_precision"))
-                .setDetailMessage(() -> TranslationUtil.fromLang(".detail.culling_precision"));
-
-        addConfigButton(Config::getAutoDisableAsync, Config::setAutoDisableAsync, () -> TranslationUtil.fromLang(".auto_shader_async"))
-                .setDetailMessage(() -> TranslationUtil.fromLang(".detail.auto_shader_async"));
-
-        addConfigButton(() -> Config.getCullChunk() && SketchRender.hasSodium(), Config::getAsyncChunkRebuild, Config::setAsyncChunkRebuild, () -> TranslationUtil.fromLang(".async_chunk_build"))
-                .setDetailMessage(() -> {
-                    if (!SketchRender.hasSodium()) {
-                        return TranslationUtil.fromLang(".detail.sodium");
-                    } else
-                        return TranslationUtil.fromLang(".detail.async_chunk_build");
-                });
-        addConfigButton(Config::getCullChunk, Config::setCullChunk, () -> TranslationUtil.fromLang(".cull_chunk"))
-                .setDetailMessage(() -> {
-                    if (!SketchRender.hasSodium()) {
-                        return TranslationUtil.fromLang(".detail.sodium");
-                    } else if (GLFeatureChecker.supportsIndirectDrawCount()) {
-                        return TranslationUtil.fromLang(".detail.cull_chunk");
-                    } else {
-                        return TranslationUtil.fromLang(".detail.gl46");
-                    }
-                });
-        addConfigButton(Config::getCullBlockEntity, Config::setCullBlockEntity, () -> TranslationUtil.fromLang(".cull_block_entity"))
-                .setDetailMessage(() -> {
-                    if (GLFeatureChecker.supportsPersistentMapping()) {
-                        return TranslationUtil.fromLang(".detail.cull_block_entity");
-                    } else {
-                        return TranslationUtil.fromLang(".detail.gl44");
-                    }
-                });
-        addConfigButton(Config::getCullEntity, Config::setCullEntity, () -> TranslationUtil.fromLang(".cull_entity"))
-                .setDetailMessage(() -> {
-                    if (GLFeatureChecker.supportsPersistentMapping()) {
-                        return TranslationUtil.fromLang(".detail.cull_entity");
-                    } else {
-                        return TranslationUtil.fromLang(".detail.gl44");
-                    }
-                });
+        ModuleRuntimeHost runtimeHost = PipelineUtil.pipeline().kernel() != null
+                ? PipelineUtil.pipeline().kernel().moduleRegistry().runtimeHost()
+                : null;
+        if (runtimeHost != null) {
+            addSettingButtons(runtimeHost.settingRegistry().allSettings());
+        }
 
         super.init();
+    }
+
+    private void addSettingButtons(Collection<SettingNode<?>> settings) {
+        for (SettingNode<?> setting : settings) {
+            if (!setting.visibleInGui() || setting.isGroup() || !CullingModuleDescriptor.MODULE_ID.equals(setting.moduleId())) {
+                continue;
+            }
+            if (setting instanceof BooleanSetting booleanSetting) {
+                addBooleanSetting(booleanSetting);
+            } else if (setting instanceof FloatSetting floatSetting && floatSetting.sliderSpec() != null) {
+                addFloatSlider(floatSetting);
+            } else if (setting instanceof IntSetting intSetting && intSetting.sliderSpec() != null) {
+                addIntSlider(intSetting);
+            }
+        }
+    }
+
+    private void addBooleanSetting(BooleanSetting setting) {
+        addConfigButton(
+                () -> isSettingEnabled(setting),
+                () -> Boolean.TRUE.equals(readSettingValue(setting.id())),
+                (value) -> writeSettingValue(setting.id(), value),
+                () -> Component.translatable(setting.displayKey()))
+                .setDetailMessage(() -> detailFor(setting));
+    }
+
+    private void addFloatSlider(FloatSetting setting) {
+        SliderSpec sliderSpec = setting.sliderSpec();
+        addConfigButton(
+                () -> normalize(((Number) readSettingValue(setting.id())).doubleValue(), sliderSpec.min(), sliderSpec.max()),
+                (value) -> {
+                    double actual = denormalize(value, sliderSpec.min(), sliderSpec.max());
+                    double snapped = snap(actual, sliderSpec.step());
+                    writeSettingValue(setting.id(), (float) snapped);
+                    return normalize(snapped, sliderSpec.min(), sliderSpec.max());
+                },
+                (value) -> String.valueOf(snap(denormalize(value, sliderSpec.min(), sliderSpec.max()), sliderSpec.step())),
+                () -> Component.translatable(setting.displayKey()))
+                .setDetailMessage(() -> detailFor(setting));
+    }
+
+    private void addIntSlider(IntSetting setting) {
+        SliderSpec sliderSpec = setting.sliderSpec();
+        addConfigButton(
+                () -> normalize(((Number) readSettingValue(setting.id())).doubleValue(), sliderSpec.min(), sliderSpec.max()),
+                (value) -> {
+                    double actual = denormalize(value, sliderSpec.min(), sliderSpec.max());
+                    int snapped = (int) snap(actual, sliderSpec.step());
+                    writeSettingValue(setting.id(), snapped);
+                    return normalize(snapped, sliderSpec.min(), sliderSpec.max());
+                },
+                (value) -> String.valueOf((int) snap(denormalize(value, sliderSpec.min(), sliderSpec.max()), sliderSpec.step())),
+                () -> Component.translatable(setting.displayKey()))
+                .setDetailMessage(() -> detailFor(setting));
+    }
+
+    private boolean isSettingEnabled(SettingNode<?> setting) {
+        if (setting.id().equals(CullingModuleDescriptor.CULL_CHUNK)) {
+            return SketchRender.hasSodium() && GLFeatureChecker.supportsIndirectDrawCount();
+        }
+        if (setting.id().equals(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD)) {
+            return SketchRender.hasSodium() && Config.getCullChunk();
+        }
+        if (setting.id().equals(CullingModuleDescriptor.CULL_ENTITY)
+                || setting.id().equals(CullingModuleDescriptor.CULL_BLOCK_ENTITY)) {
+            return GLFeatureChecker.supportsPersistentMapping();
+        }
+        ModuleRuntimeHost runtimeHost = PipelineUtil.pipeline().kernel() != null
+                ? PipelineUtil.pipeline().kernel().moduleRegistry().runtimeHost()
+                : null;
+        return runtimeHost == null || runtimeHost.settingRegistry().isActive(setting.id());
+    }
+
+    private Object readSettingValue(KeyId settingId) {
+        if (settingId.equals(CullingModuleDescriptor.CULL_ENTITY)) {
+            return Config.getCullEntity();
+        }
+        if (settingId.equals(CullingModuleDescriptor.CULL_BLOCK_ENTITY)) {
+            return Config.getCullBlockEntity();
+        }
+        if (settingId.equals(CullingModuleDescriptor.CULL_CHUNK)) {
+            return Config.getCullChunk();
+        }
+        if (settingId.equals(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD)) {
+            return Config.getAsyncChunkRebuild();
+        }
+        if (settingId.equals(CullingModuleDescriptor.AUTO_DISABLE_ASYNC)) {
+            return Config.getAutoDisableAsync();
+        }
+        if (settingId.equals(CullingModuleDescriptor.DEPTH_UPDATE_DELAY)) {
+            return (float) Config.getDepthUpdateDelay();
+        }
+        ModuleRuntimeHost runtimeHost = PipelineUtil.pipeline().kernel() != null
+                ? PipelineUtil.pipeline().kernel().moduleRegistry().runtimeHost()
+                : null;
+        return runtimeHost != null ? runtimeHost.settingRegistry().getValue(settingId) : null;
+    }
+
+    private void writeSettingValue(KeyId settingId, Object value) {
+        if (settingId.equals(CullingModuleDescriptor.CULL_ENTITY)) {
+            Config.setCullEntity((Boolean) value);
+            return;
+        }
+        if (settingId.equals(CullingModuleDescriptor.CULL_BLOCK_ENTITY)) {
+            Config.setCullBlockEntity((Boolean) value);
+            return;
+        }
+        if (settingId.equals(CullingModuleDescriptor.CULL_CHUNK)) {
+            Config.setCullChunk((Boolean) value);
+            return;
+        }
+        if (settingId.equals(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD)) {
+            Config.setAsyncChunkRebuild((Boolean) value);
+            return;
+        }
+        if (settingId.equals(CullingModuleDescriptor.AUTO_DISABLE_ASYNC)) {
+            Config.setAutoDisableAsync((Boolean) value);
+            return;
+        }
+        if (settingId.equals(CullingModuleDescriptor.DEPTH_UPDATE_DELAY)) {
+            Config.setDepthUpdateDelay(((Number) value).doubleValue());
+            return;
+        }
+        ModuleRuntimeHost runtimeHost = PipelineUtil.pipeline().kernel() != null
+                ? PipelineUtil.pipeline().kernel().moduleRegistry().runtimeHost()
+                : null;
+        if (runtimeHost != null) {
+            runtimeHost.settingRegistry().setValue(settingId, value);
+        }
+    }
+
+    private Component detailFor(SettingNode<?> setting) {
+        if (setting.id().equals(CullingModuleDescriptor.CULL_CHUNK) && !SketchRender.hasSodium()) {
+            return TranslationUtil.fromLang(".detail.sodium");
+        }
+        if (setting.id().equals(CullingModuleDescriptor.CULL_CHUNK) && !GLFeatureChecker.supportsIndirectDrawCount()) {
+            return TranslationUtil.fromLang(".detail.gl46");
+        }
+        if (setting.id().equals(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD) && !SketchRender.hasSodium()) {
+            return TranslationUtil.fromLang(".detail.sodium");
+        }
+        if ((setting.id().equals(CullingModuleDescriptor.CULL_ENTITY)
+                || setting.id().equals(CullingModuleDescriptor.CULL_BLOCK_ENTITY))
+                && !GLFeatureChecker.supportsPersistentMapping()) {
+            return TranslationUtil.fromLang(".detail.gl44");
+        }
+        return setting.detailKey() != null ? Component.translatable(setting.detailKey()) : Component.empty();
+    }
+
+    private double normalize(double value, double min, double max) {
+        return Math.max(0.0, Math.min(1.0, (value - min) / (max - min)));
+    }
+
+    private double denormalize(double normalized, double min, double max) {
+        return min + ((max - min) * normalized);
+    }
+
+    private double snap(double value, double step) {
+        return Math.round(value / step) * step;
     }
 
     public NeatButton addConfigButton(Supplier<Boolean> getter, Consumer<Boolean> setter, Supplier<Component> displayText) {

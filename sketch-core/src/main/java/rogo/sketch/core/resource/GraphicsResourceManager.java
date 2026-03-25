@@ -3,6 +3,7 @@ package rogo.sketch.core.resource;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import rogo.sketch.core.api.ResourceObject;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.resource.loader.*;
 import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.util.KeyId;
@@ -91,6 +92,14 @@ public class GraphicsResourceManager {
     }
 
     /**
+     * Register a built-in resource owned by a runtime/session scope.
+     */
+    public void registerBuiltIn(String ownerId, KeyId type, KeyId name, Supplier<ResourceObject> resourceSupplier) {
+        storage.registerBuiltIn(ownerId, type, name, resourceSupplier);
+        references.incrementVersion(type, name);
+    }
+
+    /**
      * Register a resource from JSON data.
      */
     public void registerJson(KeyId type, KeyId name, String jsonData) {
@@ -131,6 +140,16 @@ public class GraphicsResourceManager {
     }
 
     /**
+     * Remove all owned resources registered through the owner-aware APIs.
+     */
+    public void unregisterOwnedResources(String ownerId) {
+        Set<ResourceStorage.OwnedResourceKey> removed = storage.removeOwned(ownerId);
+        for (ResourceStorage.OwnedResourceKey key : removed) {
+            references.incrementVersion(key.type(), key.name());
+        }
+    }
+
+    /**
      * Get all resources of a specific type (including inherited types).
      */
     public <T extends ResourceObject> Map<KeyId, T> getResourcesOfType(KeyId type) {
@@ -163,7 +182,7 @@ public class GraphicsResourceManager {
      */
     public void reload() {
         if (scanProvider == null) {
-            System.err.println("No scan provider set, cannot reload resources");
+            SketchDiagnostics.get().warn("resource-manager", "No scan provider set, cannot reload resources");
             return;
         }
         
@@ -341,6 +360,7 @@ public class GraphicsResourceManager {
         
         // Built-in resources: Type -> (Name -> Supplier)
         private final Map<KeyId, Map<KeyId, Supplier<ResourceObject>>> builtInResources = new ConcurrentHashMap<>();
+        private final Map<String, Set<OwnedResourceKey>> ownedBuiltInResources = new ConcurrentHashMap<>();
 
         /**
          * Get resource (built-in priority, then file-loaded).
@@ -396,6 +416,13 @@ public class GraphicsResourceManager {
             builtInResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(name, supplier);
         }
 
+        void registerBuiltIn(String ownerId, KeyId type, KeyId name, Supplier<ResourceObject> supplier) {
+            registerBuiltIn(type, name, supplier);
+            ownedBuiltInResources
+                    .computeIfAbsent(ownerId, key -> ConcurrentHashMap.newKeySet())
+                    .add(new OwnedResourceKey(type, name));
+        }
+
         void registerLoaded(KeyId type, KeyId name, ResourceObject resource) {
             loadedResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(name, resource);
         }
@@ -419,7 +446,7 @@ public class GraphicsResourceManager {
                     try {
                         removed.dispose();
                     } catch (Exception e) {
-                        System.err.println("Error disposing resource: " + e.getMessage());
+                        SketchDiagnostics.get().warn("resource-manager", "Error disposing resource " + name, e);
                     }
                 }
             }
@@ -429,6 +456,17 @@ public class GraphicsResourceManager {
             if (typeBuiltIn != null) {
                 typeBuiltIn.remove(name);
             }
+        }
+
+        Set<OwnedResourceKey> removeOwned(String ownerId) {
+            Set<OwnedResourceKey> owned = ownedBuiltInResources.remove(ownerId);
+            if (owned == null) {
+                return Collections.emptySet();
+            }
+            for (OwnedResourceKey key : owned) {
+                remove(key.type(), key.name());
+            }
+            return owned;
         }
 
         /**
@@ -441,7 +479,7 @@ public class GraphicsResourceManager {
                         try {
                             resource.dispose();
                         } catch (Exception e) {
-                            System.err.println("Error disposing resource: " + e.getMessage());
+                            SketchDiagnostics.get().warn("resource-manager", "Error disposing loaded resource", e);
                         }
                     }
                 }
@@ -484,7 +522,7 @@ public class GraphicsResourceManager {
                                     result.put(entry.getKey(), (T) resource);
                                 }
                             } catch (Exception e) {
-                                System.err.println("Failed to get built-in resource: " + e.getMessage());
+                                SketchDiagnostics.get().warn("resource-manager", "Failed to get built-in resource " + entry.getKey(), e);
                             }
                         }
                     }
@@ -517,13 +555,16 @@ public class GraphicsResourceManager {
                                 result.put(entry.getKey(), (T) resource);
                             }
                         } catch (Exception e) {
-                            System.err.println("Failed to get built-in resource: " + e.getMessage());
+                            SketchDiagnostics.get().warn("resource-manager", "Failed to get built-in resource " + entry.getKey(), e);
                         }
                     }
                 }
             }
 
             return result;
+        }
+
+        private record OwnedResourceKey(KeyId type, KeyId name) {
         }
     }
 
@@ -550,7 +591,7 @@ public class GraphicsResourceManager {
                            Function<KeyId, Optional<InputStream>> subProvider) {
             Set<ResourceLoader<?>> loaders = loaderMap.get(type);
             if (loaders == null || loaders.isEmpty()) {
-                System.err.println("No loader found for resource type: " + type);
+                SketchDiagnostics.get().warn("resource-manager", "No loader found for resource type: " + type);
                 return null;
             }
 
@@ -563,8 +604,7 @@ public class GraphicsResourceManager {
                         return resource;
                     }
                 } catch (Exception e) {
-                    System.err.println("Failed to load resource " + id + " of type " + type + ": " + e.getMessage());
-                    e.printStackTrace();
+                    SketchDiagnostics.get().error("resource-manager", "Failed to load resource " + id + " of type " + type, e);
                 }
             }
 
@@ -615,7 +655,7 @@ public class GraphicsResourceManager {
                     try {
                         listener.onResourceReload(name, resource);
                     } catch (Exception e) {
-                        System.err.println("Reload listener error: " + e.getMessage());
+                        SketchDiagnostics.get().warn("resource-manager", "Reload listener error for " + name, e);
                     }
                 }
             }

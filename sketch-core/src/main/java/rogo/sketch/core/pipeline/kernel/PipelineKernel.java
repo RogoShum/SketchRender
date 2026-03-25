@@ -89,7 +89,7 @@ public class PipelineKernel<C extends RenderContext> {
             GraphicsDriver.getCurrentAPI().initTickWorkerContext(mainWindow);
         }
 
-        moduleRegistry.initialize(pipeline);
+        moduleRegistry.initializeKernel(this);
         rebuildGraphs();
     }
 

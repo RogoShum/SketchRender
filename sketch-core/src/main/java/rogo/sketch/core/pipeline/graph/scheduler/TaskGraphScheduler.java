@@ -8,6 +8,7 @@ import rogo.sketch.core.pipeline.graph.CompiledRenderGraph;
 import rogo.sketch.core.pipeline.graph.PassNode;
 import rogo.sketch.core.pipeline.kernel.FrameContext;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.util.TimerUtil;
 
 import java.util.ArrayDeque;
@@ -79,8 +80,7 @@ public class TaskGraphScheduler {
                     try {
                         node.pass().execute(ctx);
                     } catch (Exception e) {
-                        System.err.println("[TaskGraphScheduler] Error in SYNC pass '" + node.name() + "': " + e.getMessage());
-                        e.printStackTrace();
+                        SketchDiagnostics.get().error("task-graph", "Error in SYNC pass '" + node.name() + "'", e);
                     }
                 }
                 case ASYNC -> {
@@ -90,8 +90,7 @@ public class TaskGraphScheduler {
                         try {
                             node.pass().execute(ctx);
                         } catch (Exception e) {
-                            System.err.println("[TaskGraphScheduler] Error in ASYNC pass '" + node.name() + "': " + e.getMessage());
-                            e.printStackTrace();
+                            SketchDiagnostics.get().error("task-graph", "Error in ASYNC pass '" + node.name() + "'", e);
                         } finally {
                             SimpleProfiler.get().end("AsyncJob:" + node.name(), "WorkerThread");
                         }
@@ -101,8 +100,7 @@ public class TaskGraphScheduler {
                     try {
                         node.pass().execute(ctx);
                     } catch (Exception e) {
-                        System.err.println("[TaskGraphScheduler] Error in ANY pass '" + node.name() + "': " + e.getMessage());
-                        e.printStackTrace();
+                        SketchDiagnostics.get().error("task-graph", "Error in ANY pass '" + node.name() + "'", e);
                     }
                 }
             }
@@ -136,8 +134,8 @@ public class TaskGraphScheduler {
             try {
                 pendingAsyncBatch.join();
             } catch (CompletionException e) {
-                System.err.println("[TaskGraphScheduler] Async pass failed: " + e.getCause().getMessage());
-                e.getCause().printStackTrace();
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                SketchDiagnostics.get().error("task-graph", "Async pass failed: " + pendingAsyncPassName, cause);
             } finally {
                 SimpleProfiler.get().end("MainWait:" + pendingAsyncPassName, "MainThread");
                 TimerUtil.COMMAND_TIMER.end(waitTimerName);
@@ -193,7 +191,7 @@ public class TaskGraphScheduler {
                     }
                 }).get(2, TimeUnit.SECONDS);
             } catch (Exception e) {
-                System.err.println("[TaskGraphScheduler] Failed to cleanup worker GL context: " + e.getMessage());
+                SketchDiagnostics.get().warn("task-graph", "Failed to cleanup worker GL context", e);
             }
         }
         if (ownsWorkerPool) {

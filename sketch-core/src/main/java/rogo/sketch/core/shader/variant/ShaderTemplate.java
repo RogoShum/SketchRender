@@ -3,6 +3,7 @@ package rogo.sketch.core.shader.variant;
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.shader.*;
 import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.shader.preprocessor.ShaderPreprocessor;
@@ -172,7 +173,7 @@ public class ShaderTemplate implements ResourceObject, ShaderProvider {
         try {
             return getVariantInfo(activeVariantKey);
         } catch (IOException e) {
-            System.err.println("Failed to get active variant: " + e.getMessage());
+            SketchDiagnostics.get().error("shader-template", "Failed to get active variant for " + templateId, e);
             return null;
         }
     }

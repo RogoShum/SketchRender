@@ -10,9 +10,13 @@ import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
 import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.data.*;
+import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticEntry;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
+import rogo.sketch.core.pipeline.module.metric.MetricSnapshot;
 import rogo.sketch.core.pipeline.module.PipelineModule;
+import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
 import rogo.sketch.core.pipeline.parmeter.FunctionParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
@@ -266,6 +270,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.EARLY));
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.NORMAL));
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.LATE));
+        kernel.moduleRegistry().processInitialize(this);
 
         initialized = true;
     }
@@ -363,7 +368,35 @@ public class GraphicsPipeline<C extends RenderContext> {
         }
     }
 
-    public void cleanup() {
+    public void enterWorld() {
+        if (kernel != null && kernel.moduleRegistry().isInitialized()) {
+            kernel.moduleRegistry().enterWorld();
+        }
+    }
+
+    public void leaveWorld() {
+        if (kernel != null && kernel.moduleRegistry().isInitialized()) {
+            kernel.moduleRegistry().leaveWorld();
+        }
+
+        currentLogicTick = 0;
+        currentFrameTick = 0;
+    }
+
+    public void onResourceReload() {
+        if (kernel != null && kernel.moduleRegistry().isInitialized()) {
+            kernel.moduleRegistry().onResourceReload();
+        }
+    }
+
+    public void shutdown() {
+        leaveWorld();
+        if (kernel != null) {
+            kernel.cleanup();
+            kernel = null;
+        }
+        initialized = false;
+        initializedStaticGraphics = false;
         currentLogicTick = 0;
         currentFrameTick = 0;
     }
@@ -516,9 +549,22 @@ public class GraphicsPipeline<C extends RenderContext> {
         return kernel;
     }
 
+    public ModuleRuntimeHost runtimeHost() {
+        return kernel != null ? kernel.moduleRegistry().runtimeHost() : null;
+    }
+
+    public List<DiagnosticEntry> diagnosticsSnapshot() {
+        return SketchDiagnostics.get().snapshot();
+    }
+
+    public MetricSnapshot metricSnapshot() {
+        ModuleRuntimeHost host = runtimeHost();
+        return host != null ? host.metricSnapshot() : new MetricSnapshot(Collections.emptyMap());
+    }
+
     @Nullable
     @SuppressWarnings("unchecked")
-    public <M extends PipelineModule> M getModuleByName(String name) {
+    public <M> M getModuleByName(String name) {
         if (kernel.moduleRegistry().containsModule(name)) {
             return (M) kernel.moduleRegistry().moduleByName(name);
         }
@@ -533,6 +579,16 @@ public class GraphicsPipeline<C extends RenderContext> {
         if (kernel != null && kernel.moduleRegistry().isInitialized()) {
             kernel.moduleRegistry().onGraphicsRemoved(graphics);
         }
+    }
+
+    public void removeGraphInstance(Graphics graphics) {
+        if (graphics == null) {
+            return;
+        }
+        for (GraphicsBatchGroup<C> group : passMap.values()) {
+            group.removeGraphicsInstance(graphics);
+        }
+        notifyGraphicsRemoved(graphics);
     }
 
     private static final class ThreadAwarePipelineDataStore extends PipelineDataStore {

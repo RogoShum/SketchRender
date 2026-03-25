@@ -13,6 +13,7 @@ import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.flow.impl.ComputeBatchContainer;
 import rogo.sketch.core.pipeline.flow.impl.FunctionBatchContainer;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationBatchContainer;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.VertexResourceManager;
@@ -162,7 +163,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
                     postProcessors,
                     context);
         } catch (Exception e) {
-            e.printStackTrace();
+            SketchDiagnostics.get().error("graphics-batch-group", "Failed to create render commands for stage " + stageKeyId, e);
             return Collections.emptyMap();
         }
     }
@@ -233,6 +234,12 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     public void clear() {
         for (BatchContainer<?, ?> container : batchContainers.values()) {
             container.clear();
+        }
+    }
+
+    public void removeGraphicsInstance(Graphics graphics) {
+        for (BatchContainer<?, ?> container : batchContainers.values()) {
+            container.removeGraphicsInstance(graphics);
         }
     }
 

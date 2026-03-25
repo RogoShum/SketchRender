@@ -13,12 +13,17 @@ public class UniformHookRegistry {
     private static final UniformHookRegistry INSTANCE = new UniformHookRegistry();
     private final Map<KeyId, ValueGetter<?>> pendingHooks = new HashMap<>();
     private final ValueGetter<?> EMPTY_GETTER = ValueGetter.create(() -> null, Float.class);
+    private PipelineUniformRegistry runtimeRegistry;
 
     private UniformHookRegistry() {
     }
 
     public static UniformHookRegistry getInstance() {
         return INSTANCE;
+    }
+
+    public void setRuntimeRegistry(PipelineUniformRegistry runtimeRegistry) {
+        this.runtimeRegistry = runtimeRegistry;
     }
 
     public void init() {
@@ -45,13 +50,24 @@ public class UniformHookRegistry {
             ShaderResource<T> uniform = (ShaderResource<T>) entry.getValue();
 
             KeyId keyId = KeyId.of(uniformName);
-            if (pendingHooks.containsKey(keyId)) {
-                UniformHook<?> uniformHook = new UniformHook<>(keyId, uniform, (ValueGetter<T>) pendingHooks.get(keyId));
+            ValueGetter<?> resolvedGetter = resolveGetter(keyId);
+            if (resolvedGetter != null) {
+                UniformHook<?> uniformHook = new UniformHook<>(keyId, uniform, (ValueGetter<T>) resolvedGetter);
                 targetGroup.addUniform(uniformName, uniformHook);
             } else {
                 UniformHook<?> uniformHook = new UniformHook<>(keyId, uniform, (ValueGetter<T>) EMPTY_GETTER);
                 targetGroup.addUniform(uniformName, uniformHook);
             }
         }
+    }
+
+    private ValueGetter<?> resolveGetter(KeyId keyId) {
+        if (runtimeRegistry != null) {
+            ValueGetter<?> runtimeGetter = runtimeRegistry.resolve(keyId);
+            if (runtimeGetter != null) {
+                return runtimeGetter;
+            }
+        }
+        return pendingHooks.get(keyId);
     }
 }

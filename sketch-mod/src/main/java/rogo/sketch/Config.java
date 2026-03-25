@@ -3,14 +3,18 @@ package rogo.sketch;
 import com.google.common.collect.ImmutableList;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.common.ForgeConfigSpec;
+import rogo.sketch.config.ForgeSettingAdapter;
+import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.core.util.GLFeatureChecker;
+import rogo.sketch.module.culling.CullingModuleDescriptor;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class Config {
     public static ForgeConfigSpec CLIENT_CONFIG;
+    private static final ForgeSettingAdapter CORE_SETTINGS = new ForgeSettingAdapter();
     private static final ForgeConfigSpec.BooleanValue CULL_ENTITY;
     private static final ForgeConfigSpec.BooleanValue CULL_BLOCK_ENTITY;
     private static final ForgeConfigSpec.BooleanValue CULL_CHUNK;
@@ -27,31 +31,33 @@ public class Config {
     public static boolean getCullEntity() {
         if (unload() || !GLFeatureChecker.supportsPersistentMapping())
             return false;
-        return CULL_ENTITY.get();
+        return CORE_SETTINGS.getBoolean(CullingModuleDescriptor.CULL_ENTITY, CULL_ENTITY::get);
     }
 
     public static void setCullEntity(boolean value) {
         CULL_ENTITY.set(value);
         CULL_ENTITY.save();
+        CORE_SETTINGS.setValue(CullingModuleDescriptor.CULL_ENTITY, value);
     }
 
     public static boolean getCullBlockEntity() {
         if (unload() || !GLFeatureChecker.supportsPersistentMapping())
             return false;
 
-        return CULL_BLOCK_ENTITY.get();
+        return CORE_SETTINGS.getBoolean(CullingModuleDescriptor.CULL_BLOCK_ENTITY, CULL_BLOCK_ENTITY::get);
     }
 
     public static void setCullBlockEntity(boolean value) {
         CULL_BLOCK_ENTITY.set(value);
         CULL_BLOCK_ENTITY.save();
+        CORE_SETTINGS.setValue(CullingModuleDescriptor.CULL_BLOCK_ENTITY, value);
     }
 
     public static boolean getCullChunk() {
         if (unload() || !GLFeatureChecker.supportsIndirectDrawCount() || !SketchRender.hasSodium())
             return false;
 
-        return CULL_CHUNK.get();
+        return CORE_SETTINGS.getBoolean(CullingModuleDescriptor.CULL_CHUNK, CULL_CHUNK::get);
     }
 
     public static void setCullChunk(boolean value) {
@@ -61,6 +67,7 @@ public class Config {
 
         CULL_CHUNK.set(value);
         CULL_CHUNK.save();
+        CORE_SETTINGS.setValue(CullingModuleDescriptor.CULL_CHUNK, value);
         Minecraft.getInstance().levelRenderer.allChanged();
     }
 
@@ -74,7 +81,7 @@ public class Config {
         if (getAutoDisableAsync() && CullingStateManager.enabledShader())
             return false;
 
-        return ASYNC.get();
+        return CORE_SETTINGS.getBoolean(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD, ASYNC::get);
     }
 
     public static void setAsyncChunkRebuild(boolean value) {
@@ -83,30 +90,33 @@ public class Config {
 
         ASYNC.set(value);
         ASYNC.save();
+        CORE_SETTINGS.setValue(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD, value);
     }
 
     public static boolean getAutoDisableAsync() {
         if (unload())
             return false;
 
-        return AUTO_DISABLE_ASYNC.get();
+        return CORE_SETTINGS.getBoolean(CullingModuleDescriptor.AUTO_DISABLE_ASYNC, AUTO_DISABLE_ASYNC::get);
     }
 
     public static void setAutoDisableAsync(boolean value) {
         AUTO_DISABLE_ASYNC.set(value);
         AUTO_DISABLE_ASYNC.save();
+        CORE_SETTINGS.setValue(CullingModuleDescriptor.AUTO_DISABLE_ASYNC, value);
     }
 
     public static double getDepthUpdateDelay() {
         if (unload())
             return 1;
 
-        return Math.max(UPDATE_DELAY.get(), 1.0f);
+        return Math.max(CORE_SETTINGS.getFloat(CullingModuleDescriptor.DEPTH_UPDATE_DELAY, () -> UPDATE_DELAY.get().floatValue()), 1.0f);
     }
 
     public static void setDepthUpdateDelay(double value) {
         UPDATE_DELAY.set(Math.max(1.0f, value));
         UPDATE_DELAY.save();
+        CORE_SETTINGS.setValue(CullingModuleDescriptor.DEPTH_UPDATE_DELAY, (float) Math.max(1.0f, value));
     }
 
     public static List<? extends String> getEntitiesSkip() {
@@ -129,6 +139,16 @@ public class Config {
 
     private static boolean unload() {
         return !loaded;
+    }
+
+    public static void attachCoreSettings(ModuleSettingRegistry registry) {
+        CORE_SETTINGS.bindBoolean(CullingModuleDescriptor.CULL_ENTITY, CULL_ENTITY::get);
+        CORE_SETTINGS.bindBoolean(CullingModuleDescriptor.CULL_BLOCK_ENTITY, CULL_BLOCK_ENTITY::get);
+        CORE_SETTINGS.bindBoolean(CullingModuleDescriptor.CULL_CHUNK, CULL_CHUNK::get);
+        CORE_SETTINGS.bindBoolean(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD, ASYNC::get);
+        CORE_SETTINGS.bindBoolean(CullingModuleDescriptor.AUTO_DISABLE_ASYNC, AUTO_DISABLE_ASYNC::get);
+        CORE_SETTINGS.bindFloat(CullingModuleDescriptor.DEPTH_UPDATE_DELAY, () -> UPDATE_DELAY.get().floatValue());
+        CORE_SETTINGS.attach(registry);
     }
 
     static {

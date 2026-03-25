@@ -12,8 +12,12 @@ import rogo.sketch.core.pipeline.kernel.FrameContext;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
 import rogo.sketch.core.pipeline.kernel.annotation.AsyncOnly;
 import rogo.sketch.core.pipeline.kernel.annotation.SyncOnly;
-import rogo.sketch.core.pipeline.module.GraphicsModule;
-import rogo.sketch.core.pipeline.parmeter.RenderParameter;
+import rogo.sketch.core.pipeline.module.metric.MetricDescriptor;
+import rogo.sketch.core.pipeline.module.metric.MetricKind;
+import rogo.sketch.core.pipeline.module.runtime.ModuleRuntime;
+import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
+import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.module.transform.manager.TransformManager;
 import rogo.sketch.module.transform.manager.TransformBinding;
@@ -32,7 +36,7 @@ import rogo.sketch.module.transform.manager.TransformUpdateDomain;
  *   <li>frame-pass snapshot consumption and SSBO upload</li>
  * </ul>
  */
-public class TransformModule implements GraphicsModule {
+public class TransformModule implements ModuleRuntime {
     public static final String MODULE_NAME = "transform";
     private static final String PASS_TICK_SWAP = "transform_tick_swap";
     private static final String PASS_SYNC_TICK_COLLECT = "transform_sync_tick_collect";
@@ -43,18 +47,37 @@ public class TransformModule implements GraphicsModule {
     private TransformManager transformManager;
 
     @Override
-    public String name() {
+    public String id() {
         return MODULE_NAME;
     }
 
     @Override
-    public int priority() {
-        return 100;
-    } // Initialize early
-
-    @Override
-    public void initialize(GraphicsPipeline<?> pipeline) {
+    public void onKernelInit(ModuleRuntimeContext context) {
         this.transformManager = new TransformManager();
+        context.registerMetric(new MetricDescriptor(
+                TransformModuleDescriptor.ACTIVE_COUNT_METRIC,
+                MODULE_NAME,
+                MetricKind.COUNT,
+                "metric." + MODULE_NAME + ".active_count",
+                "metric." + MODULE_NAME + ".active_count.detail"), this::getActiveCount);
+        context.registerBuiltInResource(ResourceTypes.SHADER_STORAGE_BUFFER,
+                KeyId.of("sketch_render", "transform_input_async"),
+                () -> transformManager != null ? transformManager.getAsyncPipeline().inputSSBO() : null);
+        context.registerBuiltInResource(ResourceTypes.SHADER_STORAGE_BUFFER,
+                KeyId.of("sketch_render", "transform_input_sync"),
+                () -> transformManager != null ? transformManager.getSyncPipeline().inputSSBO() : null);
+        context.registerBuiltInResource(ResourceTypes.SHADER_STORAGE_BUFFER,
+                KeyId.of("sketch_render", "transform_output"),
+                () -> transformManager != null ? transformManager.getOutputSSBO() : null);
+        context.registerUniform(KeyId.of("u_transformCount"), ValueGetter.create((instance) -> {
+            RenderContext renderContext = (RenderContext) instance;
+            if (renderContext.transformModule() != null && renderContext.transformModule().matrixManager() != null) {
+                return renderContext.transformModule().matrixManager().getActiveCount();
+            }
+            return 0;
+        }, Integer.class, RenderContext.class));
+        context.registerUniform(KeyId.of("u_batchOffset"), ValueGetter.create(() -> 0, Integer.class));
+        context.registerUniform(KeyId.of("u_batchCount"), ValueGetter.create(() -> 0, Integer.class));
     }
 
     @Override
@@ -66,7 +89,7 @@ public class TransformModule implements GraphicsModule {
     }
 
     @Override
-    public void onAttach(Graphics graphics, RenderParameter renderParameter, KeyId containerType) {
+    public void onGraphicsAttached(Graphics graphics, rogo.sketch.core.pipeline.parmeter.RenderParameter renderParameter, KeyId containerType, ModuleRuntimeContext context) {
         if (transformManager == null || transformManager.isRegistered(graphics)) {
             return;
         }
@@ -79,7 +102,7 @@ public class TransformModule implements GraphicsModule {
     }
 
     @Override
-    public void onDetach(Graphics graphics) {
+    public void onGraphicsDetached(Graphics graphics, ModuleRuntimeContext context) {
         if (transformManager == null) {
             return;
         }
@@ -107,7 +130,7 @@ public class TransformModule implements GraphicsModule {
     }
 
     @Override
-    public void cleanup() {
+    public void onShutdown(ModuleRuntimeContext context) {
         if (transformManager != null) {
             transformManager.cleanup();
             transformManager = null;
@@ -116,6 +139,10 @@ public class TransformModule implements GraphicsModule {
 
     public TransformManager matrixManager() {
         return transformManager;
+    }
+
+    private int getActiveCount() {
+        return transformManager != null ? transformManager.getActiveCount() : 0;
     }
 
     private TransformUpdateDomain detectUpdateDomain(Graphics graphics) {

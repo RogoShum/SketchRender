@@ -1,5 +1,6 @@
 package rogo.sketch.core.shader.preprocessor;
 
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.util.KeyId;
 
 import java.io.BufferedReader;
@@ -84,8 +85,7 @@ public interface ShaderResourceProvider {
                          BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
                         return Optional.of(br.lines().collect(Collectors.joining("\n")));
                     } catch (Exception e) {
-                        System.err.println("Failed to read resource: " + resourcePath + " - " + e.getMessage());
-                        e.printStackTrace();
+                        SketchDiagnostics.get().error("shader-resource", "Failed to read resource: " + resourcePath, e);
                         return Optional.empty();
                     }
                 }

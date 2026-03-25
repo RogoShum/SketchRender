@@ -97,8 +97,6 @@ public class CullingStateManager {
     }
 
     public static void cleanup() {
-        PipelineUtil.pipeline().cleanup();
-
         if (ENTITY_CULLING_MASK != null) {
             ENTITY_CULLING_MASK.cleanup();
             ENTITY_CULLING_MASK = null;
