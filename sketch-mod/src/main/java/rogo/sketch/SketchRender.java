@@ -60,6 +60,7 @@ import rogo.sketch.event.ForgeEventBusImplementation;
 import rogo.sketch.feature.culling.CullingRenderEvent;
 import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.gui.debugui.AdaptiveDebugDashboardScreen;
 import rogo.sketch.gui.ConfigScreen;
 import rogo.sketch.profiler.ProfilerEventHandler;
 import rogo.sketch.util.OcclusionCullerThread;
@@ -117,6 +118,12 @@ public class SketchRender {
             GLFW.GLFW_KEY_R,
             "key.category." + MOD_ID);
 
+    public static final KeyMapping DEBUG_DASHBOARD_KEY = new KeyMapping(MOD_ID + ".key.dashboard",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_H,
+            "key.category." + MOD_ID);
+
     public static final KeyMapping DEBUG_KEY = new KeyMapping(MOD_ID + ".key.debug",
             KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM,
@@ -137,6 +144,7 @@ public class SketchRender {
 
     public void registerKeyBinding(RegisterKeyMappingsEvent event) {
         event.register(CONFIG_KEY);
+        event.register(DEBUG_DASHBOARD_KEY);
         event.register(DEBUG_KEY);
         event.register(TEST_CULL_KEY);
     }
@@ -146,6 +154,9 @@ public class SketchRender {
         if (Minecraft.getInstance().player != null) {
             if (CONFIG_KEY.isDown()) {
                 Minecraft.getInstance().setScreen(new ConfigScreen(Component.translatable(MOD_ID + ".config")));
+            }
+            if (DEBUG_DASHBOARD_KEY.isDown()) {
+                Minecraft.getInstance().setScreen(new AdaptiveDebugDashboardScreen(Component.translatable(MOD_ID + ".config")));
             }
             if (DEBUG_KEY.isDown()) {
                 DEBUG++;

@@ -284,11 +284,8 @@ public class GraphicsResourceManager {
         // Load new pack features
         List<PackFeatureDefinition> features = scanProvider.getPackFeatures();
         for (PackFeatureDefinition feature : features) {
-            if (!feature.macros().isEmpty()) {
-                MacroContext.getInstance().registerResourcePackMacros(feature.packId(), feature.macros());
-            }
-            if (!feature.features().isEmpty()) {
-                MacroContext.getInstance().registerResourcePackFlags(feature.packId(), feature.features());
+            if (!feature.resolvedEntries().isEmpty()) {
+                MacroContext.getInstance().registerResourcePackEntries(feature.packId(), feature.resolvedEntries());
             }
         }
     }

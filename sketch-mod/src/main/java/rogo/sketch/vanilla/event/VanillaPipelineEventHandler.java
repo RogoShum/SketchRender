@@ -25,6 +25,7 @@ import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.module.VanillaCullingBridgeModuleDescriptor;
 import rogo.sketch.vanilla.module.VanillaModuleDescriptor;
 import rogo.sketch.vanilla.module.VanillaTestModuleDescriptor;
+import rogo.sketch.vanilla.module.DashboardTestModuleDescriptor;
 import rogo.sketch.vanilla.resource.loader.VanillaTextureLoader;
 
 public class VanillaPipelineEventHandler {
@@ -55,6 +56,7 @@ public class VanillaPipelineEventHandler {
                 }
                 if (!FMLEnvironment.production) {
                     kernel.moduleRegistry().registerDescriptor(new VanillaTestModuleDescriptor());
+                    kernel.moduleRegistry().registerDescriptor(new DashboardTestModuleDescriptor());
                 }
             }
             case NORMAL -> MinecraftRenderStages.registerExtraStages(mcPipeline);

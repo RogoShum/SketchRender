@@ -124,3 +124,4 @@ runs/
 /sketch-mod/bin/
 /.backup/
 /plan/
+/.gradle-home/

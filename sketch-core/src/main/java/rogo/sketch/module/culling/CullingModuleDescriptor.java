@@ -2,8 +2,8 @@ package rogo.sketch.module.culling;
 
 import rogo.sketch.core.pipeline.module.descriptor.ModuleDescriptor;
 import rogo.sketch.core.pipeline.module.descriptor.ModuleDescriptorContext;
-import rogo.sketch.core.pipeline.module.macro.ModuleMacroDefinition;
-import rogo.sketch.core.pipeline.module.setting.*;
+import rogo.sketch.core.pipeline.module.setting.ChangeImpact;
+import rogo.sketch.core.pipeline.module.setting.DependencyRule;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.List;
@@ -31,87 +31,73 @@ public class CullingModuleDescriptor implements ModuleDescriptor {
 
     @Override
     public void describe(ModuleDescriptorContext context) {
-        context.registerSetting(new SettingGroup(
-                GROUP_GENERAL,
-                id(),
-                "sketch_render.config",
-                null,
-                context.moduleEnabledSettingId(),
-                false,
-                List.of()));
+        var settings = context.settingsDsl();
+        var macros = context.macrosDsl();
 
-        context.registerSetting(new FloatSetting(
-                DEPTH_UPDATE_DELAY,
-                id(),
-                "sketch_render.culling_precision",
-                "sketch_render.detail.culling_precision",
-                GROUP_GENERAL,
-                ChangeImpact.UPDATE_UNIFORMS,
-                true,
-                List.of(),
-                4.0f,
-                1.0f,
-                10.0f,
-                SliderSpec.of(1.0, 10.0, 0.5)));
+        settings.group(GROUP_GENERAL, "sketch_render.config")
+                .parent(context.moduleEnabledSettingId())
+                .hiddenInGui()
+                .register();
 
-        context.registerSetting(new BooleanSetting(
-                AUTO_DISABLE_ASYNC,
-                id(),
-                "sketch_render.auto_shader_async",
-                "sketch_render.detail.auto_shader_async",
-                GROUP_GENERAL,
-                ChangeImpact.RUNTIME_ONLY,
-                true,
-                List.of(),
-                true));
+        settings.floating(DEPTH_UPDATE_DELAY, "sketch_render.culling_precision")
+                .detail("sketch_render.detail.culling_precision")
+                .parent(GROUP_GENERAL)
+                .impact(ChangeImpact.UPDATE_UNIFORMS)
+                .defaultValue(4.0f)
+                .slider(1.0f, 10.0f, 0.5f, "%.1f")
+                .register();
 
-        context.registerSetting(new BooleanSetting(
-                CULL_CHUNK,
-                id(),
-                "sketch_render.cull_chunk",
-                "sketch_render.detail.cull_chunk",
-                GROUP_GENERAL,
-                ChangeImpact.RECREATE_SESSION_RESOURCES,
-                true,
-                List.of(),
-                true));
+        settings.bool(AUTO_DISABLE_ASYNC, "sketch_render.auto_shader_async")
+                .detail("sketch_render.detail.auto_shader_async")
+                .parent(GROUP_GENERAL)
+                .impact(ChangeImpact.RUNTIME_ONLY)
+                .defaultValue(true)
+                .register();
 
-        context.registerSetting(new BooleanSetting(
-                ASYNC_CHUNK_REBUILD,
-                id(),
-                "sketch_render.async_chunk_build",
-                "sketch_render.detail.async_chunk_build",
-                CULL_CHUNK,
-                ChangeImpact.RECREATE_SESSION_RESOURCES,
-                true,
-                List.of(DependencyRule.requiresTrue(CULL_CHUNK)),
-                true));
+        settings.bool(CULL_CHUNK, "sketch_render.cull_chunk")
+                .detail("sketch_render.detail.cull_chunk")
+                .parent(GROUP_GENERAL)
+                .impact(ChangeImpact.RECREATE_SESSION_RESOURCES)
+                .defaultValue(true)
+                .register();
 
-        context.registerSetting(new BooleanSetting(
-                CULL_BLOCK_ENTITY,
-                id(),
-                "sketch_render.cull_block_entity",
-                "sketch_render.detail.cull_block_entity",
-                GROUP_GENERAL,
-                ChangeImpact.RECREATE_SESSION_RESOURCES,
-                true,
-                List.of(),
-                true));
+        settings.bool(ASYNC_CHUNK_REBUILD, "sketch_render.async_chunk_build")
+                .detail("sketch_render.detail.async_chunk_build")
+                .parent(CULL_CHUNK)
+                .impact(ChangeImpact.RECREATE_SESSION_RESOURCES)
+                .dependency(DependencyRule.requiresTrue(CULL_CHUNK))
+                .defaultValue(true)
+                .register();
 
-        context.registerSetting(new BooleanSetting(
-                CULL_ENTITY,
-                id(),
-                "sketch_render.cull_entity",
-                "sketch_render.detail.cull_entity",
-                GROUP_GENERAL,
-                ChangeImpact.RECREATE_SESSION_RESOURCES,
-                true,
-                List.of(),
-                true));
+        settings.bool(CULL_BLOCK_ENTITY, "sketch_render.cull_block_entity")
+                .detail("sketch_render.detail.cull_block_entity")
+                .parent(GROUP_GENERAL)
+                .impact(ChangeImpact.RECREATE_SESSION_RESOURCES)
+                .defaultValue(true)
+                .register();
 
-        context.registerMacro(new ModuleMacroDefinition(id(), "SKETCH_CULL_CHUNK", ModuleMacroDefinition.MacroKind.FLAG, CULL_CHUNK));
-        context.registerMacro(new ModuleMacroDefinition(id(), "SKETCH_CULL_ENTITY", ModuleMacroDefinition.MacroKind.FLAG, CULL_ENTITY));
-        context.registerMacro(new ModuleMacroDefinition(id(), "SKETCH_CULL_BLOCK_ENTITY", ModuleMacroDefinition.MacroKind.FLAG, CULL_BLOCK_ENTITY));
+        settings.bool(CULL_ENTITY, "sketch_render.cull_entity")
+                .detail("sketch_render.detail.cull_entity")
+                .parent(GROUP_GENERAL)
+                .impact(ChangeImpact.RECREATE_SESSION_RESOURCES)
+                .defaultValue(true)
+                .register();
+
+        macros.flag("SKETCH_CULL_CHUNK")
+                .setting(CULL_CHUNK)
+                .displayKey("sketch_render.cull_chunk")
+                .detail("sketch_render.detail.cull_chunk")
+                .register();
+        macros.flag("SKETCH_CULL_ENTITY")
+                .setting(CULL_ENTITY)
+                .displayKey("sketch_render.cull_entity")
+                .detail("sketch_render.detail.cull_entity")
+                .register();
+        macros.flag("SKETCH_CULL_BLOCK_ENTITY")
+                .setting(CULL_BLOCK_ENTITY)
+                .displayKey("sketch_render.cull_block_entity")
+                .detail("sketch_render.detail.cull_block_entity")
+                .register();
     }
 
     @Override

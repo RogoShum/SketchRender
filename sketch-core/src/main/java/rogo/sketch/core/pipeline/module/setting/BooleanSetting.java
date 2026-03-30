@@ -2,6 +2,7 @@ package rogo.sketch.core.pipeline.module.setting;
 
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.ui.control.ControlSpec;
 
 import java.util.List;
 
@@ -16,7 +17,22 @@ public class BooleanSetting extends SettingNode<Boolean> {
             boolean visibleInGui,
             List<DependencyRule> dependencies,
             boolean defaultValue) {
-        super(id, moduleId, displayKey, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue);
+        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue, ControlSpec.toggle());
+    }
+
+    public BooleanSetting(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String summaryKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            ChangeImpact changeImpact,
+            boolean visibleInGui,
+            List<DependencyRule> dependencies,
+            boolean defaultValue,
+            @Nullable ControlSpec controlSpec) {
+        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue, controlSpec);
     }
 
     @Override

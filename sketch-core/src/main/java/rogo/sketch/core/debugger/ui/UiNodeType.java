@@ -1,0 +1,19 @@
+package rogo.sketch.core.debugger.ui;
+
+public enum UiNodeType {
+    PANEL,
+    HEADER,
+    TAB_BUTTON,
+    TREE_GROUP,
+    TREE_CONTROL,
+    METRIC_CARD,
+    BAR_CHART,
+    MACRO_SECTION_HEADER,
+    MACRO_CONSTANT_ROW,
+    METRICS_LAYOUT_TOGGLE,
+    DIAGNOSTIC_HEADER,
+    DIAGNOSTIC_FILTER,
+    DIAGNOSTIC_STATE,
+    LOG_LINE,
+    TOOLTIP
+}

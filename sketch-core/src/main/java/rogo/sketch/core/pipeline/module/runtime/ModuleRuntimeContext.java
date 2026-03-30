@@ -59,6 +59,10 @@ public interface ModuleRuntimeContext {
 
     void clearOwnedMacros();
 
+    void setGlobalFlag(String flagName, boolean enabled);
+
+    void setGlobalMacro(String macroName, String value);
+
     void registerCompute(KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime);
 
     void registerFunction(KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime);

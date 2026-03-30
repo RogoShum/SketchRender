@@ -10,6 +10,13 @@ import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.PackFeatureDefinition;
 import rogo.sketch.core.resource.ResourceScanProvider;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.shader.config.MacroEntryDescriptor;
+import rogo.sketch.core.shader.config.MacroEntryType;
+import rogo.sketch.core.ui.control.ChoiceOptionSpec;
+import rogo.sketch.core.ui.control.ChoicePresentation;
+import rogo.sketch.core.ui.control.ChoiceSpec;
+import rogo.sketch.core.ui.control.ControlSpec;
+import rogo.sketch.core.ui.control.NumericSpec;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.vanilla.McPipelineRegister;
 
@@ -146,7 +153,7 @@ public class RenderResourceManager implements ResourceManagerReloadListener, Res
                     }
                 }
             }
-            
+
             Map<String, String> macros = new HashMap<>();
             if (json.has("macros") && json.get("macros").isJsonObject()) {
                 for (var entry : json.getAsJsonObject("macros").entrySet()) {
@@ -155,13 +162,89 @@ public class RenderResourceManager implements ResourceManagerReloadListener, Res
                     }
                 }
             }
-            
-            return new PackFeatureDefinition(packId, featureFlags, macros);
+
+            Map<String, MacroEntryDescriptor> entries = new LinkedHashMap<>();
+            for (String featureFlag : featureFlags) {
+                entries.put(featureFlag, MacroEntryDescriptor.constantFlag(featureFlag));
+            }
+            for (Map.Entry<String, String> entry : macros.entrySet()) {
+                entries.put(entry.getKey(), MacroEntryDescriptor.constantValue(entry.getKey(), entry.getValue()));
+            }
+            if (json.has("definitions") && json.get("definitions").isJsonArray()) {
+                for (var element : json.getAsJsonArray("definitions")) {
+                    if (!element.isJsonObject()) {
+                        continue;
+                    }
+                    MacroEntryDescriptor descriptor = parseMacroDefinition(element.getAsJsonObject());
+                    if (descriptor != null) {
+                        entries.put(descriptor.name(), descriptor);
+                    }
+                }
+            }
+
+            return new PackFeatureDefinition(packId, featureFlags, macros, entries);
             
         } catch (IOException e) {
             System.err.println("Failed to parse pack feature: " + e.getMessage());
             return null;
         }
+    }
+
+    private MacroEntryDescriptor parseMacroDefinition(JsonObject json) {
+        if (!json.has("name")) {
+            return null;
+        }
+        String name = json.get("name").getAsString();
+        String typeName = json.has("type") ? json.get("type").getAsString() : "constant";
+        boolean editable = json.has("editable") && json.get("editable").getAsBoolean();
+        String value = json.has("value") && json.get("value").isJsonPrimitive() ? json.get("value").getAsString() : null;
+        String displayKey = json.has("displayKey") ? json.get("displayKey").getAsString() : null;
+        String summaryKey = json.has("summaryKey") ? json.get("summaryKey").getAsString() : null;
+        String detailKey = json.has("detailKey") ? json.get("detailKey").getAsString() : null;
+
+        MacroEntryType type = switch (typeName.toLowerCase(Locale.ROOT)) {
+            case "flag" -> MacroEntryType.FLAG;
+            case "choice" -> MacroEntryType.CHOICE;
+            case "value" -> MacroEntryType.VALUE;
+            default -> MacroEntryType.CONSTANT;
+        };
+
+        ControlSpec controlSpec = null;
+        if (type == MacroEntryType.CHOICE && json.has("options") && json.get("options").isJsonArray()) {
+            List<ChoiceOptionSpec> options = new ArrayList<>();
+            for (var optionElement : json.getAsJsonArray("options")) {
+                if (!optionElement.isJsonObject()) {
+                    continue;
+                }
+                JsonObject optionJson = optionElement.getAsJsonObject();
+                if (!optionJson.has("value")) {
+                    continue;
+                }
+                String optionValue = optionJson.get("value").getAsString();
+                String optionDisplay = optionJson.has("displayKey") ? optionJson.get("displayKey").getAsString() : optionValue;
+                String optionSummary = optionJson.has("summaryKey") ? optionJson.get("summaryKey").getAsString() : null;
+                String optionDetail = optionJson.has("detailKey") ? optionJson.get("detailKey").getAsString() : null;
+                options.add(new ChoiceOptionSpec(optionValue, optionDisplay, optionSummary, optionDetail));
+            }
+            ChoicePresentation presentation = ChoicePresentation.AUTO;
+            if (json.has("presentation")) {
+                presentation = ChoicePresentation.valueOf(json.get("presentation").getAsString().toUpperCase(Locale.ROOT));
+            }
+            controlSpec = ControlSpec.choice(new ChoiceSpec(options, presentation));
+        } else if ((type == MacroEntryType.VALUE || type == MacroEntryType.CONSTANT) && json.has("numeric") && json.get("numeric").isJsonObject()) {
+            JsonObject numeric = json.getAsJsonObject("numeric");
+            boolean integer = !numeric.has("kind") || "integer".equalsIgnoreCase(numeric.get("kind").getAsString());
+            double min = numeric.has("min") ? numeric.get("min").getAsDouble() : 0.0D;
+            double max = numeric.has("max") ? numeric.get("max").getAsDouble() : 1.0D;
+            double step = numeric.has("step") ? numeric.get("step").getAsDouble() : 1.0D;
+            String format = numeric.has("format") ? numeric.get("format").getAsString() : (integer ? "%d" : "%.2f");
+            NumericSpec numericSpec = integer
+                    ? NumericSpec.integer((int) Math.round(min), (int) Math.round(max), (int) Math.max(1, Math.round(step)), format)
+                    : NumericSpec.floating(min, max, step, format);
+            controlSpec = editable ? ControlSpec.number(numericSpec) : null;
+        }
+
+        return new MacroEntryDescriptor(name, type, editable, value, displayKey, summaryKey, detailKey, controlSpec);
     }
     
     /**

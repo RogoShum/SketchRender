@@ -47,6 +47,8 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
 
     @Override
     public void onKernelInit(ModuleRuntimeContext context) {
+        context.setGlobalFlag("IRIS_ENABLE", SketchRender.hasIris());
+        context.setGlobalFlag("SODIUM_ENABLE", SketchRender.hasSodium());
         context.registerBuiltInResource(ResourceTypes.TEXTURE,
                 KeyId.of(SketchRender.MOD_ID, "hiz_texture"),
                 () -> CullingStateManager.DEPTH_BUFFER_TARGET != null ? CullingStateManager.DEPTH_BUFFER_TARGET.texture() : null);

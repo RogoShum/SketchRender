@@ -610,6 +610,16 @@ public class ModuleRuntimeHost {
         }
 
         @Override
+        public void setGlobalFlag(String flagName, boolean enabled) {
+            macroRegistry.setGlobalFlag(ownerId, flagName, enabled);
+        }
+
+        @Override
+        public void setGlobalMacro(String macroName, String value) {
+            macroRegistry.setGlobalMacro(ownerId, macroName, value);
+        }
+
+        @Override
         public void registerCompute(KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
             ModuleRuntimeHost.this.registerCompute(ownerId, stageId, graphics, lifetime);
         }

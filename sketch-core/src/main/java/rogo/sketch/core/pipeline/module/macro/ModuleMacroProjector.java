@@ -1,11 +1,11 @@
 package rogo.sketch.core.pipeline.module.macro;
 
 import rogo.sketch.core.pipeline.module.setting.SettingSnapshot;
+import rogo.sketch.core.shader.config.MacroEntryDescriptor;
+import rogo.sketch.core.shader.config.MacroEntryType;
 import rogo.sketch.core.util.KeyId;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 
 /**
@@ -24,6 +24,14 @@ public class ModuleMacroProjector {
         return this;
     }
 
+    public ModuleMacroProjector projectChoice(
+            KeyId settingId,
+            Function<Object, String> selector,
+            List<MacroChoiceTarget> targets) {
+        rules.add(new ChoiceRule(settingId, selector, List.copyOf(targets)));
+        return this;
+    }
+
     public void apply(String ownerId, SettingSnapshot snapshot, ModuleMacroRegistry registry) {
         Objects.requireNonNull(snapshot, "snapshot");
         for (ProjectionRule rule : rules) {
@@ -39,7 +47,11 @@ public class ModuleMacroProjector {
         @Override
         public void apply(String ownerId, SettingSnapshot snapshot, ModuleMacroRegistry registry) {
             boolean enabled = snapshot.isActive(settingId) && Boolean.TRUE.equals(snapshot.value(settingId));
-            registry.setFlag(ownerId, flagName, enabled);
+            if (enabled) {
+                registry.setFlag(ownerId, flagName, true, new MacroEntryDescriptor(flagName, MacroEntryType.FLAG, true, "1", null, null, null, null));
+            } else {
+                registry.setFlag(ownerId, flagName, false, null);
+            }
         }
     }
 
@@ -59,7 +71,44 @@ public class ModuleMacroProjector {
                 registry.removeMacro(ownerId, macroName);
                 return;
             }
-            registry.setMacro(ownerId, macroName, mapper.apply(value));
+            String mappedValue = mapper.apply(value);
+            registry.setMacro(ownerId, macroName, mappedValue,
+                    new MacroEntryDescriptor(macroName, MacroEntryType.VALUE, true, mappedValue, null, null, null, null));
+        }
+    }
+
+    private record ChoiceRule(
+            KeyId settingId,
+            Function<Object, String> selector,
+            List<MacroChoiceTarget> targets
+    ) implements ProjectionRule {
+        @Override
+        public void apply(String ownerId, SettingSnapshot snapshot, ModuleMacroRegistry registry) {
+            Set<String> names = new LinkedHashSet<>();
+            for (MacroChoiceTarget target : targets) {
+                names.add(target.macroName());
+            }
+            if (!snapshot.isActive(settingId)) {
+                for (String name : names) {
+                    registry.removeMacro(ownerId, name);
+                    registry.setFlag(ownerId, name, false, null);
+                }
+                return;
+            }
+            Object rawValue = snapshot.value(settingId);
+            String selected = rawValue != null ? selector.apply(rawValue) : null;
+            for (MacroChoiceTarget target : targets) {
+                boolean active = Objects.equals(target.optionValue(), selected);
+                if (target.flag()) {
+                    registry.setFlag(ownerId, target.macroName(), active,
+                            active ? new MacroEntryDescriptor(target.macroName(), MacroEntryType.CHOICE, true, "1", null, null, null, null) : null);
+                } else if (active) {
+                    registry.setMacro(ownerId, target.macroName(), target.macroValue(),
+                            new MacroEntryDescriptor(target.macroName(), MacroEntryType.CHOICE, true, target.macroValue(), null, null, null, null));
+                } else {
+                    registry.removeMacro(ownerId, target.macroName());
+                }
+            }
         }
     }
 }

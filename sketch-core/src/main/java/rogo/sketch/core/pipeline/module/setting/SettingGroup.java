@@ -17,7 +17,19 @@ public class SettingGroup extends SettingNode<Void> {
             @Nullable KeyId parentId,
             boolean visibleInGui,
             List<DependencyRule> dependencies) {
-        super(id, moduleId, displayKey, detailKey, parentId, ChangeImpact.RUNTIME_ONLY, visibleInGui, dependencies, null);
+        this(id, moduleId, displayKey, null, detailKey, parentId, visibleInGui, dependencies);
+    }
+
+    public SettingGroup(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String summaryKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            boolean visibleInGui,
+            List<DependencyRule> dependencies) {
+        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, ChangeImpact.RUNTIME_ONLY, visibleInGui, dependencies, null, null);
     }
 
     @Override
