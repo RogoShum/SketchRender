@@ -22,6 +22,7 @@ import rogo.sketch.core.pipeline.module.runtime.ModuleRuntime;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
 import rogo.sketch.core.pipeline.module.session.ModuleSession;
 import rogo.sketch.core.pipeline.module.session.ModuleSessionContext;
+import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.uniform.ValueGetter;
@@ -31,18 +32,33 @@ import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.feature.culling.graphics.*;
 import rogo.sketch.mixin.AccessorFrustum;
+import rogo.sketch.module.culling.CullingModuleDescriptor;
 import rogo.sketch.vanilla.McRenderContext;
 import rogo.sketch.vanilla.MinecraftRenderStages;
+
+import java.util.function.Consumer;
 
 public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
     public static final KeyId ENTITY_HIDDEN_METRIC = KeyId.of("sketch_render", "entity_hidden_count");
     public static final KeyId ENTITY_TOTAL_METRIC = KeyId.of("sketch_render", "entity_total_count");
     public static final KeyId BLOCK_ENTITY_HIDDEN_METRIC = KeyId.of("sketch_render", "block_entity_hidden_count");
     public static final KeyId BLOCK_ENTITY_TOTAL_METRIC = KeyId.of("sketch_render", "block_entity_total_count");
+    private Consumer<SettingChangeEvent> settingListener;
 
     @Override
     public String id() {
         return VanillaCullingBridgeModuleDescriptor.MODULE_ID;
+    }
+
+    @Override
+    public void onProcessInit(ModuleRuntimeContext context) {
+        settingListener = event -> {
+            if (isCullingSettingChange(event.settingId())) {
+                applyDebugSettings(context);
+            }
+        };
+        context.settings().addListener(settingListener);
+        applyDebugSettings(context);
     }
 
     @Override
@@ -69,6 +85,40 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
         context.registerMetric(new MetricDescriptor(BLOCK_ENTITY_TOTAL_METRIC, id(), MetricKind.COUNT, "metric.culling.block_total", null), () -> CullingStateManager.BLOCK_COUNT);
 
         registerUniforms(context);
+    }
+
+    @Override
+    public void onEnable(ModuleRuntimeContext context) {
+        applyDebugSettings(context);
+    }
+
+    @Override
+    public void onDisable(ModuleRuntimeContext context) {
+        CullingStateManager.CHECKING_CULL = false;
+        CullingStateManager.CHECKING_TEXTURE = false;
+    }
+
+    @Override
+    public void onShutdown(ModuleRuntimeContext context) {
+        if (settingListener != null) {
+            context.settings().removeListener(settingListener);
+            settingListener = null;
+        }
+        CullingStateManager.CHECKING_CULL = false;
+        CullingStateManager.CHECKING_TEXTURE = false;
+    }
+
+    private void applyDebugSettings(ModuleRuntimeContext context) {
+        CullingStateManager.CHECKING_CULL = context.settings().isPreviewActive(VanillaCullingBridgeModuleDescriptor.DEBUG_CULL)
+                && context.settings().getBoolean(VanillaCullingBridgeModuleDescriptor.DEBUG_CULL, false);
+        CullingStateManager.CHECKING_TEXTURE = context.settings().isPreviewActive(VanillaCullingBridgeModuleDescriptor.DEBUG_TEXTURE)
+                && context.settings().getBoolean(VanillaCullingBridgeModuleDescriptor.DEBUG_TEXTURE, false);
+    }
+
+    private boolean isCullingSettingChange(KeyId settingId) {
+        return VanillaCullingBridgeModuleDescriptor.DEBUG_CULL.equals(settingId)
+                || VanillaCullingBridgeModuleDescriptor.DEBUG_TEXTURE.equals(settingId)
+                || KeyId.of("sketch", CullingModuleDescriptor.MODULE_ID + "_enabled").equals(settingId);
     }
 
     private void registerUniforms(ModuleRuntimeContext context) {

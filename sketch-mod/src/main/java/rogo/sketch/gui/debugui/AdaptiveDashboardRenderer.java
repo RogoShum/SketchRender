@@ -4,24 +4,28 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import rogo.sketch.core.dashboard.DashboardPrimitive;
 import rogo.sketch.core.debugger.DashboardController;
-import rogo.sketch.core.debugger.DiagnosticsPanelMode;
-import rogo.sketch.core.debugger.ui.UiNode;
+import rogo.sketch.core.debugger.DashboardPanelId;
 import rogo.sketch.core.debugger.ui.UiNodeType;
-import rogo.sketch.core.debugger.ui.UiPass;
-import rogo.sketch.core.debugger.ui.UiRect;
-import rogo.sketch.core.debugger.ui.UiScene;
 import rogo.sketch.core.ui.control.ChoiceOptionSpec;
 import rogo.sketch.core.ui.control.ChoicePresentation;
 import rogo.sketch.core.ui.control.ChoiceSpec;
 import rogo.sketch.core.ui.control.ControlKind;
 import rogo.sketch.core.ui.control.ControlSpec;
 import rogo.sketch.core.ui.control.NumericSpec;
+import rogo.sketch.core.ui.frame.UiFrame;
+import rogo.sketch.core.ui.frame.UiLayer;
+import rogo.sketch.core.ui.frame.UiPrimitive;
+import rogo.sketch.core.ui.input.HitRegion;
+import rogo.sketch.core.ui.geometry.UiRect;
+import rogo.sketch.core.ui.text.UiText;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public class AdaptiveDashboardRenderer {
     private static final int TEXT = 0xFFE4E7EB;
@@ -31,37 +35,49 @@ public class AdaptiveDashboardRenderer {
     private static final int DIVIDER = 0x453C4D62;
     private static final int ROW = 0x5A18222E;
     private static final int ROW_ALT = 0x42111A25;
-    private static final int HOVER = 0x281E2A38;
+    private static final int HOVER = 0x50304052;
     private static final int ACTIVE = 0xFF34D399;
     private static final int ACTIVE_DIM = 0xFF10B981;
     private static final int WARNING = 0xFFF59E0B;
     private static final int ERROR = 0xFFF87171;
     private static final String ENABLE_PATH_PREFIX = "dashboard.enable-path|";
     private final Minecraft minecraft = Minecraft.getInstance();
+    private final MinecraftUiTextMetrics textMetrics = new MinecraftUiTextMetrics(minecraft);
 
-    public void render(UiScene scene, DashboardController controller, UiCanvas canvas, int mouseX, int mouseY) {
-        UiNode hovered = findTopNode(scene, mouseX, mouseY);
-        UiNode openDropdown = null;
+    public void render(UiFrame frame, DashboardController controller, UiCanvas canvas, int mouseX, int mouseY,
+                       DashboardPanelId resizingPanelId, String resizingPanelEdge, String resizingSlotId, String resizingSlotEdge) {
+        DashboardPrimitive hovered = findTopPrimitive(frame, mouseX, mouseY);
+        DashboardPrimitive openDropdown = null;
+        UiRect screenBounds = new UiRect(0, 0, minecraft.getWindow().getGuiScaledWidth(), minecraft.getWindow().getGuiScaledHeight());
 
-        for (UiPass pass : UiPass.values()) {
-            for (UiNode node : scene.nodes()) {
-                if (node.pass() != pass) {
-                    continue;
+        List<DashboardPrimitive> primitives = dashboardPrimitives(frame);
+        FloatingHoverScope floatingHoverScope = floatingHoverScope(primitives, controller, mouseX, mouseY);
+        UiRect activeClip = null;
+        for (DashboardPrimitive node : primitives) {
+            if (!isRenderable(node, screenBounds)) {
+                continue;
+            }
+            if (!Objects.equals(activeClip, node.clipRect())) {
+                canvas.flush();
+                if (activeClip != null) {
+                    canvas.popClip();
                 }
                 if (node.clipRect() != null) {
                     canvas.pushClip(node.clipRect());
                 }
-                boolean isHovered = nodeContains(node, mouseX, mouseY);
-                renderNode(node, controller, canvas, isHovered);
-                if (node.type() == UiNodeType.TREE_CONTROL && controlSpec(node) != null && controlSpec(node).kind() == ControlKind.CHOICE
-                        && node.props().get("controlId") != null
-                        && node.props().get("controlId").equals(controller.openChoiceControlId())) {
-                    openDropdown = node;
-                }
-                if (node.clipRect() != null) {
-                    canvas.popClip();
-                }
+                activeClip = node.clipRect();
             }
+            boolean isHovered = nodeContains(node, mouseX, mouseY) && allowsHover(node, floatingHoverScope);
+            renderNode(node, controller, canvas, isHovered, hovered, resizingPanelId, resizingPanelEdge, resizingSlotId, resizingSlotEdge);
+            if (node.type() == UiNodeType.TREE_CONTROL && controlSpec(node) != null && controlSpec(node).kind() == ControlKind.CHOICE
+                    && node.props().get("controlId") != null
+                    && node.props().get("controlId").equals(controller.openChoiceControlId())) {
+                openDropdown = node;
+            }
+        }
+        canvas.flush();
+        if (activeClip != null) {
+            canvas.popClip();
         }
 
         boolean hoveringDropdown = false;
@@ -72,41 +88,55 @@ public class AdaptiveDashboardRenderer {
         if (hovered != null && !hoveringDropdown) {
             renderTooltip(hovered, canvas, mouseX, mouseY);
         }
+        canvas.flush();
     }
 
-    public UiNode findTopNode(UiScene scene, double mouseX, double mouseY) {
-        List<UiNode> nodes = new ArrayList<>(scene.nodes());
-        nodes.sort(Comparator.comparingInt(node -> node.pass().ordinal()));
-        for (int i = nodes.size() - 1; i >= 0; i--) {
-            UiNode node = nodes.get(i);
-            if (!isInteractive(node)) {
+    public DashboardPrimitive findTopPrimitive(UiFrame frame, double mouseX, double mouseY) {
+        List<HitRegion> hitRegions = new ArrayList<>(frame.hitRegions());
+        hitRegions.sort(Comparator.comparingInt((HitRegion region) -> region.layer().ordinal()).thenComparingInt(HitRegion::order));
+        for (int i = hitRegions.size() - 1; i >= 0; i--) {
+            HitRegion region = hitRegions.get(i);
+            if (!region.contains(mouseX, mouseY)) {
                 continue;
             }
-            if (nodeContains(node, mouseX, mouseY)) {
-                return node;
+            Object primitive = region.props().get("primitive");
+            if (primitive instanceof DashboardPrimitive dashboardPrimitive) {
+                return dashboardPrimitive;
             }
         }
         return null;
     }
 
-    public List<ChoiceHitBox> choiceHitBoxes(UiNode node, DashboardController controller) {
+    private List<DashboardPrimitive> dashboardPrimitives(UiFrame frame) {
+        List<DashboardPrimitive> primitives = new ArrayList<>();
+        for (UiPrimitive primitive : frame.primitives()) {
+            if (primitive instanceof DashboardPrimitive dashboardPrimitive) {
+                primitives.add(dashboardPrimitive);
+            }
+        }
+        primitives.sort(Comparator.comparingInt((DashboardPrimitive primitive) -> primitive.layer().ordinal()).thenComparingInt(DashboardPrimitive::order));
+        return primitives;
+    }
+
+    public List<ChoiceHitBox> choiceHitBoxes(DashboardPrimitive node, DashboardController controller) {
         ControlSpec controlSpec = controlSpec(node);
         if (controlSpec == null || controlSpec.kind() != ControlKind.CHOICE || controlSpec.choiceSpec() == null) {
             return List.of();
         }
         ChoiceSpec choiceSpec = controlSpec.choiceSpec();
         List<ChoiceOptionSpec> options = choiceSpec.options();
-        UiRect controlBounds = controlBounds(node.bounds(), scale(node));
+        UiRect controlBounds = controlBounds(node);
         boolean segmented = choiceSpec.presentation() == ChoicePresentation.SEGMENTED
                 || (choiceSpec.presentation() == ChoicePresentation.AUTO && options.size() <= 3);
         List<ChoiceHitBox> hits = new ArrayList<>();
         if (segmented) {
-            int optionWidth = Math.max(1, controlBounds.width() / Math.max(1, options.size()));
+            UiRect segmentedBounds = choiceBounds(controlBounds, scale(node));
+            int optionWidth = Math.max(1, segmentedBounds.width() / Math.max(1, options.size()));
             for (int i = 0; i < options.size(); i++) {
                 ChoiceOptionSpec option = options.get(i);
-                int x = controlBounds.x() + i * optionWidth;
-                int width = i == options.size() - 1 ? controlBounds.right() - x : optionWidth;
-                hits.add(new ChoiceHitBox(option.value(), new UiRect(x, controlBounds.y(), width, controlBounds.height())));
+                int x = segmentedBounds.x() + i * optionWidth;
+                int width = i == options.size() - 1 ? segmentedBounds.right() - x : optionWidth;
+                hits.add(new ChoiceHitBox(option.value(), new UiRect(x, segmentedBounds.y(), width, segmentedBounds.height())));
             }
             return hits;
         }
@@ -123,10 +153,12 @@ public class AdaptiveDashboardRenderer {
         return hits;
     }
 
-    private void renderNode(UiNode node, DashboardController controller, UiCanvas canvas, boolean hovered) {
+    private void renderNode(DashboardPrimitive node, DashboardController controller, UiCanvas canvas, boolean hovered,
+                            DashboardPrimitive hoveredPrimitive, DashboardPanelId resizingPanelId, String resizingPanelEdge,
+                            String resizingSlotId, String resizingSlotEdge) {
         switch (node.type()) {
-            case PANEL -> renderPanel(node, canvas, hovered);
-            case HEADER -> renderHeader(node, canvas);
+            case PANEL -> renderPanel(node, canvas, hovered, hoveredPrimitive, resizingPanelId, resizingPanelEdge, resizingSlotId, resizingSlotEdge);
+            case HEADER -> renderHeader(node, canvas, hovered, hoveredPrimitive, resizingPanelId, resizingPanelEdge, resizingSlotId, resizingSlotEdge);
             case TAB_BUTTON -> renderTab(node, canvas, hovered);
             case TREE_GROUP -> renderGroup(node, canvas, hovered);
             case TREE_CONTROL -> renderTreeControl(node, canvas, hovered);
@@ -135,16 +167,16 @@ public class AdaptiveDashboardRenderer {
             case MACRO_SECTION_HEADER -> renderMacroSectionHeader(node, canvas, hovered);
             case MACRO_CONSTANT_ROW -> renderMacroConstant(node, canvas, hovered);
             case METRICS_LAYOUT_TOGGLE -> renderMetricsLayoutToggle(node, canvas, hovered);
-            case DIAGNOSTIC_HEADER -> renderDiagnosticsHeader(node, canvas);
+            case DIAGNOSTIC_HEADER -> renderDiagnosticsHeader(node, canvas, hovered, hoveredPrimitive, resizingPanelId, resizingPanelEdge, resizingSlotId, resizingSlotEdge);
             case DIAGNOSTIC_FILTER -> renderDiagnosticsFilter(node, canvas, hovered);
-            case DIAGNOSTIC_STATE -> renderDiagnosticsState(node, controller, canvas, hovered);
             case LOG_LINE -> renderLogLine(node, canvas, hovered);
             default -> {
             }
         }
     }
 
-    private void renderPanel(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderPanel(DashboardPrimitive node, UiCanvas canvas, boolean hovered, DashboardPrimitive hoveredPrimitive,
+                             DashboardPanelId resizingPanelId, String resizingPanelEdge, String resizingSlotId, String resizingSlotEdge) {
         int fill = intProp(node, "fill", 0);
         int border = intProp(node, "border", 0);
         if (fill != 0) {
@@ -156,6 +188,46 @@ public class AdaptiveDashboardRenderer {
         String role = strProp(node, "role");
         if ("panel".equals(role)) {
             canvas.fillRect(new UiRect(node.bounds().x(), node.bounds().y(), node.bounds().width(), 1), 0x553A5268);
+            String highlightedEdges = highlightedPanelEdges(node, hoveredPrimitive, resizingPanelId, resizingPanelEdge);
+            if (!highlightedEdges.isEmpty()) {
+                drawEdgeHighlights(canvas, node.bounds(), highlightedEdges, 0xFF93C5FD);
+            }
+        } else if ("panel-mode-toggle".equals(role)) {
+            canvas.fillRect(node.bounds(), hovered ? 0xC3344B62 : fill);
+            if (border != 0) {
+                canvas.borderRect(node.bounds(), border);
+            }
+            canvas.drawCenteredText(Component.literal(strProp(node, "label")),
+                    node.bounds().x() + node.bounds().width() / 2,
+                    node.bounds().y() + Math.max(2, (node.bounds().height() - canvas.lineHeight()) / 2),
+                    TEXT);
+        } else if ("panel-slot-preview".equals(role)) {
+            canvas.fillRect(node.bounds(), hovered ? 0x4A4ADEB0 : fill);
+            if (border != 0) {
+                canvas.borderRect(node.bounds(), border);
+            }
+        } else if ("panel-home-slot".equals(role)) {
+            if (boolProp(node, "activeDockTarget", false)) {
+                int slotFill = hovered ? 0x2A4F9DFF : 0x18324458;
+                canvas.fillRect(node.bounds(), slotFill);
+                if (border != 0) {
+                    canvas.borderRect(node.bounds(), hovered ? 0xC080C0FF : border);
+                }
+            }
+            String highlightedEdges = highlightedSlotEdges(node, hoveredPrimitive, resizingSlotId, resizingSlotEdge);
+            if (!highlightedEdges.isEmpty()) {
+                drawEdgeHighlights(canvas, node.bounds(), highlightedEdges, 0xFFA3E635);
+            }
+        } else if ("slot-resize-handle".equals(role)) {
+            String edge = strProp(node, "edge");
+            int line = hovered ? 0xFFA3E635 : 0x7A64748B;
+            if ("E".equals(edge) || "W".equals(edge)) {
+                int x = node.bounds().x() + node.bounds().width() / 2;
+                canvas.fillRect(new UiRect(x, node.bounds().y(), 1, node.bounds().height()), line);
+            } else {
+                int y = node.bounds().y() + node.bounds().height() / 2;
+                canvas.fillRect(new UiRect(node.bounds().x(), y, node.bounds().width(), 1), line);
+            }
         } else if ("scrollbar-track".equals(role)) {
             canvas.fillRect(node.bounds(), hovered ? 0x3E314155 : fill);
         } else if ("scrollbar-track-x".equals(role)) {
@@ -173,16 +245,21 @@ public class AdaptiveDashboardRenderer {
         }
     }
 
-    private void renderHeader(UiNode node, UiCanvas canvas) {
-        renderPanel(node, canvas, false);
+    private void renderHeader(DashboardPrimitive node, UiCanvas canvas, boolean hovered, DashboardPrimitive hoveredPrimitive,
+                              DashboardPanelId resizingPanelId, String resizingPanelEdge, String resizingSlotId, String resizingSlotEdge) {
+        renderPanel(node, canvas, hovered, null, resizingPanelId, resizingPanelEdge, resizingSlotId, resizingSlotEdge);
         int pad = Math.max(8, Math.round(10 * scale(node)));
         int titleY = node.bounds().y() + Math.max(7, Math.round(9 * scale(node)));
-        canvas.drawText(textOf(strProp(node, "title")), node.bounds().x() + pad, titleY, TEXT);
+        int titleX = node.bounds().x() + pad;
+        if (boolProp(node, "floating", false)) {
+            titleX += drawDragGrip(node.bounds(), canvas, hovered);
+        }
+        canvas.drawText(textOf(strProp(node, "title")), titleX, titleY, TEXT);
     }
 
-    private void renderTab(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderTab(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         boolean active = boolProp(node, "active", false);
-        int fill = active ? 0xAA202C39 : (hovered ? 0x8A18232F : 0x70121C27);
+        int fill = active ? 0xAA202C39 : (hovered ? 0xC2314458 : 0x70121C27);
         canvas.fillRect(node.bounds(), fill);
         canvas.borderRect(node.bounds(), active ? 0xB94C627A : 0x7A324150);
         canvas.fillRect(new UiRect(node.bounds().x(), node.bounds().bottom() - 2, node.bounds().width(), 2), active ? ACTIVE : 0x55324150);
@@ -190,30 +267,41 @@ public class AdaptiveDashboardRenderer {
                 node.bounds().y() + Math.max(5, Math.round(7 * scale(node))), active ? 0xFFFFFFFF : SUBTLE);
     }
 
-    private void renderGroup(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderGroup(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         if (hovered) {
             canvas.fillRect(node.bounds(), HOVER);
         }
         boolean expanded = boolProp(node, "expanded", false);
-        int y = node.bounds().y() + Math.max(3, Math.round(5 * scale(node)));
-        canvas.drawText(Component.literal(expanded ? "v" : ">"), node.bounds().x() + 2, y, MUTED);
-        canvas.drawText(textOf(strProp(node, "title")), node.bounds().x() + Math.max(12, Math.round(14 * scale(node))), y, 0xFFF3F6FA);
+        float scale = scale(node);
+        int y = centeredTextY(node.bounds(), canvas);
+        int arrowX = node.bounds().x() + Math.max(2, Math.round(3 * scale));
+        int titleX = node.bounds().x() + Math.max(12, Math.round(14 * scale));
+        int titleWidth = Math.max(16, node.bounds().right() - titleX - Math.max(6, Math.round(8 * scale)));
+        canvas.drawText(Component.literal(expanded ? "v" : ">"), arrowX, y, MUTED);
+        canvas.drawText(fitText(textOf(strProp(node, "title")), titleWidth), titleX, y, 0xFFF3F6FA);
         drawDivider(canvas, node.bounds(), DIVIDER);
     }
 
-    private void renderTreeControl(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderTreeControl(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         if (hovered) {
             canvas.fillRect(node.bounds(), HOVER);
         }
         boolean enabled = boolProp(node, "enabled", true);
         boolean active = boolProp(node, "active", true);
-        float scale = scale(node);
+        boolean expandable = boolProp(node, "expandable", false);
+        boolean expanded = boolProp(node, "expanded", false);
+        TreeRowLayout layout = treeRowLayout(node, canvas);
+        float scale = layout.scale();
         int titleColor = enabled && active ? TEXT : MUTED;
-        int pad = Math.max(4, Math.round(6 * scale));
-        canvas.drawText(textOf(strProp(node, "title")), node.bounds().x() + pad, node.bounds().y() + Math.max(3, Math.round(5 * scale)), titleColor);
+        if (expandable) {
+            canvas.drawText(Component.literal(expanded ? "v" : ">"),
+                    node.bounds().x() + Math.max(2, Math.round(3 * scale)),
+                    layout.titleY(), MUTED);
+        }
+        canvas.drawText(fitText(textOf(strProp(node, "title")), layout.titleWidth()), layout.titleX(), layout.titleY(), titleColor);
         String summary = strProp(node, "summary");
-        if (!summary.isEmpty()) {
-            canvas.drawText(textOf(summary), node.bounds().x() + pad, node.bounds().y() + Math.max(14, Math.round(17 * scale)), MUTED);
+        if (!layout.compact() && !summary.isEmpty()) {
+            canvas.drawText(fitText(textOf(summary), layout.titleWidth()), layout.titleX(), layout.summaryY(), MUTED);
         }
 
         ControlSpec controlSpec = controlSpec(node);
@@ -230,15 +318,14 @@ public class AdaptiveDashboardRenderer {
         drawDivider(canvas, node.bounds(), DIVIDER);
     }
 
-    private void renderToggle(UiNode node, UiCanvas canvas, boolean enabled) {
-        UiRect rect = controlBounds(node.bounds(), scale(node));
+    private void renderToggle(DashboardPrimitive node, UiCanvas canvas, boolean enabled) {
+        float scale = scale(node);
+        UiRect rect = controlBounds(node);
         boolean value = Boolean.TRUE.equals(node.props().get("value"));
         boolean active = boolProp(node, "active", true);
         boolean blocked = boolProp(node, "blocked", false);
-        int size = Math.max(10, Math.round(12 * scale(node)));
-        UiRect box = new UiRect(rect.right() - size - Math.max(8, Math.round(10 * scale(node))),
-                rect.y() + Math.max(7, Math.round(9 * scale(node))),
-                size, size);
+        int size = Math.max(10, Math.round(12 * scale));
+        UiRect box = alignRight(rect, size, size, Math.max(8, Math.round(10 * scale)));
         int border = !enabled || !active ? 0xFF64748B : blocked ? WARNING : (value ? ACTIVE : BORDER);
         canvas.fillRect(box, 0x00000000);
         canvas.borderRect(box, border);
@@ -250,82 +337,98 @@ public class AdaptiveDashboardRenderer {
         }
     }
 
-    private void renderSlider(UiNode node, UiCanvas canvas, boolean enabled) {
-        UiRect rect = controlBounds(node.bounds(), scale(node));
+    private void renderSlider(DashboardPrimitive node, UiCanvas canvas, boolean enabled) {
+        float scale = scale(node);
+        UiRect rect = controlBounds(node);
         NumericSpec spec = controlSpec(node).numericSpec();
         double current = valueAsDouble(node.props().get("value"));
         double progress = spec.maxValue() <= spec.minValue() ? 0.0D : (current - spec.minValue()) / (spec.maxValue() - spec.minValue());
         progress = Mth.clamp(progress, 0.0D, 1.0D);
-        int valueWidth = Math.max(48, Math.round(54 * scale(node)));
-        UiRect track = new UiRect(rect.x() + Math.max(6, Math.round(8 * scale(node))),
-                rect.y() + Math.max(10, Math.round(12 * scale(node))),
-                rect.width() - valueWidth - Math.max(14, Math.round(18 * scale(node))),
-                Math.max(3, Math.round(4 * scale(node))));
-        canvas.fillRect(track, 0xFF243241);
-        canvas.fillRect(new UiRect(track.x(), track.y(), Math.max(0, (int) (track.width() * progress)), track.height()), enabled ? ACTIVE_DIM : 0xFF475569);
-        UiRect knob = new UiRect(track.x() + (int) (track.width() * progress) - Math.max(3, Math.round(3 * scale(node))),
-                track.y() - Math.max(2, Math.round(3 * scale(node))),
-                Math.max(6, Math.round(8 * scale(node))), Math.max(8, Math.round(10 * scale(node))));
+        UiRect track = DashboardControlLayout.sliderTrackBounds(rect, scale);
+        int valueWidth = DashboardControlLayout.sliderValueWidth(rect, scale);
+        UiRect groove = new UiRect(track.x(), track.y() - Math.max(2, Math.round(2 * scale)), track.width(), track.height() + Math.max(4, Math.round(4 * scale)));
+        canvas.fillRect(groove, enabled ? 0xAA0F1720 : 0x7A111827);
+        canvas.borderRect(groove, enabled ? 0x8A40576E : 0x66475669);
+        canvas.fillRect(track, enabled ? 0xFF223142 : 0xFF334155);
+        UiRect fill = new UiRect(track.x(), track.y(), Math.max(0, (int) Math.round(track.width() * progress)), track.height());
+        if (fill.width() > 0) {
+            canvas.fillRect(fill, enabled ? ACTIVE_DIM : 0xFF64748B);
+            if (fill.height() > 2) {
+                canvas.fillRect(new UiRect(fill.x(), fill.y() + 1, fill.width(), fill.height() - 2), enabled ? 0xFF34D399 : 0xFF94A3B8);
+            }
+        }
+        int knobWidth = Math.max(7, Math.round(9 * scale));
+        int knobHeight = Math.max(10, Math.round(12 * scale));
+        UiRect knob = new UiRect(track.x() + (int) Math.round(track.width() * progress) - knobWidth / 2,
+                groove.y() + (groove.height() - knobHeight) / 2,
+                knobWidth, knobHeight);
         canvas.fillRect(knob, 0xFFF8FAFC);
-        canvas.drawText(Component.literal(formatNumeric(spec, current)), rect.right() - valueWidth + Math.max(2, Math.round(4 * scale(node))),
-                rect.y() + Math.max(5, Math.round(6 * scale(node))), enabled ? TEXT : MUTED);
+        canvas.borderRect(knob, enabled ? 0xFFCBD5E1 : 0xFF94A3B8);
+        Component valueText = fitText(Component.literal(formatNumeric(spec, current)), valueWidth);
+        int valueX = Math.max(track.right() + Math.max(8, Math.round(10 * scale)), rect.right() - canvas.width(valueText));
+        canvas.drawText(valueText, valueX, centeredTextY(rect, canvas), enabled ? TEXT : MUTED);
     }
 
-    private void renderNumber(UiNode node, UiCanvas canvas, boolean enabled) {
-        UiRect rect = controlBounds(node.bounds(), scale(node));
-        int boxWidth = Math.max(58, Math.round(70 * scale(node)));
-        UiRect box = new UiRect(rect.right() - boxWidth, rect.y() + Math.max(4, Math.round(4 * scale(node))),
-                boxWidth, Math.max(16, Math.round(18 * scale(node))));
+    private void renderNumber(DashboardPrimitive node, UiCanvas canvas, boolean enabled) {
+        float scale = scale(node);
+        UiRect rect = controlBounds(node);
+        int boxWidth = Math.min(rect.width(), Math.max(58, Math.round(74 * scale)));
+        UiRect box = alignRight(rect, boxWidth, Math.max(16, Math.round(18 * scale)), 0);
         boolean editing = boolProp(node, "editing", false);
         String draftValue = strProp(node, "draftValue");
         NumericSpec spec = controlSpec(node).numericSpec();
         canvas.fillRect(box, editing ? 0xCC0F1720 : 0xAA101820);
         canvas.borderRect(box, editing ? ACTIVE : (enabled ? BORDER : 0xFF475569));
-        int textInset = Math.max(4, Math.round(6 * scale(node)));
+        int textInset = Math.max(4, Math.round(6 * scale));
         int availableWidth = Math.max(8, box.width() - textInset * 2);
         if (editing) {
             String cursor = (minecraft.level != null && (minecraft.level.getGameTime() / 6L) % 2L == 0L) ? "|" : "";
-            String text = minecraft.font.plainSubstrByWidth(draftValue + cursor, availableWidth);
-            canvas.drawText(Component.literal(text), box.x() + textInset,
-                    box.y() + Math.max(3, Math.round(4 * scale(node))), enabled ? TEXT : MUTED);
+            Component text = fitText(Component.literal(draftValue + cursor), availableWidth);
+            canvas.drawText(text, box.x() + textInset, centeredTextY(box, canvas), enabled ? TEXT : MUTED);
             return;
         }
-        canvas.drawCenteredText(Component.literal(formatNumeric(spec, valueAsDouble(node.props().get("value")))),
-                box.x() + box.width() / 2, box.y() + Math.max(3, Math.round(4 * scale(node))), enabled ? TEXT : MUTED);
+        canvas.drawCenteredText(fitText(Component.literal(formatNumeric(spec, valueAsDouble(node.props().get("value")))), availableWidth),
+                box.x() + box.width() / 2, centeredTextY(box, canvas), enabled ? TEXT : MUTED);
     }
 
-    private void renderChoice(UiNode node, UiCanvas canvas, boolean enabled) {
+    private void renderChoice(DashboardPrimitive node, UiCanvas canvas, boolean enabled) {
         ChoiceSpec choiceSpec = controlSpec(node).choiceSpec();
         if (choiceSpec == null) {
             return;
         }
-        UiRect rect = controlBounds(node.bounds(), scale(node));
+        float scale = scale(node);
+        UiRect rect = controlBounds(node);
         boolean segmented = choiceSpec.presentation() == ChoicePresentation.SEGMENTED
                 || (choiceSpec.presentation() == ChoicePresentation.AUTO && choiceSpec.options().size() <= 3);
         if (segmented) {
-            int optionWidth = Math.max(1, rect.width() / Math.max(1, choiceSpec.options().size()));
+            UiRect choiceRect = choiceBounds(rect, scale);
+            int optionWidth = Math.max(1, choiceRect.width() / Math.max(1, choiceSpec.options().size()));
             for (int i = 0; i < choiceSpec.options().size(); i++) {
                 ChoiceOptionSpec option = choiceSpec.options().get(i);
-                int x = rect.x() + i * optionWidth;
-                int width = i == choiceSpec.options().size() - 1 ? rect.right() - x : optionWidth;
-                UiRect optionRect = new UiRect(x, rect.y() + Math.max(4, Math.round(4 * scale(node))), width - 2, Math.max(16, Math.round(18 * scale(node))));
+                int x = choiceRect.x() + i * optionWidth;
+                int width = i == choiceSpec.options().size() - 1 ? choiceRect.right() - x : optionWidth;
+                UiRect optionRect = new UiRect(x, choiceRect.y(), Math.max(1, width - 2), choiceRect.height());
                 boolean selected = optionSelected(node.props().get("value"), option.value());
                 canvas.fillRect(optionRect, selected ? ACTIVE_DIM : 0x66131D27);
                 canvas.borderRect(optionRect, selected ? ACTIVE : BORDER);
-                canvas.drawCenteredText(textOf(option.displayKey()), optionRect.x() + optionRect.width() / 2,
-                        optionRect.y() + Math.max(3, Math.round(4 * scale(node))), selected ? 0xFFFFFFFF : (enabled ? TEXT : MUTED));
+                int labelWidth = Math.max(8, optionRect.width() - Math.max(8, Math.round(10 * scale)));
+                canvas.drawCenteredText(fitText(textOf(option.displayKey()), labelWidth), optionRect.x() + optionRect.width() / 2,
+                        centeredTextY(optionRect, canvas), selected ? 0xFFFFFFFF : (enabled ? TEXT : MUTED));
             }
             return;
         }
-        UiRect box = new UiRect(rect.x(), rect.y() + Math.max(4, Math.round(4 * scale(node))), rect.width(), Math.max(16, Math.round(18 * scale(node))));
+        UiRect box = choiceBounds(rect, scale);
         canvas.fillRect(box, 0x7A101820);
         canvas.borderRect(box, enabled ? BORDER : 0xFF475569);
-        canvas.drawText(textOf(selectedChoiceLabel(choiceSpec, node.props().get("value"))), box.x() + Math.max(4, Math.round(6 * scale(node))),
-                box.y() + Math.max(3, Math.round(4 * scale(node))), enabled ? TEXT : MUTED);
-        canvas.drawText(Component.literal("v"), box.right() - Math.max(11, Math.round(12 * scale(node))), box.y() + Math.max(3, Math.round(4 * scale(node))), SUBTLE);
+        int textInset = Math.max(4, Math.round(6 * scale));
+        int arrowWidth = Math.max(10, Math.round(12 * scale));
+        int labelWidth = Math.max(8, box.width() - textInset * 2 - arrowWidth);
+        canvas.drawText(fitText(textOf(selectedChoiceLabel(choiceSpec, node.props().get("value"))), labelWidth), box.x() + textInset,
+                centeredTextY(box, canvas), enabled ? TEXT : MUTED);
+        canvas.drawText(Component.literal("v"), box.right() - arrowWidth, centeredTextY(box, canvas), SUBTLE);
     }
 
-    private void renderChoiceDropdown(UiNode node, UiCanvas canvas, int mouseX, int mouseY) {
+    private void renderChoiceDropdown(DashboardPrimitive node, UiCanvas canvas, int mouseX, int mouseY) {
         ControlSpec controlSpec = controlSpec(node);
         if (controlSpec == null || controlSpec.choiceSpec() == null) {
             return;
@@ -340,12 +443,14 @@ public class AdaptiveDashboardRenderer {
             boolean selected = optionSelected(node.props().get("value"), option.value());
             boolean hovered = row.contains(mouseX, mouseY);
             if (hovered) {
-                canvas.fillRect(row, selected ? 0x5A10B981 : 0xAA18232F);
+                canvas.fillRect(row, selected ? 0x7A10B981 : 0xC2314458);
             } else if (selected) {
                 canvas.fillRect(row, 0x3A10B981);
             }
-            canvas.drawText(textOf(option.displayKey()), row.x() + Math.max(4, Math.round(6 * scale(node))),
-                    row.y() + Math.max(5, Math.round(6 * scale(node))), selected || hovered ? 0xFFFFFFFF : TEXT);
+            int textInset = Math.max(4, Math.round(6 * scale(node)));
+            int labelWidth = Math.max(8, row.width() - textInset * 2);
+            canvas.drawText(fitText(textOf(option.displayKey()), labelWidth), row.x() + textInset,
+                    centeredTextY(row, canvas), selected || hovered ? 0xFFFFFFFF : TEXT);
             y += rowHeight;
         }
     }
@@ -354,7 +459,7 @@ public class AdaptiveDashboardRenderer {
         canvas.fillRect(new UiRect(bounds.x(), bounds.bottom() - 1, bounds.width(), 1), color);
     }
 
-    private void renderMetricCard(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderMetricCard(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         String mode = strProp(node, "mode");
         if ("summary-row".equals(mode)) {
             renderSummaryMetric(node, canvas, hovered);
@@ -365,11 +470,11 @@ public class AdaptiveDashboardRenderer {
         }
     }
 
-    private void renderMetricsLayoutToggle(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderMetricsLayoutToggle(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         String layoutMode = strProp(node, "layoutMode");
         int columns = intProp(node, "columns", 1);
         boolean auto = "AUTO".equals(layoutMode);
-        int fill = auto ? 0xA01E2E3E : (hovered ? 0x8A18232F : 0x70111A25);
+        int fill = auto ? 0xA01E2E3E : (hovered ? 0xC2314458 : 0x70111A25);
         canvas.fillRect(node.bounds(), fill);
         canvas.borderRect(node.bounds(), auto ? ACTIVE : BORDER);
         String label = auto ? "A" + columns : switch (layoutMode) {
@@ -384,26 +489,30 @@ public class AdaptiveDashboardRenderer {
                 auto ? 0xFFFFFFFF : SUBTLE);
     }
 
-    private void renderSummaryMetric(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderSummaryMetric(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         float scale = scale(node);
         int pad = Math.max(8, Math.round(10 * scale));
-        canvas.fillRect(node.bounds(), hovered ? ROW : ROW_ALT);
+        canvas.fillRect(node.bounds(), hovered ? 0x7A243242 : ROW_ALT);
         canvas.fillRect(new UiRect(node.bounds().x(), node.bounds().y(), 3, node.bounds().height()), intProp(node, "accent", ACTIVE_DIM));
-        canvas.drawText(textOf(strProp(node, "title")), node.bounds().x() + pad, node.bounds().y() + Math.max(8, Math.round(10 * scale)), SUBTLE);
 
         String valueText = strProp(node, "value");
         String unitText = strProp(node, "unit");
         Component valueComponent = Component.literal(unitText.isEmpty() ? valueText : valueText + " " + unitText);
-        int valueWidth = canvas.width(valueComponent);
-        canvas.drawText(valueComponent, node.bounds().right() - valueWidth - pad, node.bounds().y() + Math.max(8, Math.round(10 * scale)), TEXT);
+        int valueMaxWidth = Math.max(40, Math.round(node.bounds().width() * 0.38f));
+        Component clippedValue = fitText(valueComponent, valueMaxWidth);
+        int valueWidth = canvas.width(clippedValue);
+        int textY = node.bounds().y() + Math.max(8, Math.round(10 * scale));
+        int titleWidth = Math.max(20, node.bounds().right() - node.bounds().x() - pad * 3 - valueWidth);
+        canvas.drawText(fitText(textOf(strProp(node, "title")), titleWidth), node.bounds().x() + pad, textY, SUBTLE);
+        canvas.drawText(clippedValue, node.bounds().right() - valueWidth - pad, textY, TEXT);
         drawDivider(canvas, node.bounds(), DIVIDER);
     }
 
-    private void renderRatioMetric(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderRatioMetric(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         float scale = scale(node);
         int pad = Math.max(8, Math.round(10 * scale));
         int top = node.bounds().y() + pad;
-        canvas.fillRect(node.bounds(), hovered ? ROW : ROW_ALT);
+        canvas.fillRect(node.bounds(), hovered ? 0x7A243242 : ROW_ALT);
         canvas.fillRect(new UiRect(node.bounds().x(), node.bounds().y(), 3, node.bounds().height()), intProp(node, "accent", ACTIVE_DIM));
 
         int hidden = intProp(node, "hidden", 0);
@@ -411,18 +520,21 @@ public class AdaptiveDashboardRenderer {
         int total = intProp(node, "total", 0);
         double ratio = doubleProp(node, "ratio", 0.0D);
 
-        canvas.drawText(textOf(strProp(node, "title")), node.bounds().x() + pad, top, SUBTLE);
+        int primaryMaxWidth = Math.max(32, Math.round(node.bounds().width() * 0.30f));
         String primary = hidden + " / " + total;
-        Component primaryComponent = Component.literal(primary);
+        Component primaryComponent = fitText(Component.literal(primary), primaryMaxWidth);
         int primaryWidth = canvas.width(primaryComponent);
+        int titleWidth = Math.max(20, node.bounds().right() - node.bounds().x() - pad * 3 - primaryWidth);
+        canvas.drawText(fitText(textOf(strProp(node, "title")), titleWidth), node.bounds().x() + pad, top, SUBTLE);
         canvas.drawText(primaryComponent, node.bounds().right() - primaryWidth - pad, top, TEXT);
 
         String secondary = "visible " + visible;
         String percentage = String.format(Locale.ROOT, "%.1f%% hidden", ratio * 100.0D);
         int secondaryY = top + Math.max(14, Math.round(18 * scale));
-        canvas.drawText(Component.literal(secondary), node.bounds().x() + pad, secondaryY, MUTED);
-        Component percentageComponent = Component.literal(percentage);
+        Component percentageComponent = fitText(Component.literal(percentage), primaryMaxWidth);
         int percentageWidth = canvas.width(percentageComponent);
+        int secondaryWidth = Math.max(20, node.bounds().right() - node.bounds().x() - pad * 3 - percentageWidth);
+        canvas.drawText(fitText(Component.literal(secondary), secondaryWidth), node.bounds().x() + pad, secondaryY, MUTED);
         canvas.drawText(percentageComponent, node.bounds().right() - percentageWidth - pad, secondaryY, SUBTLE);
 
         UiRect bar = new UiRect(node.bounds().x() + pad, node.bounds().bottom() - Math.max(12, Math.round(14 * scale)),
@@ -433,7 +545,7 @@ public class AdaptiveDashboardRenderer {
         drawDivider(canvas, node.bounds(), DIVIDER);
     }
 
-    private void renderChart(UiNode node, UiCanvas canvas) {
+    private void renderChart(DashboardPrimitive node, UiCanvas canvas) {
         canvas.fillRect(node.bounds(), ROW_ALT);
         canvas.borderRect(node.bounds(), 0x66324150);
         float scale = scale(node);
@@ -459,7 +571,7 @@ public class AdaptiveDashboardRenderer {
         }
     }
 
-    private void renderMacroSectionHeader(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderMacroSectionHeader(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         if (hovered) {
             canvas.fillRect(node.bounds(), HOVER);
         }
@@ -470,25 +582,32 @@ public class AdaptiveDashboardRenderer {
         drawDivider(canvas, node.bounds(), DIVIDER);
     }
 
-    private void renderMacroConstant(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderMacroConstant(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         float scale = scale(node);
         int pad = Math.max(8, Math.round(10 * scale));
         if (hovered) {
             canvas.fillRect(node.bounds(), HOVER);
         }
-        canvas.drawText(Component.literal(strProp(node, "name")), node.bounds().x() + pad, node.bounds().y() + Math.max(4, Math.round(6 * scale)), TEXT);
-        canvas.drawText(Component.literal(strProp(node, "source")), node.bounds().x() + pad, node.bounds().y() + Math.max(13, Math.round(14 * scale)), MUTED);
         Component type = Component.literal(strProp(node, "type"));
-        int typeWidth = canvas.width(type);
         Component value = Component.literal(strProp(node, "value"));
-        int valueWidth = canvas.width(value);
+        int rightBudget = Math.max(48, Math.round(node.bounds().width() * 0.42f));
+        Component clippedType = fitText(type, Math.max(18, rightBudget / 3));
+        Component clippedValue = fitText(value, Math.max(24, rightBudget - canvas.width(clippedType) - Math.max(8, Math.round(10 * scale))));
+        int typeWidth = canvas.width(clippedType);
+        int valueWidth = canvas.width(clippedValue);
         int right = node.bounds().right() - pad;
-        canvas.drawText(type, right - valueWidth - typeWidth - Math.max(16, Math.round(18 * scale)), node.bounds().y() + Math.max(4, Math.round(6 * scale)), SUBTLE);
-        canvas.drawText(value, right - valueWidth, node.bounds().y() + Math.max(4, Math.round(6 * scale)), boolProp(node, "flag", false) ? ACTIVE : 0xFF93C5FD);
+        int topY = node.bounds().y() + Math.max(4, Math.round(6 * scale));
+        int bottomY = node.bounds().y() + Math.max(13, Math.round(14 * scale));
+        int leftWidth = Math.max(20, right - pad - (valueWidth + typeWidth + Math.max(16, Math.round(18 * scale))));
+        canvas.drawText(fitText(Component.literal(strProp(node, "name")), leftWidth), node.bounds().x() + pad, topY, TEXT);
+        canvas.drawText(fitText(Component.literal(strProp(node, "source")), leftWidth), node.bounds().x() + pad, bottomY, MUTED);
+        canvas.drawText(clippedType, right - valueWidth - typeWidth - Math.max(16, Math.round(18 * scale)), topY, SUBTLE);
+        canvas.drawText(clippedValue, right - valueWidth, topY, boolProp(node, "flag", false) ? ACTIVE : 0xFF93C5FD);
         drawDivider(canvas, node.bounds(), DIVIDER);
     }
 
-    private void renderDiagnosticsHeader(UiNode node, UiCanvas canvas) {
+    private void renderDiagnosticsHeader(DashboardPrimitive node, UiCanvas canvas, boolean hovered, DashboardPrimitive hoveredPrimitive,
+                                         DashboardPanelId resizingPanelId, String resizingPanelEdge, String resizingSlotId, String resizingSlotEdge) {
         boolean unreadAlerts = boolProp(node, "unreadAlerts", false);
         int warningCount = intProp(node, "warningCount", 0);
         int errorCount = intProp(node, "errorCount", 0);
@@ -497,60 +616,49 @@ public class AdaptiveDashboardRenderer {
         canvas.borderRect(node.bounds(), accent);
         float scale = scale(node);
         int pad = Math.max(8, Math.round(10 * scale));
+        int titleX = node.bounds().x() + pad;
         int titleY = node.bounds().y() + Math.max(7, Math.round(9 * scale));
         if (unreadAlerts) {
             canvas.fillRect(new UiRect(node.bounds().x(), node.bounds().y(), 3, node.bounds().height()), accent);
+            titleX += 4;
         }
-        canvas.drawText(textOf(strProp(node, "title")), node.bounds().x() + pad, titleY, unreadAlerts ? 0xFFFFFFFF : TEXT);
-
-        if (DiagnosticsPanelMode.COLLAPSED.name().equals(String.valueOf(node.props().get("mode")))) {
-            String preview = strProp(node, "preview");
-            int badgeX = node.bounds().right() - pad;
-            if (warningCount > 0) {
-                badgeX = drawAlertBadge(canvas, badgeX, node.bounds().y() + Math.max(5, Math.round(6 * scale)), "W " + warningCount, WARNING);
-            }
-            if (errorCount > 0) {
-                badgeX = drawAlertBadge(canvas, badgeX, node.bounds().y() + Math.max(5, Math.round(6 * scale)), "E " + errorCount, ERROR);
-            }
-            if (!preview.isEmpty()) {
-                int previewX = node.bounds().x() + Math.max(96, Math.round(104 * scale));
-                String clipped = minecraft.font.plainSubstrByWidth(preview, Math.max(20, badgeX - previewX - pad));
-                canvas.drawText(Component.literal(clipped), previewX, titleY, unreadAlerts ? 0xFFD1D5DB : SUBTLE);
-            }
-        } else {
-            int dividerY = node.bounds().y() + Math.max(22, Math.round(26 * scale));
-            canvas.fillRect(new UiRect(node.bounds().x() + pad, dividerY, node.bounds().width() - pad * 2, 1), DIVIDER);
+        if (boolProp(node, "floating", false)) {
+            titleX += drawDragGrip(node.bounds(), canvas, hovered);
         }
+        int badgeGap = intProp(node, "badgeGap", 6);
+        int badgeX = intProp(node, "badgeLaneRight", node.bounds().right() - pad);
+        int titleRight = intProp(node, "titleRight", badgeX - badgeGap);
+        canvas.drawText(fitText(textOf(strProp(node, "title")), Math.max(16, titleRight - titleX)), titleX, titleY, unreadAlerts ? 0xFFFFFFFF : TEXT);
+        if (errorCount > 0) {
+            badgeX = drawAlertBadge(canvas, badgeX, node.bounds().y() + Math.max(5, Math.round(6 * scale)), "E " + errorCount, ERROR, badgeGap);
+        }
+        if (warningCount > 0) {
+            badgeX = drawAlertBadge(canvas, badgeX, node.bounds().y() + Math.max(5, Math.round(6 * scale)), "W " + warningCount, WARNING, badgeGap);
+        }
+        int dividerY = node.bounds().bottom() - 1;
+        int dividerRight = Math.max(intProp(node, "actionLaneLeft", badgeX), badgeX);
+        canvas.fillRect(new UiRect(node.bounds().x() + pad, dividerY, Math.max(1, dividerRight - node.bounds().x() - pad), 1), DIVIDER);
     }
 
-    private int drawAlertBadge(UiCanvas canvas, int rightX, int y, String text, int color) {
+    private int drawAlertBadge(UiCanvas canvas, int rightX, int y, String text, int color, int gapAfter) {
         Component component = Component.literal(text);
         int width = canvas.width(component) + 8;
         UiRect badge = new UiRect(rightX - width, y, width, 12);
         canvas.fillRect(badge, 0x5A111827);
         canvas.borderRect(badge, color);
         canvas.drawCenteredText(component, badge.x() + badge.width() / 2, badge.y() + 2, color);
-        return badge.x() - 6;
+        return badge.x() - gapAfter;
     }
 
-    private void renderDiagnosticsFilter(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderDiagnosticsFilter(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         boolean active = boolProp(node, "active", false);
-        canvas.fillRect(node.bounds(), active ? 0xA01E2E3E : (hovered ? 0x8A18232F : 0x70111A25));
+        canvas.fillRect(node.bounds(), active ? 0xA01E2E3E : (hovered ? 0xC2314458 : 0x70111A25));
         canvas.borderRect(node.bounds(), active ? ACTIVE : BORDER);
         canvas.drawCenteredText(Component.literal(strProp(node, "level").toLowerCase(Locale.ROOT)),
                 node.bounds().x() + node.bounds().width() / 2, node.bounds().y() + Math.max(4, Math.round(5 * scale(node))), active ? 0xFFFFFFFF : SUBTLE);
     }
 
-    private void renderDiagnosticsState(UiNode node, DashboardController controller, UiCanvas canvas, boolean hovered) {
-        String mode = strProp(node, "mode");
-        boolean active = controller.diagnosticsPanelMode().name().equals(mode);
-        canvas.fillRect(node.bounds(), active ? ACTIVE_DIM : (hovered ? 0x8A18232F : 0x70111A25));
-        canvas.borderRect(node.bounds(), active ? ACTIVE : BORDER);
-        canvas.drawCenteredText(Component.literal(mode.substring(0, 1)), node.bounds().x() + node.bounds().width() / 2,
-                node.bounds().y() + Math.max(4, Math.round(5 * scale(node))), active ? 0xFFFFFFFF : SUBTLE);
-    }
-
-    private void renderLogLine(UiNode node, UiCanvas canvas, boolean hovered) {
+    private void renderLogLine(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
         float scale = scale(node);
         if (hovered) {
             canvas.fillRect(node.bounds(), 0x301E2A38);
@@ -574,12 +682,12 @@ public class AdaptiveDashboardRenderer {
             x += Math.max(54, Math.round(72 * scale));
         }
         int available = Math.max(20, node.bounds().right() - x - pad);
-        String message = minecraft.font.plainSubstrByWidth(strProp(node, "message"), available);
+        String message = textMetrics.clipWithEllipsis(UiText.literal(strProp(node, "message")), available);
         canvas.drawText(Component.literal(message), x, y, TEXT);
         drawDivider(canvas, node.bounds(), 0x252F3F52);
     }
 
-    private void renderTooltip(UiNode node, UiCanvas canvas, int mouseX, int mouseY) {
+    private void renderTooltip(DashboardPrimitive node, UiCanvas canvas, int mouseX, int mouseY) {
         List<String> lines = tooltipLines(node, 220);
         if (lines.isEmpty()) {
             return;
@@ -603,10 +711,14 @@ public class AdaptiveDashboardRenderer {
         }
     }
 
-    private List<String> tooltipLines(UiNode node, int width) {
+    private List<String> tooltipLines(DashboardPrimitive node, int width) {
         List<String> lines = new ArrayList<>();
         if (boolProp(node, "blocked", false)) {
             lines.addAll(wrapTooltip(formatBlockedPathTooltip(node), width));
+        }
+        String numericDetail = numericTooltip(node);
+        if (!numericDetail.isEmpty()) {
+            lines.add(numericDetail);
         }
         String detail = strProp(node, "detail");
         if (!detail.isEmpty()) {
@@ -619,20 +731,11 @@ public class AdaptiveDashboardRenderer {
         if (text.startsWith(ENABLE_PATH_PREFIX)) {
             return List.of(formatEnablePathTooltip(text));
         }
-        List<String> lines = new ArrayList<>();
-        String remaining = textOf(text).getString();
-        while (!remaining.isEmpty()) {
-            String part = minecraft.font.plainSubstrByWidth(remaining, width);
-            if (part.isEmpty()) {
-                break;
-            }
-            lines.add(part);
-            remaining = remaining.substring(part.length()).stripLeading();
-        }
+        List<String> lines = textMetrics.wrap(UiText.literal(textOf(text).getString()), width);
         return lines.isEmpty() ? List.of(text) : lines;
     }
 
-    private String formatBlockedPathTooltip(UiNode node) {
+    private String formatBlockedPathTooltip(DashboardPrimitive node) {
         Object rawPath = node.props().get("blockedByDisplayPath");
         if (!(rawPath instanceof List<?> path) || path.isEmpty()) {
             return "Enabled, but currently blocked by a parent setting.";
@@ -659,35 +762,230 @@ public class AdaptiveDashboardRenderer {
         return builder.toString();
     }
 
-    private UiRect dropdownBounds(UiNode node) {
+    private UiRect dropdownBounds(DashboardPrimitive node) {
         ControlSpec controlSpec = controlSpec(node);
         int optionCount = controlSpec != null && controlSpec.choiceSpec() != null ? controlSpec.choiceSpec().options().size() : 0;
-        UiRect control = controlBounds(node.bounds(), scale(node));
+        UiRect control = choiceBounds(controlBounds(node), scale(node));
         int rowHeight = Math.max(20, Math.round(20 * scale(node)));
-        return new UiRect(control.x(), control.bottom() + 2, control.width(), optionCount * rowHeight);
-    }
-
-    private UiRect controlBounds(UiRect row, float scale) {
-        int minWidth = Math.max(132, Math.round(146 * scale));
-        int maxWidth = Math.max(minWidth, Math.min(Math.round(row.width() * 0.45f), Math.round(176 * scale)));
-        return new UiRect(row.right() - maxWidth, row.y(), maxWidth - Math.max(4, Math.round(6 * scale)), row.height());
-    }
-
-    private boolean nodeContains(UiNode node, double mouseX, double mouseY) {
-        return node.bounds().contains(mouseX, mouseY) && (node.clipRect() == null || node.clipRect().contains(mouseX, mouseY));
-    }
-
-    private boolean isInteractive(UiNode node) {
-        if (boolProp(node, "interactive", false)) {
-            return true;
+        int height = optionCount * rowHeight;
+        int belowY = control.bottom() + 2;
+        int maxBottom = minecraft.getWindow().getGuiScaledHeight() - 6;
+        if (belowY + height <= maxBottom || control.y() - 2 < height) {
+            return new UiRect(control.x(), belowY, control.width(), height);
         }
-        return switch (node.type()) {
-            case TAB_BUTTON, TREE_GROUP, TREE_CONTROL, MACRO_SECTION_HEADER, METRICS_LAYOUT_TOGGLE, DIAGNOSTIC_HEADER, DIAGNOSTIC_FILTER, DIAGNOSTIC_STATE -> true;
-            default -> false;
+        return new UiRect(control.x(), control.y() - 2 - height, control.width(), height);
+    }
+
+    private UiRect controlBounds(DashboardPrimitive node) {
+        return DashboardControlLayout.controlBounds(node.bounds(), controlSpec(node), scale(node));
+    }
+
+    private UiRect choiceBounds(UiRect controlBounds, float scale) {
+        int height = Math.max(16, Math.round(18 * scale));
+        return centeredBox(controlBounds, controlBounds.width(), height);
+    }
+
+    private UiRect centeredBox(UiRect region, int width, int height) {
+        int x = region.x() + Math.max(0, (region.width() - width) / 2);
+        int y = region.y() + Math.max(0, (region.height() - height) / 2) - 1;
+        return new UiRect(x, y, Math.min(width, region.width()), Math.min(height, region.height()));
+    }
+
+    private UiRect alignRight(UiRect region, int width, int height, int insetRight) {
+        int actualWidth = Math.min(width, region.width());
+        int actualHeight = Math.min(height, region.height());
+        int x = Math.max(region.x(), region.right() - actualWidth - insetRight);
+        int y = region.y() + Math.max(0, (region.height() - actualHeight) / 2) - 1;
+        return new UiRect(x, y, actualWidth, actualHeight);
+    }
+
+    private int centeredTextY(UiRect rect, UiCanvas canvas) {
+        return rect.y() + Math.max(0, (rect.height() - canvas.lineHeight()) / 2);
+    }
+
+    private int drawDragGrip(UiRect bounds, UiCanvas canvas, boolean hovered) {
+        int gripX = bounds.x() + 8;
+        int gripY = bounds.y() + Math.max(6, (bounds.height() - 10) / 2);
+        int color = hovered ? 0xFFCBD5E1 : 0xFF64748B;
+        for (int row = 0; row < 3; row++) {
+            int y = gripY + row * 3;
+            canvas.fillRect(new UiRect(gripX, y, 2, 2), color);
+            canvas.fillRect(new UiRect(gripX + 4, y, 2, 2), color);
+        }
+        return 14;
+    }
+
+    private String highlightedPanelEdges(DashboardPrimitive node, DashboardPrimitive hoveredPrimitive,
+                                         DashboardPanelId resizingPanelId, String resizingPanelEdge) {
+        DashboardPanelId panelId = DashboardPanelId.byId(strProp(node, "panelId"));
+        if (panelId != null && panelId == resizingPanelId) {
+            return normalizeEdgeString(resizingPanelEdge);
+        }
+        if (hoveredPrimitive == null || !"panel-resize-handle".equals(strProp(hoveredPrimitive, "role"))) {
+            return "";
+        }
+        String nodePanelId = strProp(node, "panelId");
+        if (nodePanelId.isEmpty() || !nodePanelId.equals(strProp(hoveredPrimitive, "panelId"))) {
+            return "";
+        }
+        return normalizeEdgeString(strProp(hoveredPrimitive, "edge"));
+    }
+
+    private String highlightedSlotEdges(DashboardPrimitive node, DashboardPrimitive hoveredPrimitive,
+                                        String resizingSlotId, String resizingSlotEdge) {
+        String slotId = strProp(node, "slotId");
+        if (!slotId.isEmpty() && slotId.equals(resizingSlotId)) {
+            return normalizeEdgeString(resizingSlotEdge);
+        }
+        if (hoveredPrimitive == null || !"slot-resize-handle".equals(strProp(hoveredPrimitive, "role"))) {
+            return "";
+        }
+        if (slotId.isEmpty() || !slotId.equals(strProp(hoveredPrimitive, "slotId"))) {
+            return "";
+        }
+        return normalizeEdgeString(strProp(hoveredPrimitive, "edge"));
+    }
+
+    private String normalizeEdgeString(String edge) {
+        String normalized = edge == null ? "" : edge.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "NORTH" -> "N";
+            case "SOUTH" -> "S";
+            case "WEST" -> "W";
+            case "EAST" -> "E";
+            case "NORTHEAST" -> "NE";
+            case "NORTHWEST" -> "NW";
+            case "SOUTHEAST" -> "SE";
+            case "SOUTHWEST" -> "SW";
+            default -> normalized;
         };
     }
 
-    private ControlSpec controlSpec(UiNode node) {
+    private void drawEdgeHighlights(UiCanvas canvas, UiRect bounds, String edges, int color) {
+        int thickness = 2;
+        if (edges.contains("N")) {
+            canvas.fillRect(new UiRect(bounds.x(), bounds.y(), bounds.width(), thickness), color);
+        }
+        if (edges.contains("S")) {
+            canvas.fillRect(new UiRect(bounds.x(), bounds.bottom() - thickness, bounds.width(), thickness), color);
+        }
+        if (edges.contains("W")) {
+            canvas.fillRect(new UiRect(bounds.x(), bounds.y(), thickness, bounds.height()), color);
+        }
+        if (edges.contains("E")) {
+            canvas.fillRect(new UiRect(bounds.right() - thickness, bounds.y(), thickness, bounds.height()), color);
+        }
+    }
+
+    private Component fitText(Component text, int maxWidth) {
+        if (maxWidth <= 0) {
+            return Component.empty();
+        }
+        return Component.literal(textMetrics.clipWithEllipsis(UiText.literal(text.getString()), maxWidth));
+    }
+
+    private TreeRowLayout treeRowLayout(DashboardPrimitive node, UiCanvas canvas) {
+        float scale = scale(node);
+        UiRect row = node.bounds();
+        UiRect control = controlBounds(node);
+        int pad = Math.max(4, Math.round(6 * scale));
+        int arrowWidth = boolProp(node, "expandable", false) ? Math.max(10, Math.round(12 * scale)) : 0;
+        int titleX = row.x() + pad + arrowWidth;
+        int titleRight = control.x() - Math.max(8, Math.round(10 * scale));
+        int titleWidth = Math.max(16, titleRight - titleX);
+        boolean compact = titleWidth < Math.round(92 * scale);
+        int lineGap = Math.max(1, Math.round(2 * scale));
+        int titleY;
+        int summaryY;
+        if (compact) {
+            titleY = centeredTextY(row, canvas);
+            summaryY = titleY;
+        } else {
+            int totalTextHeight = canvas.lineHeight() * 2 + lineGap;
+            titleY = row.y() + Math.max(0, (row.height() - totalTextHeight) / 2);
+            summaryY = titleY + canvas.lineHeight() + lineGap;
+        }
+        return new TreeRowLayout(scale, control, titleX, titleWidth, compact, titleY, summaryY);
+    }
+
+    private String numericTooltip(DashboardPrimitive node) {
+        ControlSpec controlSpec = controlSpec(node);
+        if (controlSpec == null || controlSpec.numericSpec() == null) {
+            return "";
+        }
+        NumericSpec spec = controlSpec.numericSpec();
+        return "Range: " + trimNumber(spec.minValue()) + " .. " + trimNumber(spec.maxValue())
+                + " | Step: " + trimNumber(spec.step());
+    }
+
+    private String trimNumber(double value) {
+        if (Math.abs(value - Math.rint(value)) < 0.000001D) {
+            return Long.toString(Math.round(value));
+        }
+        return String.format(Locale.ROOT, "%.3f", value)
+                .replaceAll("0+$", "")
+                .replaceAll("\\.$", "");
+    }
+
+    private boolean nodeContains(DashboardPrimitive node, double mouseX, double mouseY) {
+        return node.bounds().contains(mouseX, mouseY) && (node.clipRect() == null || node.clipRect().contains(mouseX, mouseY));
+    }
+
+    private boolean isRenderable(DashboardPrimitive node, UiRect screenBounds) {
+        if (node.bounds().width() <= 0 || node.bounds().height() <= 0) {
+            return false;
+        }
+        if (!intersects(node.bounds(), screenBounds)) {
+            return false;
+        }
+        return node.clipRect() == null
+                || (node.clipRect().width() > 0 && node.clipRect().height() > 0
+                && intersects(node.bounds(), node.clipRect())
+                && intersects(node.clipRect(), screenBounds));
+    }
+
+    private boolean intersects(UiRect a, UiRect b) {
+        return a.right() > b.x() && b.right() > a.x() && a.bottom() > b.y() && b.bottom() > a.y();
+    }
+
+    private FloatingHoverScope floatingHoverScope(List<DashboardPrimitive> primitives, DashboardController controller, int mouseX, int mouseY) {
+        for (int i = primitives.size() - 1; i >= 0; i--) {
+            DashboardPrimitive primitive = primitives.get(i);
+            if (!"panel".equals(strProp(primitive, "role")) || !boolProp(primitive, "floating", false)) {
+                continue;
+            }
+            DashboardPanelId panelId = DashboardPanelId.byId(strProp(primitive, "panelId"));
+            if (panelId == null || !controller.isFloating(panelId) || !primitive.bounds().contains(mouseX, mouseY)) {
+                continue;
+            }
+            return new FloatingHoverScope(panelId, primitive.bounds());
+        }
+        return null;
+    }
+
+    private boolean allowsHover(DashboardPrimitive node, FloatingHoverScope floatingHoverScope) {
+        if (floatingHoverScope == null) {
+            return true;
+        }
+        DashboardPanelId nodePanelId = DashboardPanelId.byId(strProp(node, "panelId"));
+        if (nodePanelId != null) {
+            return nodePanelId == floatingHoverScope.panelId();
+        }
+        if (node.layer() != UiLayer.OVERLAY) {
+            return false;
+        }
+        String role = strProp(node, "role");
+        if ("panel-home-slot".equals(role) || "panel-slot-preview".equals(role) || "slot-resize-handle".equals(role)) {
+            return false;
+        }
+        return floatingHoverScope.bounds().contains(node.bounds().x(), node.bounds().y())
+                && floatingHoverScope.bounds().contains(node.bounds().right() - 1, node.bounds().bottom() - 1);
+    }
+
+    private record FloatingHoverScope(DashboardPanelId panelId, UiRect bounds) {
+    }
+
+    private ControlSpec controlSpec(DashboardPrimitive node) {
         Object value = node.props().get("controlSpec");
         return value instanceof ControlSpec controlSpec ? controlSpec : null;
     }
@@ -699,27 +997,27 @@ public class AdaptiveDashboardRenderer {
         return I18n.exists(keyOrLiteral) ? Component.translatable(keyOrLiteral) : Component.literal(keyOrLiteral);
     }
 
-    private int intProp(UiNode node, String key, int fallback) {
+    private int intProp(DashboardPrimitive node, String key, int fallback) {
         Object value = node.props().get(key);
         return value instanceof Number number ? number.intValue() : fallback;
     }
 
-    private double doubleProp(UiNode node, String key, double fallback) {
+    private double doubleProp(DashboardPrimitive node, String key, double fallback) {
         Object value = node.props().get(key);
         return value instanceof Number number ? number.doubleValue() : fallback;
     }
 
-    private boolean boolProp(UiNode node, String key, boolean fallback) {
+    private boolean boolProp(DashboardPrimitive node, String key, boolean fallback) {
         Object value = node.props().get(key);
         return value instanceof Boolean bool ? bool : fallback;
     }
 
-    private String strProp(UiNode node, String key) {
+    private String strProp(DashboardPrimitive node, String key) {
         Object value = node.props().get(key);
         return value != null ? String.valueOf(value) : "";
     }
 
-    private float scale(UiNode node) {
+    private float scale(DashboardPrimitive node) {
         Object value = node.props().get("scale");
         return value instanceof Number number ? number.floatValue() : 1.0f;
     }
@@ -762,7 +1060,19 @@ public class AdaptiveDashboardRenderer {
 
     public record ChoiceHitBox(String value, UiRect bounds) {
     }
+
+    private record TreeRowLayout(float scale, UiRect controlBounds, int titleX, int titleWidth,
+                                 boolean compact, int titleY, int summaryY) {
+    }
 }
+
+
+
+
+
+
+
+
 
 
 

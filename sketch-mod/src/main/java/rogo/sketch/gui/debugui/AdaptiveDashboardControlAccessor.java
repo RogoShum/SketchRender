@@ -7,8 +7,6 @@ import rogo.sketch.core.debugger.DashboardControlAccessor;
 import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
 import rogo.sketch.core.pipeline.module.setting.SettingNode;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.feature.culling.CullingStateManager;
-import rogo.sketch.vanilla.module.DashboardTestModuleDescriptor;
 
 public class AdaptiveDashboardControlAccessor implements DashboardControlAccessor {
     @Override
@@ -16,14 +14,11 @@ public class AdaptiveDashboardControlAccessor implements DashboardControlAccesso
         if (Config.coreSettings().hasControl(controlId)) {
             return Config.coreSettings().readControl(controlId);
         }
-        if (isDashboardTestControl(controlId)) {
-            return testControlValue(controlId);
-        }
         if (setting != null) {
-            return registry.getValue(setting.id());
+            return registry.getPreviewValue(setting.id());
         }
         if (controlId.startsWith("setting/")) {
-            return registry.getValue(KeyId.of(controlId.substring("setting/".length())));
+            return registry.getPreviewValue(KeyId.of(controlId.substring("setting/".length())));
         }
         return null;
     }
@@ -34,23 +29,12 @@ public class AdaptiveDashboardControlAccessor implements DashboardControlAccesso
             Config.coreSettings().writeControl(controlId, value);
             return;
         }
-        if (isDashboardTestControl(controlId)) {
-            if (setting != null) {
-                registry.setValue(setting.id(), value);
-            }
-            if (controlId.equals("setting/" + DashboardTestModuleDescriptor.CHECK_CULL)) {
-                CullingStateManager.CHECKING_CULL = Boolean.TRUE.equals(value);
-            } else if (controlId.equals("setting/" + DashboardTestModuleDescriptor.CHECK_TEXTURE)) {
-                CullingStateManager.CHECKING_TEXTURE = Boolean.TRUE.equals(value);
-            }
-            return;
-        }
         if (setting != null) {
-            registry.setValue(setting.id(), value);
+            registry.queueValue(setting.id(), value);
             return;
         }
         if (controlId.startsWith("setting/")) {
-            registry.setValue(KeyId.of(controlId.substring("setting/".length())), value);
+            registry.queueValue(KeyId.of(controlId.substring("setting/".length())), value);
         }
     }
 
@@ -59,14 +43,11 @@ public class AdaptiveDashboardControlAccessor implements DashboardControlAccesso
         if (Config.coreSettings().hasControl(controlId)) {
             return Config.coreSettings().isEnabled(controlId);
         }
-        if (isDashboardTestControl(controlId)) {
-            return !FMLEnvironment.production;
-        }
         if (setting != null) {
-            return registry.isActive(setting.id());
+            return registry.isPreviewActive(setting.id());
         }
         if (controlId.startsWith("setting/")) {
-            return registry.isActive(KeyId.of(controlId.substring("setting/".length())));
+            return registry.isPreviewActive(KeyId.of(controlId.substring("setting/".length())));
         }
         return true;
     }
@@ -75,24 +56,6 @@ public class AdaptiveDashboardControlAccessor implements DashboardControlAccesso
     public @Nullable String disabledDetailKey(String controlId, ModuleSettingRegistry registry, @Nullable SettingNode<?> setting) {
         if (Config.coreSettings().hasControl(controlId)) {
             return Config.coreSettings().disabledDetailKey(controlId);
-        }
-        if (isDashboardTestControl(controlId) && FMLEnvironment.production) {
-            return "sketch_render.detail.test_feature";
-        }
-        return null;
-    }
-
-    private boolean isDashboardTestControl(String controlId) {
-        return controlId.equals("setting/" + DashboardTestModuleDescriptor.CHECK_CULL)
-                || controlId.equals("setting/" + DashboardTestModuleDescriptor.CHECK_TEXTURE);
-    }
-
-    private Object testControlValue(String controlId) {
-        if (controlId.equals("setting/" + DashboardTestModuleDescriptor.CHECK_CULL)) {
-            return CullingStateManager.CHECKING_CULL;
-        }
-        if (controlId.equals("setting/" + DashboardTestModuleDescriptor.CHECK_TEXTURE)) {
-            return CullingStateManager.CHECKING_TEXTURE;
         }
         return null;
     }

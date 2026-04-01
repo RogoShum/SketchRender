@@ -86,8 +86,28 @@ public final class DashboardTreeNode {
             @Nullable ControlSpec controlSpec,
             @Nullable Object value,
             List<String> macroNames) {
+        return control(id, displayKey, summaryKey, detailKey, active, enabled, disabledDetailKey, controlId,
+                blockedByNodeId, blockedByDisplayPath, settingId, controlSpec, value, macroNames, List.of());
+    }
+
+    public static DashboardTreeNode control(
+            String id,
+            String displayKey,
+            @Nullable String summaryKey,
+            @Nullable String detailKey,
+            boolean active,
+            boolean enabled,
+            @Nullable String disabledDetailKey,
+            String controlId,
+            @Nullable String blockedByNodeId,
+            List<String> blockedByDisplayPath,
+            @Nullable KeyId settingId,
+            @Nullable ControlSpec controlSpec,
+            @Nullable Object value,
+            List<String> macroNames,
+            List<DashboardTreeNode> children) {
         return new DashboardTreeNode(id, displayKey, summaryKey, detailKey, false, active, enabled, disabledDetailKey,
-                blockedByNodeId, blockedByDisplayPath, controlId, settingId, controlSpec, value, macroNames, List.of());
+                blockedByNodeId, blockedByDisplayPath, controlId, settingId, controlSpec, value, macroNames, children);
     }
 
     public String id() {
@@ -108,6 +128,10 @@ public final class DashboardTreeNode {
 
     public boolean group() {
         return group;
+    }
+
+    public boolean expandable() {
+        return !children.isEmpty();
     }
 
     public boolean active() {
@@ -154,3 +178,4 @@ public final class DashboardTreeNode {
         return children;
     }
 }
+

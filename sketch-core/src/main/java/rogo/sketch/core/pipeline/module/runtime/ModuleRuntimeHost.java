@@ -56,7 +56,6 @@ public class ModuleRuntimeHost {
 
     public ModuleRuntimeHost(GraphicsPipeline<?> pipeline) {
         this.pipeline = pipeline;
-        this.settingRegistry.addListener(this::onSettingChanged);
         UniformHookRegistry.getInstance().setRuntimeRegistry(uniformRegistry);
     }
 
@@ -81,7 +80,9 @@ public class ModuleRuntimeHost {
         for (ModuleDescriptor descriptor : sorted) {
             ensureModuleEnabledSetting(descriptor.id());
             descriptor.describe(new DescriptorContextImpl(descriptor.id()));
+        }
 
+        for (ModuleDescriptor descriptor : sorted) {
             ModuleRuntime runtime = descriptor.createRuntime();
             ModuleRecord record = new ModuleRecord(descriptor, runtime);
             records.put(descriptor.id(), record);
@@ -179,7 +180,10 @@ public class ModuleRuntimeHost {
     }
 
     public void setModuleEnabled(String moduleId, boolean enabled) {
-        settingRegistry.setValue(moduleEnabledSettingId(moduleId), enabled);
+        SettingChangeEvent event = settingRegistry.applyImmediateValue(moduleEnabledSettingId(moduleId), enabled);
+        if (event != null) {
+            applySettingChanges(List.of(event));
+        }
     }
 
     public ModuleRuntime runtimeById(String moduleId) {
@@ -279,6 +283,10 @@ public class ModuleRuntimeHost {
         return kernelInitialized;
     }
 
+    public void flushPendingSettingChanges() {
+        applySettingChanges(settingRegistry.flushPendingChanges());
+    }
+
     private void ensureModuleEnabledSetting(String moduleId) {
         KeyId enabledSettingId = moduleEnabledSettingId(moduleId);
         for (SettingNode<?> setting : settingRegistry.allSettings()) {
@@ -298,28 +306,65 @@ public class ModuleRuntimeHost {
                 true));
     }
 
-    private void onSettingChanged(SettingChangeEvent event) {
-        if (event.settingId().equals(moduleEnabledSettingId(event.moduleId()))) {
-            handleModuleEnableChange(event.moduleId(), Boolean.TRUE.equals(event.newValue()));
+    private void applySettingChanges(List<SettingChangeEvent> events) {
+        if (events == null || events.isEmpty()) {
             return;
         }
 
-        ModuleRecord record = records.get(event.moduleId());
-        if (record == null) {
-            return;
-        }
+        Map<String, Boolean> moduleEnableStates = new LinkedHashMap<>();
+        Set<String> recreateSessionModules = new LinkedHashSet<>();
+        Set<String> refreshSessionModules = new LinkedHashSet<>();
+        boolean rebuildGraphs = false;
 
-        switch (event.changeImpact()) {
-            case RECREATE_SESSION_RESOURCES -> recreateSession(record);
-            case REATTACH_SESSION_GRAPHICS -> refreshSessionGraphics(record);
-            case REBUILD_GRAPHS -> {
-                if (kernel != null) {
-                    kernel.rebuildGraphs();
+        for (SettingChangeEvent event : events) {
+            if (event.settingId().equals(moduleEnabledSettingId(event.moduleId()))) {
+                moduleEnableStates.put(event.moduleId(), Boolean.TRUE.equals(event.newValue()));
+                continue;
+            }
+
+            ModuleRecord record = records.get(event.moduleId());
+            if (record == null) {
+                continue;
+            }
+
+            switch (event.changeImpact()) {
+                case RECREATE_SESSION_RESOURCES -> recreateSessionModules.add(record.descriptor.id());
+                case REATTACH_SESSION_GRAPHICS -> refreshSessionModules.add(record.descriptor.id());
+                case REBUILD_GRAPHS -> rebuildGraphs = true;
+                case RUNTIME_ONLY, UPDATE_UNIFORMS, RECOMPILE_SHADERS -> {
+                    // No host-side work required. Modules and shader systems observe the new state lazily.
                 }
             }
-            case RUNTIME_ONLY, UPDATE_UNIFORMS, RECOMPILE_SHADERS -> {
-                // No host-side work required. Modules and shader systems observe the new state lazily.
+        }
+
+        for (Map.Entry<String, Boolean> entry : moduleEnableStates.entrySet()) {
+            handleModuleEnableChange(entry.getKey(), entry.getValue());
+        }
+
+        refreshSessionModules.removeAll(recreateSessionModules);
+
+        for (String moduleId : recreateSessionModules) {
+            if (moduleEnableStates.containsKey(moduleId) || !isModuleEnabled(moduleId)) {
+                continue;
             }
+            ModuleRecord record = records.get(moduleId);
+            if (record != null) {
+                recreateSession(record);
+            }
+        }
+
+        for (String moduleId : refreshSessionModules) {
+            if (moduleEnableStates.containsKey(moduleId) || !isModuleEnabled(moduleId)) {
+                continue;
+            }
+            ModuleRecord record = records.get(moduleId);
+            if (record != null) {
+                refreshSessionGraphics(record);
+            }
+        }
+
+        if (rebuildGraphs && kernel != null) {
+            kernel.rebuildGraphs();
         }
     }
 

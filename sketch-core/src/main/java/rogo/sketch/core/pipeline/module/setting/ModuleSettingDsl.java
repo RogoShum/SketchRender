@@ -9,6 +9,7 @@ import rogo.sketch.core.ui.control.NumericSpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public class ModuleSettingDsl {
@@ -48,6 +49,7 @@ public class ModuleSettingDsl {
         protected @Nullable KeyId parentId;
         protected ChangeImpact changeImpact = ChangeImpact.RUNTIME_ONLY;
         protected boolean visibleInGui = true;
+        protected BooleanSupplier visibilityRule = () -> true;
         protected final List<DependencyRule> dependencies = new ArrayList<>();
 
         protected BaseBuilder(KeyId id, String displayKey) {
@@ -82,6 +84,11 @@ public class ModuleSettingDsl {
             return self();
         }
 
+        public B visibleWhen(BooleanSupplier visibilityRule) {
+            this.visibilityRule = Objects.requireNonNull(visibilityRule, "visibilityRule");
+            return self();
+        }
+
         public B dependency(DependencyRule dependencyRule) {
             this.dependencies.add(dependencyRule);
             return self();
@@ -99,7 +106,7 @@ public class ModuleSettingDsl {
         }
 
         public SettingGroup register() {
-            SettingGroup group = new SettingGroup(id, moduleId, displayKey, summaryKey, detailKey, parentId, visibleInGui, dependencies);
+            SettingGroup group = new SettingGroup(id, moduleId, displayKey, summaryKey, detailKey, parentId, visibleInGui, visibilityRule, dependencies);
             registrar.accept(group);
             return group;
         }
@@ -130,7 +137,7 @@ public class ModuleSettingDsl {
 
         public BooleanSetting register() {
             BooleanSetting setting = new BooleanSetting(id, moduleId, displayKey, summaryKey, detailKey, parentId,
-                    changeImpact, visibleInGui, dependencies, defaultValue, controlSpec);
+                    changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, controlSpec);
             registrar.accept(setting);
             return setting;
         }
@@ -179,7 +186,7 @@ public class ModuleSettingDsl {
 
         public IntSetting register() {
             IntSetting setting = new IntSetting(id, moduleId, displayKey, summaryKey, detailKey, parentId,
-                    changeImpact, visibleInGui, dependencies, defaultValue, minValue, maxValue, sliderSpec, controlSpec);
+                    changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, minValue, maxValue, sliderSpec, controlSpec);
             registrar.accept(setting);
             return setting;
         }
@@ -228,7 +235,7 @@ public class ModuleSettingDsl {
 
         public FloatSetting register() {
             FloatSetting setting = new FloatSetting(id, moduleId, displayKey, summaryKey, detailKey, parentId,
-                    changeImpact, visibleInGui, dependencies, defaultValue, minValue, maxValue, sliderSpec, controlSpec);
+                    changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, minValue, maxValue, sliderSpec, controlSpec);
             registrar.accept(setting);
             return setting;
         }
@@ -270,7 +277,7 @@ public class ModuleSettingDsl {
             List<E> values = allowedValues.isEmpty() ? List.of(enumType.getEnumConstants()) : List.copyOf(allowedValues);
             E resolvedDefault = defaultValue != null ? defaultValue : values.get(0);
             EnumSetting<E> setting = new EnumSetting<>(id, moduleId, displayKey, summaryKey, detailKey, parentId,
-                    changeImpact, visibleInGui, dependencies, enumType, resolvedDefault, values, controlSpec);
+                    changeImpact, visibleInGui, visibilityRule, dependencies, enumType, resolvedDefault, values, controlSpec);
             registrar.accept(setting);
             return setting;
         }

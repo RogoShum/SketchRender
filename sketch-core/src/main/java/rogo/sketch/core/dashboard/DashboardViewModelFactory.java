@@ -12,6 +12,7 @@ import rogo.sketch.core.pipeline.module.metric.MetricDescriptor;
 import rogo.sketch.core.pipeline.module.metric.MetricKind;
 import rogo.sketch.core.pipeline.module.metric.MetricSnapshot;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
+import rogo.sketch.core.pipeline.module.setting.ChangeImpact;
 import rogo.sketch.core.pipeline.module.setting.DependencyRule;
 import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
 import rogo.sketch.core.pipeline.module.setting.SettingNode;
@@ -24,6 +25,7 @@ import rogo.sketch.core.util.KeyId;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -36,6 +38,8 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class DashboardViewModelFactory {
+    private static final boolean TRACE_SETTING_TREE = Boolean.getBoolean("sketch.dashboard.traceSettings");
+    private static final Set<String> TRACED_SETTING_NODES = Collections.synchronizedSet(new LinkedHashSet<>());
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss")
             .withZone(ZoneId.systemDefault());
     private static final KeyId ENTITY_HIDDEN_METRIC = KeyId.of("sketch_render", "entity_hidden_count");
@@ -48,11 +52,13 @@ public final class DashboardViewModelFactory {
         ModuleSettingRegistry registry = runtimeHost.settingRegistry();
         DashboardControlAccessor accessor = dataSource.controlAccessor();
         Map<KeyId, SettingNode<?>> settingsById = indexSettings(registry);
+        List<ModuleMacroDefinition> macroDefinitions = new ArrayList<>(runtimeHost.macroRegistry().allDefinitions());
+        Set<KeyId> pureMacroSettings = collectPureMacroSettings(macroDefinitions, settingsById);
 
-        List<DashboardTreeNode> settingRoots = new ArrayList<>(buildSettingRoots(registry, accessor, settingsById));
+        List<DashboardTreeNode> settingRoots = new ArrayList<>(buildSettingRoots(registry, accessor, settingsById, pureMacroSettings));
         settingRoots.addAll(dataSource.extraSettingRoots());
 
-        List<DashboardTreeNode> macroRoots = buildMacroRoots(runtimeHost, registry, accessor, settingsById);
+        List<DashboardTreeNode> macroRoots = buildMacroRoots(macroDefinitions, registry, accessor, settingsById);
         List<DashboardSummaryMetric> summaryMetrics = new ArrayList<>(mapExtraMetrics(dataSource.extraMetricCards()));
         summaryMetrics.addAll(buildMetricCards(runtimeHost, metricSnapshot));
 
@@ -109,7 +115,8 @@ public final class DashboardViewModelFactory {
         return result;
     }
 
-    private List<DashboardTreeNode> buildSettingRoots(ModuleSettingRegistry registry, DashboardControlAccessor accessor, Map<KeyId, SettingNode<?>> settingsById) {
+    private List<DashboardTreeNode> buildSettingRoots(ModuleSettingRegistry registry, DashboardControlAccessor accessor,
+                                                      Map<KeyId, SettingNode<?>> settingsById, Set<KeyId> pureMacroSettings) {
         Map<KeyId, List<SettingNode<?>>> children = new LinkedHashMap<>();
         List<SettingNode<?>> roots = new ArrayList<>();
         for (SettingNode<?> setting : settingsById.values()) {
@@ -122,7 +129,7 @@ public final class DashboardViewModelFactory {
 
         List<DashboardTreeNode> result = new ArrayList<>();
         for (SettingNode<?> root : roots) {
-            DashboardTreeNode node = buildSettingNode(root, registry, accessor, children, settingsById);
+            DashboardTreeNode node = buildSettingNode(root, registry, accessor, children, settingsById, pureMacroSettings);
             if (node != null) {
                 result.add(node);
             }
@@ -135,16 +142,17 @@ public final class DashboardViewModelFactory {
             ModuleSettingRegistry registry,
             DashboardControlAccessor accessor,
             Map<KeyId, List<SettingNode<?>>> childrenMap,
-            Map<KeyId, SettingNode<?>> settingsById) {
+            Map<KeyId, SettingNode<?>> settingsById,
+            Set<KeyId> pureMacroSettings) {
         List<DashboardTreeNode> childNodes = new ArrayList<>();
         for (SettingNode<?> child : childrenMap.getOrDefault(setting.id(), List.of())) {
-            DashboardTreeNode childNode = buildSettingNode(child, registry, accessor, childrenMap, settingsById);
+            DashboardTreeNode childNode = buildSettingNode(child, registry, accessor, childrenMap, settingsById, pureMacroSettings);
             if (childNode != null) {
                 childNodes.add(childNode);
             }
         }
 
-        boolean visible = setting.visibleInGui() || !childNodes.isEmpty();
+        boolean visible = (setting.visibleInGui() && !pureMacroSettings.contains(setting.id())) || !childNodes.isEmpty();
         if (!visible) {
             return null;
         }
@@ -153,10 +161,12 @@ public final class DashboardViewModelFactory {
             return DashboardTreeNode.group("setting-group/" + setting.id(), setting.displayKey(), setting.summaryKey(), setting.detailKey(), childNodes);
         }
 
+        traceSettingNode(setting, childNodes);
+
         String controlId = "setting/" + setting.id();
         Object value = accessor.readValue(controlId, registry, setting);
         if (value == null) {
-            value = registry.getValue(setting.id());
+            value = registry.getPreviewValue(setting.id());
         }
         BlockedState blockedState = resolveBlockedState(setting, registry, settingsById);
         String disabledDetail = resolveDisabledDetail(controlId, setting, registry, accessor);
@@ -165,7 +175,7 @@ public final class DashboardViewModelFactory {
                 setting.displayKey(),
                 setting.summaryKey(),
                 setting.detailKey(),
-                registry.isActive(setting.id()),
+                registry.isPreviewActive(setting.id()),
                 accessor.isEnabled(controlId, registry, setting),
                 disabledDetail,
                 controlId,
@@ -174,13 +184,13 @@ public final class DashboardViewModelFactory {
                 setting.id(),
                 setting.controlSpec(),
                 value,
-                List.of());
+                List.of(),
+                childNodes);
     }
 
-    private List<DashboardTreeNode> buildMacroRoots(ModuleRuntimeHost runtimeHost, ModuleSettingRegistry registry,
+    private List<DashboardTreeNode> buildMacroRoots(List<ModuleMacroDefinition> definitions, ModuleSettingRegistry registry,
                                                     DashboardControlAccessor accessor, Map<KeyId, SettingNode<?>> settingsById) {
         Map<String, List<DashboardTreeNode>> byModule = new LinkedHashMap<>();
-        List<ModuleMacroDefinition> definitions = new ArrayList<>(runtimeHost.macroRegistry().allDefinitions());
         definitions.sort(Comparator.comparing(ModuleMacroDefinition::moduleId).thenComparing(ModuleMacroDefinition::id));
         for (ModuleMacroDefinition definition : definitions) {
             if (definition.settingId() == null) {
@@ -193,7 +203,7 @@ public final class DashboardViewModelFactory {
             String controlId = "setting/" + definition.settingId();
             Object value = accessor.readValue(controlId, registry, setting);
             if (value == null) {
-                value = registry.getValue(setting.id());
+                value = registry.getPreviewValue(setting.id());
             }
             ControlSpec controlSpec = definition.controlSpec() != null ? definition.controlSpec() : setting.controlSpec();
             BlockedState blockedState = resolveBlockedState(setting, registry, settingsById);
@@ -204,7 +214,7 @@ public final class DashboardViewModelFactory {
                             definition.displayKey() != null ? definition.displayKey() : setting.displayKey(),
                             definition.summaryKey() != null ? definition.summaryKey() : setting.summaryKey(),
                             definition.detailKey() != null ? definition.detailKey() : setting.detailKey(),
-                            registry.isActive(setting.id()),
+                            registry.isPreviewActive(setting.id()),
                             accessor.isEnabled(controlId, registry, setting),
                             disabledDetail,
                             controlId,
@@ -221,6 +231,21 @@ public final class DashboardViewModelFactory {
             roots.add(DashboardTreeNode.group("macro-module/" + entry.getKey(), "module." + entry.getKey(), null, null, entry.getValue()));
         }
         return roots;
+    }
+
+    private Set<KeyId> collectPureMacroSettings(List<ModuleMacroDefinition> definitions, Map<KeyId, SettingNode<?>> settingsById) {
+        Set<KeyId> result = new HashSet<>();
+        for (ModuleMacroDefinition definition : definitions) {
+            KeyId settingId = definition.settingId();
+            if (settingId == null) {
+                continue;
+            }
+            SettingNode<?> setting = settingsById.get(settingId);
+            if (setting != null && setting.changeImpact() == ChangeImpact.RECOMPILE_SHADERS) {
+                result.add(settingId);
+            }
+        }
+        return result;
     }
 
     private String resolveDisabledDetail(String controlId, SettingNode<?> setting, ModuleSettingRegistry registry,
@@ -250,11 +275,11 @@ public final class DashboardViewModelFactory {
         if (setting.parentId() != null) {
             SettingNode<?> parent = settingsById.get(setting.parentId());
             if (parent != null) {
-                if (!registry.isActive(parent.id())) {
+                if (!registry.isPreviewActive(parent.id())) {
                     return findBlockedPath(parent, registry, settingsById, visited);
                 }
                 if (!parent.isGroup()) {
-                    Object parentValue = registry.getValue(parent.id());
+                    Object parentValue = registry.getPreviewValue(parent.id());
                     if (parentValue instanceof Boolean bool && !bool) {
                         return new BlockedPath(parent.id().toString(), buildPath(parent, settingsById));
                     }
@@ -267,11 +292,11 @@ public final class DashboardViewModelFactory {
             if (target == null) {
                 continue;
             }
-            if (!registry.isActive(target.id())) {
+            if (!registry.isPreviewActive(target.id())) {
                 return findBlockedPath(target, registry, settingsById, visited);
             }
             if (dependency.dependencyType() == DependencyRule.DependencyType.REQUIRES_TRUE) {
-                Object dependencyValue = registry.getValue(target.id());
+                Object dependencyValue = registry.getPreviewValue(target.id());
                 if (!(dependencyValue instanceof Boolean bool) || !bool) {
                     return new BlockedPath(target.id().toString(), buildPath(target, settingsById));
                 }
@@ -440,6 +465,15 @@ public final class DashboardViewModelFactory {
         };
     }
 
+    private void traceSettingNode(SettingNode<?> setting, List<DashboardTreeNode> childNodes) {
+        if (!TRACE_SETTING_TREE || childNodes.isEmpty() || !TRACED_SETTING_NODES.add(setting.id().toString())) {
+            return;
+        }
+        System.out.println("[Sketch][Dashboard] retained setting subtree id=" + setting.id()
+                + " module=" + setting.moduleId()
+                + " childCount=" + childNodes.size());
+    }
+
     private record BlockedPath(String nodeId, List<String> displayPath) {
     }
 
@@ -447,5 +481,6 @@ public final class DashboardViewModelFactory {
         private static final BlockedState NONE = new BlockedState(null, List.of());
     }
 }
+
 
 

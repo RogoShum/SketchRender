@@ -4,6 +4,7 @@ import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /**
  * Non-value container for organizing settings into UI groups.
@@ -17,7 +18,19 @@ public class SettingGroup extends SettingNode<Void> {
             @Nullable KeyId parentId,
             boolean visibleInGui,
             List<DependencyRule> dependencies) {
-        this(id, moduleId, displayKey, null, detailKey, parentId, visibleInGui, dependencies);
+        this(id, moduleId, displayKey, detailKey, parentId, visibleInGui, () -> true, dependencies);
+    }
+
+    public SettingGroup(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            boolean visibleInGui,
+            BooleanSupplier visibilityRule,
+            List<DependencyRule> dependencies) {
+        this(id, moduleId, displayKey, null, detailKey, parentId, visibleInGui, visibilityRule, dependencies);
     }
 
     public SettingGroup(
@@ -29,7 +42,20 @@ public class SettingGroup extends SettingNode<Void> {
             @Nullable KeyId parentId,
             boolean visibleInGui,
             List<DependencyRule> dependencies) {
-        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, ChangeImpact.RUNTIME_ONLY, visibleInGui, dependencies, null, null);
+        this(id, moduleId, displayKey, summaryKey, detailKey, parentId, visibleInGui, () -> true, dependencies);
+    }
+
+    public SettingGroup(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String summaryKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            boolean visibleInGui,
+            BooleanSupplier visibilityRule,
+            List<DependencyRule> dependencies) {
+        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, ChangeImpact.RUNTIME_ONLY, visibleInGui, visibilityRule, dependencies, null, null);
     }
 
     @Override

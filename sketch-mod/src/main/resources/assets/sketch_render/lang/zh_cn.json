@@ -13,6 +13,7 @@
   "debug.dashboard.macro_constants": "宏常量",
   "debug.dashboard.diagnostics": "诊断日志",
   "debug.dashboard.group.testing": "测试选项",
+  "debug.dashboard.group.culling_debug": "剔除调试",
   "debug.dashboard.check_cull": "调试几何",
   "debug.dashboard.check_texture": "检查纹理",
   "debug.dashboard.metric.fps": "帧率",

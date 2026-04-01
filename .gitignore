@@ -125,3 +125,4 @@ runs/
 /.backup/
 /plan/
 /.gradle-home/
+/.codex/

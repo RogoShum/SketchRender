@@ -6,6 +6,7 @@ import rogo.sketch.core.ui.control.ControlSpec;
 import rogo.sketch.core.ui.control.NumericSpec;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 public class FloatSetting extends SettingNode<Float> {
     private final float minValue;
@@ -25,7 +26,24 @@ public class FloatSetting extends SettingNode<Float> {
             float minValue,
             float maxValue,
             @Nullable SliderSpec sliderSpec) {
-        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue, minValue, maxValue, sliderSpec,
+        this(id, moduleId, displayKey, detailKey, parentId, changeImpact, visibleInGui, () -> true, dependencies, defaultValue, minValue, maxValue, sliderSpec);
+    }
+
+    public FloatSetting(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            ChangeImpact changeImpact,
+            boolean visibleInGui,
+            BooleanSupplier visibilityRule,
+            List<DependencyRule> dependencies,
+            float defaultValue,
+            float minValue,
+            float maxValue,
+            @Nullable SliderSpec sliderSpec) {
+        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, minValue, maxValue, sliderSpec,
                 sliderSpec != null
                         ? ControlSpec.slider(NumericSpec.floating(sliderSpec.min(), sliderSpec.max(), sliderSpec.step(), "%.2f"))
                         : ControlSpec.number(NumericSpec.floating(minValue, maxValue, 1.0D, "%.2f")));
@@ -46,7 +64,26 @@ public class FloatSetting extends SettingNode<Float> {
             float maxValue,
             @Nullable SliderSpec sliderSpec,
             @Nullable ControlSpec controlSpec) {
-        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue, controlSpec);
+        this(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, () -> true, dependencies, defaultValue, minValue, maxValue, sliderSpec, controlSpec);
+    }
+
+    public FloatSetting(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String summaryKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            ChangeImpact changeImpact,
+            boolean visibleInGui,
+            BooleanSupplier visibilityRule,
+            List<DependencyRule> dependencies,
+            float defaultValue,
+            float minValue,
+            float maxValue,
+            @Nullable SliderSpec sliderSpec,
+            @Nullable ControlSpec controlSpec) {
+        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, controlSpec);
         this.minValue = minValue;
         this.maxValue = maxValue;
         this.sliderSpec = sliderSpec;

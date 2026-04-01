@@ -1,6 +1,6 @@
-package rogo.sketch.core.debugger.ui;
+package rogo.sketch.core.ui.frame;
 
-public enum UiPass {
+public enum UiLayer {
     BACKGROUND,
     PANELS,
     CONTROLS,

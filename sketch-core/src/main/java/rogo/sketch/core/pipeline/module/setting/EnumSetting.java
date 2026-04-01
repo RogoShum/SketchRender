@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 public class EnumSetting<E extends Enum<E>> extends SettingNode<E> {
     private final Class<E> enumType;
@@ -28,7 +29,23 @@ public class EnumSetting<E extends Enum<E>> extends SettingNode<E> {
             Class<E> enumType,
             E defaultValue,
             List<E> allowedValues) {
-        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, dependencies, enumType, defaultValue, allowedValues,
+        this(id, moduleId, displayKey, detailKey, parentId, changeImpact, visibleInGui, () -> true, dependencies, enumType, defaultValue, allowedValues);
+    }
+
+    public EnumSetting(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            ChangeImpact changeImpact,
+            boolean visibleInGui,
+            BooleanSupplier visibilityRule,
+            List<DependencyRule> dependencies,
+            Class<E> enumType,
+            E defaultValue,
+            List<E> allowedValues) {
+        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, visibilityRule, dependencies, enumType, defaultValue, allowedValues,
                 defaultChoiceControl(allowedValues));
     }
 
@@ -46,7 +63,25 @@ public class EnumSetting<E extends Enum<E>> extends SettingNode<E> {
             E defaultValue,
             List<E> allowedValues,
             @Nullable ControlSpec controlSpec) {
-        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue, controlSpec);
+        this(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, () -> true, dependencies, enumType, defaultValue, allowedValues, controlSpec);
+    }
+
+    public EnumSetting(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String summaryKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            ChangeImpact changeImpact,
+            boolean visibleInGui,
+            BooleanSupplier visibilityRule,
+            List<DependencyRule> dependencies,
+            Class<E> enumType,
+            E defaultValue,
+            List<E> allowedValues,
+            @Nullable ControlSpec controlSpec) {
+        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, controlSpec);
         this.enumType = Objects.requireNonNull(enumType, "enumType");
         this.allowedValues = Collections.unmodifiableList(allowedValues);
     }

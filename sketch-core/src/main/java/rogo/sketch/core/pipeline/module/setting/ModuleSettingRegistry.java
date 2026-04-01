@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 public class ModuleSettingRegistry {
     private final Map<KeyId, SettingNode<?>> settings = new LinkedHashMap<>();
     private final Map<KeyId, Object> values = new LinkedHashMap<>();
+    private final Map<KeyId, Object> pendingValues = new LinkedHashMap<>();
     private final List<Consumer<SettingChangeEvent>> listeners = new CopyOnWriteArrayList<>();
 
     public void registerSetting(SettingNode<?> setting) {
@@ -48,24 +49,38 @@ public class ModuleSettingRegistry {
         return (T) values.get(settingId);
     }
 
+    @SuppressWarnings("unchecked")
+    public <T> T getPreviewValue(KeyId settingId) {
+        return (T) (pendingValues.containsKey(settingId) ? pendingValues.get(settingId) : values.get(settingId));
+    }
+
     public boolean getBoolean(KeyId settingId, boolean fallback) {
         Object value = values.get(settingId);
         return value instanceof Boolean bool ? bool : fallback;
     }
 
+    public boolean hasPendingChanges() {
+        return !pendingValues.isEmpty();
+    }
+
     public void setValue(KeyId settingId, Object rawValue) {
+        applyImmediateValue(settingId, rawValue);
+    }
+
+    public SettingChangeEvent applyImmediateValue(KeyId settingId, Object rawValue) {
         SettingNode<?> setting = settings.get(settingId);
         if (setting == null) {
             throw new IllegalArgumentException("Unknown setting id: " + settingId);
         }
         if (setting.isGroup()) {
-            return;
+            return null;
         }
 
         Object oldValue = values.get(settingId);
         Object newValue = setting.coerceValue(rawValue);
+        pendingValues.remove(settingId);
         if (Objects.equals(oldValue, newValue)) {
-            return;
+            return null;
         }
 
         values.put(settingId, newValue);
@@ -78,6 +93,60 @@ public class ModuleSettingRegistry {
         for (Consumer<SettingChangeEvent> listener : listeners) {
             listener.accept(event);
         }
+        return event;
+    }
+
+    public void queueValue(KeyId settingId, Object rawValue) {
+        SettingNode<?> setting = settings.get(settingId);
+        if (setting == null) {
+            throw new IllegalArgumentException("Unknown setting id: " + settingId);
+        }
+        if (setting.isGroup()) {
+            return;
+        }
+
+        Object newValue = setting.coerceValue(rawValue);
+        Object committedValue = values.get(settingId);
+        if (Objects.equals(committedValue, newValue)) {
+            pendingValues.remove(settingId);
+            return;
+        }
+        pendingValues.put(settingId, newValue);
+    }
+
+    public List<SettingChangeEvent> flushPendingChanges() {
+        if (pendingValues.isEmpty()) {
+            return List.of();
+        }
+
+        List<SettingChangeEvent> events = new ArrayList<>();
+        for (SettingNode<?> setting : settings.values()) {
+            if (setting.isGroup() || !pendingValues.containsKey(setting.id())) {
+                continue;
+            }
+
+            Object oldValue = values.get(setting.id());
+            Object newValue = setting.coerceValue(pendingValues.get(setting.id()));
+            if (Objects.equals(oldValue, newValue)) {
+                continue;
+            }
+
+            values.put(setting.id(), newValue);
+            events.add(new SettingChangeEvent(
+                    setting.moduleId(),
+                    setting.id(),
+                    oldValue,
+                    newValue,
+                    setting.changeImpact()));
+        }
+        pendingValues.clear();
+
+        for (SettingChangeEvent event : events) {
+            for (Consumer<SettingChangeEvent> listener : listeners) {
+                listener.accept(event);
+            }
+        }
+        return List.copyOf(events);
     }
 
     public void addListener(Consumer<SettingChangeEvent> listener) {
@@ -93,10 +162,18 @@ public class ModuleSettingRegistry {
         if (setting == null) {
             return false;
         }
-        return isActive(setting, new HashSet<>());
+        return isActive(setting, new HashSet<>(), values);
     }
 
-    private boolean isActive(SettingNode<?> setting, Set<KeyId> visited) {
+    public boolean isPreviewActive(KeyId settingId) {
+        SettingNode<?> setting = settings.get(settingId);
+        if (setting == null) {
+            return false;
+        }
+        return isActive(setting, new HashSet<>(), new PreviewValuesMapView());
+    }
+
+    private boolean isActive(SettingNode<?> setting, Set<KeyId> visited, Map<KeyId, Object> valueView) {
         if (!visited.add(setting.id())) {
             return true;
         }
@@ -104,11 +181,11 @@ public class ModuleSettingRegistry {
         if (setting.parentId() != null) {
             SettingNode<?> parent = settings.get(setting.parentId());
             if (parent != null) {
-                if (!isActive(parent, visited)) {
+                if (!isActive(parent, visited, valueView)) {
                     return false;
                 }
                 if (!parent.isGroup()) {
-                    Object parentValue = values.get(parent.id());
+                    Object parentValue = valueView.get(parent.id());
                     if (parentValue instanceof Boolean bool && !bool) {
                         return false;
                     }
@@ -121,11 +198,11 @@ public class ModuleSettingRegistry {
             if (target == null) {
                 continue;
             }
-            if (!isActive(target, visited)) {
+            if (!isActive(target, visited, valueView)) {
                 return false;
             }
             if (dependency.dependencyType() == DependencyRule.DependencyType.REQUIRES_TRUE) {
-                Object dependencyValue = values.get(target.id());
+                Object dependencyValue = valueView.get(target.id());
                 if (!(dependencyValue instanceof Boolean bool) || !bool) {
                     return false;
                 }
@@ -142,5 +219,22 @@ public class ModuleSettingRegistry {
             }
         }
         return new SettingSnapshot(values, active);
+    }
+
+    private final class PreviewValuesMapView extends AbstractMap<KeyId, Object> {
+        @Override
+        public Object get(Object key) {
+            if (!(key instanceof KeyId keyId)) {
+                return null;
+            }
+            return pendingValues.containsKey(keyId) ? pendingValues.get(keyId) : values.get(keyId);
+        }
+
+        @Override
+        public Set<Entry<KeyId, Object>> entrySet() {
+            LinkedHashMap<KeyId, Object> merged = new LinkedHashMap<>(values);
+            merged.putAll(pendingValues);
+            return Collections.unmodifiableSet(merged.entrySet());
+        }
     }
 }

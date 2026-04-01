@@ -28,9 +28,10 @@ import java.util.concurrent.Executors;
  * <p>
  * Pass structure (3 passes):
  * <pre>
- *   SyncCommitPass  (no deps)          -- consume N-1 BuildResult, VAO materialize, command queue commit
- *   SyncPreparePass (after Commit)     -- dirty collect, prepare frame, reset write buffer
- *   AsyncRenderPass (after Prepare)    -- shader compile, VBO upload (if worker GL), command build
+ *   SyncCommitPass          (no deps)     -- consume N-1 BuildResult, VAO materialize, command queue commit
+ *   SyncPreparePass         (after Commit)-- dirty collect, prepare frame, reset write buffer
+ *   SyncApplySettingsPass   (after Prepare)-- flush pending UI/config changes into committed runtime state
+ *   AsyncRenderPass         (after Apply) -- shader compile, VBO upload (if worker GL), command build
  * </pre>
  *
  * @param <C> Concrete RenderContext type
@@ -118,9 +119,10 @@ public class PipelineKernel<C extends RenderContext> {
         frameBuilder
                 .addPass(new SyncCommitPass<>())
                 .addPass(new SyncPreparePass<>(), SyncCommitPass.NAME);
+        frameBuilder.addPass(new SyncApplyPendingSettingsPass<>(), SyncPreparePass.NAME);
 
         moduleRegistry.contributeToFrameGraph(frameBuilder);
-        frameBuilder.addPass(new AsyncRenderPass<>(), SyncPreparePass.NAME);
+        frameBuilder.addPass(new AsyncRenderPass<>(), SyncApplyPendingSettingsPass.NAME);
 
         this.compiledFrameGraph = frameBuilder.compile();
     }

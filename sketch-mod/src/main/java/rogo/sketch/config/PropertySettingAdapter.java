@@ -9,10 +9,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/**
- * Bridges persisted Forge config values into the core module setting runtime.
- */
-public class ForgeSettingAdapter {
+public class PropertySettingAdapter {
     private ModuleSettingRegistry registry;
     private final Map<KeyId, Binding<?>> bindings = new LinkedHashMap<>();
     private final Map<String, Binding<?>> bindingsByControlId = new LinkedHashMap<>();
@@ -24,38 +21,38 @@ public class ForgeSettingAdapter {
 
     public void bindBoolean(
             KeyId settingId,
-            Supplier<Boolean> source,
-            Consumer<Boolean> sink,
+            Supplier<Boolean> persistedSource,
+            Consumer<Boolean> persistedSink,
             Supplier<Boolean> enabled,
             Supplier<@Nullable String> disabledDetailKey) {
-        register(new Binding<>("setting/" + settingId, settingId, source, sink, enabled, disabledDetailKey));
+        register(new Binding<>("setting/" + settingId, settingId, persistedSource, persistedSink, enabled, disabledDetailKey));
     }
 
     public void bindFloat(
             KeyId settingId,
-            Supplier<Float> source,
-            Consumer<Float> sink,
+            Supplier<Float> persistedSource,
+            Consumer<Float> persistedSink,
             Supplier<Boolean> enabled,
             Supplier<@Nullable String> disabledDetailKey) {
-        register(new Binding<>("setting/" + settingId, settingId, source, sink, enabled, disabledDetailKey));
+        register(new Binding<>("setting/" + settingId, settingId, persistedSource, persistedSink, enabled, disabledDetailKey));
     }
 
     public void bindInt(
             KeyId settingId,
-            Supplier<Integer> source,
-            Consumer<Integer> sink,
+            Supplier<Integer> persistedSource,
+            Consumer<Integer> persistedSink,
             Supplier<Boolean> enabled,
             Supplier<@Nullable String> disabledDetailKey) {
-        register(new Binding<>("setting/" + settingId, settingId, source, sink, enabled, disabledDetailKey));
+        register(new Binding<>("setting/" + settingId, settingId, persistedSource, persistedSink, enabled, disabledDetailKey));
     }
 
     public <T> void bindExternal(
             String controlId,
-            Supplier<T> source,
-            Consumer<T> sink,
+            Supplier<T> persistedSource,
+            Consumer<T> persistedSink,
             Supplier<Boolean> enabled,
             Supplier<@Nullable String> disabledDetailKey) {
-        register(new Binding<>(controlId, null, source, sink, enabled, disabledDetailKey));
+        register(new Binding<>(controlId, null, persistedSource, persistedSink, enabled, disabledDetailKey));
     }
 
     private void register(Binding<?> binding) {
@@ -71,7 +68,7 @@ public class ForgeSettingAdapter {
         }
         for (Binding<?> binding : bindings.values()) {
             if (registry.hasSetting(binding.settingId())) {
-                registry.setValue(binding.settingId(), binding.source().get());
+                registry.setValue(binding.settingId(), binding.readPersisted());
             }
         }
     }
@@ -84,11 +81,27 @@ public class ForgeSettingAdapter {
         return value != null ? value : fallback.get();
     }
 
+    public boolean getPreviewBoolean(KeyId settingId, Supplier<Boolean> fallback) {
+        if (registry == null) {
+            return fallback.get();
+        }
+        Boolean value = registry.getPreviewValue(settingId);
+        return value != null ? value : fallback.get();
+    }
+
     public float getFloat(KeyId settingId, Supplier<Float> fallback) {
         if (registry == null) {
             return fallback.get();
         }
         Float value = registry.getValue(settingId);
+        return value != null ? value : fallback.get();
+    }
+
+    public float getPreviewFloat(KeyId settingId, Supplier<Float> fallback) {
+        if (registry == null) {
+            return fallback.get();
+        }
+        Float value = registry.getPreviewValue(settingId);
         return value != null ? value : fallback.get();
     }
 
@@ -100,11 +113,19 @@ public class ForgeSettingAdapter {
         return value != null ? value : fallback.get();
     }
 
+    public int getPreviewInt(KeyId settingId, Supplier<Integer> fallback) {
+        if (registry == null) {
+            return fallback.get();
+        }
+        Integer value = registry.getPreviewValue(settingId);
+        return value != null ? value : fallback.get();
+    }
+
     public void setValue(KeyId settingId, Object value) {
         Binding<?> binding = bindings.get(settingId);
         if (binding != null) {
             binding.writeUnchecked(value);
-            syncValueToCore(settingId, binding.source().get());
+            syncValueToCore(settingId, binding.readPersisted());
             return;
         }
         syncValueToCore(settingId, value);
@@ -112,28 +133,42 @@ public class ForgeSettingAdapter {
 
     public void syncValueToCore(KeyId settingId, Object value) {
         if (registry != null && registry.hasSetting(settingId)) {
-            registry.setValue(settingId, value);
+            registry.queueValue(settingId, value);
         }
     }
 
     public @Nullable Object readControl(String controlId) {
         Binding<?> binding = bindingsByControlId.get(controlId);
-        return binding != null ? binding.source().get() : null;
+        if (binding == null) {
+            return null;
+        }
+        if (binding.settingId() != null && registry != null && registry.hasSetting(binding.settingId())) {
+            return registry.getPreviewValue(binding.settingId());
+        }
+        return binding.readPersisted();
     }
 
     public void writeControl(String controlId, Object value) {
         Binding<?> binding = bindingsByControlId.get(controlId);
-        if (binding != null) {
-            binding.writeUnchecked(value);
-            if (binding.settingId() != null) {
-                syncValueToCore(binding.settingId(), binding.source().get());
-            }
+        if (binding == null) {
+            return;
+        }
+        binding.writeUnchecked(value);
+        if (binding.settingId() != null) {
+            syncValueToCore(binding.settingId(), binding.readPersisted());
         }
     }
 
     public boolean isEnabled(String controlId) {
         Binding<?> binding = bindingsByControlId.get(controlId);
-        return binding == null || binding.enabled().get();
+        if (binding == null) {
+            return true;
+        }
+        if (!binding.enabled().get()) {
+            return false;
+        }
+        return binding.settingId() == null || registry == null || !registry.hasSetting(binding.settingId())
+                || registry.isPreviewActive(binding.settingId());
     }
 
     public @Nullable String disabledDetailKey(String controlId) {
@@ -155,14 +190,18 @@ public class ForgeSettingAdapter {
     public record Binding<T>(
             String controlId,
             @Nullable KeyId settingId,
-            Supplier<T> source,
-            Consumer<T> sink,
+            Supplier<T> persistedSource,
+            Consumer<T> persistedSink,
             Supplier<Boolean> enabled,
             Supplier<@Nullable String> disabledDetailKey
     ) {
+        public T readPersisted() {
+            return persistedSource.get();
+        }
+
         @SuppressWarnings("unchecked")
         public void writeUnchecked(Object value) {
-            sink.accept((T) value);
+            persistedSink.accept((T) value);
         }
     }
 }

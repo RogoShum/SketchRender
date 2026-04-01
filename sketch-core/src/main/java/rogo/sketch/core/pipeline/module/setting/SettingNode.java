@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * Base metadata for a module-owned setting node.
@@ -21,6 +22,7 @@ public abstract class SettingNode<T> {
     private final @Nullable KeyId parentId;
     private final ChangeImpact changeImpact;
     private final boolean visibleInGui;
+    private final BooleanSupplier visibilityRule;
     private final List<DependencyRule> dependencies;
     private final T defaultValue;
     private final @Nullable ControlSpec controlSpec;
@@ -33,9 +35,10 @@ public abstract class SettingNode<T> {
             @Nullable KeyId parentId,
             ChangeImpact changeImpact,
             boolean visibleInGui,
+            BooleanSupplier visibilityRule,
             List<DependencyRule> dependencies,
             T defaultValue) {
-        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue, null);
+        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, null);
     }
 
     protected SettingNode(
@@ -47,6 +50,7 @@ public abstract class SettingNode<T> {
             @Nullable KeyId parentId,
             ChangeImpact changeImpact,
             boolean visibleInGui,
+            BooleanSupplier visibilityRule,
             List<DependencyRule> dependencies,
             T defaultValue,
             @Nullable ControlSpec controlSpec) {
@@ -58,6 +62,7 @@ public abstract class SettingNode<T> {
         this.parentId = parentId;
         this.changeImpact = Objects.requireNonNull(changeImpact, "changeImpact");
         this.visibleInGui = visibleInGui;
+        this.visibilityRule = visibilityRule != null ? visibilityRule : () -> true;
         this.dependencies = Collections.unmodifiableList(new ArrayList<>(dependencies));
         this.defaultValue = defaultValue;
         this.controlSpec = controlSpec;
@@ -92,7 +97,7 @@ public abstract class SettingNode<T> {
     }
 
     public boolean visibleInGui() {
-        return visibleInGui;
+        return visibleInGui && visibilityRule.getAsBoolean();
     }
 
     public List<DependencyRule> dependencies() {

@@ -13,6 +13,7 @@
   "debug.dashboard.macro_constants": "Macro Constants",
   "debug.dashboard.diagnostics": "Diagnostics",
   "debug.dashboard.group.testing": "Testing",
+  "debug.dashboard.group.culling_debug": "Culling Debug",
   "debug.dashboard.check_cull": "Debug Geometry",
   "debug.dashboard.check_texture": "Check Texture",
   "debug.dashboard.metric.fps": "FPS",

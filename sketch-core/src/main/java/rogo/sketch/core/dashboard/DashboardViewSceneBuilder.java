@@ -1,17 +1,27 @@
-
 package rogo.sketch.core.dashboard;
 
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.debugger.DashboardController;
+import rogo.sketch.core.debugger.DashboardDockResizeEdge;
+import rogo.sketch.core.debugger.DashboardDockResizeHandle;
+import rogo.sketch.core.debugger.DashboardDockSlotId;
+import rogo.sketch.core.debugger.DashboardPanelId;
 import rogo.sketch.core.debugger.DashboardTab;
-import rogo.sketch.core.debugger.DiagnosticsPanelMode;
 import rogo.sketch.core.debugger.DashboardTreeNode;
-import rogo.sketch.core.debugger.ui.UiNode;
+import rogo.sketch.core.debugger.DashboardDockSlotSpec;
+import rogo.sketch.core.debugger.DashboardWorkspaceLayout;
+import rogo.sketch.core.debugger.DashboardWorkspaceProfile;
+import rogo.sketch.core.debugger.DashboardWorkspaceProfiles;
 import rogo.sketch.core.debugger.ui.UiNodeType;
-import rogo.sketch.core.debugger.ui.UiPass;
-import rogo.sketch.core.debugger.ui.UiRect;
-import rogo.sketch.core.debugger.ui.UiScene;
 import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticLevel;
+import rogo.sketch.core.ui.frame.UiFrame;
+import rogo.sketch.core.ui.frame.UiLayer;
+import rogo.sketch.core.ui.frame.UiPrimitive;
+import rogo.sketch.core.ui.geometry.UiRect;
+import rogo.sketch.core.ui.input.CursorHint;
+import rogo.sketch.core.ui.input.HitRegion;
+import rogo.sketch.core.ui.input.InputActionId;
+import rogo.sketch.core.ui.input.RectHitShape;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,96 +29,150 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class DashboardViewSceneBuilder {
-    public UiScene build(DashboardViewSnapshot snapshot, DashboardController controller, int screenWidth, int screenHeight, float uiScale) {
+    private final DashboardWorkspaceProfile workspaceProfile;
+
+    public DashboardViewSceneBuilder() {
+        this(DashboardWorkspaceProfiles.dashboardDefault());
+    }
+
+    public DashboardViewSceneBuilder(DashboardWorkspaceProfile workspaceProfile) {
+        this.workspaceProfile = workspaceProfile != null ? workspaceProfile : DashboardWorkspaceProfiles.dashboardDefault();
+    }
+
+    public UiFrame build(DashboardViewSnapshot snapshot, DashboardController controller, int screenWidth, int screenHeight, float uiScale) {
         return build(snapshot, controller, screenWidth, screenHeight, uiScale, null, null);
     }
 
-    public UiScene build(DashboardViewSnapshot snapshot, DashboardController controller, int screenWidth, int screenHeight, float uiScale,
+    public UiFrame build(DashboardViewSnapshot snapshot, DashboardController controller, int screenWidth, int screenHeight, float uiScale,
                          @Nullable String editingNumberControlId, @Nullable String editingDraftValue) {
         Metrics metrics = new Metrics(uiScale, screenWidth, screenHeight);
-        UiScene scene = new UiScene();
-        scene.add(new UiNode("background", UiNodeType.PANEL, UiPass.BACKGROUND, new UiRect(0, 0, screenWidth, screenHeight), null,
+        FrameAssembly assembly = new FrameAssembly(new UiRect(0, 0, screenWidth, screenHeight));
+        assembly.add(new DashboardPrimitive("background", UiNodeType.PANEL, UiLayer.BACKGROUND, assembly.nextOrder(),
+                new UiRect(0, 0, screenWidth, screenHeight), null,
                 Map.of("fill", 0x64101922, "role", "backdrop")));
 
-        UiRect shell = new UiRect(metrics.shellInset, metrics.shellInset,
-                Math.max(1, screenWidth - metrics.shellInset * 2),
-                Math.max(1, screenHeight - metrics.shellInset * 2));
+        DashboardWorkspaceLayout layout = workspaceProfile.layout(screenWidth, screenHeight, uiScale, controller);
+        appendHomeSlotMetadata(assembly, layout, controller, metrics);
+        appendSlotResizeHandles(assembly, layout, metrics);
+        appendSlotPreview(assembly, layout, controller, metrics);
 
-        boolean collapsedDiagnostics = controller.diagnosticsPanelMode() == DiagnosticsPanelMode.COLLAPSED;
-        int contentHeight = collapsedDiagnostics
-                ? Math.max(metrics.minPanelHeight, shell.height() - metrics.collapsedHeight - metrics.panelGap)
-                : shell.height();
-        UiRect contentShell = new UiRect(shell.x(), shell.y(), shell.width(), contentHeight);
-        UiRect collapsedDiagnosticsRect = collapsedDiagnostics
-                ? new UiRect(shell.x(), contentShell.bottom() + metrics.panelGap, shell.width(), Math.max(metrics.collapsedHeight, shell.bottom() - (contentShell.bottom() + metrics.panelGap)))
-                : null;
+        appendDockedOrPlaceholder(assembly, DashboardPanelId.SETTINGS, layout, slotBounds(layout, controller, DashboardPanelId.SETTINGS), controller, metrics,
+                snapshot, editingNumberControlId, editingDraftValue);
+        appendDockedOrPlaceholder(assembly, DashboardPanelId.METRICS, layout, slotBounds(layout, controller, DashboardPanelId.METRICS), controller, metrics,
+                snapshot, editingNumberControlId, editingDraftValue);
+        appendDockedOrPlaceholder(assembly, DashboardPanelId.DIAGNOSTICS, layout, slotBounds(layout, controller, DashboardPanelId.DIAGNOSTICS), controller, metrics,
+                snapshot, editingNumberControlId, editingDraftValue);
 
-        int leftWidth = Math.round(contentShell.width() * metrics.leftRatio);
-        int rightWidth = Math.max(metrics.minPanelWidth, contentShell.width() - leftWidth - metrics.columnGap);
-        leftWidth = Math.max(metrics.minPanelWidth, contentShell.width() - rightWidth - metrics.columnGap);
-
-        UiRect leftPanel = new UiRect(contentShell.x(), contentShell.y(), leftWidth, contentShell.height());
-        UiRect rightPanel = new UiRect(leftPanel.right() + metrics.columnGap, contentShell.y(), rightWidth, contentShell.height());
-
-        scene.add(new UiNode("left-panel", UiNodeType.PANEL, UiPass.PANELS, leftPanel, null,
-                Map.of("fill", 0xB6151C28, "border", 0xA935465E, "role", "panel")));
-        scene.add(new UiNode("right-panel", UiNodeType.PANEL, UiPass.PANELS, rightPanel, null,
-                Map.of("fill", 0xB1131924, "border", 0xA92F3F55, "role", "panel")));
-
-        buildSettings(scene, snapshot, controller, leftPanel, editingNumberControlId, editingDraftValue, metrics);
-        buildRightColumn(scene, snapshot, controller, shell, rightPanel, collapsedDiagnosticsRect, metrics);
-        return scene;
-    }
-
-    private void buildSettings(UiScene scene, DashboardViewSnapshot snapshot, DashboardController controller, UiRect leftPanel,
-                               @Nullable String editingNumberControlId, @Nullable String editingDraftValue, Metrics metrics) {
-        UiRect header = new UiRect(leftPanel.x(), leftPanel.y(), leftPanel.width(), metrics.headerHeight);
-        scene.add(new UiNode("settings-header", UiNodeType.HEADER, UiPass.PANELS, header, null,
-                Map.of("title", "debug.dashboard.configuration", "fill", 0xD61A2330, "border", 0x7A37485F, "role", "header", "scale", metrics.uiScale)));
-
-        UiRect tabRow = new UiRect(leftPanel.x() + metrics.innerInset, header.bottom() + metrics.sectionGap,
-                leftPanel.width() - metrics.innerInset * 2, metrics.tabHeight);
-        int tabWidth = (tabRow.width() - metrics.gap) / 2;
-        scene.add(new UiNode("tab-settings", UiNodeType.TAB_BUTTON, UiPass.CONTROLS,
-                new UiRect(tabRow.x(), tabRow.y(), tabWidth, tabRow.height()), null,
-                Map.of("title", "debug.dashboard.tab.settings", "active", controller.activeTab() == DashboardTab.MOD_SETTINGS, "scale", metrics.uiScale)));
-        scene.add(new UiNode("tab-macros", UiNodeType.TAB_BUTTON, UiPass.CONTROLS,
-                new UiRect(tabRow.x() + tabWidth + metrics.gap, tabRow.y(), tabWidth, tabRow.height()), null,
-                Map.of("title", "debug.dashboard.tab.macros", "active", controller.activeTab() == DashboardTab.SHADER_MACROS, "scale", metrics.uiScale)));
-
-        UiRect contentClip = new UiRect(leftPanel.x() + metrics.innerInset, tabRow.bottom() + metrics.sectionGap,
-                leftPanel.width() - metrics.innerInset * 2,
-                leftPanel.bottom() - (tabRow.bottom() + metrics.sectionGap) - metrics.innerInset);
-        List<DashboardTreeNode> roots = controller.activeTab() == DashboardTab.MOD_SETTINGS ? snapshot.settingRoots() : snapshot.macroRoots();
-        int y = contentClip.y() - (int) controller.settingsScroll();
-        for (DashboardTreeNode root : roots) {
-            y = appendTree(scene, root, 0, contentClip, y, controller, editingNumberControlId, editingDraftValue, metrics);
+        for (DashboardPanelId panelId : controller.floatingOrder()) {
+            if (!controller.isFloating(panelId)) {
+                continue;
+            }
+            UiRect floatingBounds = resolveFloatingBounds(controller, panelId, slotBounds(layout, controller, panelId));
+            buildPanel(assembly, panelId, snapshot, controller, floatingBounds, true, metrics, editingNumberControlId, editingDraftValue);
         }
-        int contentHeight = Math.max(contentClip.height(), y + (int) controller.settingsScroll() - contentClip.y());
-        appendVerticalScrollMetadata(scene, "settings", contentClip, contentHeight, metrics);
-        appendScrollbar(scene, "settings", contentClip, controller.settingsScroll(), contentHeight, metrics);
+        return assembly.build();
     }
 
-    private int appendTree(UiScene scene, DashboardTreeNode node, int depth, UiRect clipRect, int startY, DashboardController controller,
-                           @Nullable String editingNumberControlId, @Nullable String editingDraftValue, Metrics metrics) {
+    private void appendDockedOrPlaceholder(FrameAssembly assembly, DashboardPanelId panelId, DashboardWorkspaceLayout layout, UiRect slotRect, DashboardController controller,
+                                           Metrics metrics, DashboardViewSnapshot snapshot,
+                                           @Nullable String editingNumberControlId, @Nullable String editingDraftValue) {
+        if (controller.isDocked(panelId)) {
+            buildPanel(assembly, panelId, snapshot, controller, slotRect, false, metrics, editingNumberControlId, editingDraftValue);
+            return;
+        }
+        DashboardDockSlotId slotId = resolvedSlotId(controller, panelId);
+        DashboardDockSlotSpec slotSpec = layout.slotSpec(slotId);
+        assembly.add(new DashboardPrimitive("panel-slot-empty/" + (slotId != null ? slotId.value() : panelId.id()), UiNodeType.PANEL, UiLayer.PANELS, assembly.nextOrder(),
+                slotRect, null,
+                slotProps(slotSpec, Map.of("fill", 0x16192531, "border", 0x50324150, "role", "panel-slot-empty",
+                        "slotId", slotId != null ? slotId.value() : "", "scale", metrics.uiScale))));
+    }
+
+    private void buildPanel(FrameAssembly assembly, DashboardPanelId panelId, DashboardViewSnapshot snapshot, DashboardController controller,
+                            UiRect panelRect, boolean floating, Metrics metrics,
+                            @Nullable String editingNumberControlId, @Nullable String editingDraftValue) {
+        switch (panelId) {
+            case SETTINGS -> buildSettingsPanel(assembly, snapshot, controller, panelRect, floating, metrics, editingNumberControlId, editingDraftValue);
+            case METRICS -> buildMetricsPanel(assembly, snapshot, controller, panelRect, floating, metrics);
+            case DIAGNOSTICS -> buildDiagnosticsPanel(assembly, snapshot, controller, panelRect, floating, metrics);
+        }
+    }
+
+    private void buildSettingsPanel(FrameAssembly assembly, DashboardViewSnapshot snapshot, DashboardController controller,
+                                    UiRect panelRect, boolean floating, Metrics metrics,
+                                    @Nullable String editingNumberControlId, @Nullable String editingDraftValue) {
+        UiLayer panelLayer = floating ? UiLayer.OVERLAY : UiLayer.PANELS;
+        UiLayer contentLayer = floating ? UiLayer.OVERLAY : UiLayer.CONTROLS;
+        appendPanelBackground(assembly, DashboardPanelId.SETTINGS, panelRect, panelLayer, floating,
+                0xB6151C28, 0xA935465E, metrics);
+
+        UiRect header = headerRect(panelRect, metrics);
+        Map<String, Object> headerProps = new LinkedHashMap<>();
+        headerProps.put("title", "debug.dashboard.configuration");
+        headerProps.put("fill", 0xD61A2330);
+        headerProps.put("border", 0x7A37485F);
+        headerProps.put("role", "panel-header");
+        headerProps.put("panelId", DashboardPanelId.SETTINGS.id());
+        headerProps.put("floating", floating);
+        headerProps.put("interactive", true);
+        headerProps.put("scale", metrics.uiScale);
+        assembly.add(new DashboardPrimitive("settings-header", UiNodeType.HEADER, contentLayer, assembly.nextOrder(),
+                header, null, headerProps));
+        appendModeToggle(assembly, DashboardPanelId.SETTINGS, header, contentLayer, floating, metrics);
+        if (floating) {
+            appendResizeHandles(assembly, DashboardPanelId.SETTINGS, panelRect, contentLayer, metrics);
+        }
+
+        UiRect tabRow = new UiRect(panelRect.x() + metrics.innerInset, header.bottom() + metrics.sectionGap,
+                panelRect.width() - metrics.innerInset * 2, metrics.tabHeight);
+        int modeToggleReserve = metrics.headerButtonSize + metrics.smallGap;
+        int availableTabWidth = Math.max(48, tabRow.width() - modeToggleReserve - metrics.gap);
+        int tabWidth = Math.max(24, availableTabWidth / 2);
+        assembly.add(new DashboardPrimitive("tab-settings", UiNodeType.TAB_BUTTON, contentLayer, assembly.nextOrder(),
+                new UiRect(tabRow.x(), tabRow.y(), tabWidth, tabRow.height()), null,
+                panelProps(DashboardPanelId.SETTINGS, Map.of("title", "debug.dashboard.tab.settings",
+                        "active", controller.activeTab() == DashboardTab.MOD_SETTINGS, "scale", metrics.uiScale))));
+        assembly.add(new DashboardPrimitive("tab-macros", UiNodeType.TAB_BUTTON, contentLayer, assembly.nextOrder(),
+                new UiRect(tabRow.x() + tabWidth + metrics.gap, tabRow.y(), tabWidth, tabRow.height()), null,
+                panelProps(DashboardPanelId.SETTINGS, Map.of("title", "debug.dashboard.tab.macros",
+                        "active", controller.activeTab() == DashboardTab.SHADER_MACROS, "scale", metrics.uiScale))));
+
+        UiRect viewport = new UiRect(panelRect.x() + metrics.innerInset,
+                tabRow.bottom() + metrics.sectionGap,
+                Math.max(1, panelRect.width() - metrics.innerInset * 2 - metrics.scrollbarGutter),
+                Math.max(1, panelRect.bottom() - (tabRow.bottom() + metrics.sectionGap) - metrics.innerInset));
+        UiRect track = verticalTrackRect(viewport, panelRect, metrics);
+        List<DashboardTreeNode> roots = controller.activeTab() == DashboardTab.MOD_SETTINGS ? snapshot.settingRoots() : snapshot.macroRoots();
+        int y = viewport.y() - (int) Math.round(controller.settingsScroll());
+        for (DashboardTreeNode root : roots) {
+            y = appendTree(assembly, root, 0, viewport, y, controller, editingNumberControlId, editingDraftValue, metrics, contentLayer);
+        }
+        int contentHeight = Math.max(viewport.height(), y + (int) Math.round(controller.settingsScroll()) - viewport.y());
+        appendVerticalScrollMetadata(assembly, DashboardPanelId.SETTINGS, "settings", viewport, contentHeight, metrics, contentLayer);
+        appendVerticalScrollbar(assembly, DashboardPanelId.SETTINGS, "settings", viewport, track, panelRect,
+                controller.settingsScroll(), contentHeight, metrics, contentLayer);
+    }
+
+    private int appendTree(FrameAssembly assembly, DashboardTreeNode node, int depth, UiRect viewport, int startY, DashboardController controller,
+                           @Nullable String editingNumberControlId, @Nullable String editingDraftValue, Metrics metrics, UiLayer layer) {
         int indent = depth * metrics.indentStep;
-        int x = clipRect.x() + metrics.contentPadding + indent;
-        int width = Math.max(metrics.minControlWidth, clipRect.width() - metrics.contentPadding * 2 - indent - metrics.scrollbarGutter);
+        int x = viewport.x() + metrics.contentPadding + indent;
+        int width = Math.max(metrics.minControlWidth, viewport.width() - metrics.contentPadding * 2 - indent);
         if (node.group()) {
-            UiRect bounds = new UiRect(x, startY, width, metrics.groupHeight);
-            scene.add(new UiNode(node.id(), UiNodeType.TREE_GROUP, UiPass.CONTROLS, bounds, clipRect,
-                    Map.of("title", node.displayKey(), "summary", Objects.toString(node.summaryKey(), ""),
-                            "expanded", controller.isExpanded(node.id()), "scale", metrics.uiScale)));
+            assembly.add(new DashboardPrimitive(node.id(), UiNodeType.TREE_GROUP, layer, assembly.nextOrder(),
+                    new UiRect(x, startY, width, metrics.groupHeight), viewport,
+                    panelProps(DashboardPanelId.SETTINGS, Map.of("title", node.displayKey(),
+                            "summary", Objects.toString(node.summaryKey(), ""), "expanded", controller.isExpanded(node.id()),
+                            "scale", metrics.uiScale))));
             startY += metrics.groupHeight + metrics.smallGap;
             if (controller.isExpanded(node.id())) {
                 for (DashboardTreeNode child : node.children()) {
-                    startY = appendTree(scene, child, depth + 1, clipRect, startY, controller, editingNumberControlId, editingDraftValue, metrics);
+                    startY = appendTree(assembly, child, depth + 1, viewport, startY, controller, editingNumberControlId, editingDraftValue, metrics, layer);
                 }
             }
             return startY + metrics.groupGap;
         }
 
-        UiRect bounds = new UiRect(x, startY, width, metrics.rowHeight);
         Map<String, Object> props = new LinkedHashMap<>();
         boolean blocked = !node.blockedByDisplayPath().isEmpty();
         props.put("title", node.displayKey());
@@ -123,122 +187,219 @@ public final class DashboardViewSceneBuilder {
         props.put("controlSpec", node.controlSpec());
         props.put("value", node.value());
         props.put("macros", node.macroNames());
+        props.put("expandable", node.expandable());
+        props.put("expanded", node.expandable() && controller.isExpanded(node.id()));
         props.put("editing", node.controlId() != null && node.controlId().equals(editingNumberControlId));
         props.put("draftValue", node.controlId() != null && node.controlId().equals(editingNumberControlId) ? Objects.toString(editingDraftValue, "") : "");
         props.put("scale", metrics.uiScale);
-        scene.add(new UiNode(node.id(), UiNodeType.TREE_CONTROL, UiPass.CONTROLS, bounds, clipRect, props));
-        return startY + metrics.rowHeight + metrics.smallGap;
-    }
-
-    private void buildRightColumn(UiScene scene, DashboardViewSnapshot snapshot, DashboardController controller, UiRect shell, UiRect rightPanel,
-                                  @Nullable UiRect collapsedDiagnosticsRect, Metrics metrics) {
-        if (controller.diagnosticsPanelMode() == DiagnosticsPanelMode.COLLAPSED) {
-            scene.add(new UiNode("metrics-panel", UiNodeType.PANEL, UiPass.PANELS, rightPanel, null,
-                    Map.of("fill", 0xB8141A26, "border", 0xA9314157, "role", "panel")));
-            buildMetrics(scene, snapshot, controller, rightPanel, metrics);
-            if (collapsedDiagnosticsRect != null) {
-                buildDiagnosticsCollapsed(scene, snapshot, controller, collapsedDiagnosticsRect, metrics);
+        props.put("panelId", DashboardPanelId.SETTINGS.id());
+        assembly.add(new DashboardPrimitive(node.id(), UiNodeType.TREE_CONTROL, layer, assembly.nextOrder(),
+                new UiRect(x, startY, width, metrics.rowHeight), viewport, props));
+        startY += metrics.rowHeight + metrics.smallGap;
+        if (node.expandable() && controller.isExpanded(node.id())) {
+            for (DashboardTreeNode child : node.children()) {
+                startY = appendTree(assembly, child, depth + 1, viewport, startY, controller, editingNumberControlId, editingDraftValue, metrics, layer);
             }
-            return;
+            startY += metrics.groupGap;
+        }
+        return startY;
+    }
+    private void buildMetricsPanel(FrameAssembly assembly, DashboardViewSnapshot snapshot, DashboardController controller,
+                                   UiRect panelRect, boolean floating, Metrics metrics) {
+        UiLayer panelLayer = floating ? UiLayer.OVERLAY : UiLayer.PANELS;
+        UiLayer contentLayer = floating ? UiLayer.OVERLAY : UiLayer.CONTROLS;
+        appendPanelBackground(assembly, DashboardPanelId.METRICS, panelRect, panelLayer, floating,
+                0xB8141A26, 0xA9314157, metrics);
+
+        UiRect header = headerRect(panelRect, metrics);
+        Map<String, Object> headerProps = new LinkedHashMap<>();
+        headerProps.put("title", "debug.dashboard.metrics");
+        headerProps.put("fill", 0xD61A2330);
+        headerProps.put("border", 0x7A37485F);
+        headerProps.put("role", "panel-header");
+        headerProps.put("panelId", DashboardPanelId.METRICS.id());
+        headerProps.put("floating", floating);
+        headerProps.put("interactive", true);
+        headerProps.put("scale", metrics.uiScale);
+        assembly.add(new DashboardPrimitive("metrics-header", UiNodeType.HEADER, contentLayer, assembly.nextOrder(),
+                header, null, headerProps));
+        appendModeToggle(assembly, DashboardPanelId.METRICS, header, contentLayer, floating, metrics);
+        if (floating) {
+            appendResizeHandles(assembly, DashboardPanelId.METRICS, panelRect, contentLayer, metrics);
         }
 
-        if (controller.diagnosticsPanelMode() == DiagnosticsPanelMode.EXPANDED) {
-            scene.add(new UiNode("metrics-panel", UiNodeType.PANEL, UiPass.PANELS, rightPanel, null,
-                    Map.of("fill", 0xB8141A26, "border", 0xA9314157, "role", "panel")));
-            buildMetrics(scene, snapshot, controller, rightPanel, metrics);
-
-            UiRect diagnosticsPanel = expandedDiagnosticsOverlayRect(shell, metrics);
-            scene.add(new UiNode("diagnostics-panel", UiNodeType.PANEL, UiPass.OVERLAY, diagnosticsPanel, null,
-                    Map.of("fill", 0xE6111721, "border", 0xCC3A5268, "role", "panel", "interactive", true)));
-            buildDiagnosticsExpanded(scene, snapshot, controller, diagnosticsPanel, metrics, UiPass.OVERLAY);
-            return;
-        }
-
-        scene.add(new UiNode("metrics-panel", UiNodeType.PANEL, UiPass.PANELS, rightPanel, null,
-                Map.of("fill", 0xB8141A26, "border", 0xA9314157, "role", "panel")));
-        buildMetrics(scene, snapshot, controller, rightPanel, metrics);
-
-        UiRect diagnosticsPanel = expandedDiagnosticsOverlayRect(shell, metrics);
-        scene.add(new UiNode("diagnostics-panel", UiNodeType.PANEL, UiPass.OVERLAY, diagnosticsPanel, null,
-                Map.of("fill", 0xE6111721, "border", 0xCC3A5268, "role", "panel", "interactive", true)));
-        buildDiagnosticsExpanded(scene, snapshot, controller, diagnosticsPanel, metrics, UiPass.OVERLAY);
-    }
-
-    private UiRect expandedDiagnosticsOverlayRect(UiRect shell, Metrics metrics) {
-        int inset = metrics.innerInset;
-        int overlayHeight = Math.max(metrics.minDiagnosticsHeight, Math.min(shell.height() - inset * 3, Math.round(shell.height() * 0.62f)));
-        int y = Math.max(shell.y() + inset, shell.bottom() - inset - overlayHeight);
-        return new UiRect(shell.x() + inset, y, shell.width() - inset * 2, overlayHeight);
-    }
-    private void buildMetrics(UiScene scene, DashboardViewSnapshot snapshot, DashboardController controller, UiRect metricsPanel, Metrics metrics) {
-        scene.add(new UiNode("metrics-header", UiNodeType.HEADER, UiPass.PANELS,
-                new UiRect(metricsPanel.x(), metricsPanel.y(), metricsPanel.width(), metrics.headerHeight), null,
-                Map.of("title", "debug.dashboard.metrics", "fill", 0xD61A2330, "border", 0x7A37485F, "role", "header", "scale", metrics.uiScale)));
-
-        UiRect contentClip = new UiRect(metricsPanel.x() + metrics.innerInset, metricsPanel.y() + metrics.headerHeight + metrics.sectionGap,
-                metricsPanel.width() - metrics.innerInset * 2,
-                metricsPanel.bottom() - (metricsPanel.y() + metrics.headerHeight + metrics.sectionGap) - metrics.innerInset);
-        int contentWidth = contentClip.width() - metrics.scrollbarGutter;
+        int contentWidth = Math.max(metrics.minMetricColumnWidth, panelRect.width() - metrics.innerInset * 2 - metrics.scrollbarGutter);
         int columns = resolveMetricColumns(controller, contentWidth, metrics);
+        assembly.add(new DashboardPrimitive("metrics-layout-toggle", UiNodeType.METRICS_LAYOUT_TOGGLE, contentLayer, assembly.nextOrder(),
+                new UiRect(panelRect.right() - metrics.innerInset - metrics.headerButtonSize - metrics.smallGap - metrics.layoutToggleWidth,
+                        panelRect.y() + metrics.layoutToggleYOffset,
+                        metrics.layoutToggleWidth,
+                        metrics.layoutToggleHeight), null,
+                panelProps(DashboardPanelId.METRICS, Map.of("layoutMode", controller.metricsLayoutMode().name(),
+                        "columns", columns, "scale", metrics.uiScale))));
 
-        scene.add(new UiNode("metrics-layout-toggle", UiNodeType.METRICS_LAYOUT_TOGGLE, UiPass.CONTROLS,
-                new UiRect(metricsPanel.right() - metrics.innerInset - metrics.layoutToggleWidth, metricsPanel.y() + metrics.layoutToggleYOffset,
-                        metrics.layoutToggleWidth, metrics.layoutToggleHeight), null,
-                Map.of("layoutMode", controller.metricsLayoutMode().name(), "columns", columns, "scale", metrics.uiScale)));
+        UiRect viewport = new UiRect(panelRect.x() + metrics.innerInset,
+                panelRect.y() + metrics.headerHeight + metrics.sectionGap,
+                Math.max(1, panelRect.width() - metrics.innerInset * 2 - metrics.scrollbarGutter),
+                Math.max(1, panelRect.bottom() - (panelRect.y() + metrics.headerHeight + metrics.sectionGap) - metrics.innerInset));
+        UiRect track = verticalTrackRect(viewport, panelRect, metrics);
 
-        int y = contentClip.y() - (int) controller.metricsScroll();
+        int y = viewport.y() - (int) Math.round(controller.metricsScroll());
         int columnGap = metrics.gap;
-        int columnWidth = columns <= 1 ? contentWidth : Math.max(metrics.minMetricColumnWidth, (contentWidth - columnGap * (columns - 1)) / columns);
-        int rows = columns <= 1 ? snapshot.summaryMetrics().size() : (int) Math.ceil(snapshot.summaryMetrics().size() / (double) columns);
-        for (int index = 0; index < snapshot.summaryMetrics().size(); index++) {
-            DashboardSummaryMetric metric = snapshot.summaryMetrics().get(index);
-            int columnIndex = columns <= 1 ? 0 : index % columns;
-            int rowIndex = columns <= 1 ? index : index / columns;
-            int itemX = contentClip.x() + columnIndex * (columnWidth + columnGap);
-            int itemY = y + rowIndex * (metrics.summaryRowHeight + metrics.smallGap);
-            scene.add(new UiNode("metric/" + metric.id(), UiNodeType.METRIC_CARD, UiPass.CONTROLS,
-                    new UiRect(itemX, itemY, columnWidth, metrics.summaryRowHeight), contentClip,
-                    Map.of("title", metric.labelKey(), "value", metric.valueText(), "unit", metric.unitText(), "accent", metric.accentColor(),
-                            "detail", metric.detailKey(), "scale", metrics.uiScale, "mode", "summary-row")));
+        int columnWidth = columns <= 1 ? viewport.width() : Math.max(metrics.minMetricColumnWidth, (viewport.width() - columnGap * (columns - 1)) / columns);
+        for (int index = 0; index < snapshot.summaryMetrics().size();) {
+            int rowStartY = y;
+            for (int column = 0; column < columns && index < snapshot.summaryMetrics().size(); column++, index++) {
+                DashboardSummaryMetric metric = snapshot.summaryMetrics().get(index);
+                int itemX = viewport.x() + column * (columnWidth + columnGap);
+                assembly.add(new DashboardPrimitive("metric/" + metric.id(), UiNodeType.METRIC_CARD, contentLayer, assembly.nextOrder(),
+                        new UiRect(itemX, rowStartY, columnWidth, metrics.summaryRowHeight), viewport,
+                        panelProps(DashboardPanelId.METRICS, Map.of("title", metric.labelKey(), "value", metric.valueText(),
+                                "unit", metric.unitText(), "accent", metric.accentColor(), "detail", metric.detailKey(),
+                                "scale", metrics.uiScale, "mode", "summary-row"))));
+            }
+            y += metrics.summaryRowHeight + metrics.smallGap;
         }
-        y += Math.max(0, rows * (metrics.summaryRowHeight + metrics.smallGap));
 
         if (!snapshot.ratioMetrics().isEmpty()) {
             y += metrics.sectionGap;
         }
         for (DashboardRatioMetric ratioMetric : snapshot.ratioMetrics()) {
-            scene.add(new UiNode("ratio/" + ratioMetric.id(), UiNodeType.METRIC_CARD, UiPass.CONTROLS,
-                    new UiRect(contentClip.x(), y, contentWidth, metrics.ratioRowHeight), contentClip,
-                    Map.of("title", ratioMetric.labelKey(), "mode", "ratio-row", "hidden", ratioMetric.hiddenCount(),
-                            "visible", ratioMetric.visibleCount(), "total", ratioMetric.totalCount(), "ratio", ratioMetric.hiddenRatio(),
-                            "accent", ratioMetric.accentColor(), "detail", ratioMetric.detailKey(), "scale", metrics.uiScale)));
+            assembly.add(new DashboardPrimitive("ratio/" + ratioMetric.id(), UiNodeType.METRIC_CARD, contentLayer, assembly.nextOrder(),
+                    new UiRect(viewport.x(), y, viewport.width(), metrics.ratioRowHeight), viewport,
+                    panelProps(DashboardPanelId.METRICS, Map.of("title", ratioMetric.labelKey(), "mode", "ratio-row",
+                            "hidden", ratioMetric.hiddenCount(), "visible", ratioMetric.visibleCount(),
+                            "total", ratioMetric.totalCount(), "ratio", ratioMetric.hiddenRatio(),
+                            "accent", ratioMetric.accentColor(), "detail", ratioMetric.detailKey(), "scale", metrics.uiScale))));
             y += metrics.ratioRowHeight + metrics.sectionGap;
         }
 
-        scene.add(new UiNode("frame-chart", UiNodeType.BAR_CHART, UiPass.CONTROLS,
-                new UiRect(contentClip.x(), y, contentWidth, metrics.chartHeight), contentClip,
-                Map.of("bars", snapshot.frameTimeHistory(), "title", "debug.dashboard.frame_history", "threshold", 33.0D,
-                        "scale", metrics.uiScale, "mode", "frame-chart")));
+        assembly.add(new DashboardPrimitive("frame-chart", UiNodeType.BAR_CHART, contentLayer, assembly.nextOrder(),
+                new UiRect(viewport.x(), y, viewport.width(), metrics.chartHeight), viewport,
+                panelProps(DashboardPanelId.METRICS, Map.of("bars", snapshot.frameTimeHistory(),
+                        "title", "debug.dashboard.frame_history", "threshold", 33.0D,
+                        "scale", metrics.uiScale, "mode", "frame-chart"))));
         y += metrics.chartHeight + metrics.sectionGap;
 
-        scene.add(new UiNode("macro-constants-header", UiNodeType.MACRO_SECTION_HEADER, UiPass.CONTROLS,
-                new UiRect(contentClip.x(), y, contentWidth, metrics.groupHeight), contentClip,
-                Map.of("title", "debug.dashboard.macro_constants", "expanded", controller.macroConstantsExpanded(), "scale", metrics.uiScale)));
+        assembly.add(new DashboardPrimitive("macro-constants-header", UiNodeType.MACRO_SECTION_HEADER, contentLayer, assembly.nextOrder(),
+                new UiRect(viewport.x(), y, viewport.width(), metrics.groupHeight), viewport,
+                panelProps(DashboardPanelId.METRICS, Map.of("title", "debug.dashboard.macro_constants",
+                        "expanded", controller.macroConstantsExpanded(), "scale", metrics.uiScale))));
         y += metrics.groupHeight + metrics.smallGap;
 
         if (controller.macroConstantsExpanded()) {
             for (DashboardMacroConstantView constant : snapshot.macroConstants()) {
-                scene.add(new UiNode("macro-constant/" + constant.name() + "/" + constant.sourceText(), UiNodeType.MACRO_CONSTANT_ROW, UiPass.CONTROLS,
-                        new UiRect(contentClip.x(), y, contentWidth, metrics.constantRowHeight), contentClip,
-                        Map.of("name", constant.name(), "value", constant.value(), "flag", constant.flag(), "source", constant.sourceText(),
-                                "type", constant.typeText(), "detail", constant.detailText(), "scale", metrics.uiScale, "mode", "macro-constant-row")));
+                assembly.add(new DashboardPrimitive("macro-constant/" + constant.name() + "/" + constant.sourceText(),
+                        UiNodeType.MACRO_CONSTANT_ROW, contentLayer, assembly.nextOrder(),
+                        new UiRect(viewport.x(), y, viewport.width(), metrics.constantRowHeight), viewport,
+                        panelProps(DashboardPanelId.METRICS, Map.of("name", constant.name(), "value", constant.value(),
+                                "flag", constant.flag(), "source", constant.sourceText(), "type", constant.typeText(),
+                                "detail", constant.detailText(), "scale", metrics.uiScale, "mode", "macro-constant-row"))));
                 y += metrics.constantRowHeight + metrics.smallGap;
             }
         }
 
-        int contentHeight = Math.max(contentClip.height(), y + (int) controller.metricsScroll() - contentClip.y());
-        appendVerticalScrollMetadata(scene, "metrics", contentClip, contentHeight, metrics);
-        appendScrollbar(scene, "metrics", contentClip, controller.metricsScroll(), contentHeight, metrics);
+        int contentHeight = Math.max(viewport.height(), y + (int) Math.round(controller.metricsScroll()) - viewport.y());
+        appendVerticalScrollMetadata(assembly, DashboardPanelId.METRICS, "metrics", viewport, contentHeight, metrics, contentLayer);
+        appendVerticalScrollbar(assembly, DashboardPanelId.METRICS, "metrics", viewport, track, panelRect,
+                controller.metricsScroll(), contentHeight, metrics, contentLayer);
+    }
+
+    private void buildDiagnosticsPanel(FrameAssembly assembly, DashboardViewSnapshot snapshot, DashboardController controller,
+                                       UiRect panelRect, boolean floating, Metrics metrics) {
+        UiLayer panelLayer = floating ? UiLayer.OVERLAY : UiLayer.PANELS;
+        UiLayer contentLayer = floating ? UiLayer.OVERLAY : UiLayer.CONTROLS;
+        appendPanelBackground(assembly, DashboardPanelId.DIAGNOSTICS, panelRect, panelLayer, floating,
+                0xE6111721, 0xCC3A5268, metrics);
+
+        boolean unreadAlerts = snapshot.latestAlertSequence() > controller.acknowledgedAlertSequence();
+        UiRect header = headerRect(panelRect, metrics);
+        Map<String, Object> headerProps = new LinkedHashMap<>();
+        headerProps.put("title", "debug.dashboard.diagnostics");
+        headerProps.put("unreadAlerts", unreadAlerts);
+        headerProps.put("warningCount", snapshot.warningCount());
+        headerProps.put("errorCount", snapshot.errorCount());
+        headerProps.put("role", "panel-header");
+        headerProps.put("panelId", DashboardPanelId.DIAGNOSTICS.id());
+        headerProps.put("floating", floating);
+        headerProps.put("interactive", true);
+        headerProps.put("scale", metrics.uiScale);
+        UiRect modeToggleRect = modeToggleRect(header, metrics);
+        int badgeGap = metrics.smallGap + 2;
+        int badgeLaneRight = modeToggleRect.x() - metrics.smallGap;
+        int reservedBadgeWidth = diagnosticsBadgeLaneWidth(snapshot.warningCount(), snapshot.errorCount(), badgeGap, metrics);
+        int actionLaneLeft = Math.max(header.x() + metrics.innerInset, badgeLaneRight - reservedBadgeWidth);
+        headerProps.put("badgeGap", badgeGap);
+        headerProps.put("badgeLaneRight", badgeLaneRight);
+        headerProps.put("actionLaneLeft", actionLaneLeft);
+        headerProps.put("titleRight", Math.max(header.x() + metrics.innerInset, actionLaneLeft - metrics.smallGap));
+        assembly.add(new DashboardPrimitive("diagnostics-header", UiNodeType.DIAGNOSTIC_HEADER, contentLayer, assembly.nextOrder(),
+                header, null, headerProps));
+        appendModeToggle(assembly, DashboardPanelId.DIAGNOSTICS, header, contentLayer, floating, metrics);
+        if (floating) {
+            appendResizeHandles(assembly, DashboardPanelId.DIAGNOSTICS, panelRect, contentLayer, metrics);
+        }
+
+        int filtersY = header.bottom() + metrics.smallGap;
+        int filterX = panelRect.x() + metrics.innerInset;
+        for (DiagnosticLevel level : DiagnosticLevel.values()) {
+            assembly.add(new DashboardPrimitive("diag-filter/" + level.name(), UiNodeType.DIAGNOSTIC_FILTER, contentLayer, assembly.nextOrder(),
+                    new UiRect(filterX, filtersY, metrics.filterWidth, metrics.filterHeight), null,
+                    panelProps(DashboardPanelId.DIAGNOSTICS, Map.of("level", level.name(),
+                            "active", controller.diagnosticFilters().contains(level), "scale", metrics.uiScale))));
+            filterX += metrics.filterWidth + metrics.smallGap;
+        }
+
+        int viewportWidth = Math.max(metrics.minDiagnosticsClipHeight, panelRect.width() - metrics.innerInset * 2 - metrics.scrollbarGutter);
+        int contentWidth = Math.max(viewportWidth, estimateDiagnosticsContentWidth(snapshot, controller, metrics));
+        boolean needsHorizontalScrollbar = contentWidth > viewportWidth;
+        int viewportY = filtersY + metrics.filterHeight + metrics.sectionGap;
+        int viewportHeight = panelRect.bottom() - viewportY - metrics.innerInset;
+        if (needsHorizontalScrollbar) {
+            viewportHeight -= metrics.horizontalScrollbarHeight + metrics.smallGap;
+        }
+        viewportHeight = Math.max(metrics.minDiagnosticsClipHeight, viewportHeight);
+
+        UiRect viewport = new UiRect(panelRect.x() + metrics.innerInset, viewportY, viewportWidth, viewportHeight);
+        UiRect verticalTrack = verticalTrackRect(viewport, panelRect, metrics);
+        int y = viewport.y() - (int) Math.round(controller.diagnosticsScroll());
+        int visibleCount = 0;
+        int totalVisibleCount = 0;
+        for (var line : snapshot.diagnostics()) {
+            if (controller.accepts(line.level())) {
+                totalVisibleCount++;
+            }
+        }
+        for (var line : snapshot.diagnostics()) {
+            if (!controller.accepts(line.level())) {
+                continue;
+            }
+            visibleCount++;
+            assembly.add(new DashboardPrimitive("log/" + visibleCount, UiNodeType.LOG_LINE, contentLayer, assembly.nextOrder(),
+                    new UiRect(viewport.x() - (int) Math.round(controller.diagnosticsHorizontalScroll()), y, contentWidth, metrics.logLineHeight),
+                    viewport,
+                    panelProps(DashboardPanelId.DIAGNOSTICS, Map.of("time", line.timeText(), "level", line.level().name(),
+                            "module", line.moduleId(), "message", line.message(), "repeat", line.repeatCount(),
+                            "scale", metrics.uiScale))));
+            y += metrics.logLineHeight;
+            if (visibleCount < totalVisibleCount) {
+                y += metrics.smallGap;
+            }
+        }
+        int contentHeight = visibleCount == 0
+                ? viewport.height()
+                : Math.max(viewport.height(), y + (int) Math.round(controller.diagnosticsScroll()) - viewport.y());
+        appendVerticalScrollMetadata(assembly, DashboardPanelId.DIAGNOSTICS, "diagnostics", viewport, contentHeight, metrics, contentLayer);
+        appendVerticalScrollbar(assembly, DashboardPanelId.DIAGNOSTICS, "diagnostics", viewport, verticalTrack, panelRect,
+                controller.diagnosticsScroll(), contentHeight, metrics, contentLayer);
+
+        if (needsHorizontalScrollbar) {
+            UiRect horizontalTrack = new UiRect(viewport.x(), viewport.bottom() + metrics.smallGap, viewport.width(), metrics.horizontalScrollbarHeight);
+            appendHorizontalScrollMetadata(assembly, DashboardPanelId.DIAGNOSTICS, "diagnostics-x", horizontalTrack,
+                    viewport.width(), contentWidth, metrics, contentLayer);
+            appendHorizontalScrollbar(assembly, DashboardPanelId.DIAGNOSTICS, "diagnostics-x", horizontalTrack, panelRect,
+                    controller.diagnosticsHorizontalScroll(), viewport.width(), contentWidth, metrics, contentLayer);
+        }
     }
 
     private int resolveMetricColumns(DashboardController controller, int contentWidth, Metrics metrics) {
@@ -252,87 +413,230 @@ public final class DashboardViewSceneBuilder {
         }
         return Math.max(1, Math.min(requestedColumns, fittingColumns));
     }
-
-    private void buildDiagnosticsCollapsed(UiScene scene, DashboardViewSnapshot snapshot, DashboardController controller, UiRect diagnosticsRect, Metrics metrics) {
-        boolean unreadAlerts = snapshot.latestAlertSequence() > controller.acknowledgedAlertSequence();
-        Map<String, Object> headerProps = new LinkedHashMap<>();
-        headerProps.put("title", "debug.dashboard.diagnostics");
-        headerProps.put("mode", controller.diagnosticsPanelMode().name());
-        headerProps.put("preview", snapshot.latestDiagnosticPreview());
-        headerProps.put("warningCount", snapshot.warningCount());
-        headerProps.put("errorCount", snapshot.errorCount());
-        headerProps.put("unreadAlerts", unreadAlerts);
-        headerProps.put("scale", metrics.uiScale);
-        scene.add(new UiNode("diagnostics-header", UiNodeType.DIAGNOSTIC_HEADER, UiPass.CONTROLS, diagnosticsRect, null, headerProps));
+    private void appendPanelBackground(FrameAssembly assembly, DashboardPanelId panelId, UiRect panelRect, UiLayer layer,
+                                       boolean floating, int fill, int border, Metrics metrics) {
+        assembly.add(new DashboardPrimitive(panelId.id() + "-panel", UiNodeType.PANEL, layer, assembly.nextOrder(),
+                panelRect, null,
+                Map.of("fill", fill, "border", border, "role", "panel", "panelId", panelId.id(),
+                        "floating", floating, "interactive", true, "scale", metrics.uiScale)));
     }
 
-    private void buildDiagnosticsExpanded(UiScene scene, DashboardViewSnapshot snapshot, DashboardController controller, UiRect diagnosticsPanel, Metrics metrics, UiPass pass) {
-        boolean unreadAlerts = snapshot.latestAlertSequence() > controller.acknowledgedAlertSequence();
-        Map<String, Object> headerProps = new LinkedHashMap<>();
-        headerProps.put("title", "debug.dashboard.diagnostics");
-        headerProps.put("mode", controller.diagnosticsPanelMode().name());
-        headerProps.put("preview", snapshot.latestDiagnosticPreview());
-        headerProps.put("warningCount", snapshot.warningCount());
-        headerProps.put("errorCount", snapshot.errorCount());
-        headerProps.put("unreadAlerts", unreadAlerts);
-        headerProps.put("scale", metrics.uiScale);
-        scene.add(new UiNode("diagnostics-header", UiNodeType.DIAGNOSTIC_HEADER, pass,
-                new UiRect(diagnosticsPanel.x(), diagnosticsPanel.y(), diagnosticsPanel.width(), metrics.diagnosticsHeaderHeight), null, headerProps));
+    private void appendModeToggle(FrameAssembly assembly, DashboardPanelId panelId, UiRect header, UiLayer layer,
+                                  boolean floating, Metrics metrics) {
+        UiRect buttonRect = modeToggleRect(header, metrics);
+        assembly.add(new DashboardPrimitive("panel-mode-toggle/" + panelId.id(), UiNodeType.PANEL, layer, assembly.nextOrder(),
+                buttonRect, null,
+                Map.of("fill", 0x72202C39, "border", 0xAA4C627A, "role", "panel-mode-toggle", "interactive", true,
+                        "panelId", panelId.id(), "floating", floating, "label", floating ? "D" : "F", "scale", metrics.uiScale)));
+    }
 
-        int controlsY = diagnosticsPanel.y() + metrics.titleRowHeight + metrics.smallGap + metrics.filterYOffset;
-        int filterX = diagnosticsPanel.x() + metrics.innerInset;
-        for (DiagnosticLevel level : DiagnosticLevel.values()) {
-            scene.add(new UiNode("diag-filter/" + level.name(), UiNodeType.DIAGNOSTIC_FILTER, pass,
-                    new UiRect(filterX, controlsY, metrics.filterWidth, metrics.filterHeight), null,
-                    Map.of("level", level.name(), "active", controller.diagnosticFilters().contains(level), "scale", metrics.uiScale)));
-            filterX += metrics.filterWidth + metrics.smallGap;
+    private UiRect modeToggleRect(UiRect header, Metrics metrics) {
+        return new UiRect(
+                header.right() - metrics.innerInset - metrics.headerButtonSize,
+                header.y() + Math.max(4, (header.height() - metrics.headerButtonSize) / 2),
+                metrics.headerButtonSize,
+                metrics.headerButtonSize);
+    }
+
+    private int diagnosticsBadgeLaneWidth(int warningCount, int errorCount, int badgeGap, Metrics metrics) {
+        int width = 0;
+        if (errorCount > 0) {
+            width += diagnosticsBadgeWidth("E", errorCount, metrics);
         }
+        if (warningCount > 0) {
+            if (width > 0) {
+                width += badgeGap;
+            }
+            width += diagnosticsBadgeWidth("W", warningCount, metrics);
+        }
+        return width;
+    }
 
-        int stateX = diagnosticsPanel.right() - metrics.innerInset - (metrics.stateWidth * 2 + metrics.smallGap);
-        scene.add(new UiNode("diag-state-expand", UiNodeType.DIAGNOSTIC_STATE, pass,
-                new UiRect(stateX, controlsY, metrics.stateWidth, metrics.filterHeight), null,
-                Map.of("mode", "EXPANDED", "scale", metrics.uiScale)));
-        scene.add(new UiNode("diag-state-collapse", UiNodeType.DIAGNOSTIC_STATE, pass,
-                new UiRect(stateX + metrics.stateWidth + metrics.smallGap, controlsY, metrics.stateWidth, metrics.filterHeight), null,
-                Map.of("mode", "COLLAPSED", "scale", metrics.uiScale)));
+    private int diagnosticsBadgeWidth(String prefix, int count, Metrics metrics) {
+        int textWidth = (prefix.length() + 1 + String.valueOf(Math.max(0, count)).length()) * metrics.charWidth;
+        return textWidth + 8;
+    }
 
-        int verticalScrollbarReserve = metrics.scrollbarGutter;
-        int baseClipHeight = diagnosticsPanel.bottom() - (diagnosticsPanel.y() + metrics.diagnosticsHeaderHeight + metrics.sectionGap) - metrics.innerInset;
-        int estimatedContentWidth = estimateDiagnosticsContentWidth(snapshot, metrics);
-        int viewportWidth = diagnosticsPanel.width() - metrics.innerInset * 2 - verticalScrollbarReserve;
-        boolean needsHorizontalScrollbar = estimatedContentWidth > viewportWidth;
-        int clipHeight = needsHorizontalScrollbar ? baseClipHeight - metrics.horizontalScrollbarHeight - metrics.smallGap : baseClipHeight;
-        UiRect clip = new UiRect(diagnosticsPanel.x() + metrics.innerInset, diagnosticsPanel.y() + metrics.diagnosticsHeaderHeight + metrics.sectionGap,
-                diagnosticsPanel.width() - metrics.innerInset * 2,
-                Math.max(metrics.minDiagnosticsClipHeight, clipHeight));
+    private void appendResizeHandles(FrameAssembly assembly, DashboardPanelId panelId, UiRect panelRect, UiLayer layer, Metrics metrics) {
+        int thickness = Math.max(4, Math.round(6 * metrics.uiScale));
+        int corner = Math.max(10, Math.round(10 * metrics.uiScale));
+        addResizeHandle(assembly, panelId, layer, panelRect, "N", new UiRect(panelRect.x() + corner, panelRect.y(), Math.max(1, panelRect.width() - corner * 2), thickness), metrics);
+        addResizeHandle(assembly, panelId, layer, panelRect, "S", new UiRect(panelRect.x() + corner, panelRect.bottom() - thickness, Math.max(1, panelRect.width() - corner * 2), thickness), metrics);
+        addResizeHandle(assembly, panelId, layer, panelRect, "W", new UiRect(panelRect.x(), panelRect.y() + corner, thickness, Math.max(1, panelRect.height() - corner * 2)), metrics);
+        addResizeHandle(assembly, panelId, layer, panelRect, "E", new UiRect(panelRect.right() - thickness, panelRect.y() + corner, thickness, Math.max(1, panelRect.height() - corner * 2)), metrics);
+        addResizeHandle(assembly, panelId, layer, panelRect, "NW", new UiRect(panelRect.x(), panelRect.y(), corner, corner), metrics);
+        addResizeHandle(assembly, panelId, layer, panelRect, "NE", new UiRect(panelRect.right() - corner, panelRect.y(), corner, corner), metrics);
+        addResizeHandle(assembly, panelId, layer, panelRect, "SW", new UiRect(panelRect.x(), panelRect.bottom() - corner, corner, corner), metrics);
+        addResizeHandle(assembly, panelId, layer, panelRect, "SE", new UiRect(panelRect.right() - corner, panelRect.bottom() - corner, corner, corner), metrics);
+    }
 
-        int y = clip.y() - (int) controller.diagnosticsScroll();
+    private void addResizeHandle(FrameAssembly assembly, DashboardPanelId panelId, UiLayer layer, UiRect clipRect, String edge, UiRect bounds, Metrics metrics) {
+        assembly.add(new DashboardPrimitive("panel-resize/" + panelId.id() + "/" + edge, UiNodeType.PANEL, layer, assembly.nextOrder(),
+                bounds, clipRect,
+                Map.of("fill", 0x00000000, "role", "panel-resize-handle", "interactive", true,
+                        "panelId", panelId.id(), "edge", edge, "scale", metrics.uiScale)));
+    }
+
+    private void appendHomeSlotMetadata(FrameAssembly assembly, DashboardWorkspaceLayout layout, DashboardController controller, Metrics metrics) {
+        boolean activeDockTarget = controller.dockPreviewPanelId() != null;
+        for (Map.Entry<DashboardDockSlotId, UiRect> entry : layout.slotBounds().entrySet()) {
+            DashboardDockSlotId slotId = entry.getKey();
+            UiRect slotRect = entry.getValue();
+            DashboardDockSlotSpec slotSpec = layout.slotSpec(slotId);
+            assembly.add(new DashboardPrimitive("panel-home-slot/" + slotId.value(), UiNodeType.PANEL, UiLayer.PANELS, assembly.nextOrder(),
+                slotRect, null,
+                slotProps(slotSpec, Map.of("fill", 0, "border", activeDockTarget ? 0x4A3B4B5C : 0, "role", "panel-home-slot",
+                        "slotId", slotId.value(), "interactive", true, "activeDockTarget", activeDockTarget, "scale", metrics.uiScale))));
+        }
+    }
+
+    private void appendSlotResizeHandles(FrameAssembly assembly, DashboardWorkspaceLayout layout, Metrics metrics) {
+        for (DashboardDockResizeHandle handle : layout.resizeHandles()) {
+            assembly.add(new DashboardPrimitive(handle.id(), UiNodeType.PANEL, UiLayer.OVERLAY, assembly.nextOrder(),
+                    handle.bounds(), null,
+                    Map.of("fill", 0x00000000, "role", "slot-resize-handle", "interactive", true,
+                            "slotId", handle.slotId().value(), "edge", handle.edge().name(),
+                            "minRatio", handle.minRatio(), "maxRatio", handle.maxRatio(), "scale", metrics.uiScale)));
+        }
+    }
+
+    private void appendSlotPreview(FrameAssembly assembly, DashboardWorkspaceLayout layout, DashboardController controller, Metrics metrics) {
+        DashboardPanelId previewPanelId = controller.dockPreviewPanelId();
+        DashboardDockSlotId previewSlotId = controller.dockPreviewSlotId();
+        if (previewPanelId == null || previewSlotId == null) {
+            return;
+        }
+        UiRect slotRect = layout.slotBounds(previewSlotId);
+        if (slotRect == null) {
+            return;
+        }
+        DashboardDockSlotSpec slotSpec = layout.slotSpec(previewSlotId);
+        assembly.add(new DashboardPrimitive("panel-slot-preview/" + previewSlotId.value(), UiNodeType.PANEL, UiLayer.OVERLAY, assembly.nextOrder(),
+                slotRect, null,
+                slotProps(slotSpec, Map.of("fill", 0x2A34D399, "border", 0xCC34D399, "role", "panel-slot-preview",
+                        "panelId", previewPanelId.id(), "slotId", previewSlotId.value(), "scale", metrics.uiScale))));
+    }
+
+    private UiRect slotBounds(DashboardWorkspaceLayout layout, DashboardController controller, DashboardPanelId panelId) {
+        DashboardDockSlotId slotId = resolvedSlotId(controller, panelId);
+        UiRect bounds = layout.slotBounds(slotId);
+        if (bounds != null) {
+            return bounds;
+        }
+        return layout.slotBounds().values().stream().findFirst().orElse(new UiRect(0, 0, 1, 1));
+    }
+
+    private DashboardDockSlotId resolvedSlotId(DashboardController controller, DashboardPanelId panelId) {
+        DashboardDockSlotId slotId = controller.panelDockedSlotId(panelId);
+        if (slotId == null) {
+            slotId = controller.panelHomeSlotId(panelId);
+        }
+        if (slotId == null) {
+            slotId = workspaceProfile.defaultHomeSlot(panelId);
+        }
+        return slotId;
+    }
+
+    private Map<String, Object> slotProps(@Nullable DashboardDockSlotSpec slotSpec, Map<String, Object> baseProps) {
+        if (slotSpec == null) {
+            return baseProps;
+        }
+        Map<String, Object> props = new LinkedHashMap<>(baseProps);
+        props.put("slotRole", slotSpec.role().name());
+        props.put("slotDisplayNameKey", slotSpec.displayNameKey());
+        return props;
+    }
+
+    private UiRect resolveFloatingBounds(DashboardController controller, DashboardPanelId panelId, UiRect fallback) {
+        UiRect stored = controller.panelFloatingBounds(panelId);
+        return stored.width() > 0 && stored.height() > 0 ? stored : fallback;
+    }
+
+    private UiRect headerRect(UiRect panelRect, Metrics metrics) {
+        return new UiRect(panelRect.x(), panelRect.y(), panelRect.width(), metrics.headerHeight);
+    }
+
+    private UiRect verticalTrackRect(UiRect viewport, UiRect panelRect, Metrics metrics) {
+        return new UiRect(panelRect.right() - metrics.innerInset - metrics.scrollbarWidth,
+                viewport.y(),
+                metrics.scrollbarWidth,
+                viewport.height());
+    }
+
+    private void appendVerticalScrollMetadata(FrameAssembly assembly, DashboardPanelId panelId, String area, UiRect viewportRect, int contentHeight,
+                                              Metrics metrics, UiLayer layer) {
+        assembly.add(new DashboardPrimitive("scroll-region/" + area, UiNodeType.PANEL, layer, assembly.nextOrder(),
+                viewportRect, null,
+                panelProps(panelId, Map.of("fill", 0, "role", "scroll-region", "scrollArea", area,
+                        "viewportHeight", viewportRect.height(), "contentHeight", contentHeight, "scale", metrics.uiScale))));
+    }
+
+    private void appendHorizontalScrollMetadata(FrameAssembly assembly, DashboardPanelId panelId, String area, UiRect trackRect,
+                                                int viewportWidth, int contentWidth,
+                                                Metrics metrics, UiLayer layer) {
+        assembly.add(new DashboardPrimitive("scroll-region/" + area, UiNodeType.PANEL, layer, assembly.nextOrder(),
+                trackRect, null,
+                panelProps(panelId, Map.of("fill", 0, "role", "scroll-region-x", "scrollArea", area,
+                        "viewportWidth", viewportWidth, "contentWidth", contentWidth, "scale", metrics.uiScale))));
+    }
+
+    private void appendVerticalScrollbar(FrameAssembly assembly, DashboardPanelId panelId, String area, UiRect viewportRect,
+                                         UiRect trackRect, UiRect clipRect,
+                                         double scroll, int contentHeight, Metrics metrics, UiLayer layer) {
+        if (contentHeight <= viewportRect.height()) {
+            return;
+        }
+        int thumbHeight = Math.max(metrics.scrollbarThumbMinHeight,
+                Math.round(trackRect.height() * (trackRect.height() / (float) contentHeight)));
+        int maxScroll = Math.max(1, contentHeight - viewportRect.height());
+        int travel = Math.max(1, trackRect.height() - thumbHeight);
+        int thumbY = trackRect.y() + Math.round((float) (Math.min(scroll, maxScroll) / maxScroll) * travel);
+        assembly.add(new DashboardPrimitive("scrollbar-track/" + area, UiNodeType.PANEL, layer, assembly.nextOrder(),
+                trackRect, clipRect,
+                panelProps(panelId, Map.of("fill", 0x2E273242, "role", "scrollbar-track", "interactive", true,
+                        "scrollArea", area, "viewportHeight", viewportRect.height(), "contentHeight", contentHeight,
+                        "thumbHeight", thumbHeight, "scale", metrics.uiScale))));
+        assembly.add(new DashboardPrimitive("scrollbar-thumb/" + area, UiNodeType.PANEL, layer, assembly.nextOrder(),
+                new UiRect(trackRect.x() + 1, thumbY, Math.max(3, trackRect.width() - 2), thumbHeight), clipRect,
+                panelProps(panelId, Map.of("fill", 0xCC5E738B, "border", 0xFF8EA1B8, "role", "scrollbar-thumb",
+                        "interactive", true, "scrollArea", area, "viewportHeight", viewportRect.height(),
+                        "contentHeight", contentHeight, "thumbHeight", thumbHeight, "scale", metrics.uiScale))));
+    }
+
+    private void appendHorizontalScrollbar(FrameAssembly assembly, DashboardPanelId panelId, String area, UiRect trackRect, UiRect clipRect,
+                                           double scroll, int viewportWidth, int contentWidth, Metrics metrics, UiLayer layer) {
+        if (contentWidth <= viewportWidth) {
+            return;
+        }
+        int thumbWidth = Math.max(metrics.horizontalScrollbarThumbMinWidth,
+                Math.round(trackRect.width() * (trackRect.width() / (float) contentWidth)));
+        int maxScroll = Math.max(1, contentWidth - viewportWidth);
+        int travel = Math.max(1, trackRect.width() - thumbWidth);
+        int thumbX = trackRect.x() + Math.round((float) (Math.min(scroll, maxScroll) / maxScroll) * travel);
+        assembly.add(new DashboardPrimitive("scrollbar-track/" + area, UiNodeType.PANEL, layer, assembly.nextOrder(),
+                trackRect, clipRect,
+                panelProps(panelId, Map.of("fill", 0x2E273242, "role", "scrollbar-track-x", "interactive", true,
+                        "scrollArea", area, "viewportWidth", viewportWidth, "contentWidth", contentWidth,
+                        "thumbWidth", thumbWidth, "scale", metrics.uiScale))));
+        assembly.add(new DashboardPrimitive("scrollbar-thumb/" + area, UiNodeType.PANEL, layer, assembly.nextOrder(),
+                new UiRect(thumbX, trackRect.y() + 1, thumbWidth, Math.max(3, trackRect.height() - 2)), clipRect,
+                panelProps(panelId, Map.of("fill", 0xCC5E738B, "border", 0xFF8EA1B8, "role", "scrollbar-thumb-x",
+                        "interactive", true, "scrollArea", area, "viewportWidth", viewportWidth,
+                        "contentWidth", contentWidth, "thumbWidth", thumbWidth, "scale", metrics.uiScale))));
+    }
+
+    private Map<String, Object> panelProps(DashboardPanelId panelId, Map<String, Object> baseProps) {
+        Map<String, Object> props = new LinkedHashMap<>(baseProps);
+        props.put("panelId", panelId.id());
+        return props;
+    }
+
+    private int estimateDiagnosticsContentWidth(DashboardViewSnapshot snapshot, DashboardController controller, Metrics metrics) {
+        int maxWidth = metrics.diagnosticBaseWidth;
         for (var line : snapshot.diagnostics()) {
             if (!controller.accepts(line.level())) {
                 continue;
             }
-            int rowWidth = Math.max(viewportWidth, estimatedContentWidth);
-            scene.add(new UiNode("log/" + y, UiNodeType.LOG_LINE, pass,
-                    new UiRect(clip.x() - (int) controller.diagnosticsHorizontalScroll(), y, rowWidth, metrics.logLineHeight), clip,
-                    Map.of("time", line.timeText(), "level", line.level().name(), "module", line.moduleId(), "message", line.message(),
-                            "repeat", line.repeatCount(), "scale", metrics.uiScale)));
-            y += metrics.logLineHeight + metrics.smallGap;
-        }
-
-        int contentHeight = Math.max(clip.height(), y + (int) controller.diagnosticsScroll() - clip.y());
-        appendVerticalScrollMetadata(scene, "diagnostics", clip, contentHeight, metrics);
-        appendScrollbar(scene, "diagnostics", clip, controller.diagnosticsScroll(), contentHeight, metrics);
-
-        if (needsHorizontalScrollbar) {
-            UiRect horizontalTrackRect = new UiRect(clip.x(), clip.bottom() + metrics.smallGap, viewportWidth, metrics.horizontalScrollbarHeight);
-            appendHorizontalScrollMetadata(scene, "diagnostics-x", horizontalTrackRect, viewportWidth, estimatedContentWidth, metrics);
-            appendHorizontalScrollbar(scene, "diagnostics-x", horizontalTrackRect, controller.diagnosticsHorizontalScroll(), viewportWidth, estimatedContentWidth, metrics);
-        }
-    }
-
-    private int estimateDiagnosticsContentWidth(DashboardViewSnapshot snapshot, Metrics metrics) {
-        int maxWidth = metrics.diagnosticBaseWidth;
-        for (var line : snapshot.diagnostics()) {
             int width = metrics.diagnosticBaseWidth
                     + Math.max(0, line.moduleId().length()) * metrics.charWidth
                     + Math.max(0, line.message().length()) * metrics.charWidth
@@ -342,56 +646,81 @@ public final class DashboardViewSceneBuilder {
         return maxWidth;
     }
 
-    private void appendVerticalScrollMetadata(UiScene scene, String area, UiRect clipRect, int contentHeight, Metrics metrics) {
-        scene.add(new UiNode("scroll-region/" + area, UiNodeType.PANEL, UiPass.OVERLAY, clipRect, null,
-                Map.of("fill", 0, "role", "scroll-region", "scrollArea", area, "viewportHeight", clipRect.height(),
-                        "contentHeight", contentHeight, "scale", metrics.uiScale)));
-    }
+    private static final class FrameAssembly {
+        private final UiRect screenBounds;
+        private final java.util.List<UiPrimitive> primitives = new java.util.ArrayList<>();
+        private final java.util.List<HitRegion> hitRegions = new java.util.ArrayList<>();
+        private int nextOrder;
 
-    private void appendHorizontalScrollMetadata(UiScene scene, String area, UiRect trackRect, int viewportWidth, int contentWidth, Metrics metrics) {
-        scene.add(new UiNode("scroll-region/" + area, UiNodeType.PANEL, UiPass.OVERLAY, trackRect, null,
-                Map.of("fill", 0, "role", "scroll-region-x", "scrollArea", area, "viewportWidth", viewportWidth,
-                        "contentWidth", contentWidth, "scale", metrics.uiScale)));
-    }
-
-    private void appendScrollbar(UiScene scene, String area, UiRect clipRect, double scroll, int contentHeight, Metrics metrics) {
-        if (contentHeight <= clipRect.height()) {
-            return;
+        private FrameAssembly(UiRect screenBounds) {
+            this.screenBounds = screenBounds;
         }
 
-        UiRect track = new UiRect(clipRect.right() - metrics.scrollbarWidth, clipRect.y(), metrics.scrollbarWidth, clipRect.height());
-        int thumbHeight = Math.max(metrics.scrollbarThumbMinHeight,
-                Math.round((clipRect.height() * (clipRect.height() / (float) contentHeight))));
-        int maxScroll = Math.max(1, contentHeight - clipRect.height());
-        int travel = Math.max(1, track.height() - thumbHeight);
-        int thumbY = track.y() + Math.round((float) (Math.min(scroll, maxScroll) / maxScroll) * travel);
-
-        scene.add(new UiNode("scrollbar-track/" + area, UiNodeType.PANEL, UiPass.OVERLAY, track, null,
-                Map.of("fill", 0x2E273242, "role", "scrollbar-track", "interactive", true, "scrollArea", area,
-                        "viewportHeight", clipRect.height(), "contentHeight", contentHeight, "thumbHeight", thumbHeight, "scale", metrics.uiScale)));
-        scene.add(new UiNode("scrollbar-thumb/" + area, UiNodeType.PANEL, UiPass.OVERLAY,
-                new UiRect(track.x() + 1, thumbY, Math.max(3, track.width() - 2), thumbHeight), null,
-                Map.of("fill", 0xCC5E738B, "border", 0xFF8EA1B8, "role", "scrollbar-thumb", "interactive", true,
-                        "scrollArea", area, "viewportHeight", clipRect.height(), "contentHeight", contentHeight, "thumbHeight", thumbHeight, "scale", metrics.uiScale)));
-    }
-
-    private void appendHorizontalScrollbar(UiScene scene, String area, UiRect trackRect, double scroll, int viewportWidth, int contentWidth, Metrics metrics) {
-        if (contentWidth <= viewportWidth) {
-            return;
+        private int nextOrder() {
+            return nextOrder++;
         }
-        int thumbWidth = Math.max(metrics.horizontalScrollbarThumbMinWidth,
-                Math.round((trackRect.width() * (trackRect.width() / (float) contentWidth))));
-        int maxScroll = Math.max(1, contentWidth - viewportWidth);
-        int travel = Math.max(1, trackRect.width() - thumbWidth);
-        int thumbX = trackRect.x() + Math.round((float) (Math.min(scroll, maxScroll) / maxScroll) * travel);
 
-        scene.add(new UiNode("scrollbar-track/" + area, UiNodeType.PANEL, UiPass.OVERLAY, trackRect, null,
-                Map.of("fill", 0x2E273242, "role", "scrollbar-track-x", "interactive", true, "scrollArea", area,
-                        "viewportWidth", viewportWidth, "contentWidth", contentWidth, "thumbWidth", thumbWidth, "scale", metrics.uiScale)));
-        scene.add(new UiNode("scrollbar-thumb/" + area, UiNodeType.PANEL, UiPass.OVERLAY,
-                new UiRect(thumbX, trackRect.y() + 1, thumbWidth, Math.max(3, trackRect.height() - 2)), null,
-                Map.of("fill", 0xCC5E738B, "border", 0xFF8EA1B8, "role", "scrollbar-thumb-x", "interactive", true,
-                        "scrollArea", area, "viewportWidth", viewportWidth, "contentWidth", contentWidth, "thumbWidth", thumbWidth, "scale", metrics.uiScale)));
+        private void add(DashboardPrimitive primitive) {
+            if (!shouldAdd(primitive, screenBounds)) {
+                return;
+            }
+            primitives.add(primitive);
+            if (isInteractive(primitive)) {
+                hitRegions.add(new HitRegion(primitive.id(), primitive.layer(), primitive.order(),
+                        new RectHitShape(primitive.bounds()), primitive.clipRect(),
+                        cursorHint(primitive), InputActionId.of(primitive.id()), Map.of("primitive", primitive)));
+            }
+        }
+
+        private UiFrame build() {
+            return new UiFrame(primitives, hitRegions);
+        }
+
+        private static boolean isInteractive(DashboardPrimitive primitive) {
+            Object interactive = primitive.props().get("interactive");
+            if (interactive instanceof Boolean flag && flag) {
+                return true;
+            }
+            return switch (primitive.type()) {
+                case TAB_BUTTON, TREE_GROUP, TREE_CONTROL, MACRO_SECTION_HEADER, METRICS_LAYOUT_TOGGLE, DIAGNOSTIC_FILTER -> true;
+                default -> false;
+            };
+        }
+
+        private static CursorHint cursorHint(DashboardPrimitive primitive) {
+            String role = String.valueOf(primitive.props().getOrDefault("role", ""));
+            if ("panel-resize-handle".equals(role) || "slot-resize-handle".equals(role)) {
+                String edge = String.valueOf(primitive.props().getOrDefault("edge", ""));
+                return edge.contains("E") || edge.contains("W") ? CursorHint.RESIZE_HORIZONTAL : CursorHint.RESIZE_VERTICAL;
+            }
+            if ("panel-header".equals(role) && primitive.props().get("floating") instanceof Boolean floating && floating) {
+                return CursorHint.GRAB;
+            }
+            if (primitive.type() == UiNodeType.TREE_CONTROL && primitive.props().get("editing") instanceof Boolean editing && editing) {
+                return CursorHint.TEXT;
+            }
+            return CursorHint.POINTER;
+        }
+
+        private static boolean shouldAdd(DashboardPrimitive primitive, UiRect screenBounds) {
+            if (primitive.bounds().width() <= 0 || primitive.bounds().height() <= 0) {
+                return false;
+            }
+            if (!intersects(primitive.bounds(), screenBounds)) {
+                return false;
+            }
+            if (primitive.clipRect() == null) {
+                return true;
+            }
+            return primitive.clipRect().width() > 0
+                    && primitive.clipRect().height() > 0
+                    && intersects(primitive.bounds(), primitive.clipRect())
+                    && intersects(primitive.clipRect(), screenBounds);
+        }
+
+        private static boolean intersects(UiRect a, UiRect b) {
+            return a.right() > b.x() && b.right() > a.x() && a.bottom() > b.y() && b.bottom() > a.y();
+        }
     }
 
     private static final class Metrics {
@@ -412,17 +741,12 @@ public final class DashboardViewSceneBuilder {
         private final int ratioRowHeight;
         private final int chartHeight;
         private final int constantRowHeight;
-        private final int diagnosticsHeaderHeight;
-        private final int titleRowHeight;
+        private final int logLineHeight;
         private final int filterWidth;
         private final int filterHeight;
-        private final int filterYOffset;
-        private final int stateWidth;
-        private final int logLineHeight;
         private final int layoutToggleWidth;
         private final int layoutToggleHeight;
         private final int layoutToggleYOffset;
-        private final int collapsedHeight;
         private final int sectionGap;
         private final int gap;
         private final int smallGap;
@@ -430,10 +754,10 @@ public final class DashboardViewSceneBuilder {
         private final int minControlWidth;
         private final int minPanelWidth;
         private final int minPanelHeight;
-        private final int minMetricsHeight;
         private final int minDiagnosticsHeight;
         private final int minDiagnosticsClipHeight;
         private final int minMetricColumnWidth;
+        private final int diagnosticsDockedHeight;
         private final int diagnosticBaseWidth;
         private final int charWidth;
         private final int scrollbarWidth;
@@ -441,6 +765,7 @@ public final class DashboardViewSceneBuilder {
         private final int scrollbarThumbMinHeight;
         private final int horizontalScrollbarHeight;
         private final int horizontalScrollbarThumbMinWidth;
+        private final int headerButtonSize;
 
         private Metrics(float inputScale, int screenWidth, int screenHeight) {
             this.uiScale = Math.max(0.70f, inputScale * 0.90f);
@@ -460,17 +785,12 @@ public final class DashboardViewSceneBuilder {
             this.ratioRowHeight = scaled(66);
             this.chartHeight = Math.max(scaled(108), screenHeight / 6);
             this.constantRowHeight = scaled(34);
-            this.titleRowHeight = scaled(26);
-            this.filterHeight = scaled(20);
-            this.filterYOffset = scaled(7);
-            this.diagnosticsHeaderHeight = this.titleRowHeight + this.filterHeight + scaled(18);
-            this.filterWidth = Math.max(scaled(48), screenWidth / 28);
-            this.stateWidth = scaled(26);
             this.logLineHeight = scaled(20);
+            this.filterWidth = Math.max(scaled(48), screenWidth / 28);
+            this.filterHeight = scaled(20);
             this.layoutToggleWidth = scaled(40);
             this.layoutToggleHeight = scaled(18);
             this.layoutToggleYOffset = Math.max(scaled(6), (this.headerHeight - this.layoutToggleHeight) / 2);
-            this.collapsedHeight = scaled(38);
             this.sectionGap = scaled(8);
             this.gap = scaled(6);
             this.smallGap = scaled(4);
@@ -478,10 +798,10 @@ public final class DashboardViewSceneBuilder {
             this.minControlWidth = scaled(96);
             this.minPanelWidth = scaled(180);
             this.minPanelHeight = scaled(160);
-            this.minMetricsHeight = scaled(180);
-            this.minDiagnosticsHeight = scaled(120);
-            this.minDiagnosticsClipHeight = scaled(40);
+            this.minDiagnosticsHeight = scaled(140);
+            this.minDiagnosticsClipHeight = scaled(48);
             this.minMetricColumnWidth = scaled(110);
+            this.diagnosticsDockedHeight = Math.max(scaled(170), Math.min(screenHeight / 3, scaled(220)));
             this.charWidth = scaled(6);
             this.diagnosticBaseWidth = scaled(180);
             this.scrollbarWidth = scaled(8);
@@ -489,6 +809,7 @@ public final class DashboardViewSceneBuilder {
             this.scrollbarThumbMinHeight = scaled(22);
             this.horizontalScrollbarHeight = scaled(8);
             this.horizontalScrollbarThumbMinWidth = scaled(24);
+            this.headerButtonSize = scaled(16);
         }
 
         private int scaled(int base) {
@@ -496,9 +817,3 @@ public final class DashboardViewSceneBuilder {
         }
     }
 }
-
-
-
-
-
-

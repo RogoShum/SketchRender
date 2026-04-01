@@ -1,7 +1,7 @@
 package rogo.sketch.gui.debugui;
 
 import net.minecraft.network.chat.Component;
-import rogo.sketch.core.debugger.ui.UiRect;
+import rogo.sketch.core.ui.geometry.UiRect;
 
 public interface UiCanvas extends UiTextMeasurer {
     void fillRect(UiRect rect, int color);
@@ -15,4 +15,7 @@ public interface UiCanvas extends UiTextMeasurer {
     void pushClip(UiRect rect);
 
     void popClip();
+
+    void flush();
 }
+

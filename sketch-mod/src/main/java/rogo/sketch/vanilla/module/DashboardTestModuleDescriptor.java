@@ -14,8 +14,6 @@ public class DashboardTestModuleDescriptor implements ModuleDescriptor {
     public static final String MODULE_ID = "dashboard_test";
 
     public static final KeyId GROUP = KeyId.of("sketch_render", "dashboard_test_group");
-    public static final KeyId CHECK_CULL = KeyId.of("sketch_render", "dashboard_test_check_cull");
-    public static final KeyId CHECK_TEXTURE = KeyId.of("sketch_render", "dashboard_test_check_texture");
     public static final KeyId TOGGLE = KeyId.of("sketch_render", "dashboard_test_toggle");
     public static final KeyId SLIDER = KeyId.of("sketch_render", "dashboard_test_slider");
     public static final KeyId NUMBER = KeyId.of("sketch_render", "dashboard_test_number");
@@ -43,20 +41,6 @@ public class DashboardTestModuleDescriptor implements ModuleDescriptor {
 
         settings.group(GROUP, "debug.dashboard.group.testing")
                 .parent(context.moduleEnabledSettingId())
-                .register();
-
-        settings.bool(CHECK_CULL, "debug.dashboard.check_cull")
-                .detail("sketch_render.detail.debug")
-                .parent(GROUP)
-                .impact(ChangeImpact.RUNTIME_ONLY)
-                .defaultValue(false)
-                .register();
-
-        settings.bool(CHECK_TEXTURE, "debug.dashboard.check_texture")
-                .detail("sketch_render.detail.check_texture")
-                .parent(GROUP)
-                .impact(ChangeImpact.RUNTIME_ONLY)
-                .defaultValue(false)
                 .register();
 
         settings.bool(TOGGLE, "debug.dashboard.test.toggle")

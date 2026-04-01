@@ -29,9 +29,7 @@ import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
@@ -44,6 +42,7 @@ import org.slf4j.Logger;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.core.api.graphics.AABBGraphics;
 import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.driver.state.DefaultRenderStates;
 import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RenderFlowRegisterEvent;
 import rogo.sketch.core.event.UniformHookRegisterEvent;
@@ -52,7 +51,6 @@ import rogo.sketch.core.pipeline.flow.RenderFlowRegistry;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.kernel.ThreadDomainGuard;
 import rogo.sketch.core.shader.uniform.UniformHookRegistry;
-import rogo.sketch.core.driver.state.DefaultRenderStates;
 import rogo.sketch.core.util.CommandCallTimer;
 import rogo.sketch.core.util.RenderCallTimer;
 import rogo.sketch.core.util.TimerUtil;
@@ -61,7 +59,6 @@ import rogo.sketch.feature.culling.CullingRenderEvent;
 import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.gui.debugui.AdaptiveDebugDashboardScreen;
-import rogo.sketch.gui.ConfigScreen;
 import rogo.sketch.profiler.ProfilerEventHandler;
 import rogo.sketch.util.OcclusionCullerThread;
 import rogo.sketch.vanilla.McPipelineRegister;
@@ -104,7 +101,6 @@ public class SketchRender {
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
             MinecraftForge.EVENT_BUS.register(new CullingStateManager());
             MinecraftForge.EVENT_BUS.register(new ProfilerEventHandler());
-            ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_CONFIG);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::initClient);
@@ -153,9 +149,6 @@ public class SketchRender {
     public void onKeyboardInput(InputEvent.Key event) {
         if (Minecraft.getInstance().player != null) {
             if (CONFIG_KEY.isDown()) {
-                Minecraft.getInstance().setScreen(new ConfigScreen(Component.translatable(MOD_ID + ".config")));
-            }
-            if (DEBUG_DASHBOARD_KEY.isDown()) {
                 Minecraft.getInstance().setScreen(new AdaptiveDebugDashboardScreen(Component.translatable(MOD_ID + ".config")));
             }
             if (DEBUG_KEY.isDown()) {

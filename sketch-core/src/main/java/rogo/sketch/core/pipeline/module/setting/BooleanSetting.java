@@ -5,6 +5,7 @@ import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.ui.control.ControlSpec;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 public class BooleanSetting extends SettingNode<Boolean> {
     public BooleanSetting(
@@ -17,7 +18,21 @@ public class BooleanSetting extends SettingNode<Boolean> {
             boolean visibleInGui,
             List<DependencyRule> dependencies,
             boolean defaultValue) {
-        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue, ControlSpec.toggle());
+        this(id, moduleId, displayKey, detailKey, parentId, changeImpact, visibleInGui, () -> true, dependencies, defaultValue);
+    }
+
+    public BooleanSetting(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            ChangeImpact changeImpact,
+            boolean visibleInGui,
+            BooleanSupplier visibilityRule,
+            List<DependencyRule> dependencies,
+            boolean defaultValue) {
+        this(id, moduleId, displayKey, null, detailKey, parentId, changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, ControlSpec.toggle());
     }
 
     public BooleanSetting(
@@ -32,7 +47,23 @@ public class BooleanSetting extends SettingNode<Boolean> {
             List<DependencyRule> dependencies,
             boolean defaultValue,
             @Nullable ControlSpec controlSpec) {
-        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, dependencies, defaultValue, controlSpec);
+        this(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, () -> true, dependencies, defaultValue, controlSpec);
+    }
+
+    public BooleanSetting(
+            KeyId id,
+            String moduleId,
+            String displayKey,
+            @Nullable String summaryKey,
+            @Nullable String detailKey,
+            @Nullable KeyId parentId,
+            ChangeImpact changeImpact,
+            boolean visibleInGui,
+            BooleanSupplier visibilityRule,
+            List<DependencyRule> dependencies,
+            boolean defaultValue,
+            @Nullable ControlSpec controlSpec) {
+        super(id, moduleId, displayKey, summaryKey, detailKey, parentId, changeImpact, visibleInGui, visibilityRule, dependencies, defaultValue, controlSpec);
     }
 
     @Override
