@@ -19,13 +19,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Represents a batch of graphics instances that share the same render settings.
+ * Legacy persistent render batch that still backs the current transition layer.
  * <p>
- * Supports both immutable (legacy) and mutable modes for incremental updates.
- * </p>
+ * The long-term V2 path should prefer explicit bucket/slice/group records instead
+ * of extending this type with new responsibilities.
  *
  * @param <T> The type of instance info contained in this batch
  */
+@Deprecated(forRemoval = false)
 public class RenderBatch<T extends InstanceInfo<?>> {
     private final RenderSetting renderSetting;
     private final List<T> instances;

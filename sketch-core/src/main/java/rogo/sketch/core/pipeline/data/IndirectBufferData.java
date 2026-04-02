@@ -1,7 +1,6 @@
 package rogo.sketch.core.pipeline.data;
 
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
-import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.buffer.IndirectCommandBuffer;
 import rogo.sketch.core.util.KeyId;
 
@@ -28,20 +27,20 @@ public class IndirectBufferData implements RenderPipelineData {
     }
 
     /**
-     * Get or create an indirect command buffer for the given parameter.
+     * Get an existing indirect command buffer for the given parameter.
      *
      * @param param The render parameter
-     * @return The indirect command buffer
+     * @return The indirect command buffer, or null if it has not been materialized yet
      */
     public IndirectCommandBuffer get(RenderParameter param) {
+        return param == null ? null : buffers.get(param);
+    }
+
+    public IndirectCommandBuffer getOrCreate(RenderParameter param) {
         if (param == null) {
             return null;
         }
-        if (GraphicsDriver.getCurrentAPI().isMainThread()) {
-            return buffers.computeIfAbsent(param, k -> new IndirectCommandBuffer(defaultBufferSize));
-        }
-        // Async domain never creates GL buffers; it only reads existing entries.
-        return buffers.get(param);
+        return buffers.computeIfAbsent(param, key -> new IndirectCommandBuffer(defaultBufferSize));
     }
 
     public void planCreate(RenderParameter param) {
@@ -51,9 +50,6 @@ public class IndirectBufferData implements RenderPipelineData {
     }
 
     public int materializePending() {
-        if (!GraphicsDriver.getCurrentAPI().isMainThread()) {
-            return 0;
-        }
         int created = 0;
         for (RenderParameter param : pendingCreate) {
             if (!buffers.containsKey(param)) {

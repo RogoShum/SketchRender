@@ -3,9 +3,10 @@ package rogo.sketch.core;
 import org.jetbrains.annotations.NotNull;
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.command.RenderCommand;
 import rogo.sketch.core.command.prosessor.GeometryBatchProcessor;
+import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
+import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.data.IndirectBufferData;
@@ -84,8 +85,9 @@ public class RenderHelper {
 
         // Create commands using new createCommands method
         @SuppressWarnings("unchecked")
-        Map<RenderSetting, List<RenderCommand>> commandMap = batchProcessor.createCommands(
+        Map<rogo.sketch.core.packet.PipelineStateKey, List<RenderPacket>> packetMap = batchProcessor.createPackets(
                 (BatchContainer) batchContainer,
+                pipelineTypeFor(flowType),
                 flowType,
                 IMMEDIATE_STAGE_ID,
                 postProcessors,
@@ -94,11 +96,12 @@ public class RenderHelper {
         // Cleanup instance data after rendering (but keep container)
         batchContainer.clear();
 
-        // 4. Execute Commands Immediately
-        for (List<RenderCommand> commands : commandMap.values()) {
-            for (RenderCommand command : commands) {
-                pipeline.getRenderCommandQueue().executeImmediate(command, setting, pipeline().renderStateManager(),
-                        context);
+        // 4. Execute Packets Immediately
+        @SuppressWarnings("unchecked")
+        GraphicsPipeline<RenderContext> typedPipeline = (GraphicsPipeline<RenderContext>) pipeline;
+        for (List<RenderPacket> packets : packetMap.values()) {
+            for (RenderPacket packet : packets) {
+                typedPipeline.getRenderPacketQueue().executeImmediate(packet, pipeline().renderStateManager(), context);
             }
         }
 
@@ -132,5 +135,15 @@ public class RenderHelper {
             Graphics instance,
             RenderParameter renderParameter) {
         container.addGraphicsInstance(instance, renderParameter);
+    }
+
+    private PipelineType pipelineTypeFor(RenderFlowType flowType) {
+        if (RenderFlowType.COMPUTE.equals(flowType)) {
+            return PipelineType.COMPUTE;
+        }
+        if (RenderFlowType.FUNCTION.equals(flowType)) {
+            return PipelineType.FUNCTION;
+        }
+        return PipelineType.RASTERIZATION;
     }
 }

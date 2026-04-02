@@ -42,6 +42,8 @@ minecraft {
                     source sourceSets.main
                     // Include sketch-core sources in the run config so it can be debugged/viewed
                     source project(':sketch-core').sourceSets.main
+                    // Include the extracted OpenGL backend module so dev runs can resolve bootstrap/runtime classes
+                    source project(':sketch-backend-opengl').sourceSets.main
                 }
             }
         }
@@ -104,9 +106,13 @@ dependencies {
 
     // Project dependencies
     implementation project(':sketch-core')
+    implementation project(':sketch-backend-opengl')
     
     // JarJar sketch-core so it's included in the final mod jar
     jarJar(project(':sketch-core')) {
+         jarJar.ranged(it, "[${mod_version},)")
+    }
+    jarJar(project(':sketch-backend-opengl')) {
          jarJar.ranged(it, "[${mod_version},)")
     }
 }

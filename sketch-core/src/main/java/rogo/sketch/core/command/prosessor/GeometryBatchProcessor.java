@@ -2,8 +2,12 @@ package rogo.sketch.core.command.prosessor;
 
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.command.RenderCommand;
+import rogo.sketch.core.packet.PacketBuildContext;
+import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderSetting;
+import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.data.PipelineDataStore;
 import rogo.sketch.core.pipeline.flow.*;
 import rogo.sketch.core.pipeline.information.InstanceInfo;
@@ -17,15 +21,12 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Core processor for converting GraphicsInstances into RenderCommands.
+ * Legacy flow facade retained during the StageFlowCompilerFacade migration.
  * <p>
- * This processor now acts as a facade for the flow-based architecture:
- * <ul>
- * <li>Delegates command creation to appropriate {@link RenderFlowStrategy}</li>
- * <li>Uses {@link BatchContainer} for pre-organized batches</li>
- * </ul>
- * </p>
+ * New packet compilation structure should be introduced above this layer rather
+ * than adding more policy directly into this type.
  */
+@Deprecated(forRemoval = false)
 public class GeometryBatchProcessor {
     private final PipelineDataStore backendDataRegistry;
     private final VertexResourceManager vertexResourceManager;
@@ -37,8 +38,7 @@ public class GeometryBatchProcessor {
     }
 
     /**
-     * Create all render commands using BatchContainer.
-     * This is the new entry point using pre-organized batches.
+     * Create render packets using BatchContainer.
      *
      * @param batchContainer The BatchContainer with pre-organized batches
      * @param flowType       The flow type for strategy selection
@@ -46,10 +46,50 @@ public class GeometryBatchProcessor {
      * @param postProcessors Post processors
      * @param <G>            Graphics type
      * @param <I>            InstanceInfo type
-     * @return Map of render commands grouped by RenderSetting
+     * @return Map of render packets grouped by compiled pipeline state
      */
     @SuppressWarnings("unchecked")
-    public <G extends Graphics, I extends InstanceInfo<G>> Map<RenderSetting, List<RenderCommand>> createCommands(
+    public <G extends Graphics, I extends InstanceInfo<G>> Map<PipelineStateKey, List<RenderPacket>> createPackets(
+            BatchContainer<G, I> batchContainer,
+            PipelineType pipelineType,
+            RenderFlowType flowType,
+            KeyId stageId,
+            RenderPostProcessors postProcessors,
+            RenderContext context) {
+
+        Optional<RenderFlowStrategy<?, ?>> strategyOpt = flowRegistry.getStrategy(flowType);
+        if (strategyOpt.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        RenderFlowStrategy<G, I> strategy = (RenderFlowStrategy<G, I>) strategyOpt.get();
+        PacketBuildContext flowContext = new PacketBuildContext(pipelineType, vertexResourceManager, backendDataRegistry);
+
+        TimerUtil.COMMAND_TIMER.start("create command " + flowType);
+        Map<PipelineStateKey, List<RenderPacket>> packets = strategy.buildPackets(
+                batchContainer, stageId, flowContext, postProcessors, context);
+        TimerUtil.COMMAND_TIMER.end("create command " + flowType);
+
+        return packets;
+    }
+
+    /**
+     * Variant for callsites with wildcard-typed containers.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public Map<PipelineStateKey, List<RenderPacket>> createPacketsUnchecked(
+            BatchContainer<?, ?> batchContainer,
+            PipelineType pipelineType,
+            RenderFlowType flowType,
+            KeyId stageId,
+            RenderPostProcessors postProcessors,
+            RenderContext context) {
+        return createPackets((BatchContainer) batchContainer, pipelineType, flowType, stageId, postProcessors, context);
+    }
+
+    @Deprecated
+    @SuppressWarnings("unchecked")
+    public <G extends Graphics, I extends InstanceInfo<G>> Map<RenderSetting, List<RenderCommand>> createLegacyCommands(
             BatchContainer<G, I> batchContainer,
             RenderFlowType flowType,
             KeyId stageId,
@@ -72,16 +112,14 @@ public class GeometryBatchProcessor {
         return commands;
     }
 
-    /**
-     * Variant for callsites with wildcard-typed containers.
-     */
+    @Deprecated
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public Map<RenderSetting, List<RenderCommand>> createCommandsUnchecked(
+    public Map<RenderSetting, List<RenderCommand>> createLegacyCommandsUnchecked(
             BatchContainer<?, ?> batchContainer,
             RenderFlowType flowType,
             KeyId stageId,
             RenderPostProcessors postProcessors,
             RenderContext context) {
-        return createCommands((BatchContainer) batchContainer, flowType, stageId, postProcessors, context);
+        return createLegacyCommands((BatchContainer) batchContainer, flowType, stageId, postProcessors, context);
     }
 }

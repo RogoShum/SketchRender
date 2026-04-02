@@ -1,18 +1,24 @@
 package rogo.sketch.core.shader.uniform;
 
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class UniformValueSnapshot {
-    private static final UniformValueSnapshot EMPTY = new UniformValueSnapshot(Map.of());
-    private final Map<String, Object> uniformValues;
+    private static final UniformValueSnapshot EMPTY = new UniformValueSnapshot(UniformLayout.empty(), new Object[0]);
+    private final UniformLayout layout;
+    private final Object[] values;
     private final int hashCode;
 
     public UniformValueSnapshot(Map<String, Object> uniformValues) {
-        this.uniformValues = uniformValues;
-        this.hashCode = Objects.hash(this.uniformValues);
+        this(UniformLayout.from(uniformValues), packValues(UniformLayout.from(uniformValues), uniformValues));
+    }
+
+    private UniformValueSnapshot(UniformLayout layout, Object[] values) {
+        this.layout = layout != null ? layout : UniformLayout.empty();
+        this.values = values != null ? values : new Object[0];
+        this.hashCode = Objects.hash(this.layout, Arrays.deepHashCode(this.values));
     }
 
     public static UniformValueSnapshot empty() {
@@ -43,9 +49,9 @@ public class UniformValueSnapshot {
     }
 
     public void applyTo(UniformHookGroup hookGroup) {
-        for (Map.Entry<String, Object> entry : uniformValues.entrySet()) {
-            String uniformName = entry.getKey();
-            Object value = entry.getValue();
+        for (int i = 0; i < layout.size(); i++) {
+            String uniformName = layout.uniformName(i);
+            Object value = values[i];
 
             UniformHook<?> hook = hookGroup.getUniformHook(uniformName);
             if (hook != null) {
@@ -61,15 +67,20 @@ public class UniformValueSnapshot {
     }
 
     public boolean isEmpty() {
-        return uniformValues.isEmpty();
+        return layout.isEmpty();
     }
 
     public java.util.Set<String> getUniformNames() {
-        return uniformValues.keySet();
+        return layout.uniformNames();
     }
 
     public Object getUniformValue(String name) {
-        return uniformValues.get(name);
+        int slot = layout.slotOf(name);
+        return slot >= 0 ? values[slot] : null;
+    }
+
+    public UniformLayout layout() {
+        return layout;
     }
 
     @Override
@@ -77,7 +88,7 @@ public class UniformValueSnapshot {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         UniformValueSnapshot that = (UniformValueSnapshot) obj;
-        return Objects.equals(uniformValues, that.uniformValues);
+        return Objects.equals(layout, that.layout) && Arrays.deepEquals(values, that.values);
     }
 
     @Override
@@ -87,6 +98,17 @@ public class UniformValueSnapshot {
 
     @Override
     public String toString() {
-        return "UniformSnapshot{" + uniformValues + "}";
+        return "UniformSnapshot{" + layout.uniformNames() + "}";
+    }
+
+    private static Object[] packValues(UniformLayout layout, Map<String, Object> uniformValues) {
+        if (layout == null || layout.isEmpty() || uniformValues == null || uniformValues.isEmpty()) {
+            return new Object[0];
+        }
+        Object[] packed = new Object[layout.size()];
+        for (int i = 0; i < layout.size(); i++) {
+            packed[i] = uniformValues.get(layout.uniformName(i));
+        }
+        return packed;
     }
 }

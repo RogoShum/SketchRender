@@ -40,6 +40,9 @@ import org.joml.primitives.AABBf;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketch.compat.sodium.MeshResource;
+import rogo.sketch.backend.opengl.LegacyGraphicsBackendBootstrap;
+import rogo.sketch.core.backend.BackendBootstrapContext;
+import rogo.sketch.core.backend.BackendKind;
 import rogo.sketch.core.api.graphics.AABBGraphics;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.driver.state.DefaultRenderStates;
@@ -88,7 +91,9 @@ public class SketchRender {
     public SketchRender() {
         EventBusBridge.setImplementation(new ForgeEventBusImplementation());
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-            RenderSystem.recordRenderCall(() -> GraphicsDriver.setCurrentAPI(new MinecraftAPI()));
+            RenderSystem.recordRenderCall(() -> {
+                bootstrapGraphicsBackend();
+            });
             MinecraftRenderStages.addStage(CullingStages.HIZ_STAGE);
             FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(GraphicsPipelineInitEvent.class,
                     VanillaPipelineEventHandler::onPipelineInit);
@@ -106,6 +111,32 @@ public class SketchRender {
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::initClient);
             init();
         });
+    }
+
+    private void bootstrapGraphicsBackend() {
+        if (GraphicsDriver.isBootstrapped()) {
+            LOGGER.debug("Graphics backend already bootstrapped. active='{}'", GraphicsDriver.kind());
+            return;
+        }
+
+        GraphicsDriver.registerBackendBootstrap(
+                new LegacyGraphicsBackendBootstrap(BackendKind.MINECRAFT_GL, new MinecraftAPI()));
+
+        BackendKind requestedBackend = Config.getGraphicsBackendKind();
+        BackendKind resolvedBackend = requestedBackend;
+        if (!GraphicsDriver.hasBackendBootstrap(resolvedBackend)) {
+            LOGGER.warn("Configured graphics backend '{}' is not registered yet. Falling back to '{}'.",
+                    requestedBackend, BackendKind.MINECRAFT_GL);
+            resolvedBackend = BackendKind.MINECRAFT_GL;
+        }
+
+        GraphicsDriver.bootstrap(
+                resolvedBackend,
+                new BackendBootstrapContext("sketch-mod", GLFW.glfwGetCurrentContext()));
+        LOGGER.info("Graphics backend bootstrapped. requested='{}', active='{}', runtime='{}'",
+                requestedBackend,
+                GraphicsDriver.kind(),
+                GraphicsDriver.runtime().backendName());
     }
 
     public static final KeyMapping CONFIG_KEY = new KeyMapping(MOD_ID + ".key.config",

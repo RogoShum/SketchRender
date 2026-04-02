@@ -17,6 +17,10 @@ public interface Graphics {
     default <C extends RenderContext> void afterDraw(C context) {
     }
 
+    default SubmissionCapability submissionCapability() {
+        return SubmissionCapability.DIRECT_BATCHABLE;
+    }
+
     void resetBatchDirtyFlags();
 
     DirtyReason getBatchDirtyFlags();

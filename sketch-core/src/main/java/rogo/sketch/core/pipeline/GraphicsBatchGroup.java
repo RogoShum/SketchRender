@@ -1,9 +1,11 @@
 package rogo.sketch.core.pipeline;
 
 import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.command.RenderCommand;
 import rogo.sketch.core.command.prosessor.GeometryBatchProcessor;
+import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.container.GraphicsContainer;
+import rogo.sketch.core.pipeline.data.FrameDataDomain;
 import rogo.sketch.core.pipeline.data.PipelineDataStore;
 import rogo.sketch.core.pipeline.flow.BatchContainer;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
@@ -13,6 +15,11 @@ import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.flow.impl.ComputeBatchContainer;
 import rogo.sketch.core.pipeline.flow.impl.FunctionBatchContainer;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationBatchContainer;
+import rogo.sketch.core.pipeline.flow.v2.LegacyStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.RasterStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.StageFlowCompilerFacade;
+import rogo.sketch.core.pipeline.flow.v2.StageFlowScene;
+import rogo.sketch.core.pipeline.kernel.StageExecutionPlan;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
@@ -24,21 +31,18 @@ import java.util.function.Supplier;
 import static rogo.sketch.core.pipeline.PipelineType.*;
 
 /**
- * Stage-local container that routes graphics instances to per-pipeline
- * {@link BatchContainer} implementations.
+ * Stage-local pipeline router.
  * <p>
- * The legacy per-RenderParameter {@code GraphicsBatch} layer has been removed.
- * Batch organization, visibility preparation and dirty reconciliation are now
- * handled by each pipeline's merged {@link BatchContainer}.
+ * Raster/translucent stages now compile through {@link RasterStageFlowScene}
+ * and no longer use legacy {@link BatchContainer}-based packet compilation.
+ * Legacy batch containers are retained only for compat compute/function flows
+ * and migration seams that still need the old storage model.
  * </p>
  */
 public class GraphicsBatchGroup<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
     private final KeyId stageKeyId;
-    private final Map<PipelineType, GeometryBatchProcessor> batchProcessors = new LinkedHashMap<>();
-
-    // BatchContainers for each pipeline type
-    private final Map<PipelineType, BatchContainer<?, ?>> batchContainers = new LinkedHashMap<>();
+    private final Map<PipelineType, StageFlowScene<C>> flowScenes = new LinkedHashMap<>();
 
     public GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, KeyId stageKeyId) {
         this.graphicsPipeline = graphicsPipeline;
@@ -52,25 +56,34 @@ public class GraphicsBatchGroup<C extends RenderContext> {
 
     private void initializePipeline(PipelineType pipelineType) {
         VertexResourceManager resourceManager = graphicsPipeline.getVertexResourceManager(pipelineType);
-        PipelineDataStore dataStore = graphicsPipeline.getPipelineDataStore(pipelineType);
-        batchProcessors.put(pipelineType, new GeometryBatchProcessor(resourceManager, dataStore));
+        PipelineDataStore dataStore = graphicsPipeline.getPipelineDataStore(pipelineType, FrameDataDomain.ASYNC_BUILD);
+        if (pipelineType == RASTERIZATION || pipelineType == TRANSLUCENT) {
+            flowScenes.put(pipelineType, new RasterStageFlowScene<>(
+                    stageKeyId,
+                    pipelineType,
+                    resourceManager,
+                    dataStore,
+                    graphicsPipeline.renderTraceRecorder()));
+            return;
+        }
 
-        // Create appropriate BatchContainer for this pipeline type
-        BatchContainer<?, ?> container = createBatchContainer(pipelineType);
-        batchContainers.put(pipelineType, container);
+        BatchContainer<?, ?> container = createLegacyBatchContainer(pipelineType);
+        GeometryBatchProcessor processor = new GeometryBatchProcessor(resourceManager, dataStore);
+        flowScenes.put(pipelineType, new LegacyStageFlowScene<>(pipelineType, container, new StageFlowCompilerFacade(processor)));
     }
 
     /**
-     * Create the appropriate BatchContainer for a pipeline type.
+     * Create a legacy {@link BatchContainer} for non-raster compatibility
+     * pipelines. Raster/translucent stages use {@link RasterStageFlowScene}.
      */
-    private BatchContainer<?, ?> createBatchContainer(PipelineType pipelineType) {
-        if (pipelineType == RASTERIZATION || pipelineType == TRANSLUCENT) {
-            return new RasterizationBatchContainer();
-        } else if (pipelineType == COMPUTE) {
+    private BatchContainer<?, ?> createLegacyBatchContainer(PipelineType pipelineType) {
+        if (pipelineType == COMPUTE) {
             return new ComputeBatchContainer();
-        } else {
+        }
+        if (pipelineType == FUNCTION) {
             return new FunctionBatchContainer();
         }
+        throw new IllegalArgumentException("Legacy batch containers are not used for pipeline type " + pipelineType);
     }
 
     public void addGraphInstance(Graphics instance, RenderParameter renderParameter, PipelineType pipelineType) {
@@ -87,14 +100,14 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             PipelineType pipelineType,
             KeyId containerType,
             Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier) {
-        BatchContainer<?, ?> container = batchContainers.get(pipelineType);
-        if (container == null) {
+        StageFlowScene<C> scene = flowScenes.get(pipelineType);
+        if (scene == null) {
             throw new IllegalArgumentException("Pipeline type " + pipelineType + " does not contain any pipeline groups");
         }
 
         Supplier<? extends GraphicsContainer<? extends RenderContext>> supplier =
                 containerSupplier != null ? containerSupplier : resolveContainerSupplier(containerType);
-        container.addGraphicsInstance(instance, renderParameter, containerType, supplier);
+        scene.registerGraphicsInstance(instance, renderParameter, containerType, supplier);
     }
 
     /**
@@ -103,20 +116,20 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * @param context The render context
      */
     public void tick(C context) {
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            container.tick(context);
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            scene.tick(context);
         }
     }
 
     public void asyncTick(C context) {
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            container.asyncTick(context);
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            scene.asyncTick(context);
         }
     }
 
     public void swapData() {
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            container.swapData();
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            scene.swapData();
         }
     }
 
@@ -130,63 +143,79 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     /**
-     * Create render commands for a specific pipeline type using BatchContainer.
+     * Create render packets for a specific pipeline type using BatchContainer.
      *
      * @param pipelineType   Pipeline type to create commands for
      * @param context        Render context
      * @param postProcessors Post processors
-     * @return Map of render settings to command lists
+     * @return Map of compiled pipeline states to packet lists
      */
-    public Map<RenderSetting, List<RenderCommand>> createRenderCommands(PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
+    public Map<PipelineStateKey, List<RenderPacket>> createRenderPackets(PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
         try {
-            BatchContainer<?, ?> batchContainer = batchContainers.get(pipelineType);
-            if (batchContainer == null) {
-                return Collections.emptyMap();
-            }
-            batchContainer.prepareVisibility(context);
-            if (batchContainer.getActiveBatches().isEmpty()) {
+            StageFlowScene<C> scene = flowScenes.get(pipelineType);
+            if (scene == null) {
                 return Collections.emptyMap();
             }
 
-            GeometryBatchProcessor processor = batchProcessors.get(pipelineType);
-            if (processor == null) {
-                return Collections.emptyMap();
-            }
-
-            // Get the flow type for this pipeline type
             RenderFlowType flowType = pipelineType.getDefaultFlowType();
 
-            return processor.createCommandsUnchecked(
-                    batchContainer,
-                    flowType,
+            Map<PipelineStateKey, List<RenderPacket>> packets = scene.createRenderPackets(
                     stageKeyId,
+                    flowType,
                     postProcessors,
                     context);
+            return packets != null ? packets : Collections.emptyMap();
         } catch (Exception e) {
-            SketchDiagnostics.get().error("graphics-batch-group", "Failed to create render commands for stage " + stageKeyId, e);
+            SketchDiagnostics.get().error("graphics-batch-group", "Failed to create render packets for stage " + stageKeyId, e);
             return Collections.emptyMap();
         }
     }
 
     /**
-     * Create render commands for all pipeline types.
+     * Create render packets for all pipeline types.
      *
      * @param context        Render context
      * @param postProcessors Post processors
-     * @return Map of pipeline types to render setting command maps
+     * @return Map of pipeline types to compiled packet groups
      */
-    public Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> createAllRenderCommands(C context, RenderPostProcessors postProcessors) {
-        Map<PipelineType, Map<RenderSetting, List<RenderCommand>>> allCommands = new LinkedHashMap<>();
+    public Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> createAllRenderPackets(C context, RenderPostProcessors postProcessors) {
+        Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> allPackets = new LinkedHashMap<>();
 
-        //SketchRender.COMMAND_TIMER.start("compute command -> " + this.stageKeyId);
-        for (PipelineType pipelineType : batchContainers.keySet()) {
-            Map<RenderSetting, List<RenderCommand>> commands = createRenderCommands(pipelineType, context, postProcessors);
-            if (!commands.isEmpty()) {
-                allCommands.put(pipelineType, commands);
+        for (PipelineType pipelineType : flowScenes.keySet()) {
+            Map<PipelineStateKey, List<RenderPacket>> packets = createRenderPackets(pipelineType, context, postProcessors);
+            if (!packets.isEmpty()) {
+                allPackets.put(pipelineType, packets);
             }
         }
-        //SketchRender.COMMAND_TIMER.end("compute command -> " + this.stageKeyId);
-        return allCommands;
+        return allPackets;
+    }
+
+    public StageExecutionPlan createStageExecutionPlan(C context, RenderPostProcessors postProcessors) {
+        return StageExecutionPlan.fromPackets(stageKeyId, createAllRenderPackets(context, postProcessors));
+    }
+
+    /**
+     * Legacy compatibility path kept until backend migration finishes.
+     */
+    @Deprecated
+    public Map<RenderSetting, List<rogo.sketch.core.command.RenderCommand>> createRenderCommands(PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
+        try {
+            StageFlowScene<C> scene = flowScenes.get(pipelineType);
+            if (scene == null) {
+                return Collections.emptyMap();
+            }
+
+            RenderFlowType flowType = pipelineType.getDefaultFlowType();
+
+            return scene.createLegacyCommands(
+                    stageKeyId,
+                    flowType,
+                    postProcessors,
+                    context);
+        } catch (Exception e) {
+            SketchDiagnostics.get().error("graphics-batch-group", "Failed to create legacy render commands for stage " + stageKeyId, e);
+            return Collections.emptyMap();
+        }
     }
 
     /**
@@ -194,15 +223,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * Also marks discarded instances for batch removal.
      */
     public void cleanupDiscardedInstances() {
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            for (GraphicsContainer<? extends RenderContext> graphicsContainer : container.getActiveGraphicsContainers().values()) {
-                List<Graphics> all = new ArrayList<>(graphicsContainer.getAllInstances());
-                for (Graphics graphics : all) {
-                    if (graphics.shouldDiscard()) {
-                        container.removeGraphicsInstance(graphics);
-                    }
-                }
-            }
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            scene.cleanupDiscardedInstances();
         }
     }
 
@@ -211,9 +233,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * Clears dirty instance caches and prepares for visibility updates.
      */
     public void prepareForFrame() {
-        // Prepare all BatchContainers for new frame
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            container.prepareForFrame();
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            scene.prepareForFrame();
         }
     }
 
@@ -223,8 +244,10 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * @param pipelineType The pipeline type
      * @return The BatchContainer, or null if not found
      */
+    @Deprecated(forRemoval = false)
     public BatchContainer<?, ?> getBatchContainer(PipelineType pipelineType) {
-        return batchContainers.get(pipelineType);
+        StageFlowScene<C> scene = flowScenes.get(pipelineType);
+        return scene != null ? scene.legacyBatchContainer() : null;
     }
 
 
@@ -232,14 +255,14 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * Clear all instance groups across all pipeline types.
      */
     public void clear() {
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            container.clear();
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            scene.clear();
         }
     }
 
     public void removeGraphicsInstance(Graphics graphics) {
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            container.removeGraphicsInstance(graphics);
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            scene.removeGraphicsInstance(graphics);
         }
     }
 
@@ -250,10 +273,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      */
     public int getTotalInstanceCount() {
         int total = 0;
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            for (rogo.sketch.core.pipeline.flow.RenderBatch<?> batch : container.getActiveBatches()) {
-                total += batch.getInstanceCount();
-            }
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            total += scene.instanceCount();
         }
         return total;
     }
@@ -264,8 +285,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
      * @return true if there are instances
      */
     public boolean hasInstances() {
-        for (BatchContainer<?, ?> container : batchContainers.values()) {
-            if (!container.getActiveBatches().isEmpty()) {
+        for (StageFlowScene<C> scene : flowScenes.values()) {
+            if (scene.hasInstances()) {
                 return true;
             }
         }

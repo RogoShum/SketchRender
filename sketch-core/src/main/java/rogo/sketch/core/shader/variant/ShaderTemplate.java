@@ -4,6 +4,8 @@ import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
+import rogo.sketch.core.shader.ProgramReflectionRegistry;
+import rogo.sketch.core.shader.ProgramReflectionService;
 import rogo.sketch.core.shader.*;
 import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.shader.preprocessor.ShaderPreprocessor;
@@ -61,10 +63,10 @@ public class ShaderTemplate implements ResourceObject, ShaderProvider {
         
         public ShaderVariantInfo(Shader shader) {
             this.shader = shader;
-            // Use ShaderResourceHelper to collect resources
-            this.uniforms = ShaderResourceHelper.collectUniforms(shader.getHandle());
-            this.resourceBindings = ShaderResourceHelper.discoverResourceBindings(shader.getHandle());
-            this.uniformHookGroup = ShaderResourceHelper.initializeHooks(shader.getHandle(), uniforms);
+            ProgramReflectionService reflection = ProgramReflectionRegistry.get();
+            this.uniforms = reflection.collectUniforms(shader.getHandle());
+            this.resourceBindings = reflection.discoverResourceBindings(shader.getHandle());
+            this.uniformHookGroup = reflection.initializeHooks(shader.getHandle(), uniforms);
         }
         
         public Shader getShader() { return shader; }

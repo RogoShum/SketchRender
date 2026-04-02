@@ -9,6 +9,7 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import rogo.sketch.core.api.RenderStateComponent;
+import rogo.sketch.core.pipeline.TargetBinding;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.resource.*;
 import rogo.sketch.core.resource.vision.RenderTarget;
@@ -42,6 +43,18 @@ public class RenderTargetState implements RenderStateComponent {
 
     public static RenderTargetState defaultFramebuffer() {
         return new RenderTargetState(KeyId.of("minecraft:main_target"));
+    }
+
+    public KeyId renderTargetId() {
+        return rtId;
+    }
+
+    public List<Object> drawBuffers() {
+        return drawBuffers != null ? List.copyOf(drawBuffers) : List.of();
+    }
+
+    public TargetBinding toTargetBinding() {
+        return new TargetBinding(rtId, drawBuffers(), null, null);
     }
 
     @Override

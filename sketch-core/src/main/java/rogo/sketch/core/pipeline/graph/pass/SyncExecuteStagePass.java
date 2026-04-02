@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline.graph.pass;
 
-import rogo.sketch.core.command.RenderCommandQueue;
+import rogo.sketch.core.packet.RenderPacketQueue;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.GraphicsStage;
 import rogo.sketch.core.pipeline.RenderContext;
@@ -9,12 +9,16 @@ import rogo.sketch.core.pipeline.graph.PipelinePass;
 import rogo.sketch.core.pipeline.kernel.FrameContext;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
 import rogo.sketch.core.pipeline.kernel.annotation.SyncOnly;
+import rogo.sketch.core.util.KeyId;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Sync pass that executes all render commands by iterating stages.
+ * Sync pass that executes all render packets by iterating stages.
  * <p>
  * Replaces the old manual {@code renderStage()} calls with a single
- * pass that walks all stages and dispatches via {@link RenderCommandQueue}.
+ * pass that walks all stages and dispatches via {@link RenderPacketQueue}.
  * </p>
  */
 public class SyncExecuteStagePass<C extends RenderContext> implements PipelinePass<C> {
@@ -33,14 +37,16 @@ public class SyncExecuteStagePass<C extends RenderContext> implements PipelinePa
         GraphicsPipeline<C> pipeline = ctx.pipeline();
         C renderContext = ctx.renderContext();
         RenderStateManager stateManager = pipeline.renderStateManager();
-        RenderCommandQueue<C> queue = pipeline.getRenderCommandQueue();
+        RenderPacketQueue<C> queue = pipeline.getRenderPacketQueue();
 
+        List<KeyId> stageIds = new ArrayList<>();
         for (GraphicsStage stage : pipeline.getOrderedStages()) {
-            queue.executeStage(stage.getIdentifier(), stateManager, renderContext);
+            stageIds.add(stage.getIdentifier());
         }
+        queue.executeStageRange(stageIds, stateManager, renderContext);
 
         // Flush any remaining translucent commands
-        queue.flushRemainingTranslucentCommands(stateManager, renderContext);
+        queue.flushRemainingTranslucentPackets(stateManager, renderContext);
     }
 }
 

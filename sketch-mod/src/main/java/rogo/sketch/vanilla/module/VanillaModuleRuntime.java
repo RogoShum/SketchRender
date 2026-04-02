@@ -73,7 +73,7 @@ public class VanillaModuleRuntime implements ModuleRuntime {
                                 KeyId.of("sketch_render", "transform_matrix_compute_sync"),
                                 KeyId.of("sketch_render", "transform_matrix_sync"),
                                 true,
-                                transformModule.matrixManager()).setPriority(99),
+                                transformModule.matrixManager()).setPriority(98),
                         ModuleGraphicsLifetime.SESSION);
                 context.registerCompute(
                         MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(),

@@ -27,7 +27,8 @@ public class ResourceBinding {
      * @param resourceKeyId Identifier of the actual resource
      */
     public void addBinding(KeyId resourceType, KeyId bindingName, KeyId resourceKeyId) {
-        bindings.computeIfAbsent(resourceType, k -> new HashMap<>()).put(bindingName, resourceKeyId);
+        KeyId normalizedType = ResourceTypes.normalize(resourceType);
+        bindings.computeIfAbsent(normalizedType, k -> new HashMap<>()).put(bindingName, resourceKeyId);
         hash = Objects.hash(bindings);
     }
 
@@ -35,7 +36,7 @@ public class ResourceBinding {
      * Get resource identifier by type and binding name
      */
     public KeyId getResourceIdentifier(KeyId resourceType, KeyId bindingName) {
-        Map<KeyId, KeyId> typeBindings = bindings.get(resourceType);
+        Map<KeyId, KeyId> typeBindings = bindings.get(ResourceTypes.normalize(resourceType));
         return typeBindings != null ? typeBindings.get(bindingName) : null;
     }
 
@@ -43,7 +44,7 @@ public class ResourceBinding {
      * Get all bindings for a specific resource type
      */
     public Map<KeyId, KeyId> getBindingsForType(KeyId resourceType) {
-        return bindings.getOrDefault(resourceType, new HashMap<>());
+        return bindings.getOrDefault(ResourceTypes.normalize(resourceType), new HashMap<>());
     }
 
     /**
@@ -57,7 +58,7 @@ public class ResourceBinding {
      * Check if a binding exists
      */
     public boolean hasBinding(KeyId resourceType, KeyId bindingName) {
-        Map<KeyId, KeyId> typeBindings = bindings.get(resourceType);
+        Map<KeyId, KeyId> typeBindings = bindings.get(ResourceTypes.normalize(resourceType));
         return typeBindings != null && typeBindings.containsKey(bindingName);
     }
 
@@ -65,13 +66,15 @@ public class ResourceBinding {
      * Remove a binding
      */
     public void removeBinding(KeyId resourceType, KeyId bindingName) {
-        Map<KeyId, KeyId> typeBindings = bindings.get(resourceType);
+        KeyId normalizedType = ResourceTypes.normalize(resourceType);
+        Map<KeyId, KeyId> typeBindings = bindings.get(normalizedType);
         if (typeBindings != null) {
             typeBindings.remove(bindingName);
             if (typeBindings.isEmpty()) {
-                bindings.remove(resourceType);
+                bindings.remove(normalizedType);
             }
         }
+        hash = Objects.hash(bindings);
     }
 
     /**
@@ -79,13 +82,18 @@ public class ResourceBinding {
      */
     public void clear() {
         bindings.clear();
+        hash = 0;
     }
 
     /**
      * Get all bindings as a map
      */
     public Map<KeyId, Map<KeyId, KeyId>> getAllBindings() {
-        return new HashMap<>(bindings);
+        Map<KeyId, Map<KeyId, KeyId>> copy = new HashMap<>();
+        for (Map.Entry<KeyId, Map<KeyId, KeyId>> entry : bindings.entrySet()) {
+            copy.put(entry.getKey(), new HashMap<>(entry.getValue()));
+        }
+        return copy;
     }
 
     /**
@@ -93,12 +101,13 @@ public class ResourceBinding {
      */
     public void merge(ResourceBinding other) {
         for (Map.Entry<KeyId, Map<KeyId, KeyId>> typeEntry : other.bindings.entrySet()) {
-            KeyId resourceType = typeEntry.getKey();
+            KeyId resourceType = ResourceTypes.normalize(typeEntry.getKey());
             Map<KeyId, KeyId> otherBindings = typeEntry.getValue();
 
             Map<KeyId, KeyId> currentBindings = bindings.computeIfAbsent(resourceType, k -> new HashMap<>());
             currentBindings.putAll(otherBindings);
         }
+        hash = Objects.hash(bindings);
     }
 
     /**
@@ -110,7 +119,7 @@ public class ResourceBinding {
 
         if (shader != null) {
             for (Map.Entry<KeyId, Map<KeyId, KeyId>> typeEntry : bindings.entrySet()) {
-                KeyId resourceType = typeEntry.getKey();
+                KeyId resourceType = ResourceTypes.normalize(typeEntry.getKey());
                 if (shader.getResourceBindings().containsKey(resourceType)) {
                     Map<KeyId, KeyId> typeBindings = typeEntry.getValue();
 
@@ -132,11 +141,12 @@ public class ResourceBinding {
      * Bind a single resource to the context using cached ResourceReference
      */
     private void bindResource(KeyId resourceType, int binding, KeyId resourceKeyId) {
-        ResourceReference<? extends ResourceObject> reference = GraphicsResourceManager.getInstance().getReference(resourceType, resourceKeyId);
+        KeyId normalizedType = ResourceTypes.normalize(resourceType);
+        ResourceReference<? extends ResourceObject> reference = GraphicsResourceManager.getInstance().getReference(normalizedType, resourceKeyId);
 
         reference.ifPresent(resource -> {
             if (resource instanceof BindingResource bindingResource) {
-                bindingResource.bind(resourceType, binding);
+                bindingResource.bind(normalizedType, binding);
             }
         });
     }

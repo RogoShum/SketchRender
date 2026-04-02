@@ -3,6 +3,7 @@ package rogo.sketch.core.pipeline.flow.impl;
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.model.BakedTypeMesh;
 import rogo.sketch.core.api.model.PreparedMesh;
+import rogo.sketch.core.pipeline.geometry.GeometrySourceKey;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Map;
@@ -34,7 +35,7 @@ public class MeshHolderPool {
         }
         
         if (mesh instanceof BakedTypeMesh baked) {
-            long handle = baked.getVAOHandle();
+            long handle = GeometrySourceKey.fromPreparedMesh(baked).stableId();
             return pool.computeIfAbsent(handle, h -> new MeshHolder(mesh));
         }
         
@@ -71,29 +72,29 @@ public class MeshHolderPool {
         public static final MeshHolder EMPTY = new MeshHolder();
         
         private final BakedTypeMesh mesh;
-        private final long meshHandle;
+        private final GeometrySourceKey geometrySourceKey;
         private final KeyId meshId;
         private final int hash;
         
         // Private constructor for EMPTY
         private MeshHolder() {
             this.mesh = null;
-            this.meshHandle = -1;
+            this.geometrySourceKey = GeometrySourceKey.empty();
             this.meshId = null;
-            this.hash = Objects.hash(-1L, null);
+            this.hash = Objects.hash(geometrySourceKey, null);
         }
         
         MeshHolder(@Nullable PreparedMesh mesh) {
             if (mesh instanceof BakedTypeMesh baked) {
-                this.meshHandle = baked.getVAOHandle();
+                this.geometrySourceKey = GeometrySourceKey.fromPreparedMesh(baked);
                 this.meshId = baked.getKetId();
                 this.mesh = baked;
             } else {
-                this.meshHandle = -1;
+                this.geometrySourceKey = GeometrySourceKey.empty();
                 this.mesh = null;
                 this.meshId = null;
             }
-            this.hash = Objects.hash(meshHandle, meshId);
+            this.hash = Objects.hash(geometrySourceKey, meshId);
         }
         
         @Nullable
@@ -107,7 +108,11 @@ public class MeshHolderPool {
         }
         
         public long getMeshHandle() {
-            return meshHandle;
+            return geometrySourceKey.stableId();
+        }
+
+        public GeometrySourceKey geometrySourceKey() {
+            return geometrySourceKey;
         }
         
         public boolean isEmpty() {
@@ -119,7 +124,7 @@ public class MeshHolderPool {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             MeshHolder that = (MeshHolder) o;
-            return meshHandle == that.meshHandle && Objects.equals(meshId, that.meshId);
+            return Objects.equals(geometrySourceKey, that.geometrySourceKey) && Objects.equals(meshId, that.meshId);
         }
         
         @Override
@@ -129,7 +134,7 @@ public class MeshHolderPool {
         
         @Override
         public String toString() {
-            return "MeshHolder{handle=" + meshHandle + ", id=" + meshId + "}";
+            return "MeshHolder{sourceKey=" + geometrySourceKey + ", id=" + meshId + "}";
         }
     }
 }

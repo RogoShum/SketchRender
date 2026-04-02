@@ -1,0 +1,75 @@
+plugins {
+    id 'application'
+}
+
+group = mod_group_id
+version = mod_version
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':sketch-core')
+    implementation project(':sketch-backend-vulkan')
+
+    implementation platform("org.lwjgl:lwjgl-bom:3.3.3")
+    implementation "org.lwjgl:lwjgl"
+    implementation "org.lwjgl:lwjgl-glfw"
+    implementation "org.lwjgl:lwjgl-vulkan"
+    implementation "org.lwjgl:lwjgl-shaderc"
+
+    runtimeOnly "org.lwjgl:lwjgl::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-shaderc::natives-windows"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+application {
+    mainClass = 'rogo.sketch.vktest.VulkanTestMain'
+}
+
+def java17Launcher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(17)
+}
+
+tasks.named('run', JavaExec).configure {
+    javaLauncher = java17Launcher
+    workingDir = rootProject.file('run-vk-test')
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('smokeRun', JavaExec) {
+    group = 'application'
+    description = 'Bootstraps the Vulkan test backend, then exits automatically.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-vk-test')
+    args '--smoke=250'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('resizeSmokeRun', JavaExec) {
+    group = 'application'
+    description = 'Runs the Vulkan test backend and forces a few resize events.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-vk-test')
+    args '--smoke=1200', '--resize=960x540@250', '--resize=1440x810@550', '--resize=1280x720@850'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

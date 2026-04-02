@@ -41,6 +41,13 @@ public final class FrameDataStore {
         return writeBuffer;
     }
 
+    public PipelineDataStore buffer(FrameDataDomain domain) {
+        return switch (domain) {
+            case SYNC_READ -> readBuffer;
+            case ASYNC_BUILD -> writeBuffer;
+        };
+    }
+
     /**
      * Swap read and write buffers. Must be called on the main thread
      * between async completion and render execution.

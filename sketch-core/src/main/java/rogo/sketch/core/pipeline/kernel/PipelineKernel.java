@@ -1,7 +1,6 @@
 package rogo.sketch.core.pipeline.kernel;
 
-import org.lwjgl.glfw.GLFW;
-import rogo.sketch.core.driver.GLRuntimeFlags;
+import rogo.sketch.core.backend.BackendWorkerLane;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
@@ -22,8 +21,8 @@ import java.util.concurrent.Executors;
  * Thread model:
  * <ul>
  *   <li><b>Sketch-TickTask-Worker</b> -- pure CPU, no GL context</li>
- *   <li><b>Sketch-TickGL-Worker</b> -- dedicated shared GL context for tick-owned transform async work</li>
- *   <li><b>Sketch-RenderTask-Worker</b> -- shared GL context (if {@link GLRuntimeFlags#GL_WORKER_ENABLED})</li>
+ *   <li><b>Sketch-TickTask-Worker</b> -- backend tick async lane</li>
+ *   <li><b>Sketch-RenderTask-Worker</b> -- backend render async lane</li>
  * </ul>
  * <p>
  * Pass structure (3 passes):
@@ -31,7 +30,7 @@ import java.util.concurrent.Executors;
  *   SyncCommitPass          (no deps)     -- consume N-1 BuildResult, VAO materialize, command queue commit
  *   SyncPreparePass         (after Commit)-- dirty collect, prepare frame, reset write buffer
  *   SyncApplySettingsPass   (after Prepare)-- flush pending UI/config changes into committed runtime state
- *   AsyncRenderPass         (after Apply) -- shader compile, VBO upload (if worker GL), command build
+ *   AsyncRenderPass         (after Apply) -- packet build and optional backend worker uploads
  * </pre>
  *
  * @param <C> Concrete RenderContext type
@@ -73,21 +72,20 @@ public class PipelineKernel<C extends RenderContext> {
             return t;
         });
         this.tickScheduler = new TaskGraphScheduler(tickExecutor, WorkerContextMode.NONE, true);
-        this.tickGlScheduler = new TaskGraphScheduler(tickGlExecutor, WorkerContextMode.TICK_GL, true);
-        this.frameScheduler = new TaskGraphScheduler(frameExecutor, WorkerContextMode.RENDER_GL, true);
+        this.tickGlScheduler = new TaskGraphScheduler(tickGlExecutor, WorkerContextMode.TICK_ASYNC, true);
+        this.frameScheduler = new TaskGraphScheduler(frameExecutor, WorkerContextMode.RENDER_ASYNC, true);
     }
 
     /**
-     * Initialize the kernel: register main thread, init worker context, compile graph.
+     * Initialize the kernel: register main thread, init backend worker lanes, compile graph.
      * Must be called from the main thread after pipeline initialization.
      */
     public void initialize() {
         ThreadDomainGuard.registerMainThread();
 
-        if (GLRuntimeFlags.GL_WORKER_ENABLED) {
-            long mainWindow = GLFW.glfwGetCurrentContext();
-            GraphicsDriver.getCurrentAPI().initRenderWorkerContext(mainWindow);
-            GraphicsDriver.getCurrentAPI().initTickWorkerContext(mainWindow);
+        if (GraphicsDriver.capabilities().workerLanesSupported()) {
+            GraphicsDriver.runtime().initializeWorkerLane(BackendWorkerLane.RENDER_ASYNC);
+            GraphicsDriver.runtime().initializeWorkerLane(BackendWorkerLane.TICK_ASYNC);
         }
 
         moduleRegistry.initializeKernel(this);
@@ -219,9 +217,9 @@ public class PipelineKernel<C extends RenderContext> {
         tickGlScheduler.shutdown();
         frameScheduler.shutdown();
 
-        if (GLRuntimeFlags.GL_WORKER_ENABLED) {
-            GraphicsDriver.getCurrentAPI().destroyTickWorkerContext();
-            GraphicsDriver.getCurrentAPI().destroyRenderWorkerContext();
+        if (GraphicsDriver.capabilities().workerLanesSupported()) {
+            GraphicsDriver.runtime().destroyWorkerLane(BackendWorkerLane.TICK_ASYNC);
+            GraphicsDriver.runtime().destroyWorkerLane(BackendWorkerLane.RENDER_ASYNC);
         }
     }
 }

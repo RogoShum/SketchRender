@@ -13,6 +13,7 @@ import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.model.BakedMesh;
 import rogo.sketch.core.model.MeshBone;
 import rogo.sketch.core.model.MeshGroup;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.buffer.IndexBufferResource;
 import rogo.sketch.core.resource.buffer.VertexBufferObject;
@@ -191,7 +192,7 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             }
 
             List<Float> vertices = new ArrayList<>();
-            List<Integer> indices = new ArrayList<>();
+            List<Integer> rawIndices = new ArrayList<>();
 
             // Load vertex data
             if (subMeshObj.has("vertices")) {
@@ -204,21 +205,19 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             // Load index data
             if (subMeshObj.has("indices")) {
                 JsonArray indicesArray = subMeshObj.getAsJsonArray("indices");
-                boolean recalculateIndices = subMeshObj.has("recalculateIndices") && subMeshObj.get("recalculateIndices").getAsBoolean();
-
-                if (recalculateIndices) {
-                    for (JsonElement indexElement : indicesArray) {
-                        indices.add(indexElement.getAsInt() + currentVertexOffset);
-                    }
-                } else {
-                    for (JsonElement indexElement : indicesArray) {
-                        indices.add(indexElement.getAsInt());
-                    }
+                for (JsonElement indexElement : indicesArray) {
+                    rawIndices.add(indexElement.getAsInt());
                 }
             }
 
             int floatsPerVertex = groupFormat.getStride() / 4;
             int subVertexCount = vertices.size() / floatsPerVertex;
+            List<Integer> indices = normalizeSubMeshIndices(
+                    meshGroup.getName() + "#" + name,
+                    rawIndices,
+                    currentVertexOffset,
+                    subVertexCount,
+                    subMeshObj.has("recalculateIndices") && subMeshObj.get("recalculateIndices").getAsBoolean());
             int subIndexCount = indices.size();
 
             entries.add(new SubMeshEntry(name, subMeshObj, currentVertexOffset, currentIndexOffset, subVertexCount,
@@ -317,6 +316,58 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
 
     private record SubMeshEntry(String name, JsonObject jsonObj, int vertexOffset, int indexOffset, int vertexCount,
                                 int indexCount) {
+    }
+
+    private List<Integer> normalizeSubMeshIndices(
+            String subMeshName,
+            List<Integer> rawIndices,
+            int currentVertexOffset,
+            int subVertexCount,
+            boolean recalculateIndices) {
+        if (rawIndices == null || rawIndices.isEmpty()) {
+            return List.of();
+        }
+
+        int minIndex = Integer.MAX_VALUE;
+        int maxIndex = Integer.MIN_VALUE;
+        for (Integer rawIndex : rawIndices) {
+            if (rawIndex == null) {
+                continue;
+            }
+            minIndex = Math.min(minIndex, rawIndex);
+            maxIndex = Math.max(maxIndex, rawIndex);
+        }
+
+        if (minIndex < 0) {
+            throw new IllegalArgumentException("SubMesh " + subMeshName + " contains negative indices");
+        }
+
+        if (maxIndex < subVertexCount) {
+            if (recalculateIndices) {
+                SketchDiagnostics.get().warn("mesh-loader",
+                        "Ignoring recalculateIndices for " + subMeshName
+                                + " because baked meshes now require local indices plus baseVertex.");
+            }
+            return List.copyOf(rawIndices);
+        }
+
+        int maxAllowedGlobal = currentVertexOffset + subVertexCount;
+        if (minIndex >= currentVertexOffset && maxIndex < maxAllowedGlobal) {
+            SketchDiagnostics.get().warn("mesh-loader",
+                    "Converting global subMesh indices to local indices for " + subMeshName
+                            + " to satisfy baked baseVertex semantics.");
+            List<Integer> normalized = new ArrayList<>(rawIndices.size());
+            for (Integer rawIndex : rawIndices) {
+                normalized.add(rawIndex - currentVertexOffset);
+            }
+            return normalized;
+        }
+
+        throw new IllegalArgumentException(
+                "SubMesh " + subMeshName + " mixes incompatible index conventions. "
+                        + "Expected local indices in [0," + (subVertexCount - 1) + "] or global indices in ["
+                        + currentVertexOffset + "," + (maxAllowedGlobal - 1) + "], but found min="
+                        + minIndex + " max=" + maxIndex);
     }
 
     private static void fillVertices(VertexStreamBuilder filler, float[] data, DataFormat format) {

@@ -59,7 +59,7 @@ public class VertexResourceManager {
         }
 
         // Never create VAO resources off the main thread.
-        if (!GraphicsDriver.getCurrentAPI().isMainThread()) {
+        if (!GraphicsDriver.runtime().isMainThread()) {
             planMaterialization(key, sourceProvider);
             return null;
         }
@@ -113,7 +113,7 @@ public class VertexResourceManager {
         if (key == null) {
             return null;
         }
-        GraphicsDriver.getCurrentAPI().assertMainThread("VertexResourceManager.materialize");
+        GraphicsDriver.runtime().assertMainThread("VertexResourceManager.materialize");
         return resourceCache.computeIfAbsent(key, k -> createVertexResource(k, sourceProvider));
     }
 
@@ -124,7 +124,7 @@ public class VertexResourceManager {
      * Drain all planned resource creations (VAO materialization on main thread).
      */
     public int materializePending() {
-        GraphicsDriver.getCurrentAPI().assertMainThread("VertexResourceManager.materializePending");
+        GraphicsDriver.runtime().assertMainThread("VertexResourceManager.materializePending");
         int count = 0;
         PendingVertexResourceRequest req;
         while ((req = pendingMaterialization.poll()) != null) {
@@ -234,6 +234,24 @@ public class VertexResourceManager {
      */
     public BuilderPair[] createBuilder(RasterizationParameter parameter) {
         return builderBatchCache.computeIfAbsent(parameter.builderBatchKey(), k -> createBuilder(parameter.getLayout(), parameter.primitiveType()));
+    }
+
+    public static BuilderPair[] snapshotBuilders(BuilderPair[] builders) {
+        if (builders == null || builders.length == 0) {
+            return new BuilderPair[0];
+        }
+        BuilderPair[] snapshot = new BuilderPair[builders.length];
+        for (int i = 0; i < builders.length; i++) {
+            BuilderPair builder = builders[i];
+            if (builder == null) {
+                continue;
+            }
+            snapshot[i] = new BuilderPair(
+                    builder.key(),
+                    builder.builder() != null ? builder.builder().snapshotCopy() : null,
+                    builder.tickUpdate());
+        }
+        return snapshot;
     }
 
     public String getCacheStats() {

@@ -25,8 +25,9 @@ import java.util.function.Function;
  * Base class for all shaders (graphics and compute).
  * <p>
  * This class handles shader compilation and linking. Uniform discovery
- * and resource binding discovery are delegated to {@link ShaderResourceHelper}
- * to keep this class focused on core shader functionality.
+ * and resource binding discovery are delegated to the currently installed
+ * {@link ProgramReflectionService} to keep this class focused on core
+ * shader functionality.
  */
 public abstract class Shader implements ShaderProvider {
     private Map<KeyId, Map<KeyId, Integer>> resourceBindings;
@@ -224,21 +225,22 @@ public abstract class Shader implements ShaderProvider {
     }
 
     /**
-     * Collect uniforms and initialize hooks using ShaderResourceHelper.
+     * Collect uniforms and initialize hooks using the active program reflection service.
      */
     protected void collectAndInitializeUniforms() {
         bind();
-        Map<String, ShaderUniform<?>> uniforms = ShaderResourceHelper.collectUniforms(program);
-        this.uniformHookGroup = ShaderResourceHelper.initializeHooks(program, uniforms);
+        ProgramReflectionService reflection = ProgramReflectionRegistry.get();
+        Map<String, ShaderUniform<?>> uniforms = reflection.collectUniforms(program);
+        this.uniformHookGroup = reflection.initializeHooks(program, uniforms);
         unbind();
     }
 
     /**
-     * Discover resource bindings using ShaderResourceHelper.
+     * Discover resource bindings using the active program reflection service.
      */
     private void discoverResourceBindings() {
         bind();
-        this.resourceBindings = ShaderResourceHelper.discoverResourceBindings(program);
+        this.resourceBindings = ProgramReflectionRegistry.get().discoverResourceBindings(program);
         unbind();
     }
 

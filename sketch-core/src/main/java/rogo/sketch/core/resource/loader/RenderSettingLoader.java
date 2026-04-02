@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import rogo.sketch.core.api.RenderStateComponent;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.TargetBinding;
 import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.config.MacroContext;
@@ -71,6 +72,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
             }
             
             FullRenderState renderState = loadFullRenderState(json, gson);
+            TargetBinding targetBinding = loadTargetBinding(json);
             ResourceBinding resourceBinding = loadResourceBinding(json, gson);
 
             boolean shouldSwitchRenderState = true;
@@ -79,7 +81,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
                 shouldSwitchRenderState = json.get("shouldSwitchRenderState").getAsBoolean();
             }
 
-            return PartialRenderSetting.create(renderState, resourceBinding, shouldSwitchRenderState);
+            return PartialRenderSetting.create(renderState, targetBinding, resourceBinding, shouldSwitchRenderState);
         } catch (Exception e) {
             System.err.println("Failed to load render setting from JSON: " + e.getMessage());
             e.printStackTrace();
@@ -238,5 +240,27 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
         }
 
         return resourceBinding;
+    }
+
+    private TargetBinding loadTargetBinding(JsonObject json) {
+        if (json != null && json.has("targetBinding") && json.get("targetBinding").isJsonObject()) {
+            JsonObject targetObject = json.getAsJsonObject("targetBinding");
+            KeyId renderTargetId = targetObject.has("renderTargetId")
+                    ? KeyId.of(targetObject.get("renderTargetId").getAsString())
+                    : TargetBinding.DEFAULT_RENDER_TARGET;
+            List<Object> drawBuffers = new ArrayList<>();
+            if (targetObject.has("drawBuffers") && targetObject.get("drawBuffers").isJsonArray()) {
+                JsonArray drawBuffersArray = targetObject.getAsJsonArray("drawBuffers");
+                for (JsonElement element : drawBuffersArray) {
+                    if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+                        drawBuffers.add(element.getAsInt());
+                    } else if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
+                        drawBuffers.add(KeyId.of(element.getAsString()));
+                    }
+                }
+            }
+            return new TargetBinding(renderTargetId, drawBuffers, null, null);
+        }
+        return null;
     }
 }

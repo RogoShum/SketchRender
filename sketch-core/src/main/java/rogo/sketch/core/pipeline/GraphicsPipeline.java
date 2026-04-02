@@ -3,14 +3,15 @@ package rogo.sketch.core.pipeline;
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.RenderHelper;
 import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.command.RenderCommandQueue;
-import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.packet.RenderPacketQueue;
 import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
 import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.data.*;
 import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticEntry;
+import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceConfig;
+import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceRecorder;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
@@ -35,12 +36,13 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final Map<KeyId, GraphicsStage> idToStage = new LinkedHashMap<>();
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
-    private final RenderCommandQueue<C> renderCommandQueue;
+    private final RenderPacketQueue<C> renderPacketQueue;
     private final RenderHelper renderHelper;
     private final Map<KeyId, PipelineType> pipelineTypes = new HashMap<>();
     private final Map<PipelineType, VertexResourceManager> resourceManagers = new LinkedHashMap<>();
-    private final Map<PipelineType, PipelineDataStore> pipelineDataStores = new LinkedHashMap<>();
     private final Map<PipelineType, FrameDataStore> frameDataStores = new LinkedHashMap<>();
+    private final RenderTraceConfig renderTraceConfig = new RenderTraceConfig();
+    private final RenderTraceRecorder renderTraceRecorder = new RenderTraceRecorder(renderTraceConfig);
 
     private final PipelineConfig config;
     private C currentContext;
@@ -59,7 +61,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         this.stages = new OrderedList<>(config.isThrowOnSortFail());
         this.currentContext = defaultContext;
         initPipelineData();
-        this.renderCommandQueue = new RenderCommandQueue<>(this);
+        this.renderPacketQueue = new RenderPacketQueue<>(this);
         this.renderHelper = new RenderHelper(this);
     }
 
@@ -82,16 +84,15 @@ public class GraphicsPipeline<C extends RenderContext> {
         registerDefaultPipelineData(asyncStore);
 
         FrameDataStore frameStore = new FrameDataStore(renderStore, asyncStore);
-        PipelineDataStore threadAwareStore = new ThreadAwarePipelineDataStore(frameStore);
 
         resourceManagers.put(pipelineType, manager);
         frameDataStores.put(pipelineType, frameStore);
-        pipelineDataStores.put(pipelineType, threadAwareStore);
     }
 
     private void registerDefaultPipelineData(PipelineDataStore dataStore) {
         dataStore.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
         dataStore.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
+        dataStore.register(GeometryFrameData.KEY, new GeometryFrameData());
     }
 
     public PipelineConfig getConfig() {
@@ -205,48 +206,29 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Only renders the stages strictly between fromId and toId.
      */
     public void renderStagesBetween(KeyId fromId, KeyId toId) {
-        List<GraphicsStage> ordered = stages.getOrderedList();
-        GraphicsStage fromStage = idToStage.get(fromId);
-        GraphicsStage toStage = idToStage.get(toId);
-        int fromIdx = ordered.indexOf(fromStage);
-        int toIdx = ordered.indexOf(toStage);
-        for (int i = fromIdx + 1; i < toIdx; i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
-                    this.currentContext);
-        }
+        renderStageRange(fromId, toId);
+    }
 
-        renderStage(toId);
+    /**
+     * Render the inclusive range {@code (fromExclusive, toInclusive]} as a single execution scope.
+     */
+    public void renderStageRange(KeyId fromExclusive, KeyId toInclusive) {
+        renderOrderedStages(collectStageIdsBetweenExclusiveInclusive(fromExclusive, toInclusive));
     }
 
     /**
      * Render a single stage.
      */
     public void renderStage(KeyId id) {
-        renderCommandQueue.executeStage(id, this.renderStateManager, this.currentContext);
+        renderOrderedStages(List.of(id));
     }
 
     public void renderStagesBefore(KeyId id) {
-        List<GraphicsStage> ordered = stages.getOrderedList();
-        GraphicsStage stage = idToStage.get(id);
-        int idx = ordered.indexOf(stage);
-        for (int i = 0; i < idx; i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
-                    this.currentContext);
-        }
-
-        renderStage(id);
+        renderOrderedStages(collectStageIdsBeforeInclusive(id));
     }
 
     public void renderStagesAfter(KeyId id) {
-        renderStage(id);
-
-        List<GraphicsStage> ordered = stages.getOrderedList();
-        GraphicsStage stage = idToStage.get(id);
-        int idx = ordered.indexOf(stage);
-        for (int i = idx + 1; i < ordered.size(); i++) {
-            renderCommandQueue.executeStage(ordered.get(i).getIdentifier(), this.renderStateManager,
-                    this.currentContext);
-        }
+        renderOrderedStages(collectStageIdsAfterInclusive(id));
     }
 
     public void resetRenderContext(C context) {
@@ -390,6 +372,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public void shutdown() {
+        renderTraceRecorder.flushAll();
         leaveWorld();
         if (kernel != null) {
             kernel.cleanup();
@@ -457,17 +440,18 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     /**
-     * Get the render command queue (for new pipeline)
+     * Get the render packet queue (for new pipeline)
      */
-    public RenderCommandQueue<C> getRenderCommandQueue() {
-        return renderCommandQueue;
+    public RenderPacketQueue<C> getRenderPacketQueue() {
+        return renderPacketQueue;
     }
 
-    public PipelineDataStore getPipelineDataStore(PipelineType pipelineType) {
-        return pipelineDataStores.computeIfAbsent(pipelineType, pt -> {
+    public PipelineDataStore getPipelineDataStore(PipelineType pipelineType, FrameDataDomain domain) {
+        FrameDataStore frameDataStore = frameDataStores.computeIfAbsent(pipelineType, pt -> {
             initializePipeline(pt);
-            return pipelineDataStores.get(pt);
+            return frameDataStores.get(pt);
         });
+        return frameDataStore.buffer(domain);
     }
 
     public VertexResourceManager getVertexResourceManager(PipelineType pipelineType) {
@@ -507,8 +491,12 @@ public class GraphicsPipeline<C extends RenderContext> {
     /**
      * Get all pipeline data stores (for passes that need to reset them).
      */
-    public Collection<PipelineDataStore> getAllPipelineDataStores() {
-        return pipelineDataStores.values();
+    public Collection<PipelineDataStore> getAllPipelineDataStores(FrameDataDomain domain) {
+        List<PipelineDataStore> stores = new ArrayList<>(frameDataStores.size());
+        for (FrameDataStore frameDataStore : frameDataStores.values()) {
+            stores.add(frameDataStore.buffer(domain));
+        }
+        return stores;
     }
 
     public Collection<FrameDataStore> getAllFrameDataStores() {
@@ -557,6 +545,14 @@ public class GraphicsPipeline<C extends RenderContext> {
         return SketchDiagnostics.get().snapshot();
     }
 
+    public RenderTraceConfig renderTraceConfig() {
+        return renderTraceConfig;
+    }
+
+    public RenderTraceRecorder renderTraceRecorder() {
+        return renderTraceRecorder;
+    }
+
     public MetricSnapshot metricSnapshot() {
         ModuleRuntimeHost host = runtimeHost();
         return host != null ? host.metricSnapshot() : new MetricSnapshot(Collections.emptyMap());
@@ -591,52 +587,62 @@ public class GraphicsPipeline<C extends RenderContext> {
         notifyGraphicsRemoved(graphics);
     }
 
-    private static final class ThreadAwarePipelineDataStore extends PipelineDataStore {
-        private final FrameDataStore frameDataStore;
-
-        private ThreadAwarePipelineDataStore(FrameDataStore frameDataStore) {
-            this.frameDataStore = frameDataStore;
-        }
-
-        private PipelineDataStore activeStore() {
-            return GraphicsDriver.getCurrentAPI().isMainThread() ? frameDataStore.readBuffer() : frameDataStore.writeBuffer();
-        }
-
-        @Override
-        public void register(KeyId key, RenderPipelineData data) {
-            // Keep both buffers schema-consistent.
-            frameDataStore.readBuffer().register(key, data);
-            frameDataStore.writeBuffer().register(key, duplicateForWriteBuffer(data));
-        }
-
-        @Override
-        public <T extends RenderPipelineData> T get(KeyId key) {
-            return activeStore().get(key);
-        }
-
-        @Override
-        public void reset() {
-            frameDataStore.resetAll();
-        }
-
-        @Override
-        public java.util.Collection<RenderPipelineData> getAll() {
-            return activeStore().getAll();
-        }
-
-        private RenderPipelineData duplicateForWriteBuffer(
-                RenderPipelineData data) {
-            if (data == null) {
-                return null;
-            }
-            try {
-                java.lang.reflect.Constructor<?> ctor = data.getClass().getDeclaredConstructor();
-                ctor.setAccessible(true);
-                return (RenderPipelineData) ctor.newInstance();
-            } catch (Exception ignored) {
-                // Fallback: share instance if no default constructor available.
-                return data;
-            }
-        }
+    private void renderOrderedStages(List<KeyId> stageIds) {
+        renderPacketQueue.executeStageRange(stageIds, this.renderStateManager, this.currentContext);
     }
+
+    private List<KeyId> collectStageIdsBetweenExclusiveInclusive(KeyId fromExclusive, KeyId toInclusive) {
+        List<GraphicsStage> ordered = stages.getOrderedList();
+        int toIndex = indexOfStage(ordered, toInclusive);
+        if (toIndex < 0) {
+            return List.of();
+        }
+
+        int fromIndex = indexOfStage(ordered, fromExclusive);
+        int start = Math.max(fromIndex + 1, 0);
+        List<KeyId> stageIds = new ArrayList<>();
+        if (start > toIndex) {
+            stageIds.add(toInclusive);
+            return List.copyOf(stageIds);
+        }
+
+        for (int i = start; i <= toIndex; i++) {
+            stageIds.add(ordered.get(i).getIdentifier());
+        }
+        return List.copyOf(stageIds);
+    }
+
+    private List<KeyId> collectStageIdsBeforeInclusive(KeyId stageId) {
+        List<GraphicsStage> ordered = stages.getOrderedList();
+        int index = indexOfStage(ordered, stageId);
+        if (index < 0) {
+            return List.of(stageId);
+        }
+
+        List<KeyId> stageIds = new ArrayList<>(index + 1);
+        for (int i = 0; i <= index; i++) {
+            stageIds.add(ordered.get(i).getIdentifier());
+        }
+        return List.copyOf(stageIds);
+    }
+
+    private List<KeyId> collectStageIdsAfterInclusive(KeyId stageId) {
+        List<GraphicsStage> ordered = stages.getOrderedList();
+        int index = indexOfStage(ordered, stageId);
+        if (index < 0) {
+            return List.of(stageId);
+        }
+
+        List<KeyId> stageIds = new ArrayList<>(ordered.size() - index);
+        for (int i = index; i < ordered.size(); i++) {
+            stageIds.add(ordered.get(i).getIdentifier());
+        }
+        return List.copyOf(stageIds);
+    }
+
+    private int indexOfStage(List<GraphicsStage> ordered, KeyId stageId) {
+        GraphicsStage stage = idToStage.get(stageId);
+        return stage != null ? ordered.indexOf(stage) : -1;
+    }
+
 }

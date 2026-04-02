@@ -5,7 +5,6 @@ import rogo.sketch.core.instance.FunctionGraphics;
 import rogo.sketch.core.instance.StandardFunctionGraphics;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.driver.state.gl.ColorMaskState;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -103,14 +102,18 @@ public class FunctionGraphicsLoader implements ResourceLoader<FunctionGraphics> 
         }
 
         float clearDepth = json.has("depth") ? json.get("depth").getAsFloat() : 1.0f;
-        ColorMaskState colorMaskState = null;
+        boolean[] colorMask = null;
         if (json.has("colorMaskState") && json.get("colorMaskState").isJsonObject()) {
             JsonObject colorMaskStateJson = json.getAsJsonObject("colorMaskState");
-            colorMaskState = new ColorMaskState();
-            colorMaskState.deserializeFromJson(colorMaskStateJson, internalGson);
+            colorMask = new boolean[]{
+                    colorMaskStateJson.has("red") && colorMaskStateJson.get("red").getAsBoolean(),
+                    colorMaskStateJson.has("green") && colorMaskStateJson.get("green").getAsBoolean(),
+                    colorMaskStateJson.has("blue") && colorMaskStateJson.get("blue").getAsBoolean(),
+                    colorMaskStateJson.has("alpha") && colorMaskStateJson.get("alpha").getAsBoolean()
+            };
         }
 
-        return new StandardFunctionGraphics.ClearCommand(KeyId.of(rtId), color, depth, clearColor, clearDepth, colorMaskState);
+        return new StandardFunctionGraphics.ClearCommand(KeyId.of(rtId), color, depth, clearColor, clearDepth, colorMask);
     }
 
     private StandardFunctionGraphics.Command parseDrawBuffersCommand(JsonObject json) {

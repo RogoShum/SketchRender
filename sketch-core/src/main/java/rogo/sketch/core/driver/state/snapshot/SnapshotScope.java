@@ -120,22 +120,22 @@ public class SnapshotScope {
         }
         
         // Image bindings
-        if (bindings.containsKey(ResourceTypes.IMAGE_BUFFER)) {
-            for (Integer unit : bindings.get(ResourceTypes.IMAGE_BUFFER).values()) {
+        if (bindings.containsKey(ResourceTypes.IMAGE)) {
+            for (Integer unit : bindings.get(ResourceTypes.IMAGE).values()) {
                 builder.addImageBinding(unit);
             }
         }
         
         // SSBO bindings
-        if (bindings.containsKey(ResourceTypes.SHADER_STORAGE_BUFFER)) {
-            for (Integer binding : bindings.get(ResourceTypes.SHADER_STORAGE_BUFFER).values()) {
+        if (bindings.containsKey(ResourceTypes.STORAGE_BUFFER)) {
+            for (Integer binding : bindings.get(ResourceTypes.STORAGE_BUFFER).values()) {
                 builder.addSSBOBinding(binding);
             }
         }
         
         // UBO bindings
-        if (bindings.containsKey(ResourceTypes.UNIFORM_BLOCK)) {
-            for (Integer binding : bindings.get(ResourceTypes.UNIFORM_BLOCK).values()) {
+        if (bindings.containsKey(ResourceTypes.UNIFORM_BUFFER)) {
+            for (Integer binding : bindings.get(ResourceTypes.UNIFORM_BUFFER).values()) {
                 builder.addUBOBinding(binding);
             }
         }

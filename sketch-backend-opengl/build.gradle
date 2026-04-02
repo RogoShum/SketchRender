@@ -1,0 +1,30 @@
+plugins {
+    id 'java-library'
+}
+
+group = mod_group_id
+version = mod_version
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':sketch-core')
+
+    compileOnly 'org.jetbrains:annotations:24.0.0'
+
+    compileOnly platform("org.lwjgl:lwjgl-bom:3.3.3")
+    compileOnly "org.lwjgl:lwjgl"
+    compileOnly "org.lwjgl:lwjgl-opengl"
+    compileOnly "org.lwjgl:lwjgl-glfw"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

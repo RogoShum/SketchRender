@@ -7,10 +7,12 @@ import java.util.Objects;
 public class VertexBufferKey {
     private final RasterizationParameter renderParameter;
     private final long sourceResourceID;
+    private final long bindingToken;
 
-    private VertexBufferKey(RasterizationParameter rp, long sourceResourceID) {
+    private VertexBufferKey(RasterizationParameter rp, long sourceResourceID, long bindingToken) {
         this.renderParameter = rp;
         this.sourceResourceID = sourceResourceID;
+        this.bindingToken = bindingToken;
     }
 
     /**
@@ -18,7 +20,7 @@ public class VertexBufferKey {
      * The parameter's VertexLayoutSpec defines the components.
      */
     public static VertexBufferKey fromParameter(RasterizationParameter param) {
-        return fromParameter(param, -1);
+        return fromParameter(param, -1L, 0L);
     }
 
     /**
@@ -26,7 +28,11 @@ public class VertexBufferKey {
      * Used for BakedMeshes where the static VBOs come from a specific source.
      */
     public static VertexBufferKey fromParameter(RasterizationParameter param, long sourceResourceID) {
-        return new VertexBufferKey(param, sourceResourceID);
+        return fromParameter(param, sourceResourceID, 0L);
+    }
+
+    public static VertexBufferKey fromParameter(RasterizationParameter param, long sourceResourceID, long bindingToken) {
+        return new VertexBufferKey(param, sourceResourceID, bindingToken);
     }
 
     // ===== Getters =====
@@ -51,6 +57,10 @@ public class VertexBufferKey {
         return sourceResourceID;
     }
 
+    public long bindingToken() {
+        return bindingToken;
+    }
+
     /**
      * Check if this key has instance components (any instanced component).
      */
@@ -68,12 +78,13 @@ public class VertexBufferKey {
             return false;
         VertexBufferKey that = (VertexBufferKey) o;
         return sourceResourceID == that.sourceResourceID &&
+                bindingToken == that.bindingToken &&
                 Objects.equals(renderParameter, that.renderParameter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(renderParameter, sourceResourceID);
+        return Objects.hash(renderParameter, sourceResourceID, bindingToken);
     }
 
     @Override
@@ -81,6 +92,7 @@ public class VertexBufferKey {
         return "VertexBufferKey{" +
                 "renderParameter=" + renderParameter +
                 ", sourceID=" + sourceResourceID +
+                ", bindingToken=" + bindingToken +
                 '}';
     }
 }

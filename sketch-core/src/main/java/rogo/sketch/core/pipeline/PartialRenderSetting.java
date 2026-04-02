@@ -11,14 +11,24 @@ import java.util.Objects;
  * Enhanced with automatic reload support using the generic reloadable system
  */
 public class PartialRenderSetting implements ResourceObject {
-    public static final PartialRenderSetting EMPTY = new PartialRenderSetting(null, null, false);
+    public static final PartialRenderSetting EMPTY = new PartialRenderSetting(null, null, null, false);
     protected final FullRenderState renderState;
+    protected final TargetBinding targetBinding;
     protected final ResourceBinding resourceBinding;
     protected final boolean shouldSwitchRenderState;
     private boolean disposed = false;
 
     public PartialRenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState) {
+        this(renderState, null, resourceBinding, shouldSwitchRenderState);
+    }
+
+    public PartialRenderSetting(
+            FullRenderState renderState,
+            TargetBinding targetBinding,
+            ResourceBinding resourceBinding,
+            boolean shouldSwitchRenderState) {
         this.renderState = renderState;
+        this.targetBinding = targetBinding != null ? targetBinding : TargetBinding.fromLegacy(renderState);
         this.resourceBinding = resourceBinding;
         this.shouldSwitchRenderState = shouldSwitchRenderState;
     }
@@ -28,12 +38,15 @@ public class PartialRenderSetting implements ResourceObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PartialRenderSetting that = (PartialRenderSetting) o;
-        return shouldSwitchRenderState == that.shouldSwitchRenderState && Objects.equals(renderState, that.renderState) && Objects.equals(resourceBinding, that.resourceBinding);
+        return shouldSwitchRenderState == that.shouldSwitchRenderState
+                && Objects.equals(renderState, that.renderState)
+                && Objects.equals(targetBinding, that.targetBinding)
+                && Objects.equals(resourceBinding, that.resourceBinding);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(renderState, resourceBinding, shouldSwitchRenderState);
+        return Objects.hash(renderState, targetBinding, resourceBinding, shouldSwitchRenderState);
     }
 
     @Override
@@ -54,11 +67,23 @@ public class PartialRenderSetting implements ResourceObject {
         return resourceBinding;
     }
 
+    public TargetBinding targetBinding() {
+        return targetBinding;
+    }
+
     public boolean shouldSwitchRenderState() {
         return shouldSwitchRenderState;
     }
 
     public static PartialRenderSetting create(FullRenderState renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState) {
-        return new PartialRenderSetting(renderState, resourceBinding, shouldSwitchRenderState);
+        return new PartialRenderSetting(renderState, null, resourceBinding, shouldSwitchRenderState);
+    }
+
+    public static PartialRenderSetting create(
+            FullRenderState renderState,
+            TargetBinding targetBinding,
+            ResourceBinding resourceBinding,
+            boolean shouldSwitchRenderState) {
+        return new PartialRenderSetting(renderState, targetBinding, resourceBinding, shouldSwitchRenderState);
     }
 }

@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline.graph.pass;
 
-import rogo.sketch.core.driver.GLRuntimeFlags;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.GraphicsBatchGroup;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.GraphicsStage;
@@ -102,7 +102,7 @@ public class SyncPreparePass<C extends RenderContext> implements PipelinePass<C>
         }
 
         // 3. Sync fallback: if worker has no GL, compile shaders + upload VBOs here
-        if (!GLRuntimeFlags.GL_WORKER_ENABLED) {
+        if (!GraphicsDriver.capabilities().uploadWorkerSupported()) {
             // Create post-processors and execute them on the main thread now.
             // This ensures shader compilation and VBO upload happen before async build.
             RenderPostProcessors syncProcessors = new RenderPostProcessors();

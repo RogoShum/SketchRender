@@ -1,7 +1,6 @@
 package rogo.sketch.core.pipeline.graph.scheduler;
 
-import rogo.sketch.core.driver.GLRuntimeFlags;
-import rogo.sketch.core.driver.GraphicsAPI;
+import rogo.sketch.core.backend.BackendWorkerLane;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.CompiledRenderGraph;
@@ -36,8 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TaskGraphScheduler {
     public enum WorkerContextMode {
         NONE,
-        RENDER_GL,
-        TICK_GL
+        RENDER_ASYNC,
+        TICK_ASYNC
     }
 
     private final ExecutorService workerPool;
@@ -163,11 +162,10 @@ public class TaskGraphScheduler {
         if (workerContextMode == WorkerContextMode.NONE) {
             return;
         }
-        if (GLRuntimeFlags.GL_WORKER_ENABLED && workerContextInitialized.compareAndSet(false, true)) {
-            GraphicsAPI api = GraphicsDriver.getCurrentAPI();
+        if (GraphicsDriver.capabilities().workerLanesSupported() && workerContextInitialized.compareAndSet(false, true)) {
             switch (workerContextMode) {
-                case RENDER_GL -> api.onRenderWorkerThreadStart();
-                case TICK_GL -> api.onTickWorkerThreadStart();
+                case RENDER_ASYNC -> GraphicsDriver.runtime().onWorkerLaneStart(BackendWorkerLane.RENDER_ASYNC);
+                case TICK_ASYNC -> GraphicsDriver.runtime().onWorkerLaneStart(BackendWorkerLane.TICK_ASYNC);
                 case NONE -> {
                 }
             }
@@ -182,10 +180,9 @@ public class TaskGraphScheduler {
         if (workerContextInitialized.get()) {
             try {
                 workerPool.submit(() -> {
-                    GraphicsAPI api = GraphicsDriver.getCurrentAPI();
                     switch (workerContextMode) {
-                        case RENDER_GL -> api.onRenderWorkerThreadEnd();
-                        case TICK_GL -> api.onTickWorkerThreadEnd();
+                        case RENDER_ASYNC -> GraphicsDriver.runtime().onWorkerLaneEnd(BackendWorkerLane.RENDER_ASYNC);
+                        case TICK_ASYNC -> GraphicsDriver.runtime().onWorkerLaneEnd(BackendWorkerLane.TICK_ASYNC);
                         case NONE -> {
                         }
                     }
@@ -207,4 +204,3 @@ public class TaskGraphScheduler {
         }
     }
 }
-

@@ -7,8 +7,13 @@ import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
 /**
- * Indexed storage slot for a graphics instance.
+ * Legacy indexed storage slot for a graphics instance.
+ * <p>
+ * V2 keeps this only as a compatibility implementation while the new
+ * {@code InstanceRecordStore} owns the main raster/translucent path.
+ * </p>
  */
+@Deprecated(forRemoval = false)
 public class InstanceSlot<G extends Graphics, I extends InstanceInfo<G>> {
     private int index;
     private final G graphics;

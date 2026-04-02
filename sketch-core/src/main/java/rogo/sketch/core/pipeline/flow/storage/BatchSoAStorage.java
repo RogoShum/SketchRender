@@ -9,8 +9,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Dense SoA-like storage with stable lookup by graphics reference.
+ * Legacy dense slot storage with stable lookup by graphics reference.
+ * <p>
+ * New V2 instance management prefers {@code InstanceRecordStore}; this type is
+ * retained only for legacy batch container compatibility.
+ * </p>
  */
+@Deprecated(forRemoval = false)
 public class BatchSoAStorage<G extends Graphics, I extends InstanceInfo<G>> {
     private final List<InstanceSlot<G, I>> slots = new ArrayList<>();
     private final Map<G, InstanceSlot<G, I>> byGraphics = new IdentityHashMap<>();

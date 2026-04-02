@@ -8,6 +8,7 @@ import rogo.sketch.config.ConfigScope;
 import rogo.sketch.config.PropertyCodecs;
 import rogo.sketch.config.PropertySettingAdapter;
 import rogo.sketch.config.SketchConfigService;
+import rogo.sketch.core.backend.BackendKind;
 import rogo.sketch.core.debugger.DashboardDockSlotId;
 import rogo.sketch.core.debugger.DashboardPanelId;
 import rogo.sketch.core.debugger.DashboardPanelMode;
@@ -35,10 +36,12 @@ public class Config {
             null,
             ConfigLayoutStrategy.SINGLE_FILE,
             SketchRender.MOD_ID);
+    private static final ConfigScope RENDER_SCOPE = new ConfigScope(SketchRender.MOD_ID, "render");
     private static final ConfigScope CULLING_SCOPE = new ConfigScope(SketchRender.MOD_ID, CullingModuleDescriptor.MODULE_ID);
     private static final ConfigScope DASHBOARD_UI_SCOPE = new ConfigScope(SketchRender.MOD_ID, "dashboard_ui");
     private static final PropertySettingAdapter CORE_SETTINGS = new PropertySettingAdapter();
 
+    private static final String PROP_GRAPHICS_BACKEND = "graphics_backend";
     private static final String PROP_CULL_ENTITY = "cull_entity";
     private static final String PROP_CULL_BLOCK_ENTITY = "cull_block_entity";
     private static final String PROP_CULL_CHUNK = "cull_chunk";
@@ -135,6 +138,18 @@ public class Config {
         }
     }
 
+    public static BackendKind getGraphicsBackendKind() {
+        String raw = CONFIG_SERVICE.get(RENDER_SCOPE, PROP_GRAPHICS_BACKEND, PropertyCodecs.STRING, BackendKind.MINECRAFT_GL.name());
+        return parseBackendKind(raw);
+    }
+
+    public static void setGraphicsBackendKind(BackendKind backendKind) {
+        if (backendKind == null || backendKind == BackendKind.UNINITIALIZED) {
+            return;
+        }
+        CONFIG_SERVICE.set(RENDER_SCOPE, PROP_GRAPHICS_BACKEND, PropertyCodecs.STRING, backendKind.name());
+    }
+
     public static void setDashboardPanelMode(String workspaceId, DashboardPanelId panelId, DashboardPanelMode mode) {
         if (workspaceId == null || workspaceId.isBlank() || panelId == null || mode == null) {
             return;
@@ -215,6 +230,28 @@ public class Config {
 
     private static String slotKey(String workspaceId, DashboardDockSlotId slotId, String suffix) {
         return "workspace." + workspaceId + ".slot." + slotId.value() + "." + suffix;
+    }
+
+    private static BackendKind parseBackendKind(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return BackendKind.MINECRAFT_GL;
+        }
+        String normalized = raw.trim()
+                .replace('-', '_')
+                .replace(' ', '_')
+                .toUpperCase(Locale.ROOT);
+        try {
+            BackendKind parsed = BackendKind.valueOf(normalized);
+            return parsed == BackendKind.UNINITIALIZED ? BackendKind.MINECRAFT_GL : parsed;
+        } catch (IllegalArgumentException ignored) {
+            return BackendKind.MINECRAFT_GL;
+        }
+    }
+
+    private static void ensureRenderDefaults() {
+        if (!CONFIG_SERVICE.contains(RENDER_SCOPE, PROP_GRAPHICS_BACKEND)) {
+            CONFIG_SERVICE.set(RENDER_SCOPE, PROP_GRAPHICS_BACKEND, PropertyCodecs.STRING, BackendKind.MINECRAFT_GL.name());
+        }
     }
 
     public static void setLoaded() {
@@ -462,6 +499,7 @@ public class Config {
 
     static {
         migrateLegacyForgeConfigIfNeeded();
+        ensureRenderDefaults();
         registerBindings();
     }
 }

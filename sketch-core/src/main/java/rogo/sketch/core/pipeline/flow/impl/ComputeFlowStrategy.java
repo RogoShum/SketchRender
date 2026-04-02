@@ -3,16 +3,22 @@ package rogo.sketch.core.pipeline.flow.impl;
 import rogo.sketch.core.api.graphics.DispatchableGraphics;
 import rogo.sketch.core.command.ComputeRenderCommand;
 import rogo.sketch.core.command.RenderCommand;
+import rogo.sketch.core.packet.DispatchPacket;
+import rogo.sketch.core.packet.PacketBuildContext;
+import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.RenderPacket;
+import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.information.ComputeInstanceInfo;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.pipeline.flow.BatchContainer;
 import rogo.sketch.core.pipeline.flow.RenderBatch;
-import rogo.sketch.core.pipeline.flow.RenderFlowContext;
 import rogo.sketch.core.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
+import rogo.sketch.core.pipeline.UniformBatchGroup;
+import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 
 import java.util.*;
 
@@ -42,14 +48,63 @@ public class ComputeFlowStrategy implements RenderFlowStrategy<DispatchableGraph
     }
 
     @Override
+    public Map<PipelineStateKey, List<RenderPacket>> buildPackets(
+            BatchContainer<DispatchableGraphics, ComputeInstanceInfo> batchContainer,
+            KeyId stageId,
+            PacketBuildContext flowContext,
+            RenderPostProcessors postProcessors,
+            RenderContext context) {
+        // Get active batches from container
+        Collection<RenderBatch<ComputeInstanceInfo>> activeBatches = batchContainer.getActiveBatches();
+        if (activeBatches.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<PipelineStateKey, List<RenderPacket>> packets = new LinkedHashMap<>();
+
+        for (RenderBatch<ComputeInstanceInfo> batch : activeBatches) {
+            List<ComputeInstanceInfo> visibleInfos = batch.getVisibleInstances();
+            if (visibleInfos.isEmpty()) {
+                continue;
+            }
+            
+            // Update uniforms for visible instances
+            batch.setVisibleInstances(visibleInfos);
+            batch.updateUniformsForVisible();
+
+            RenderSetting setting = batch.getRenderSetting();
+            PipelineStateKey stateKey = PipelineStateKey.from(setting);
+            ResourceBindingPlan bindingPlan = ResourceBindingPlan.from(setting.resourceBinding());
+            List<RenderPacket> statePackets = packets.computeIfAbsent(stateKey, key -> new ArrayList<>());
+
+            for (ComputeInstanceInfo info : visibleInfos) {
+                statePackets.add(new DispatchPacket(
+                        stageId,
+                        flowContext.pipelineType(),
+                        stateKey,
+                        bindingPlan,
+                        snapshotForInstance(batch.getUniformBatches(), info.getInstance()),
+                        List.of(info.getInstance()),
+                        1,
+                        1,
+                        1,
+                        info,
+                        info.getDispatchCommand()));
+            }
+        }
+
+        return packets;
+    }
+
+    @Deprecated
+    @Override
     public Map<RenderSetting, List<RenderCommand>> createRenderCommands(
             BatchContainer<DispatchableGraphics, ComputeInstanceInfo> batchContainer,
             KeyId stageId,
-            RenderFlowContext flowContext,
+            rogo.sketch.core.pipeline.flow.RenderFlowContext flowContext,
             RenderPostProcessors postProcessors,
             RenderContext context) {
-        
-        // Get active batches from container
+
         Collection<RenderBatch<ComputeInstanceInfo>> activeBatches = batchContainer.getActiveBatches();
         if (activeBatches.isEmpty()) {
             return Collections.emptyMap();
@@ -62,11 +117,10 @@ public class ComputeFlowStrategy implements RenderFlowStrategy<DispatchableGraph
             if (visibleInfos.isEmpty()) {
                 continue;
             }
-            
-            // Update uniforms for visible instances
+
             batch.setVisibleInstances(visibleInfos);
             batch.updateUniformsForVisible();
-            
+
             RenderSetting setting = batch.getRenderSetting();
             List<RenderCommand> commands = commandsMap.computeIfAbsent(setting, k -> new ArrayList<>());
 
@@ -84,9 +138,21 @@ public class ComputeFlowStrategy implements RenderFlowStrategy<DispatchableGraph
 
         return commandsMap;
     }
-    
+
     @Override
     public boolean supportsBatching() {
         return false;
+    }
+
+    private UniformValueSnapshot snapshotForInstance(List<UniformBatchGroup> batches, DispatchableGraphics graphics) {
+        if (batches == null || batches.isEmpty()) {
+            return UniformValueSnapshot.empty();
+        }
+        for (UniformBatchGroup batch : batches) {
+            if (batch.getInstances().contains(graphics)) {
+                return batch.getUniformSnapshot();
+            }
+        }
+        return UniformValueSnapshot.empty();
     }
 }

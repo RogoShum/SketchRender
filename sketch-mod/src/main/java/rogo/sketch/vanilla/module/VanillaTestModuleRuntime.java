@@ -45,6 +45,9 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
 
             @Override
             public void onWorldEnter(ModuleSessionContext context) {
+                context.pipeline().renderTraceConfig().setEnabled(true);
+                context.pipeline().renderTraceConfig().traceGraphicsClass(CubeTestGraphics.class);
+
                 Random random = new Random();
                 KeyId renderSettingKey = KeyId.of(SketchRender.MOD_ID, "cube_test_transform");
                 KeyId cubeGeometry = KeyId.of("cube_geometry");

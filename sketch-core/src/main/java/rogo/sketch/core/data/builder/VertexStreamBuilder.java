@@ -883,6 +883,18 @@ public class VertexStreamBuilder extends UnsafeBatchBuilder {
         return DEFAULT_RENDER_EXECUTOR;
     }
 
+    public VertexStreamBuilder snapshotCopy() {
+        long writtenBytes = java.lang.Math.max(getWriteOffset(), 1L);
+        VertexStreamBuilder copy = new VertexStreamBuilder(writtenBytes, format, primitiveType);
+        if (getWriteOffset() > 0L) {
+            copy.putData(getBaseAddress(), (int) getWriteOffset());
+        }
+        copy.vertexCount = this.vertexCount;
+        copy.elementIndex = this.elementIndex;
+        copy.vertexStartAddr = copy.getBaseAddress() + (long) copy.vertexCount * stride;
+        return copy;
+    }
+
     public int getVertexCount() {
         return vertexCount;
     }

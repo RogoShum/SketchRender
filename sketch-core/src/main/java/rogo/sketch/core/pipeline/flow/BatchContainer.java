@@ -14,16 +14,15 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Container for managing RenderBatches with automatic instance assignment.
- * </p>
+ * Legacy compatibility container for persistent {@link RenderBatch} storage.
  * <p>
- * Unlike per-frame batch reconstruction, BatchContainer maintains persistent batches
- * and only updates when instances are added, removed, or become dirty.
- * </p>
+ * V2 keeps reusing this while the new instance/visibility/bucket registries are
+ * phased in, but new batching semantics should not be designed around this API.
  *
  * @param <G> The type of graphics this container handles
  * @param <T> The type of instance info this container produces
  */
+@Deprecated(forRemoval = false)
 public interface BatchContainer<G extends Graphics, T extends InstanceInfo<G>> {
 
     /**

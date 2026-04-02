@@ -3,6 +3,9 @@ package rogo.sketch.core.pipeline.flow;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.event.RenderFlowRegisterEvent;
 import rogo.sketch.core.command.RenderCommand;
+import rogo.sketch.core.packet.PacketBuildContext;
+import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pipeline.RenderSetting;
@@ -56,7 +59,7 @@ public interface RenderFlowStrategy<G extends Graphics, I extends InstanceInfo<G
     Class<I> getInfoType();
 
     /**
-     * Create render commands from a BatchContainer.
+     * Build backend-neutral render packets from a BatchContainer.
      * <p>
      * This method consumes batches from the container, reads precomputed visible
      * instances prepared by {@link BatchContainer#prepareVisibility(RenderContext)},
@@ -67,14 +70,27 @@ public interface RenderFlowStrategy<G extends Graphics, I extends InstanceInfo<G
      * @param stageId        The identifier of the current render stage
      * @param flowContext    The flow processing context with access to resources
      * @param postProcessors Consumer to register post-processing tasks
-     * @return Map of render commands grouped by RenderSetting
+     * @return Map of render packets grouped by compiled pipeline state
      */
-    Map<RenderSetting, List<RenderCommand>> createRenderCommands(
+    Map<PipelineStateKey, List<RenderPacket>> buildPackets(
+            BatchContainer<G, I> batchContainer,
+            KeyId stageId,
+            PacketBuildContext flowContext,
+            RenderPostProcessors postProcessors,
+            RenderContext context);
+
+    /**
+     * Legacy GL-command path kept only while the OpenGL backend migration is incomplete.
+     */
+    @Deprecated
+    default Map<RenderSetting, List<RenderCommand>> createRenderCommands(
             BatchContainer<G, I> batchContainer,
             KeyId stageId,
             RenderFlowContext flowContext,
             RenderPostProcessors postProcessors,
-            RenderContext context);
+            RenderContext context) {
+        return Map.of();
+    }
 
     /**
      * Create a post-processor for this strategy.

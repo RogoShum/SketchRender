@@ -2,6 +2,8 @@ package rogo.sketch.core.pipeline;
 
 import rogo.sketch.core.api.RenderStateComponent;
 import rogo.sketch.core.resource.ResourceBinding;
+import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.driver.state.DefaultRenderStates;
 import rogo.sketch.core.driver.state.FullRenderState;
 
@@ -13,18 +15,24 @@ public class RenderStateManager {
     private ResourceBinding currentResourceBinding;
 
     public void accept(RenderSetting setting, RenderContext context) {
+        accept(PipelineStateKey.from(setting), context);
+    }
+
+    public void accept(PipelineStateKey stateKey, RenderContext context) {
         // Only switch render state if requested (compute shaders don't need it)
-        if (setting.shouldSwitchRenderState() && setting.renderState() != null) {
-            FullRenderState newState = setting.renderState();
+        if (stateKey.shouldSwitchRenderState() && stateKey.renderState() != null) {
+            FullRenderState newState = stateKey.renderState();
             changeState(newState, context);
         }
 
         // Always bind resource bindings (needed for both graphics and compute)
-        if (!Objects.equals(setting.resourceBinding(), currentResourceBinding)) {
-            if (setting.resourceBinding() != null) {
-                setting.resourceBinding().bind(context);
+        ResourceBindingPlan bindingPlan = stateKey.bindingPlan();
+        ResourceBinding binding = bindingPlan != null ? bindingPlan.binding() : null;
+        if (!Objects.equals(binding, currentResourceBinding)) {
+            if (binding != null) {
+                binding.bind(context);
             }
-            currentResourceBinding = setting.resourceBinding();
+            currentResourceBinding = binding;
         }
     }
 
