@@ -1,6 +1,7 @@
 package rogo.sketch.core.pipeline;
 
-import rogo.sketch.core.driver.state.FullRenderState;
+import rogo.sketch.core.driver.state.CompiledRenderState;
+import rogo.sketch.core.driver.state.RenderStatePatch;
 import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
@@ -9,7 +10,8 @@ import rogo.sketch.core.util.KeyId;
 
 public record PipelineStateDescriptor(
         RenderParameter renderParameter,
-        FullRenderState renderState,
+        RenderStatePatch renderState,
+        CompiledRenderState compiledRenderState,
         boolean shouldSwitchRenderState,
         KeyId shaderId,
         ShaderVariantKey shaderVariantKey,
@@ -30,6 +32,7 @@ public record PipelineStateDescriptor(
         return new PipelineStateKey(
                 renderParameter,
                 renderState,
+                compiledRenderState,
                 bindingPlan,
                 shouldSwitchRenderState,
                 shaderId,
@@ -39,3 +42,4 @@ public record PipelineStateDescriptor(
                 resourceLayoutKey);
     }
 }
+

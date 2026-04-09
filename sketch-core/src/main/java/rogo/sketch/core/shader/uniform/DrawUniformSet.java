@@ -1,10 +1,10 @@
 package rogo.sketch.core.shader.uniform;
 
-public record DrawUniformSet(UniformValueSnapshot legacySnapshot) {
+public record DrawUniformSet(UniformValueSnapshot snapshot) {
     private static final DrawUniformSet EMPTY = new DrawUniformSet(UniformValueSnapshot.empty());
 
     public DrawUniformSet {
-        legacySnapshot = legacySnapshot != null ? legacySnapshot : UniformValueSnapshot.empty();
+        snapshot = snapshot != null ? snapshot : UniformValueSnapshot.empty();
     }
 
     public static DrawUniformSet empty() {
@@ -12,6 +12,6 @@ public record DrawUniformSet(UniformValueSnapshot legacySnapshot) {
     }
 
     public boolean isEmpty() {
-        return legacySnapshot.isEmpty();
+        return snapshot.isEmpty();
     }
 }

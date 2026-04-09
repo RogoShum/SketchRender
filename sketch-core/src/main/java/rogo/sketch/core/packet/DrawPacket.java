@@ -19,16 +19,24 @@ public record DrawPacket(
         GeometryHandleKey geometryHandle,
         DrawPlan drawPlan
 ) implements RenderPacket {
+    private static final RenderPacketType TYPE = RenderPacketType.DRAW;
+
     public DrawPacket {
         resourceSetKey = resourceSetKey != null ? resourceSetKey : ResourceSetKey.empty();
         uniformGroups = uniformGroups != null ? uniformGroups : UniformGroupSet.empty();
     }
 
     @Override
+    public RenderPacketType packetType() {
+        return TYPE;
+    }
+
+    @Override
     public UniformValueSnapshot uniformSnapshot() {
         if (!uniformGroups.drawUniforms().isEmpty()) {
-            return uniformGroups.drawUniforms().legacySnapshot();
+            return uniformGroups.drawUniforms().snapshot();
         }
-        return uniformGroups.resourceUniforms().legacySnapshot();
+        return uniformGroups.resourceUniforms().snapshot();
     }
 }
+

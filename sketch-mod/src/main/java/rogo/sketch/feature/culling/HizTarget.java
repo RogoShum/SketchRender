@@ -7,8 +7,15 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL30;
+import rogo.sketch.core.resource.descriptor.ImageFormat;
+import rogo.sketch.core.resource.descriptor.ImageUsage;
+import rogo.sketch.core.resource.descriptor.SamplerFilter;
+import rogo.sketch.core.resource.descriptor.SamplerWrap;
 import rogo.sketch.core.resource.vision.Texture;
+import rogo.sketch.core.util.KeyId;
 import rogo.sketch.vanilla.resource.BuildInRTTexture;
+
+import java.util.Set;
 
 public class HizTarget extends RenderTarget {
     private final boolean storeDepth;
@@ -31,10 +38,28 @@ public class HizTarget extends RenderTarget {
         GlStateManager._texParameter(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
         if (storeDepth) {
             GlStateManager._texImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R16F, this.width, this.height, 0, GL11.GL_RED, GL11.GL_FLOAT, null);
-            texture = new BuildInRTTexture(() -> this, GL30.GL_R16F, false, GL11.GL_NEAREST, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE, GL12.GL_CLAMP_TO_EDGE);
+            texture = new BuildInRTTexture(
+                    KeyId.of("sketch_render", "hiz_depth_texture"),
+                    () -> this,
+                    ImageFormat.R16_FLOAT,
+                    Set.of(ImageUsage.SAMPLED, ImageUsage.COLOR_ATTACHMENT, ImageUsage.TRANSFER_SRC, ImageUsage.TRANSFER_DST),
+                    false,
+                    SamplerFilter.NEAREST,
+                    SamplerFilter.NEAREST,
+                    SamplerWrap.CLAMP_TO_EDGE,
+                    SamplerWrap.CLAMP_TO_EDGE);
         } else {
             GlStateManager._texImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R8, this.width, this.height, 0, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, null);
-            texture = new BuildInRTTexture(() -> this, GL30.GL_R8, false, GL11.GL_NEAREST, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE, GL12.GL_CLAMP_TO_EDGE);
+            texture = new BuildInRTTexture(
+                    KeyId.of("sketch_render", "hiz_color_texture"),
+                    () -> this,
+                    ImageFormat.R8_UNORM,
+                    Set.of(ImageUsage.SAMPLED, ImageUsage.COLOR_ATTACHMENT, ImageUsage.TRANSFER_SRC, ImageUsage.TRANSFER_DST),
+                    false,
+                    SamplerFilter.NEAREST,
+                    SamplerFilter.NEAREST,
+                    SamplerWrap.CLAMP_TO_EDGE,
+                    SamplerWrap.CLAMP_TO_EDGE);
         }
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.frameBufferId);
         GlStateManager._glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, this.colorTextureId, 0);

@@ -1,0 +1,16 @@
+{
+  "isRenderTarget": true,
+  "width": 4,
+  "height": 4,
+  "format": "RGBA8_UNORM",
+  "minFilter": "LINEAR",
+  "magFilter": "LINEAR",
+  "wrapS": "CLAMP_TO_EDGE",
+  "wrapT": "CLAMP_TO_EDGE",
+  "usages": [
+    "COLOR_ATTACHMENT",
+    "SAMPLED",
+    "TRANSFER_SRC",
+    "TRANSFER_DST"
+  ]
+}

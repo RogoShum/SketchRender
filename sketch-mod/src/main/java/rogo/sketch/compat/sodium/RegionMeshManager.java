@@ -3,11 +3,11 @@ package rogo.sketch.compat.sodium;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketch.backend.opengl.OpenGLStorageBuffer;
 import rogo.sketch.compat.sodium.api.ExtraRenderRegion;
-import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.data.format.MemoryLayout;
-import rogo.sketch.core.data.format.Std430DataFormat;
-import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
+import rogo.sketch.core.data.layout.Std430StructLayout;
+import rogo.sketch.core.data.layout.StructLayout;
 import rogo.sketch.core.util.IndexPool;
 
 /**
@@ -15,7 +15,7 @@ import rogo.sketch.core.util.IndexPool;
  * Updated to use new DataBufferWriter and MemoryLayout tools.
  */
 public class RegionMeshManager {
-    private static final DataFormat SECTION_DATA_FORMAT = Std430DataFormat.std430Builder("SectionData")
+    private static final StructLayout SECTION_DATA_FORMAT = Std430StructLayout.std430Builder("SectionData")
             .intElement("mask")
             .intElement("visibility")
             .intElement("mesh_0_vertex_offset").intElement("mesh_0_element_count").intElement("mesh_0_index_offset")
@@ -32,7 +32,7 @@ public class RegionMeshManager {
     public static final long SECTION_DATA_SIZE = SECTION_DATA_FORMAT.getStride();
 
     private final IndexPool<RenderRegion> regionIndex = new IndexPool<>();
-    private ShaderStorageBuffer meshDataBuffer;
+    private OpenGLStorageBuffer meshDataBuffer;
     private MemoryLayout memoryLayout;
     private long meshDataPointer;
     private int currentCapacity;
@@ -52,7 +52,7 @@ public class RegionMeshManager {
     }
 
     private void initializeBuffer() {
-        meshDataBuffer = new ShaderStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
+        meshDataBuffer = new OpenGLStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
         meshDataPointer = meshDataBuffer.getMemoryAddress();
     }
 
@@ -156,7 +156,7 @@ public class RegionMeshManager {
         regionIndex.clear();
     }
 
-    public ShaderStorageBuffer meshDataBuffer() {
+    public OpenGLStorageBuffer meshDataBuffer() {
         return meshDataBuffer;
     }
 
@@ -164,7 +164,8 @@ public class RegionMeshManager {
         return memoryLayout;
     }
 
-    public DataFormat getSectionDataFormat() {
+    public StructLayout getSectionDataFormat() {
         return SECTION_DATA_FORMAT;
     }
 }
+

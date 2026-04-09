@@ -1,9 +1,9 @@
 package rogo.sketch.core.resource;
 
-import rogo.sketch.core.api.BindingResource;
-import rogo.sketch.core.api.ResourceObject;
-import rogo.sketch.core.api.ShaderProvider;
+import rogo.sketch.core.backend.BackendInstalledBindableResource;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.shader.ShaderProgramHandle;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.HashMap;
@@ -115,20 +115,21 @@ public class ResourceBinding {
      * Called by RenderStateManager when switching resource bindings
      */
     public void bind(RenderContext context) {
-        ShaderProvider shader = context.shaderProvider();
+        ShaderProgramHandle shader = context != null ? context.shaderProgramHandle() : null;
 
         if (shader != null) {
+            Map<KeyId, Map<KeyId, Integer>> resourceBindings = shader.interfaceSpec().resourceBindings();
             for (Map.Entry<KeyId, Map<KeyId, KeyId>> typeEntry : bindings.entrySet()) {
                 KeyId resourceType = ResourceTypes.normalize(typeEntry.getKey());
-                if (shader.getResourceBindings().containsKey(resourceType)) {
+                if (resourceBindings.containsKey(resourceType)) {
                     Map<KeyId, KeyId> typeBindings = typeEntry.getValue();
 
                     for (Map.Entry<KeyId, KeyId> bindingEntry : typeBindings.entrySet()) {
                         KeyId bindingName = bindingEntry.getKey();
                         KeyId resourceKeyId = bindingEntry.getValue();
 
-                        if (shader.getResourceBindings().get(resourceType).containsKey(bindingName)) {
-                            int binding = shader.getResourceBindings().get(resourceType).get(bindingName);
+                        if (resourceBindings.get(resourceType).containsKey(bindingName)) {
+                            int binding = resourceBindings.get(resourceType).get(bindingName);
                             bindResource(resourceType, binding, resourceKeyId);
                         }
                     }
@@ -142,13 +143,12 @@ public class ResourceBinding {
      */
     private void bindResource(KeyId resourceType, int binding, KeyId resourceKeyId) {
         KeyId normalizedType = ResourceTypes.normalize(resourceType);
-        ResourceReference<? extends ResourceObject> reference = GraphicsResourceManager.getInstance().getReference(normalizedType, resourceKeyId);
-
-        reference.ifPresent(resource -> {
-            if (resource instanceof BindingResource bindingResource) {
-                bindingResource.bind(normalizedType, binding);
-            }
-        });
+        BackendInstalledBindableResource installedResource = GraphicsDriver.runtime()
+                .resourceResolver()
+                .resolveBindableResource(normalizedType, resourceKeyId);
+        if (installedResource != null && !installedResource.isDisposed()) {
+            installedResource.bind(normalizedType, binding);
+        }
     }
 
 
@@ -171,3 +171,4 @@ public class ResourceBinding {
         return "ResourceBinding{" + bindings + '}';
     }
 }
+

@@ -1,10 +1,12 @@
 package rogo.sketch.core.shader.vertex;
 
 import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.data.DataType;
+import rogo.sketch.core.data.type.ValueType;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,7 +23,7 @@ import java.util.regex.Pattern;
  */
 public record VertexAttributeSpec(
     int location,
-    DataType type,
+    ValueType type,
     String name,
     @Nullable String macro  // null means required (always enabled)
 ) {
@@ -30,45 +32,49 @@ public record VertexAttributeSpec(
     private static final Pattern SPEC_PATTERN = Pattern.compile(
         "^\\s*(\\w+)\\s+(\\w+)(?:\\s*:\\s*(\\w+))?\\s*$"
     );
+
+    private static final Pattern DECLARED_INPUT_PATTERN = Pattern.compile(
+            "(?m)^\\s*(?:layout\\s*\\([^)]*\\)\\s*)?(?:\\w+\\s+)?in\\s+(\\w+)\\s+(\\w+)\\s*(?:;|,)"
+    );
     
-    // GLSL type to DataType mapping
-    private static final Map<String, DataType> GLSL_TYPE_MAP = new HashMap<>();
+    // GLSL type to ValueType mapping
+    private static final Map<String, ValueType> GLSL_TYPE_MAP = new HashMap<>();
     
     static {
         // Float types
-        GLSL_TYPE_MAP.put("float", DataType.FLOAT);
-        GLSL_TYPE_MAP.put("vec2", DataType.VEC2F);
-        GLSL_TYPE_MAP.put("vec3", DataType.VEC3F);
-        GLSL_TYPE_MAP.put("vec4", DataType.VEC4F);
+        GLSL_TYPE_MAP.put("float", ValueType.FLOAT);
+        GLSL_TYPE_MAP.put("vec2", ValueType.VEC2F);
+        GLSL_TYPE_MAP.put("vec3", ValueType.VEC3F);
+        GLSL_TYPE_MAP.put("vec4", ValueType.VEC4F);
         
         // Integer types
-        GLSL_TYPE_MAP.put("int", DataType.INT);
-        GLSL_TYPE_MAP.put("ivec2", DataType.VEC2I);
-        GLSL_TYPE_MAP.put("ivec3", DataType.VEC3I);
-        GLSL_TYPE_MAP.put("ivec4", DataType.VEC4I);
+        GLSL_TYPE_MAP.put("int", ValueType.INT);
+        GLSL_TYPE_MAP.put("ivec2", ValueType.VEC2I);
+        GLSL_TYPE_MAP.put("ivec3", ValueType.VEC3I);
+        GLSL_TYPE_MAP.put("ivec4", ValueType.VEC4I);
         
         // Unsigned integer types
-        GLSL_TYPE_MAP.put("uint", DataType.UINT);
-        GLSL_TYPE_MAP.put("uvec2", DataType.VEC2UI);
-        GLSL_TYPE_MAP.put("uvec3", DataType.VEC3UI);
-        GLSL_TYPE_MAP.put("uvec4", DataType.VEC4UI);
+        GLSL_TYPE_MAP.put("uint", ValueType.UINT);
+        GLSL_TYPE_MAP.put("uvec2", ValueType.VEC2UI);
+        GLSL_TYPE_MAP.put("uvec3", ValueType.VEC3UI);
+        GLSL_TYPE_MAP.put("uvec4", ValueType.VEC4UI);
         
         // Double types
-        GLSL_TYPE_MAP.put("double", DataType.DOUBLE);
-        GLSL_TYPE_MAP.put("dvec2", DataType.VEC2D);
-        GLSL_TYPE_MAP.put("dvec3", DataType.VEC3D);
-        GLSL_TYPE_MAP.put("dvec4", DataType.VEC4D);
+        GLSL_TYPE_MAP.put("double", ValueType.DOUBLE);
+        GLSL_TYPE_MAP.put("dvec2", ValueType.VEC2D);
+        GLSL_TYPE_MAP.put("dvec3", ValueType.VEC3D);
+        GLSL_TYPE_MAP.put("dvec4", ValueType.VEC4D);
         
         // Matrix types
-        GLSL_TYPE_MAP.put("mat2", DataType.MAT2);
-        GLSL_TYPE_MAP.put("mat3", DataType.MAT3);
-        GLSL_TYPE_MAP.put("mat4", DataType.MAT4);
-        GLSL_TYPE_MAP.put("mat2x3", DataType.MAT2X3);
-        GLSL_TYPE_MAP.put("mat2x4", DataType.MAT2X4);
-        GLSL_TYPE_MAP.put("mat3x2", DataType.MAT3X2);
-        GLSL_TYPE_MAP.put("mat3x4", DataType.MAT3X4);
-        GLSL_TYPE_MAP.put("mat4x2", DataType.MAT4X2);
-        GLSL_TYPE_MAP.put("mat4x3", DataType.MAT4X3);
+        GLSL_TYPE_MAP.put("mat2", ValueType.MAT2);
+        GLSL_TYPE_MAP.put("mat3", ValueType.MAT3);
+        GLSL_TYPE_MAP.put("mat4", ValueType.MAT4);
+        GLSL_TYPE_MAP.put("mat2x3", ValueType.MAT2X3);
+        GLSL_TYPE_MAP.put("mat2x4", ValueType.MAT2X4);
+        GLSL_TYPE_MAP.put("mat3x2", ValueType.MAT3X2);
+        GLSL_TYPE_MAP.put("mat3x4", ValueType.MAT3X4);
+        GLSL_TYPE_MAP.put("mat4x2", ValueType.MAT4X2);
+        GLSL_TYPE_MAP.put("mat4x3", ValueType.MAT4X3);
     }
     
     /**
@@ -89,7 +95,7 @@ public record VertexAttributeSpec(
         String attrName = matcher.group(2);
         String macroName = matcher.group(3); // may be null
         
-        DataType dataType = GLSL_TYPE_MAP.get(typeName);
+        ValueType dataType = GLSL_TYPE_MAP.get(typeName);
         if (dataType == null) {
             throw new IllegalArgumentException("Unknown GLSL type: " + typeName + " in spec: " + spec);
         }
@@ -118,7 +124,7 @@ public record VertexAttributeSpec(
         }
         
         // Find the attribute declaration in the shader source
-        DataType inferredType = inferTypeFromSource(actualAttrName, vertexShaderSource);
+        ValueType inferredType = inferTypeFromSource(actualAttrName, vertexShaderSource);
         if (inferredType == null) {
             throw new IllegalArgumentException("Could not infer type for attribute '" + actualAttrName + 
                     "' from vertex shader source. Make sure the attribute is declared as 'in' in the vertex shader.");
@@ -128,14 +134,14 @@ public record VertexAttributeSpec(
     }
 
     /**
-     * Infer the DataType of an attribute from the vertex shader source code.
+     * Infer the ValueType of an attribute from the vertex shader source code.
      * Looks for declarations like: "in vec3 Position;" or "layout(location=0) in vec3 Position;"
      * 
      * @param attrName The attribute name to find
      * @param vertexShaderSource The vertex shader GLSL source code
-     * @return The inferred DataType, or null if not found
+     * @return The inferred ValueType, or null if not found
      */
-    private static DataType inferTypeFromSource(String attrName, String vertexShaderSource) {
+    private static ValueType inferTypeFromSource(String attrName, String vertexShaderSource) {
         // Pattern to match: "in TYPE name;" or "layout(...) in TYPE name;"
         // Handles various formats:
         //   - in vec3 Position;
@@ -158,13 +164,40 @@ public record VertexAttributeSpec(
         
         return null;
     }
+
+    /**
+     * Parse active vertex input declarations from a processed vertex shader in
+     * source declaration order.
+     */
+    public static List<VertexAttributeSpec> parseDeclaredInputs(String vertexShaderSource) {
+        List<VertexAttributeSpec> attributes = new ArrayList<>();
+        if (vertexShaderSource == null || vertexShaderSource.isBlank()) {
+            return attributes;
+        }
+
+        Matcher matcher = DECLARED_INPUT_PATTERN.matcher(vertexShaderSource);
+        int location = 0;
+        while (matcher.find()) {
+            String typeName = matcher.group(1);
+            String attributeName = matcher.group(2);
+            if (attributeName == null || attributeName.startsWith("gl_")) {
+                continue;
+            }
+            ValueType dataType = GLSL_TYPE_MAP.get(typeName);
+            if (dataType == null) {
+                continue;
+            }
+            attributes.add(new VertexAttributeSpec(location++, dataType, attributeName, null));
+        }
+        return attributes;
+    }
     
     /**
      * Get the GLSL type string for this attribute.
      * @return The GLSL type name (e.g., "vec3", "int")
      */
     public String getGlslTypeName() {
-        for (Map.Entry<String, DataType> entry : GLSL_TYPE_MAP.entrySet()) {
+        for (Map.Entry<String, ValueType> entry : GLSL_TYPE_MAP.entrySet()) {
             if (entry.getValue() == type) {
                 return entry.getKey();
             }
@@ -229,4 +262,5 @@ public record VertexAttributeSpec(
         return result + " (location=" + location + ")";
     }
 }
+
 

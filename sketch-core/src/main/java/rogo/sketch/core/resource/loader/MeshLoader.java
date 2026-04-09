@@ -1,38 +1,33 @@
 package rogo.sketch.core.resource.loader;
 
-import com.google.gson.*;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import org.joml.Matrix4f;
-import rogo.sketch.core.api.model.BakedTypeMesh;
-import rogo.sketch.core.data.DataType;
+import rogo.sketch.core.data.MeshIndexMode;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.Usage;
-import rogo.sketch.core.data.builder.VertexStreamBuilder;
-import rogo.sketch.core.data.format.ComponentSpec;
-import rogo.sketch.core.data.format.DataElement;
-import rogo.sketch.core.data.format.DataFormat;
-import rogo.sketch.core.model.BakedMesh;
+import rogo.sketch.core.data.layout.StructLayout;
+import rogo.sketch.core.data.type.ValueType;
 import rogo.sketch.core.model.MeshBone;
 import rogo.sketch.core.model.MeshGroup;
-import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.buffer.IndexBufferResource;
-import rogo.sketch.core.resource.buffer.VertexBufferObject;
-import rogo.sketch.core.resource.buffer.VertexResource;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.core.vertex.VertexResourceManager;
 
-import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
 
 /**
- * Loader for Mesh resources from JSON
- * Supports loading complete mesh definitions with bones and sub-meshes
+ * Loader for canonical mesh resources.
+ * <p>
+ * Mesh resources are now strict:
+ * - JSON meshes must use {@code primitiveTopology} and {@code indexMode}
+ * - OBJ meshes are parsed into the same canonical submesh form
+ * - old global indices / recalculateIndices semantics are rejected
  */
 public class MeshLoader implements ResourceLoader<MeshGroup> {
+    private final ObjLoader objLoader = new ObjLoader();
 
     @Override
     public KeyId getResourceType() {
@@ -41,58 +36,57 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
 
     @Override
     public MeshGroup load(ResourceLoadContext context) {
-        try {
-            KeyId keyId = context.getResourceId();
-            JsonObject json = context.getJson();
-            if (json == null)
-                return null;
-
-            // Get mesh name and primitive type
-            String name = json.has("name") ? json.get("name").getAsString() : keyId.toString();
-            PrimitiveType primitiveType = parsePrimitiveType(json.get("primitiveType").getAsString());
-
-            // Determine vertex format from top level or first submesh
-            DataFormat format = null;
-            if (json.has("vertexFormat")) {
-                format = parseDataFormat(json.getAsJsonObject("vertexFormat"));
-            } else if (json.has("subMeshes")) {
-                JsonArray subs = json.getAsJsonArray("subMeshes");
-                if (subs.size() > 0) {
-                    JsonObject first = subs.get(0).getAsJsonObject();
-                    if (first.has("vertexFormat")) {
-                        format = parseDataFormat(first.getAsJsonObject("vertexFormat"));
-                    }
-                }
-            }
-
-            if (format == null) {
-                throw new IllegalStateException("Cannot determine vertex format (missing vertexFormat definition)");
-            }
-
-            MeshGroup meshGroup = new MeshGroup(name, primitiveType, format);
-
-            // Load bones if present
-            if (json.has("bones")) {
-                loadBones(meshGroup, json.getAsJsonArray("bones"));
-            }
-
-            // Load sub-meshes
-            if (json.has("subMeshes")) {
-                loadSubMeshes(meshGroup, json.getAsJsonArray("subMeshes"));
-            }
-
-            // Load metadata if present
-            if (json.has("metadata")) {
-                loadMetadata(meshGroup, json.getAsJsonObject("metadata"));
-            }
-
-            return meshGroup;
-
-        } catch (Exception e) {
-            System.err.println("Failed to load mesh from JSON: " + e.getMessage());
-            e.printStackTrace();
+        String source = context.getString();
+        if (source == null || source.isBlank()) {
             return null;
         }
+        String trimmed = source.stripLeading();
+        if (!trimmed.startsWith("{")) {
+            return objLoader.load(context);
+        }
+
+        KeyId keyId = context.getResourceId();
+        JsonObject json = context.getJson();
+        if (json == null) {
+            return null;
+        }
+        if (json.has("primitiveType")) {
+            throw new IllegalArgumentException("Mesh " + keyId + " uses deprecated field 'primitiveType'");
+        }
+        if (json.has("recalculateIndices")) {
+            throw new IllegalArgumentException("Mesh " + keyId + " uses deprecated field 'recalculateIndices'");
+        }
+
+        String name = json.has("name") ? json.get("name").getAsString() : keyId.toString();
+        PrimitiveType primitiveType = parsePrimitiveType(requireString(json, "primitiveTopology"));
+        MeshIndexMode indexMode = parseIndexMode(requireString(json, "indexMode"));
+        StructLayout format = resolveVertexFormat(json);
+        MeshGroup meshGroup = new MeshGroup(name, primitiveType, format);
+
+        if (json.has("bones")) {
+            loadBones(meshGroup, json.getAsJsonArray("bones"));
+        }
+
+        List<CanonicalMeshCompiler.CanonicalSubMesh> subMeshes = parseSubMeshes(
+                meshGroup.getName(),
+                primitiveType,
+                indexMode,
+                format,
+                json.getAsJsonArray("subMeshes"));
+        CanonicalMeshCompiler.compile(keyId, meshGroup, indexMode, subMeshes);
+
+        if (json.has("metadata") && json.get("metadata").isJsonObject()) {
+            loadMetadata(meshGroup, json.getAsJsonObject("metadata"));
+        }
+        meshGroup.setMetadata("indexMode", indexMode.name().toLowerCase());
+        return meshGroup;
+    }
+
+    private String requireString(JsonObject json, String key) {
+        if (json == null || !json.has(key) || json.get(key).isJsonNull()) {
+            throw new IllegalArgumentException("Missing required mesh field '" + key + "'");
+        }
+        return json.get(key).getAsString();
     }
 
     private PrimitiveType parsePrimitiveType(String type) {
@@ -105,12 +99,144 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             case "triangle_fan" -> PrimitiveType.TRIANGLE_FAN;
             case "line_strip" -> PrimitiveType.LINE_STRIP;
             case "line_loop" -> PrimitiveType.LINE_LOOP;
-            default -> throw new IllegalArgumentException("Unknown primitive type: " + type);
+            default -> throw new IllegalArgumentException("Unknown primitive topology: " + type);
         };
     }
 
+    private MeshIndexMode parseIndexMode(String rawValue) {
+        return switch (rawValue.toLowerCase()) {
+            case "none" -> MeshIndexMode.NONE;
+            case "explicit_local" -> MeshIndexMode.EXPLICIT_LOCAL;
+            case "generated" -> MeshIndexMode.GENERATED;
+            default -> throw new IllegalArgumentException("Unknown mesh indexMode: " + rawValue);
+        };
+    }
+
+    private StructLayout resolveVertexFormat(JsonObject json) {
+        if (json.has("vertexFormat") && json.get("vertexFormat").isJsonObject()) {
+            return parseDataFormat(json.getAsJsonObject("vertexFormat"));
+        }
+        if (json.has("subMeshes") && json.get("subMeshes").isJsonArray()) {
+            JsonArray subMeshes = json.getAsJsonArray("subMeshes");
+            if (!subMeshes.isEmpty()) {
+                JsonObject first = subMeshes.get(0).getAsJsonObject();
+                if (first.has("vertexFormat") && first.get("vertexFormat").isJsonObject()) {
+                    return parseDataFormat(first.getAsJsonObject("vertexFormat"));
+                }
+            }
+        }
+        throw new IllegalArgumentException("Missing vertexFormat definition");
+    }
+
+    private List<CanonicalMeshCompiler.CanonicalSubMesh> parseSubMeshes(
+            String meshName,
+            PrimitiveType primitiveType,
+            MeshIndexMode indexMode,
+            StructLayout format,
+            JsonArray subMeshesArray) {
+        if (subMeshesArray == null || subMeshesArray.isEmpty()) {
+            throw new IllegalArgumentException("Mesh " + meshName + " has no subMeshes");
+        }
+
+        List<CanonicalMeshCompiler.CanonicalSubMesh> subMeshes = new ArrayList<>(subMeshesArray.size());
+        int expectedFloatsPerVertex = sourceFloatsPerVertex(format);
+        for (JsonElement element : subMeshesArray) {
+            JsonObject subMeshObj = element.getAsJsonObject();
+            String name = requireString(subMeshObj, "name");
+
+            if (subMeshObj.has("primitiveType")) {
+                throw new IllegalArgumentException("SubMesh " + meshName + "#" + name + " uses deprecated field 'primitiveType'");
+            }
+            if (subMeshObj.has("recalculateIndices")) {
+                throw new IllegalArgumentException("SubMesh " + meshName + "#" + name + " uses deprecated field 'recalculateIndices'");
+            }
+
+            if (subMeshObj.has("vertexFormat") && subMeshObj.get("vertexFormat").isJsonObject()) {
+                StructLayout subFormat = parseDataFormat(subMeshObj.getAsJsonObject("vertexFormat"));
+                if (!subFormat.equals(format)) {
+                    throw new IllegalArgumentException("SubMesh format mismatch in " + meshName + "#" + name);
+                }
+            }
+
+            List<Float> vertices = new ArrayList<>();
+            JsonArray verticesArray = subMeshObj.getAsJsonArray("vertices");
+            if (verticesArray == null || verticesArray.isEmpty()) {
+                throw new IllegalArgumentException("SubMesh " + meshName + "#" + name + " has no vertices");
+            }
+            for (JsonElement vertexElement : verticesArray) {
+                vertices.add(vertexElement.getAsFloat());
+            }
+            if (vertices.size() % expectedFloatsPerVertex != 0) {
+                throw new IllegalArgumentException("SubMesh " + meshName + "#" + name + " vertex payload does not match format");
+            }
+
+            List<Integer> indices = new ArrayList<>();
+            if (subMeshObj.has("indices")) {
+                JsonArray indicesArray = subMeshObj.getAsJsonArray("indices");
+                for (JsonElement indexElement : indicesArray) {
+                    indices.add(indexElement.getAsInt());
+                }
+            }
+
+            validateIndexPayload(meshName, name, primitiveType, indexMode, vertices.size() / expectedFloatsPerVertex, indices);
+
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            if (subMeshObj.has("material") && !subMeshObj.get("material").isJsonNull()) {
+                metadata.put("material", subMeshObj.get("material").getAsString());
+            }
+            if (subMeshObj.has("bone") && !subMeshObj.get("bone").isJsonNull()) {
+                metadata.put("bone", subMeshObj.get("bone").getAsString());
+            }
+            subMeshes.add(new CanonicalMeshCompiler.CanonicalSubMesh(name, vertices, indices, metadata));
+        }
+        return subMeshes;
+    }
+
+    private void validateIndexPayload(
+            String meshName,
+            String subMeshName,
+            PrimitiveType primitiveType,
+            MeshIndexMode indexMode,
+            int vertexCount,
+            List<Integer> indices) {
+        String fullName = meshName + "#" + subMeshName;
+        switch (indexMode) {
+            case NONE -> {
+                if (indices != null && !indices.isEmpty()) {
+                    throw new IllegalArgumentException("SubMesh " + fullName + " declares indices but indexMode is none");
+                }
+            }
+            case EXPLICIT_LOCAL -> {
+                if (indices == null || indices.isEmpty()) {
+                    throw new IllegalArgumentException("SubMesh " + fullName + " requires explicit local indices");
+                }
+                for (Integer index : indices) {
+                    if (index == null || index < 0 || index >= vertexCount) {
+                        throw new IllegalArgumentException("SubMesh " + fullName + " contains out-of-range local index " + index);
+                    }
+                }
+            }
+            case GENERATED -> {
+                if (!rogo.sketch.core.data.TopologyIndexGenerator.supportsGeneratedIndices(primitiveType)) {
+                    throw new IllegalArgumentException(
+                            "SubMesh " + fullName + " uses generated indices but topology " + primitiveType + " is not supported");
+                }
+                if (indices != null && !indices.isEmpty()) {
+                    throw new IllegalArgumentException("SubMesh " + fullName + " must not declare indices when indexMode is generated");
+                }
+            }
+        }
+    }
+
+    private int sourceFloatsPerVertex(StructLayout format) {
+        int total = 0;
+        for (var element : format.getElements()) {
+            total += element.getComponentCount();
+        }
+        return total;
+    }
+
     private void loadBones(MeshGroup meshGroup, JsonArray bonesArray) {
-        // First pass: create all bones
         for (JsonElement element : bonesArray) {
             JsonObject boneObj = element.getAsJsonObject();
 
@@ -123,16 +249,13 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             MeshBone bone = new MeshBone(name, id, localTransform, inverseBindPose);
             meshGroup.addBone(bone);
 
-            // Set as root if specified
             if (boneObj.has("isRoot") && boneObj.get("isRoot").getAsBoolean()) {
                 meshGroup.setRootBone(bone);
             }
         }
 
-        // Second pass: establish parent-child relationships
         for (JsonElement element : bonesArray) {
             JsonObject boneObj = element.getAsJsonObject();
-
             String boneName = boneObj.get("name").getAsString();
             MeshBone bone = meshGroup.findBone(boneName);
 
@@ -148,298 +271,26 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
 
     private Matrix4f parseMatrix4f(JsonObject obj, String key) {
         if (!obj.has(key)) {
-            return new Matrix4f(); // Identity matrix
+            return new Matrix4f();
         }
 
         JsonArray matrixArray = obj.getAsJsonArray(key);
         Matrix4f matrix = new Matrix4f();
-
         if (matrixArray.size() == 16) {
-            // Full 4x4 matrix
             float[] values = new float[16];
             for (int i = 0; i < 16; i++) {
                 values[i] = matrixArray.get(i).getAsFloat();
             }
             matrix.set(values);
         }
-
         return matrix;
     }
 
-    private void loadSubMeshes(MeshGroup meshGroup, JsonArray subMeshesArray) {
-        DataFormat groupFormat = meshGroup.getVertexFormat();
-
-        // Staging data
-        List<Float> allVertices = new ArrayList<>();
-        List<Integer> allIndices = new ArrayList<>();
-        List<SubMeshEntry> entries = new ArrayList<>();
-
-        int currentVertexOffset = 0;
-        int currentIndexOffset = 0;
-
-        // 1. Parse all submeshes and accumulate data
-        for (JsonElement element : subMeshesArray) {
-            JsonObject subMeshObj = element.getAsJsonObject();
-            String name = subMeshObj.get("name").getAsString();
-
-            // Validate vertex format if present
-            if (subMeshObj.has("vertexFormat")) {
-                DataFormat subFormat = parseDataFormat(subMeshObj.getAsJsonObject("vertexFormat"));
-                if (!subFormat.equals(groupFormat)) {
-                    throw new IllegalArgumentException(
-                            "SubMesh format mismatch in " + name + ". Group expects " + groupFormat);
-                }
-            }
-
-            List<Float> vertices = new ArrayList<>();
-            List<Integer> rawIndices = new ArrayList<>();
-
-            // Load vertex data
-            if (subMeshObj.has("vertices")) {
-                JsonArray verticesArray = subMeshObj.getAsJsonArray("vertices");
-                for (JsonElement vertexElement : verticesArray) {
-                    vertices.add(vertexElement.getAsFloat());
-                }
-            }
-
-            // Load index data
-            if (subMeshObj.has("indices")) {
-                JsonArray indicesArray = subMeshObj.getAsJsonArray("indices");
-                for (JsonElement indexElement : indicesArray) {
-                    rawIndices.add(indexElement.getAsInt());
-                }
-            }
-
-            int floatsPerVertex = groupFormat.getStride() / 4;
-            int subVertexCount = vertices.size() / floatsPerVertex;
-            List<Integer> indices = normalizeSubMeshIndices(
-                    meshGroup.getName() + "#" + name,
-                    rawIndices,
-                    currentVertexOffset,
-                    subVertexCount,
-                    subMeshObj.has("recalculateIndices") && subMeshObj.get("recalculateIndices").getAsBoolean());
-            int subIndexCount = indices.size();
-
-            entries.add(new SubMeshEntry(name, subMeshObj, currentVertexOffset, currentIndexOffset, subVertexCount,
-                    subIndexCount));
-
-            allVertices.addAll(vertices);
-            // Adjust indices for global offset if we are merging?
-            // Actually, for multi-draw or separate draw calls, we usually use "BaseVertex"
-            // to handle offset.
-            // But BakedMesh stores "srcVertexOffset".
-            // If we use standard GL_ELEMENT_ARRAY_BUFFER, the indices are absolute or
-            // relative?
-            // Usually they are relative to the start of the VBO unless "BaseVertex" is
-            // used.
-            // BUT if we merge into one VBO/IBO, the indices from the file are 0-based local
-            // to that mesh.
-            // When we put them in a global buffer, should we offset them?
-            // If we use "DrawElementsBaseVertex", we don't need to offset indices.
-            // BakedMesh implementation implies we might use it as a source copy...
-            // BUT if we want to render it directly, we need correct indices.
-            // Let's assume we want to support rendering without BaseVertex for widest
-            // compatibility/simplicity where possible,
-            // OR we assume the renderer handles BaseVertex.
-            // BakedMesh tracks `srcVertexOffset`.
-            // If the renderer uses `glDrawElementsBaseVertex`, we keep 0-based indices.
-            // If the renderer merges, it might re-index.
-            // HOWEVER, BakedMesh is often used for "Copying" (Zero Copy) to a target.
-            // If we copy, we copy the indices AS IS.
-            // So we should NOT offset indices here. The vertices define the base.
-
-            allIndices.addAll(indices);
-
-            currentVertexOffset += subVertexCount;
-            currentIndexOffset += subIndexCount;
-        }
-
-        // 2. Create VertexResource and Fill
-        // Create unique VertexResource (bypassing cache or using it as a unique
-        // container)
-        // Since this is a specific asset, we create a new one.
-        VertexResourceManager vrm = VertexResourceManager.globalInstance();
-
-        // We manually create VertexResource to ensure it's not shared/cached (unless we
-        // used a unique key)
-        // Just use internal logic or access new VertexResource?
-        // VertexResourceManager doesn't expose public constructor of VertexResource
-        // easily (package private?)
-        // Let's check VertexResource visibility... it is public class but constructor?
-        // VertexResource constructor is public in the snippet I read earlier!
-        // "public class VertexResource ... public VertexResource(PrimitiveType...)"
-
-        // Upload Vertices
-        VertexStreamBuilder builder = vrm.createBuilder(groupFormat, meshGroup.getPrimitiveType(), false);
-
-        // Convert List to array for faster filling? Or just iterate.
-        // Direct fill
-        float[] vData = new float[allVertices.size()];
-        for (int i = 0; i < allVertices.size(); i++)
-            vData[i] = allVertices.get(i);
-
-        fillVertices(builder, vData, groupFormat);
-
-        boolean independentIndexBuffer = !allIndices.isEmpty();
-        VertexResource resource = new VertexResource(meshGroup.getPrimitiveType(), meshGroup.getPrimitiveType().requiresIndexBuffer(), independentIndexBuffer);
-
-        // Create VBO for Binding 0
-        VertexBufferObject vbo = new VertexBufferObject(Usage.STATIC_DRAW);
-        resource.attachVBO(ComponentSpec.immutable(BakedTypeMesh.BAKED_MESH, 0, groupFormat, false), vbo);
-        resource.upload(BakedTypeMesh.BAKED_MESH, builder);
-
-        // Upload Indices if present
-        if (independentIndexBuffer) {
-            IndexBufferResource ibo = resource.getIndexBuffer();
-            ibo.setIndices(allIndices.stream().mapToInt(Integer::intValue).toArray());
-            ibo.upload();
-        }
-
-        // 3. Create BakedMeshes
-        for (SubMeshEntry entry : entries) {
-            BakedMesh bakedMesh = new BakedMesh(
-                    resource,
-                    KeyId.of(entry.name),
-                    entry.vertexOffset,
-                    entry.indexOffset,
-                    entry.vertexCount,
-                    entry.indexCount);
-
-            meshGroup.addMesh(KeyId.of(entry.name), bakedMesh);
-
-            // Metadata
-            if (entry.jsonObj.has("material")) {
-                meshGroup.setMetadata("material_" + entry.name, entry.jsonObj.get("material").getAsString());
-            }
-        }
-    }
-
-    private record SubMeshEntry(String name, JsonObject jsonObj, int vertexOffset, int indexOffset, int vertexCount,
-                                int indexCount) {
-    }
-
-    private List<Integer> normalizeSubMeshIndices(
-            String subMeshName,
-            List<Integer> rawIndices,
-            int currentVertexOffset,
-            int subVertexCount,
-            boolean recalculateIndices) {
-        if (rawIndices == null || rawIndices.isEmpty()) {
-            return List.of();
-        }
-
-        int minIndex = Integer.MAX_VALUE;
-        int maxIndex = Integer.MIN_VALUE;
-        for (Integer rawIndex : rawIndices) {
-            if (rawIndex == null) {
-                continue;
-            }
-            minIndex = Math.min(minIndex, rawIndex);
-            maxIndex = Math.max(maxIndex, rawIndex);
-        }
-
-        if (minIndex < 0) {
-            throw new IllegalArgumentException("SubMesh " + subMeshName + " contains negative indices");
-        }
-
-        if (maxIndex < subVertexCount) {
-            if (recalculateIndices) {
-                SketchDiagnostics.get().warn("mesh-loader",
-                        "Ignoring recalculateIndices for " + subMeshName
-                                + " because baked meshes now require local indices plus baseVertex.");
-            }
-            return List.copyOf(rawIndices);
-        }
-
-        int maxAllowedGlobal = currentVertexOffset + subVertexCount;
-        if (minIndex >= currentVertexOffset && maxIndex < maxAllowedGlobal) {
-            SketchDiagnostics.get().warn("mesh-loader",
-                    "Converting global subMesh indices to local indices for " + subMeshName
-                            + " to satisfy baked baseVertex semantics.");
-            List<Integer> normalized = new ArrayList<>(rawIndices.size());
-            for (Integer rawIndex : rawIndices) {
-                normalized.add(rawIndex - currentVertexOffset);
-            }
-            return normalized;
-        }
-
-        throw new IllegalArgumentException(
-                "SubMesh " + subMeshName + " mixes incompatible index conventions. "
-                        + "Expected local indices in [0," + (subVertexCount - 1) + "] or global indices in ["
-                        + currentVertexOffset + "," + (maxAllowedGlobal - 1) + "], but found min="
-                        + minIndex + " max=" + maxIndex);
-    }
-
-    private static void fillVertices(VertexStreamBuilder filler, float[] data, DataFormat format) {
-        // Calculate number of vertices based on total floats and stride
-        // Note: getStride() is in bytes, data is in floats.
-        int strideBytes = format.getStride();
-        int totalFloats = data.length;
-
-        // This assumes the JSON data is perfectly packed as floats, which is how loadSubMeshes parses it.
-        // We need to calculate how many vertices we have based on the *format definition*, not just bytes,
-        // because format might have padding.
-        // However, the input 'data' comes from JSON "vertices" array which usually contains packed floats
-        // corresponding to the elements defined.
-
-        // Let's count how many floats one vertex consumes from the source array
-        int sourceFloatsPerVertex = 0;
-        for (DataElement element : format.getElements()) {
-            sourceFloatsPerVertex += element.getComponentCount();
-        }
-
-        if (totalFloats % sourceFloatsPerVertex != 0) {
-            throw new IllegalArgumentException("Vertex data size does not match vertex format. Data length: " + totalFloats + ", Floats per vertex: " + sourceFloatsPerVertex);
-        }
-
-        int vertexCount = totalFloats / sourceFloatsPerVertex;
-        int readIndex = 0;
-        DataElement[] elements = format.getElements();
-
-        for (int i = 0; i < vertexCount; i++) {
-            for (DataElement element : elements) {
-                // 2. Determine type and count
-                int count = element.getComponentCount();
-                DataType type = element.getDataType();
-                boolean normalized = element.isNormalized();
-
-                // 3. Determine if we should treat input as Integer or Float
-                // If it is not normalized and is an integer type (INT, UINT, BYTE, SHORT...), use put(int)
-                // If it is normalized or FLOAT/DOUBLE, use put(float) (Builder handles float->norm byte conversion)
-                boolean useIntegerWrite = !normalized && !type.isFloatType();
-
-                // 4. Vectorized Write (Triggers advance())
-                if (useIntegerWrite) {
-                    switch (count) {
-                        case 1 -> filler.put((int) data[readIndex++]);
-                        case 2 -> filler.put((int) data[readIndex++], (int) data[readIndex++]);
-                        case 3 -> filler.put((int) data[readIndex++], (int) data[readIndex++], (int) data[readIndex++]);
-                        case 4 ->
-                                filler.put((int) data[readIndex++], (int) data[readIndex++], (int) data[readIndex++], (int) data[readIndex++]);
-                        default ->
-                                throw new UnsupportedOperationException("Unsupported component count for integer write: " + count);
-                    }
-                } else {
-                    switch (count) {
-                        case 1 -> filler.put(data[readIndex++]);
-                        case 2 -> filler.put(data[readIndex++], data[readIndex++]);
-                        case 3 -> filler.put(data[readIndex++], data[readIndex++], data[readIndex++]);
-                        case 4 ->
-                                filler.put(data[readIndex++], data[readIndex++], data[readIndex++], data[readIndex++]);
-                        default ->
-                                throw new UnsupportedOperationException("Unsupported component count for float write: " + count);
-                    }
-                }
-            }
-        }
-    }
-
-    private DataFormat parseDataFormat(JsonObject formatObj) {
+    private StructLayout parseDataFormat(JsonObject formatObj) {
         String formatName = formatObj.get("name").getAsString();
         JsonArray elementsArray = formatObj.getAsJsonArray("elements");
 
-        DataFormat.Builder builder = DataFormat.builder(formatName);
-
+        StructLayout.Builder builder = StructLayout.builder(formatName);
         for (JsonElement element : elementsArray) {
             JsonObject elementObj = element.getAsJsonObject();
 
@@ -449,60 +300,18 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             boolean sortKey = elementObj.has("sortKey") && elementObj.get("sortKey").getAsBoolean();
             boolean padding = elementObj.has("padding") && elementObj.get("padding").getAsBoolean();
 
-            DataType dataType = parseDataType(dataTypeStr);
+            ValueType dataType = parseDataType(dataTypeStr);
             builder.add(elementName, dataType, normalized, sortKey, padding);
         }
-
         return builder.build();
     }
 
-    private DataType parseDataType(String type) {
-        return switch (type.toLowerCase()) {
-            case "float" -> DataType.FLOAT;
-            case "vec2f" -> DataType.VEC2F;
-            case "vec3f" -> DataType.VEC3F;
-            case "vec4f" -> DataType.VEC4F;
-
-            case "int" -> DataType.INT;
-            case "vec2i" -> DataType.VEC2I;
-            case "vec3i" -> DataType.VEC3I;
-            case "vec4i" -> DataType.VEC4I;
-
-            case "uint" -> DataType.UINT;
-            case "vec2ui" -> DataType.VEC2UI;
-            case "vec3ui" -> DataType.VEC3UI;
-            case "vec4ui" -> DataType.VEC4UI;
-
-            case "byte" -> DataType.BYTE;
-            case "vec2b" -> DataType.VEC2B;
-            case "vec3b" -> DataType.VEC3B;
-            case "vec4b" -> DataType.VEC4B;
-
-            case "ubyte" -> DataType.UBYTE;
-            case "vec2ub" -> DataType.VEC2UB;
-            case "vec3ub" -> DataType.VEC3UB;
-            case "vec4ub" -> DataType.VEC4UB;
-
-            case "short" -> DataType.SHORT;
-            case "vec2s" -> DataType.VEC2S;
-            case "vec3s" -> DataType.VEC3S;
-            case "vec4s" -> DataType.VEC4S;
-
-            case "ushort" -> DataType.USHORT;
-            case "vec2us" -> DataType.VEC2US;
-            case "vec3us" -> DataType.VEC3US;
-            case "vec4us" -> DataType.VEC4US;
-
-            case "double" -> DataType.DOUBLE;
-            case "vec2d" -> DataType.VEC2D;
-            case "vec3d" -> DataType.VEC3D;
-            case "vec4d" -> DataType.VEC4D;
-
-            case "mat2" -> DataType.MAT2;
-            case "mat3" -> DataType.MAT3;
-            case "mat4" -> DataType.MAT4;
-            default -> throw new IllegalArgumentException("Unknown data type: " + type);
-        };
+    private ValueType parseDataType(String type) {
+        ValueType parsed = ValueType.getByName(type);
+        if (parsed == null) {
+            throw new IllegalArgumentException("Unknown data type: " + type);
+        }
+        return parsed;
     }
 
     private void loadMetadata(MeshGroup meshGroup, JsonObject metadataObj) {
@@ -511,7 +320,7 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
             JsonElement value = entry.getValue();
 
             if (value.isJsonPrimitive()) {
-                JsonPrimitive primitive = value.getAsJsonPrimitive();
+                var primitive = value.getAsJsonPrimitive();
                 if (primitive.isString()) {
                     meshGroup.setMetadata(key, primitive.getAsString());
                 } else if (primitive.isNumber()) {
@@ -525,3 +334,4 @@ public class MeshLoader implements ResourceLoader<MeshGroup> {
         }
     }
 }
+

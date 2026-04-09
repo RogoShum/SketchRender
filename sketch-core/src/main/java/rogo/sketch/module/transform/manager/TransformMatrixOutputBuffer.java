@@ -1,8 +1,12 @@
 package rogo.sketch.module.transform.manager;
 
-import org.lwjgl.opengl.GL15;
+import rogo.sketch.core.backend.BackendBufferFactory;
+import rogo.sketch.core.backend.BackendStorageBuffer;
 import rogo.sketch.core.api.ResourceObject;
-import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
+import rogo.sketch.core.resource.descriptor.BufferRole;
+import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
+import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
+import rogo.sketch.core.util.KeyId;
 
 /**
  * GPU output SSBO for computed transform matrices.
@@ -10,11 +14,12 @@ import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
 public class TransformMatrixOutputBuffer {
     private static final int OUTPUT_STRIDE = 64;
 
-    private final ShaderStorageBuffer outputSSBO;
+    private final KeyId bufferId = KeyId.of("sketch_render:transform_output_runtime");
+    private final BackendStorageBuffer outputSSBO;
     private int currentCapacity = 64;
 
     public TransformMatrixOutputBuffer() {
-        outputSSBO = new ShaderStorageBuffer(currentCapacity, OUTPUT_STRIDE, GL15.GL_DYNAMIC_DRAW);
+        outputSSBO = BackendBufferFactory.createStorageBuffer(bufferId, descriptorFor(currentCapacity), null);
     }
 
     public void ensureCapacityForMaxId(int maxAllocatedId) {
@@ -35,4 +40,16 @@ public class TransformMatrixOutputBuffer {
     public void cleanup() {
         outputSSBO.dispose();
     }
+
+    private ResolvedBufferResource descriptorFor(int elementCount) {
+        long safeCount = Math.max(1L, elementCount);
+        return new ResolvedBufferResource(
+                bufferId,
+                BufferRole.STORAGE,
+                BufferUpdatePolicy.DYNAMIC,
+                safeCount,
+                OUTPUT_STRIDE,
+                safeCount * OUTPUT_STRIDE);
+    }
 }
+

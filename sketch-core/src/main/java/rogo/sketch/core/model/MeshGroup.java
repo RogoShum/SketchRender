@@ -4,7 +4,7 @@ import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.format.DataFormat;
+import rogo.sketch.core.data.layout.StructLayout;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -21,7 +21,7 @@ import java.util.Map;
 public class MeshGroup implements ResourceObject {
     private final String name;
     private final PrimitiveType primitiveType;
-    private final DataFormat vertexFormat;
+    private final StructLayout vertexFormat;
 
     // Meshes mapped by identifier/name
     private final Map<KeyId, PreparedMesh> meshes = new HashMap<>();
@@ -37,7 +37,7 @@ public class MeshGroup implements ResourceObject {
     private final Map<String, Object> metadata = new HashMap<>();
     private boolean disposed = false;
 
-    public MeshGroup(String name, PrimitiveType primitiveType, DataFormat vertexFormat) {
+    public MeshGroup(String name, PrimitiveType primitiveType, StructLayout vertexFormat) {
         this.name = name;
         this.primitiveType = primitiveType;
         this.vertexFormat = vertexFormat;
@@ -173,7 +173,7 @@ public class MeshGroup implements ResourceObject {
         return primitiveType;
     }
 
-    public DataFormat getVertexFormat() {
+    public StructLayout getVertexFormat() {
         return vertexFormat;
     }
 
@@ -191,3 +191,4 @@ public class MeshGroup implements ResourceObject {
         return primitiveType;
     }
 }
+

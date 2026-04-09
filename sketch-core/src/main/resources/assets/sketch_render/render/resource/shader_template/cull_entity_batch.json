@@ -1,0 +1,9 @@
+{
+  "compute": "sketch_render:cull_entity_batch.comp",
+  "resourceBindings": {
+    "shader_storage_buffer": [
+      "EntityDataBuffer",
+      "CullingResultBuffer"
+    ]
+  }
+}

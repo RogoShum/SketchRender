@@ -1,9 +1,10 @@
 package rogo.sketch.core.pipeline.data;
 
+import rogo.sketch.core.backend.BackendGeometryBinding;
+import rogo.sketch.core.backend.BackendIndirectBuffer;
+import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.core.packet.GeometryHandleKey;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
-import rogo.sketch.core.resource.buffer.IndirectCommandBuffer;
-import rogo.sketch.core.resource.buffer.VertexResource;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Map;
@@ -14,18 +15,23 @@ public class GeometryFrameData implements RenderPipelineData {
 
     private final Map<GeometryHandleKey, GeometryBinding> bindings = new ConcurrentHashMap<>();
 
-    public void register(GeometryHandleKey key, VertexResource vertexResource, IndirectCommandBuffer indirectBuffer) {
+    public void register(
+            GeometryHandleKey key,
+            BackendGeometryBinding geometryBinding,
+            BackendInstalledBuffer indirectBuffer) {
         registerNeutral(
                 key,
-                vertexResource != null ? new BufferSlice(vertexResource.getHandle(), 0L, 0L, 0) : null,
-                vertexResource != null && vertexResource.hasIndices()
-                        ? new BufferSlice(vertexResource.getIndexBuffer().getHandle(), 0L, 0L, 0)
+                null,
+                null,
+                indirectBuffer instanceof BackendIndirectBuffer indirectCommandBuffer
+                        ? new IndirectSlice(
+                                0L,
+                                0L,
+                                indirectCommandBuffer.commandCount(),
+                                (int) indirectCommandBuffer.strideBytes())
                         : null,
-                indirectBuffer != null
-                        ? new IndirectSlice(indirectBuffer.getHandle(), 0L, indirectBuffer.getCommandCount(), (int) indirectBuffer.getStride())
-                        : null,
-                SourceKind.OPENGL_VERTEX_RESOURCE,
-                vertexResource,
+                SourceKind.BACKEND_NATIVE,
+                geometryBinding,
                 indirectBuffer);
     }
 
@@ -35,8 +41,8 @@ public class GeometryFrameData implements RenderPipelineData {
             BufferSlice indexSlice,
             IndirectSlice indirectSlice,
             SourceKind sourceKind,
-            VertexResource vertexResource,
-            IndirectCommandBuffer indirectBuffer) {
+            BackendGeometryBinding geometryBinding,
+            BackendInstalledBuffer indirectBuffer) {
         if (key == null) {
             return;
         }
@@ -45,19 +51,16 @@ public class GeometryFrameData implements RenderPipelineData {
                 indexSlice,
                 indirectSlice,
                 sourceKind != null ? sourceKind : SourceKind.BACKEND_NATIVE,
-                vertexResource,
+                geometryBinding,
                 indirectBuffer);
         GeometryBinding previous = bindings.put(key, nextBinding);
         if (previous != null
-                && previous.vertexResource() != null
-                && vertexResource != null
-                && previous.vertexResource() != vertexResource
-                && previous.vertexResource().getHandle() != vertexResource.getHandle()) {
+                && previous.geometryBinding() != geometryBinding
+                && previous.geometryBinding() != null
+                && geometryBinding != null) {
             SketchDiagnostics.get().warn(
                     "geometry-frame-data",
-                    "geometry binding overwritten for handle=" + key
-                            + " previousVao=" + previous.vertexResource().getHandle()
-                            + " nextVao=" + vertexResource.getHandle());
+                    "geometry binding overwritten for handle=" + key);
         }
     }
 
@@ -71,7 +74,6 @@ public class GeometryFrameData implements RenderPipelineData {
     }
 
     public enum SourceKind {
-        OPENGL_VERTEX_RESOURCE,
         SHARED_SOURCE,
         DYNAMIC_STAGING,
         BACKEND_NATIVE
@@ -88,8 +90,9 @@ public class GeometryFrameData implements RenderPipelineData {
             BufferSlice indexSlice,
             IndirectSlice indirectSlice,
             SourceKind sourceKind,
-            VertexResource vertexResource,
-            IndirectCommandBuffer indirectBuffer
+            BackendGeometryBinding geometryBinding,
+            BackendInstalledBuffer indirectBuffer
     ) {
     }
 }
+

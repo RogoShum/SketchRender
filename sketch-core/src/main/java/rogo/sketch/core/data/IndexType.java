@@ -1,22 +1,14 @@
 package rogo.sketch.core.data;
 
-import org.lwjgl.opengl.GL11;
-
 public enum IndexType {
-    U_BYTE(GL11.GL_UNSIGNED_BYTE, 1),
-    U_SHORT(GL11.GL_UNSIGNED_SHORT, 2),
-    U_INT(GL11.GL_UNSIGNED_INT, 4);
+    U_BYTE(1),
+    U_SHORT(2),
+    U_INT(4);
 
-    private final int glType;
     private final int bytes;
 
-    IndexType(int glType, int bytes) {
-        this.glType = glType;
+    IndexType(int bytes) {
         this.bytes = bytes;
-    }
-
-    public int glType() {
-        return glType;
     }
 
     public int bytes() {
@@ -33,3 +25,4 @@ public enum IndexType {
         }
     }
 }
+

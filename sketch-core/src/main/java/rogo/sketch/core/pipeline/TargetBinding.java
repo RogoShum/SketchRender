@@ -1,7 +1,7 @@
 package rogo.sketch.core.pipeline;
 
-import rogo.sketch.core.driver.state.FullRenderState;
-import rogo.sketch.core.driver.state.gl.RenderTargetState;
+import rogo.sketch.core.driver.state.RenderStatePatch;
+import rogo.sketch.core.driver.state.component.RenderTargetState;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.List;
@@ -24,8 +24,8 @@ public record TargetBinding(
         return DEFAULT;
     }
 
-    public static TargetBinding fromLegacy(FullRenderState renderState) {
-        if (renderState == null) {
+    public static TargetBinding fromRenderState(RenderStatePatch renderState) {
+        if (renderState == null || renderState.isEmpty()) {
             return defaultTarget();
         }
         Object state = renderState.get(RenderTargetState.TYPE);
@@ -39,3 +39,4 @@ public record TargetBinding(
         return DEFAULT_RENDER_TARGET.equals(renderTargetId) && drawBuffers.isEmpty();
     }
 }
+

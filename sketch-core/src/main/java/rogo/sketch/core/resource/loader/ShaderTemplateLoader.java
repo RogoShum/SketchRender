@@ -29,6 +29,10 @@ import java.util.stream.Collectors;
  * "fragment": "namespace:shader.fsh",
  * "geometry": "namespace:shader.gsh",           // optional
  * "attributes": ["vec3 Position", "vec2 UV0"],  // optional - explicit type format
+ * "resourceBindings": {                         // optional - stable binding order hints
+ *   "shader_storage_buffer": ["InputBuffer", "OutputBuffer"],
+ *   "texture": ["Sampler0"]
+ * },
  * // OR
  * "attributes": ["Position", "UV0", "Normal : ENABLE_NORMAL"],  // optional - type inferred from vertex shader
  * "templates": ["sketch:shadow_support"],       // optional macro templates
@@ -55,79 +59,72 @@ public class ShaderTemplateLoader implements ResourceLoader<ShaderTemplate> {
 
     @Override
     public ShaderTemplate load(ResourceLoadContext context) {
-        try {
-            KeyId keyId = context.getResourceId();
-            JsonObject json = context.getJson();
-            if (json == null) return null;
+        KeyId keyId = context.getResourceId();
+        JsonObject json = context.getJson();
+        if (json == null) return null;
 
-            Function<KeyId, Optional<InputStream>> resourceProvider = context.getSubResourceProvider();
-            Function<KeyId, Optional<InputStream>> shaderResourceProvider = createShaderResourceProvider(resourceProvider);
+        Function<KeyId, Optional<InputStream>> resourceProvider = context.getSubResourceProvider();
+        Function<KeyId, Optional<InputStream>> shaderResourceProvider = createShaderResourceProvider(resourceProvider);
 
-            // Load shader sources first (needed for vertex attribute type inference)
-            Map<ShaderType, String> shaderSources = new EnumMap<>(ShaderType.class);
-            String vertexShaderSource = null;
+        // Load shader sources first (needed for vertex attribute type inference)
+        Map<ShaderType, String> shaderSources = new EnumMap<>(ShaderType.class);
+        String vertexShaderSource = null;
 
-            if (json.has("vertex")) {
-                vertexShaderSource = loadShaderSource(json.get("vertex").getAsString(), shaderResourceProvider);
-                shaderSources.put(ShaderType.VERTEX, vertexShaderSource);
-            }
+        if (json.has("vertex")) {
+            vertexShaderSource = loadShaderSource(json.get("vertex").getAsString(), shaderResourceProvider);
+            shaderSources.put(ShaderType.VERTEX, vertexShaderSource);
+        }
 
-            if (json.has("fragment")) {
-                String source = loadShaderSource(json.get("fragment").getAsString(), shaderResourceProvider);
-                shaderSources.put(ShaderType.FRAGMENT, source);
-            }
+        if (json.has("fragment")) {
+            String source = loadShaderSource(json.get("fragment").getAsString(), shaderResourceProvider);
+            shaderSources.put(ShaderType.FRAGMENT, source);
+        }
 
-            if (json.has("geometry")) {
-                String source = loadShaderSource(json.get("geometry").getAsString(), shaderResourceProvider);
-                shaderSources.put(ShaderType.GEOMETRY, source);
-            }
+        if (json.has("geometry")) {
+            String source = loadShaderSource(json.get("geometry").getAsString(), shaderResourceProvider);
+            shaderSources.put(ShaderType.GEOMETRY, source);
+        }
 
-            if (json.has("compute")) {
-                String source = loadShaderSource(json.get("compute").getAsString(), shaderResourceProvider);
-                shaderSources.put(ShaderType.COMPUTE, source);
-            }
+        if (json.has("compute")) {
+            String source = loadShaderSource(json.get("compute").getAsString(), shaderResourceProvider);
+            shaderSources.put(ShaderType.COMPUTE, source);
+        }
 
-            if (json.has("tessControl") || json.has("tess_control")) {
-                JsonElement tessElement = json.has("tessControl") ? json.get("tessControl") : json.get("tess_control");
-                String source = loadShaderSource(tessElement.getAsString(), shaderResourceProvider);
-                shaderSources.put(ShaderType.TESS_CONTROL, source);
-            }
+        if (json.has("tessControl") || json.has("tess_control")) {
+            JsonElement tessElement = json.has("tessControl") ? json.get("tessControl") : json.get("tess_control");
+            String source = loadShaderSource(tessElement.getAsString(), shaderResourceProvider);
+            shaderSources.put(ShaderType.TESS_CONTROL, source);
+        }
 
-            if (json.has("tessEvaluation") || json.has("tess_evaluation")) {
-                JsonElement tessElement = json.has("tessEvaluation") ? json.get("tessEvaluation") : json.get("tess_evaluation");
-                String source = loadShaderSource(tessElement.getAsString(), shaderResourceProvider);
-                shaderSources.put(ShaderType.TESS_EVALUATION, source);
-            }
+        if (json.has("tessEvaluation") || json.has("tess_evaluation")) {
+            JsonElement tessElement = json.has("tessEvaluation") ? json.get("tessEvaluation") : json.get("tess_evaluation");
+            String source = loadShaderSource(tessElement.getAsString(), shaderResourceProvider);
+            shaderSources.put(ShaderType.TESS_EVALUATION, source);
+        }
 
-            // Parse vertex attributes if present (now that we have vertex shader source for type inference)
-            ShaderVertexLayout vertexLayout = parseVertexLayout(json, vertexShaderSource);
+        // Parse vertex attributes if present (now that we have vertex shader source for type inference)
+        ShaderVertexLayout vertexLayout = parseVertexLayout(json, vertexShaderSource);
+        Map<KeyId, Map<KeyId, Integer>> resourceBindings = parseResourceBindings(json);
 
-            // Create shader template
-            ShaderTemplate template = new ShaderTemplate(
-                    keyId,
-                    shaderSources,
-                    vertexLayout,
-                    preprocessor,
-                    resourceProvider
-            );
+        ShaderTemplate template = new ShaderTemplate(
+                keyId,
+                shaderSources,
+                vertexLayout,
+                preprocessor,
+                resourceProvider,
+                resourceBindings
+        );
 
-            // Add macro template associations
-            if (json.has("templates") && json.get("templates").isJsonArray()) {
-                JsonArray templatesArray = json.getAsJsonArray("templates");
-                for (JsonElement element : templatesArray) {
-                    if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
-                        template.addMacroTemplate(KeyId.of(element.getAsString()));
-                    }
+        if (json.has("templates") && json.get("templates").isJsonArray()) {
+            JsonArray templatesArray = json.getAsJsonArray("templates");
+            for (JsonElement element : templatesArray) {
+                if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
+                    template.addMacroTemplate(KeyId.of(element.getAsString()));
                 }
             }
-
-            return template;
-
-        } catch (Exception e) {
-            System.err.println("Failed to load shader template: " + e.getMessage());
-            e.printStackTrace();
-            return null;
         }
+
+        return template;
     }
 
     /**
@@ -227,5 +224,47 @@ public class ShaderTemplateLoader implements ResourceLoader<ShaderTemplate> {
         }
         return "";
     }
+
+    private Map<KeyId, Map<KeyId, Integer>> parseResourceBindings(JsonObject json) {
+        if (!json.has("resourceBindings") || !json.get("resourceBindings").isJsonObject()) {
+            return Collections.emptyMap();
+        }
+
+        JsonObject resourceBindings = json.getAsJsonObject("resourceBindings");
+        Map<KeyId, Map<KeyId, Integer>> parsed = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : resourceBindings.entrySet()) {
+            KeyId resourceType = ResourceTypes.normalize(KeyId.of(entry.getKey()));
+            JsonElement bindingSpec = entry.getValue();
+            Map<KeyId, Integer> typeBindings = new LinkedHashMap<>();
+
+            if (bindingSpec.isJsonArray()) {
+                JsonArray orderedBindings = bindingSpec.getAsJsonArray();
+                for (int i = 0; i < orderedBindings.size(); i++) {
+                    JsonElement element = orderedBindings.get(i);
+                    if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                        throw new IllegalArgumentException("resourceBindings." + entry.getKey() + "[" + i + "] must be a string");
+                    }
+                    typeBindings.put(KeyId.of(element.getAsString()), i);
+                }
+            } else if (bindingSpec.isJsonObject()) {
+                JsonObject explicitBindings = bindingSpec.getAsJsonObject();
+                for (Map.Entry<String, JsonElement> bindingEntry : explicitBindings.entrySet()) {
+                    if (!bindingEntry.getValue().isJsonPrimitive() || !bindingEntry.getValue().getAsJsonPrimitive().isNumber()) {
+                        throw new IllegalArgumentException("resourceBindings." + entry.getKey() + "." + bindingEntry.getKey() + " must be a number");
+                    }
+                    typeBindings.put(KeyId.of(bindingEntry.getKey()), bindingEntry.getValue().getAsInt());
+                }
+            } else {
+                throw new IllegalArgumentException("resourceBindings." + entry.getKey() + " must be an array or object");
+            }
+
+            if (!typeBindings.isEmpty()) {
+                parsed.put(resourceType, typeBindings);
+            }
+        }
+
+        return parsed.isEmpty() ? Collections.emptyMap() : parsed;
+    }
 }
+
 

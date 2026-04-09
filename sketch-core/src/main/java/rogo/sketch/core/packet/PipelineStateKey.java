@@ -1,8 +1,10 @@
 package rogo.sketch.core.packet;
 
-import rogo.sketch.core.driver.state.FullRenderState;
-import rogo.sketch.core.driver.state.gl.RenderTargetState;
-import rogo.sketch.core.driver.state.gl.ShaderState;
+import rogo.sketch.core.driver.state.CompiledRenderState;
+import rogo.sketch.core.driver.state.RenderStateCompiler;
+import rogo.sketch.core.driver.state.RenderStatePatch;
+import rogo.sketch.core.driver.state.component.RenderTargetState;
+import rogo.sketch.core.driver.state.component.ShaderState;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.TargetBinding;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
@@ -17,7 +19,8 @@ public final class PipelineStateKey {
     private static final KeyId DEFAULT_RENDER_TARGET = KeyId.of("sketch:default_render_target");
 
     private final RenderParameter renderParameter;
-    private final FullRenderState renderState;
+    private final RenderStatePatch renderState;
+    private final CompiledRenderState compiledRenderState;
     private final ResourceBindingPlan bindingPlan;
     private final boolean shouldSwitchRenderState;
     private final KeyId shaderId;
@@ -31,7 +34,8 @@ public final class PipelineStateKey {
 
     public PipelineStateKey(
             RenderParameter renderParameter,
-            FullRenderState renderState,
+            RenderStatePatch renderState,
+            CompiledRenderState compiledRenderState,
             ResourceBindingPlan bindingPlan,
             boolean shouldSwitchRenderState,
             KeyId shaderId,
@@ -39,6 +43,7 @@ public final class PipelineStateKey {
         this(
                 renderParameter,
                 renderState,
+                compiledRenderState,
                 bindingPlan,
                 shouldSwitchRenderState,
                 shaderId,
@@ -50,7 +55,8 @@ public final class PipelineStateKey {
 
     public PipelineStateKey(
             RenderParameter renderParameter,
-            FullRenderState renderState,
+            RenderStatePatch renderState,
+            CompiledRenderState compiledRenderState,
             ResourceBindingPlan bindingPlan,
             boolean shouldSwitchRenderState,
             KeyId shaderId,
@@ -59,7 +65,10 @@ public final class PipelineStateKey {
             KeyId renderTargetKey,
             KeyId resourceLayoutKey) {
         this.renderParameter = renderParameter;
-        this.renderState = renderState;
+        this.renderState = renderState != null ? renderState : RenderStatePatch.empty();
+        this.compiledRenderState = compiledRenderState != null
+                ? compiledRenderState
+                : RenderStateCompiler.compile(this.renderState);
         this.bindingPlan = bindingPlan != null ? bindingPlan : ResourceBindingPlan.empty();
         this.shouldSwitchRenderState = shouldSwitchRenderState;
         this.shaderId = shaderId != null ? shaderId : UNBOUND_SHADER;
@@ -67,7 +76,9 @@ public final class PipelineStateKey {
         this.vertexLayoutKey = vertexLayoutKey != null ? vertexLayoutKey : EMPTY_VERTEX_LAYOUT;
         this.renderTargetKey = renderTargetKey != null ? renderTargetKey : DEFAULT_RENDER_TARGET;
         this.resourceLayoutKey = resourceLayoutKey != null ? resourceLayoutKey : ResourceBindingPlan.empty().layoutKey();
-        this.rasterStateSignature = renderState != null ? renderState.hashCode() : 0;
+        this.rasterStateSignature = this.compiledRenderState != null && this.compiledRenderState.pipelineRasterState() != null
+                ? this.compiledRenderState.pipelineRasterState().hashCode()
+                : 0;
         this.resourceBindingSignature = shouldIncludeResourceBindingSignature(renderParameter)
                 ? this.bindingPlan.resourceBindingHash()
                 : 0;
@@ -89,9 +100,11 @@ public final class PipelineStateKey {
         if (renderSetting.renderState() != null && renderSetting.renderState().get(ShaderState.TYPE) instanceof ShaderState state) {
             shaderState = state;
         }
+        CompiledRenderState compiledRenderState = RenderStateCompiler.compile(renderSetting.renderState());
         return new PipelineStateKey(
                 renderSetting.renderParameter(),
                 renderSetting.renderState(),
+                compiledRenderState,
                 ResourceBindingPlan.from(renderSetting.resourceBinding()),
                 renderSetting.shouldSwitchRenderState(),
                 shaderState != null ? shaderState.getShaderId() : UNBOUND_SHADER,
@@ -108,7 +121,8 @@ public final class PipelineStateKey {
             KeyId resourceLayoutKey) {
         return new PipelineStateKey(
                 null,
-                null,
+                RenderStatePatch.empty(),
+                CompiledRenderState.empty(),
                 ResourceBindingPlan.empty(),
                 false,
                 shaderId,
@@ -122,8 +136,12 @@ public final class PipelineStateKey {
         return renderParameter;
     }
 
-    public FullRenderState renderState() {
+    public RenderStatePatch renderState() {
         return renderState;
+    }
+
+    public CompiledRenderState compiledRenderState() {
+        return compiledRenderState;
     }
 
     public ResourceBindingPlan bindingPlan() {
@@ -193,11 +211,11 @@ public final class PipelineStateKey {
         return KeyId.of("sketch:vertex_layout_" + Integer.toHexString(renderParameter.getLayout().hashCode()));
     }
 
-    private static KeyId deriveRenderTargetKey(TargetBinding targetBinding, FullRenderState renderState) {
+    private static KeyId deriveRenderTargetKey(TargetBinding targetBinding, RenderStatePatch renderState) {
         if (targetBinding != null) {
             return targetBinding.renderTargetId();
         }
-        if (renderState == null) {
+        if (renderState == null || renderState.isEmpty()) {
             return DEFAULT_RENDER_TARGET;
         }
         Object state = renderState.get(RenderTargetState.TYPE);
@@ -207,7 +225,7 @@ public final class PipelineStateKey {
         return DEFAULT_RENDER_TARGET;
     }
 
-    private static KeyId deriveRenderTargetKey(FullRenderState renderState) {
+    private static KeyId deriveRenderTargetKey(RenderStatePatch renderState) {
         return deriveRenderTargetKey(null, renderState);
     }
 
@@ -215,3 +233,4 @@ public final class PipelineStateKey {
         return bindingPlan != null ? bindingPlan.layoutKey() : ResourceBindingPlan.empty().layoutKey();
     }
 }
+

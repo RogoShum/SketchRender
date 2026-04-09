@@ -28,6 +28,17 @@ public interface ShaderPreprocessor {
             throws ShaderPreprocessorException {
         return process(source, shaderKeyId, Collections.emptyMap(), null);
     }
+
+    /**
+     * Inject the final resolved vertex attribute layout into an already
+     * preprocessed vertex shader source.
+     * <p>
+     * Default implementation leaves the source unchanged so non-layout-aware
+     * preprocessors continue to work.
+     */
+    default String injectVertexAttributeLayouts(String source, ShaderVertexLayout vertexLayout) {
+        return source;
+    }
     
     /**
      * Set the resource provider for loading imported files
@@ -44,3 +55,4 @@ public interface ShaderPreprocessor {
      */
     void clearCache();
 }
+

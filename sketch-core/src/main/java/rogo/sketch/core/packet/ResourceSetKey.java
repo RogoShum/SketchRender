@@ -27,7 +27,7 @@ public record ResourceSetKey(
         return new ResourceSetKey(
                 compiledPlan.layoutKey(),
                 compiledPlan.resourceBindingHash(),
-                Objects.hash(uniformSet.legacySnapshot()));
+                Objects.hash(uniformSet.snapshot()));
     }
 
     public boolean isEmpty() {
@@ -36,3 +36,4 @@ public record ResourceSetKey(
                 && EMPTY_LAYOUT.equals(resourceLayoutKey);
     }
 }
+

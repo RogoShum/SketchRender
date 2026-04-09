@@ -2,6 +2,7 @@ package rogo.sketch.core.pipeline.kernel;
 
 import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.packet.RenderPacket;
+import rogo.sketch.core.packet.RenderPacketKind;
 import rogo.sketch.core.packet.ResourceSetKey;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.util.KeyId;
@@ -37,7 +38,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
                     PipelineStateKey stateKey = stateEntry.getKey();
                     for (RenderPacket packet : stateEntry.getValue()) {
                         packetCount++;
-                        int drawCount = packet instanceof rogo.sketch.core.packet.DrawPacket ? 1 : 0;
+                        int drawCount = packet.packetKind() == RenderPacketKind.DRAW ? 1 : 0;
                         drawPacketCount += drawCount;
                         StateCaptureKey captureKey = new StateCaptureKey(
                                 pipelineType,
@@ -128,7 +129,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
                 ResourceSetKey resourceSetKey,
                 RenderPacket packet) {
             packetCount++;
-            int drawCount = packet instanceof rogo.sketch.core.packet.DrawPacket ? 1 : 0;
+            int drawCount = packet.packetKind() == RenderPacketKind.DRAW ? 1 : 0;
             drawPacketCount += drawCount;
             StateCaptureKey captureKey = new StateCaptureKey(
                     pipelineType,

@@ -1,17 +1,19 @@
 package rogo.sketch.core.pipeline;
 
 import rogo.sketch.core.api.RenderStateComponent;
+import rogo.sketch.core.driver.state.CompiledRenderState;
+import rogo.sketch.core.driver.state.RenderStateCompiler;
+import rogo.sketch.core.driver.state.RenderStatePatch;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.packet.ResourceBindingPlan;
-import rogo.sketch.core.driver.state.DefaultRenderStates;
-import rogo.sketch.core.driver.state.FullRenderState;
 
 import java.util.Objects;
 
 public class RenderStateManager {
-    private FullRenderState defaultState;
-    private FullRenderState currentState;
+    private CompiledRenderState defaultState;
+    private CompiledRenderState currentState;
     private ResourceBinding currentResourceBinding;
 
     public void accept(RenderSetting setting, RenderContext context) {
@@ -20,8 +22,8 @@ public class RenderStateManager {
 
     public void accept(PipelineStateKey stateKey, RenderContext context) {
         // Only switch render state if requested (compute shaders don't need it)
-        if (stateKey.shouldSwitchRenderState() && stateKey.renderState() != null) {
-            FullRenderState newState = stateKey.renderState();
+        if (stateKey.shouldSwitchRenderState() && stateKey.compiledRenderState() != null) {
+            CompiledRenderState newState = stateKey.compiledRenderState();
             changeState(newState, context);
         }
 
@@ -41,9 +43,7 @@ public class RenderStateManager {
      */
     public void forceApplyState(RenderContext context) {
         if (currentState != null) {
-            for (RenderStateComponent comp : currentState.getComponents()) {
-                comp.apply(context);
-            }
+            applyCompiledState(currentState, context);
         }
 
         if (currentResourceBinding != null) {
@@ -54,7 +54,7 @@ public class RenderStateManager {
     /**
      * Get current render state
      */
-    public FullRenderState getCurrentState() {
+    public CompiledRenderState getCurrentState() {
         return currentState;
     }
 
@@ -75,7 +75,7 @@ public class RenderStateManager {
 
     public void resetDefault(RenderContext context) {
         if (defaultState == null) {
-            defaultState = DefaultRenderStates.createDefaultFullRenderState();
+            defaultState = RenderStateCompiler.compile(RenderStatePatch.empty());
         }
 
         currentState = null;
@@ -83,39 +83,49 @@ public class RenderStateManager {
     }
 
     public void changeState(RenderStateComponent component, RenderContext context) {
-        if (currentState == null) {
-            currentState = DefaultRenderStates.createDefaultFullRenderState();
-        }
-
-        RenderStateComponent oldComp = currentState.get(component.getIdentifier());
-        if (!component.equals(oldComp)) {
-            component.apply(context);
-        }
-
-        currentState = currentState.with(component);
+        RenderStatePatch basePatch = currentState != null ? currentState.patch() : RenderStatePatch.empty();
+        changeState(RenderStateCompiler.compile(basePatch.with(component)), context);
     }
 
-    public void changeState(FullRenderState newState, RenderContext context) {
+    public void changeState(CompiledRenderState newState, RenderContext context) {
         changeState(newState, context, true);
     }
 
-    public void changeState(FullRenderState newState, RenderContext context, boolean forceReplace) {
+    public void changeState(CompiledRenderState newState, RenderContext context, boolean forceReplace) {
         if (currentState == null) {
-            // First time, apply all components
-            for (RenderStateComponent comp : newState.getComponents()) {
-                comp.apply(context);
-            }
+            applyCompiledState(newState, context);
         } else if (forceReplace) {
-            // Only apply changed components
-            for (int i = 0; i < newState.getComponents().length; ++i) {
-                RenderStateComponent newComp = newState.get(i);
-                RenderStateComponent oldComp = currentState.get(i);
-                if (!newComp.equals(oldComp)) {
-                    newComp.apply(context);
-                }
-            }
+            applyDiff(currentState, newState, context);
         }
 
         currentState = newState;
     }
+
+    private void applyCompiledState(CompiledRenderState state, RenderContext context) {
+        if (state == null) {
+            return;
+        }
+        if (state.pipelineRasterState() != null) {
+            GraphicsDriver.runtime().stateApplier().applyPipelineRasterState(state.pipelineRasterState(), context);
+        }
+        if (state.dynamicRenderState() != null) {
+            GraphicsDriver.runtime().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
+        }
+        if (state.passBindingState() != null) {
+            GraphicsDriver.runtime().stateApplier().applyPassBindingState(state.passBindingState(), context);
+        }
+    }
+
+    private void applyDiff(CompiledRenderState oldState, CompiledRenderState newState, RenderContext context) {
+        if (!Objects.equals(oldState.pipelineRasterState(), newState.pipelineRasterState())) {
+            GraphicsDriver.runtime().stateApplier().applyPipelineRasterState(newState.pipelineRasterState(), context);
+        }
+        if (!Objects.equals(oldState.dynamicRenderState(), newState.dynamicRenderState())) {
+            GraphicsDriver.runtime().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
+        }
+        if (!Objects.equals(oldState.passBindingState(), newState.passBindingState())) {
+            GraphicsDriver.runtime().stateApplier().applyPassBindingState(newState.passBindingState(), context);
+        }
+    }
 }
+

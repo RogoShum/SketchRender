@@ -1,7 +1,7 @@
 package rogo.sketch.core.api.model;
 
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.format.DataFormat;
+import rogo.sketch.core.data.layout.StructLayout;
 import rogo.sketch.core.util.KeyId;
 
 /**
@@ -20,7 +20,7 @@ public sealed interface PreparedMesh permits BakedTypeMesh, DynamicTypeMesh {
     /**
      * @return The data format of the vertices stored in this mesh.
      */
-    DataFormat getVertexFormat();
+    StructLayout getVertexFormat();
 
     /**
      * @return The number of vertices in this mesh.

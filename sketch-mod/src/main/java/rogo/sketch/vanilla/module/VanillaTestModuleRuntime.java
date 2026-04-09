@@ -3,8 +3,9 @@ package rogo.sketch.vanilla.module;
 import org.joml.Vector3f;
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.api.model.BakedTypeMesh;
+import rogo.sketch.core.api.model.PreparedMesh;
+import rogo.sketch.core.data.MeshIndexMode;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.Usage;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.PipelineType;
@@ -17,6 +18,8 @@ import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
+import rogo.sketch.core.model.MeshGroup;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.DefaultDataFormats;
 import rogo.sketch.vanilla.MinecraftRenderStages;
@@ -29,6 +32,8 @@ import java.util.UUID;
 
 public class VanillaTestModuleRuntime implements ModuleRuntime {
     private static final int TEST_CUBE_COUNT = 5;
+    private static final boolean ENABLE_DEFAULT_TEST_TRACE =
+            Boolean.getBoolean("sketch.renderTrace.testModule");
 
     @Override
     public String id() {
@@ -45,8 +50,10 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
 
             @Override
             public void onWorldEnter(ModuleSessionContext context) {
-                context.pipeline().renderTraceConfig().setEnabled(true);
-                context.pipeline().renderTraceConfig().traceGraphicsClass(CubeTestGraphics.class);
+                if (ENABLE_DEFAULT_TEST_TRACE) {
+                    context.pipeline().renderTraceConfig().setEnabled(true);
+                    context.pipeline().renderTraceConfig().traceGraphicsClass(CubeTestGraphics.class);
+                }
 
                 Random random = new Random();
                 KeyId renderSettingKey = KeyId.of(SketchRender.MOD_ID, "cube_test_transform");
@@ -88,13 +95,7 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
 
     private PlayerGraphics registerPlayerGraphics(ModuleSessionContext context) {
         PlayerGraphics playerGraphics = new PlayerGraphics(KeyId.of(SketchRender.MOD_ID, "player_transform"));
-        VertexLayoutSpec layout = VertexLayoutSpec.builder().build();
-        RenderParameter renderParameter = RasterizationParameter.create(layout, PrimitiveType.QUADS, Usage.STATIC_DRAW, false);
-        context.registerGraphics(
-                MinecraftRenderStages.ENTITIES.getIdentifier(),
-                playerGraphics,
-                renderParameter,
-                ModuleGraphicsLifetime.SESSION);
+        context.registerAuxiliaryGraphics(playerGraphics, ModuleGraphicsLifetime.SESSION);
         return playerGraphics;
     }
 
@@ -124,13 +125,40 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
                 .addStatic(BakedTypeMesh.BAKED_MESH, DefaultDataFormats.POSITION_UV_NORMAL)
                 .addDynamicInstanced(CubeTestGraphics.TRANSFORM_ID, DefaultDataFormats.INT)
                 .build();
-        RenderParameter renderParameter = RasterizationParameter.create(layout, PrimitiveType.QUADS, Usage.DYNAMIC_DRAW, false);
+        MeshGroup meshGroup = GraphicsResourceManager.getInstance()
+                .getResource(ResourceTypes.MESH, KeyId.of(SketchRender.MOD_ID, "cube"));
+        PreparedMesh preparedMesh = meshGroup != null ? meshGroup.getMesh(meshName) : null;
+        PrimitiveType primitiveType = preparedMesh != null ? preparedMesh.getPrimitiveType() : PrimitiveType.TRIANGLES;
+        MeshIndexMode indexMode = resolveIndexMode(meshGroup, preparedMesh);
+        RenderParameter renderParameter = RasterizationParameter.create(
+                layout,
+                primitiveType,
+                indexMode,
+                BufferUpdatePolicy.DYNAMIC,
+                false);
         context.registerGraphics(
                 translucent ? MinecraftRenderStages.TRANSLUCENT.getIdentifier() : stage,
                 cubeTestGraphics,
                 renderParameter,
                 translucent ? PipelineType.TRANSLUCENT : PipelineType.RASTERIZATION,
                 ModuleGraphicsLifetime.SESSION);
+    }
+
+    private MeshIndexMode resolveIndexMode(MeshGroup meshGroup, PreparedMesh preparedMesh) {
+        if (meshGroup != null) {
+            Object raw = meshGroup.getMetadata("indexMode");
+            if (raw instanceof String value) {
+                return switch (value.toLowerCase()) {
+                    case "generated" -> MeshIndexMode.GENERATED;
+                    case "none" -> MeshIndexMode.NONE;
+                    default -> MeshIndexMode.EXPLICIT_LOCAL;
+                };
+            }
+        }
+        if (preparedMesh != null && preparedMesh.isIndexed()) {
+            return MeshIndexMode.EXPLICIT_LOCAL;
+        }
+        return MeshIndexMode.NONE;
     }
 
     private float randomOffset(Random random) {
@@ -140,3 +168,4 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
         return -5.0f + random.nextFloat() * 4.5f;
     }
 }
+

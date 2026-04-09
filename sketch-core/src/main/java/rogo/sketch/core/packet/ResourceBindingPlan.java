@@ -12,7 +12,7 @@ import java.util.Map;
 public record ResourceBindingPlan(
         KeyId layoutKey,
         List<BindingEntry> entries,
-        ResourceBinding legacyBinding
+        ResourceBinding bindingReference
 ) {
     private static final KeyId EMPTY_LAYOUT = KeyId.of("sketch:empty_resource_layout");
     private static final ResourceBindingPlan EMPTY = new ResourceBindingPlan(EMPTY_LAYOUT, List.of(), null);
@@ -54,11 +54,11 @@ public record ResourceBindingPlan(
     }
 
     public ResourceBinding binding() {
-        return legacyBinding;
+        return bindingReference;
     }
 
     public int resourceBindingHash() {
-        return legacyBinding != null ? legacyBinding.hashCode() : 0;
+        return bindingReference != null ? bindingReference.hashCode() : 0;
     }
 
     public boolean isEmpty() {
@@ -68,3 +68,4 @@ public record ResourceBindingPlan(
     public record BindingEntry(KeyId resourceType, KeyId bindingName, KeyId resourceId) {
     }
 }
+

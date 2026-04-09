@@ -1,0 +1,11 @@
+{
+  "compute": "sketch_render:hierarchy_depth_buffer.comp",
+  "resourceBindings": {
+    "image": [
+      "output_texture_0"
+    ],
+    "texture": [
+      "sketch_SamplerTexture"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "stage": "sketch_vktest:function_stage",
+  "priority": 0,
+  "command": [
+    {
+      "operate": "clear",
+      "renderTarget": "sketch_vktest:vulkan_clear_target",
+      "colorAttachments": [0],
+      "clearChannels": "colordepth",
+      "color": [0.88, 0.34, 0.08, 1.0],
+      "depth": 0.5,
+      "restorePreviousRenderTarget": true
+    },
+    {
+      "operate": "genMipmap",
+      "texture": "sketch_vktest:vulkan_clear_color"
+    }
+  ]
+}

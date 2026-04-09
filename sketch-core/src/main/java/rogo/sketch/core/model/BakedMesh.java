@@ -1,20 +1,23 @@
 package rogo.sketch.core.model;
 
 import rogo.sketch.core.api.model.BakedTypeMesh;
+import rogo.sketch.core.api.model.SharedGeometrySourceSnapshot;
+import rogo.sketch.core.backend.BackendGeometryBinding;
+import rogo.sketch.core.backend.BackendGeometryMetadata;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.format.DataFormat;
-import rogo.sketch.core.resource.buffer.VertexResource;
+import rogo.sketch.core.data.layout.StructLayout;
 import rogo.sketch.core.util.KeyId;
 
 /**
- * Implementation of a static mesh baked into a VertexResource.
- * Uses GL_COPY_READ_BUFFER / GL_COPY_WRITE_BUFFER for efficient transfer.
+ * Implementation of a static mesh backed by either a shared geometry snapshot
+ * or an installed backend geometry binding.
  */
 public class BakedMesh implements BakedTypeMesh {
-    private final VertexResource sourceResource;
-    private final DataFormat format;
+    private final BackendGeometryBinding sourceGeometryBinding;
+    private final StructLayout format;
     private final PrimitiveType primitiveType;
     private final KeyId keyId;
+    private final SharedGeometrySourceSnapshot sharedGeometrySourceSnapshot;
 
     // Source offsets and counts
     private final int srcVertexOffset; // in vertices
@@ -22,16 +25,35 @@ public class BakedMesh implements BakedTypeMesh {
     private final int vertexCount;
     private final int indexCount;
 
-    public BakedMesh(VertexResource sourceResource, KeyId keyId, int srcVertexOffset, int srcIndexOffset, int vertexCount, int indexCount) {
-        this.sourceResource = sourceResource;
+    public BakedMesh(
+            BackendGeometryBinding sourceGeometryBinding,
+            KeyId keyId,
+            int srcVertexOffset,
+            int srcIndexOffset,
+            int vertexCount,
+            int indexCount,
+            SharedGeometrySourceSnapshot sharedGeometrySourceSnapshot) {
+        this.sourceGeometryBinding = sourceGeometryBinding;
         this.srcVertexOffset = srcVertexOffset;
         this.srcIndexOffset = srcIndexOffset;
         this.vertexCount = vertexCount;
         this.indexCount = indexCount;
+        this.sharedGeometrySourceSnapshot = sharedGeometrySourceSnapshot;
 
-        this.format = sourceResource.getStaticFormat();
-        this.primitiveType = sourceResource.getPrimitiveType();
+        if (sourceGeometryBinding instanceof BackendGeometryMetadata metadata) {
+            this.format = metadata.vertexFormat();
+            this.primitiveType = metadata.primitiveType();
+        } else if (sharedGeometrySourceSnapshot != null) {
+            this.format = sharedGeometrySourceSnapshot.format();
+            this.primitiveType = sharedGeometrySourceSnapshot.primitiveType();
+        } else {
+            throw new IllegalArgumentException("BakedMesh requires either a source geometry binding or a SharedGeometrySourceSnapshot");
+        }
         this.keyId = keyId;
+    }
+
+    public BakedMesh(BackendGeometryBinding sourceGeometryBinding, KeyId keyId, int srcVertexOffset, int srcIndexOffset, int vertexCount, int indexCount) {
+        this(sourceGeometryBinding, keyId, srcVertexOffset, srcIndexOffset, vertexCount, indexCount, null);
     }
 
     @Override
@@ -45,7 +67,7 @@ public class BakedMesh implements BakedTypeMesh {
     }
 
     @Override
-    public DataFormat getVertexFormat() {
+    public StructLayout getVertexFormat() {
         return format;
     }
 
@@ -59,15 +81,13 @@ public class BakedMesh implements BakedTypeMesh {
         return indexCount;
     }
 
-    public VertexResource getSourceResource() {
-        return sourceResource;
+    public BackendGeometryBinding sourceGeometryBinding() {
+        return sourceGeometryBinding;
     }
 
     @Override
-    public int getVAOHandle() {
-        // Get VBO handle at binding 0 from source resource
-        var component = sourceResource.getComponent(BakedTypeMesh.BAKED_MESH);
-        return component != null ? component.getVboHandle() : 0;
+    public SharedGeometrySourceSnapshot sharedGeometrySourceSnapshot() {
+        return sharedGeometrySourceSnapshot;
     }
 
     @Override
@@ -80,3 +100,4 @@ public class BakedMesh implements BakedTypeMesh {
         return srcIndexOffset;
     }
 }
+

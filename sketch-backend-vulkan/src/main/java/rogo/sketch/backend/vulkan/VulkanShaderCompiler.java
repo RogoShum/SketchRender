@@ -3,6 +3,7 @@ package rogo.sketch.backend.vulkan;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
+import rogo.sketch.core.shader.ShaderType;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
@@ -13,7 +14,11 @@ import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_initialize;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_release;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_initialize;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_release;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_compute_shader;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_geometry_shader;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_fragment_shader;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_tess_control_shader;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_tess_evaluation_shader;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_vertex_shader;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_bytes;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_compilation_status;
@@ -32,6 +37,24 @@ final class VulkanShaderCompiler {
 
     static long createFragmentShaderModule(VkDevice device, String source, String name) {
         return createShaderModule(device, source, shaderc_glsl_fragment_shader, name);
+    }
+
+    static long createShaderModule(VkDevice device, ShaderType shaderType, String source, String name) {
+        return createShaderModule(device, source, mapShaderKind(shaderType), name);
+    }
+
+    private static int mapShaderKind(ShaderType shaderType) {
+        if (shaderType == null) {
+            throw new IllegalArgumentException("shaderType");
+        }
+        return switch (shaderType) {
+            case VERTEX -> shaderc_glsl_vertex_shader;
+            case FRAGMENT -> shaderc_glsl_fragment_shader;
+            case GEOMETRY -> shaderc_glsl_geometry_shader;
+            case TESS_CONTROL -> shaderc_glsl_tess_control_shader;
+            case TESS_EVALUATION -> shaderc_glsl_tess_evaluation_shader;
+            case COMPUTE -> shaderc_glsl_compute_shader;
+        };
     }
 
     private static long createShaderModule(VkDevice device, String source, int shaderKind, String name) {
@@ -78,3 +101,4 @@ final class VulkanShaderCompiler {
         }
     }
 }
+

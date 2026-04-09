@@ -87,7 +87,7 @@ public class GraphicsResourceManager {
      * Built-in resources take priority over file-loaded resources.
      */
     public void registerBuiltIn(KeyId type, KeyId name, Supplier<ResourceObject> resourceSupplier) {
-        storage.registerBuiltIn(type, name, resourceSupplier);
+        storage.registerBuiltIn(type, name, resourceSupplier, ResourceScope.PERSISTENT, null);
         references.incrementVersion(type, name);
     }
 
@@ -95,7 +95,12 @@ public class GraphicsResourceManager {
      * Register a built-in resource owned by a runtime/session scope.
      */
     public void registerBuiltIn(String ownerId, KeyId type, KeyId name, Supplier<ResourceObject> resourceSupplier) {
-        storage.registerBuiltIn(ownerId, type, name, resourceSupplier);
+        storage.registerBuiltIn(type, name, resourceSupplier, inferOwnedScope(ownerId), ownerId);
+        references.incrementVersion(type, name);
+    }
+
+    public void registerBuiltIn(String ownerId, ResourceScope scope, KeyId type, KeyId name, Supplier<ResourceObject> resourceSupplier) {
+        storage.registerBuiltIn(type, name, resourceSupplier, scope, ownerId);
         references.incrementVersion(type, name);
     }
 
@@ -119,7 +124,13 @@ public class GraphicsResourceManager {
      * Register a direct resource instance.
      */
     public <T extends ResourceObject> void registerDirect(KeyId type, KeyId name, T resource) {
-        storage.registerLoaded(type, name, resource);
+        storage.registerLoaded(type, name, resource, ResourceScope.EPHEMERAL_TEST, null, false);
+        references.incrementVersion(type, name);
+        references.notifyReload(type, name, resource);
+    }
+
+    public <T extends ResourceObject> void registerDirect(String ownerId, ResourceScope scope, KeyId type, KeyId name, T resource) {
+        storage.registerLoaded(type, name, resource, scope, ownerId, false);
         references.incrementVersion(type, name);
         references.notifyReload(type, name, resource);
     }
@@ -167,7 +178,11 @@ public class GraphicsResourceManager {
      * Register a resource loader for a specific type.
      */
     public <T extends ResourceObject> void registerLoader(KeyId type, ResourceLoader<T> loader) {
+        boolean hadLoader = loaders.hasLoader(type);
         loaders.register(type, loader);
+        if (!hadLoader && scanProvider != null) {
+            scanAndLoadType(type);
+        }
     }
 
     /**
@@ -256,6 +271,8 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.RENDER_TARGET, new RenderTargetLoader());
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
         registerLoader(ResourceTypes.MESH, new MeshLoader());
+        registerLoader(ResourceTypes.FUNCTION, new FunctionGraphicsLoader());
+        registerLoader(ResourceTypes.DRAW_CALL, new DrawCallGraphicsLoader());
         
         // New loaders for shader template system
         registerLoader(ResourceTypes.MACRO_TEMPLATE, new MacroTemplateLoader());
@@ -304,10 +321,17 @@ public class GraphicsResourceManager {
                                  Function<KeyId, Optional<InputStream>> resourceProvider) {
         ResourceObject resource = loaders.load(type, name, stream, resourceProvider);
         if (resource != null) {
-            storage.registerLoaded(type, name, resource);
+            storage.registerLoaded(type, name, resource, ResourceScope.PERSISTENT, null, true);
             references.incrementVersion(type, name);
             references.notifyReload(type, name, resource);
         }
+    }
+
+    private ResourceScope inferOwnedScope(String ownerId) {
+        if (ownerId == null || ownerId.isBlank()) {
+            return ResourceScope.MODULE_OWNED;
+        }
+        return ownerId.contains("@session") ? ResourceScope.SESSION_OWNED : ResourceScope.MODULE_OWNED;
     }
 
     /**
@@ -352,12 +376,9 @@ public class GraphicsResourceManager {
      * Resource storage layer - manages built-in and file-loaded resources.
      */
     private static class ResourceStorage {
-        // File-loaded resources: Type -> (Name -> Resource)
-        private final Map<KeyId, Map<KeyId, ResourceObject>> loadedResources = new ConcurrentHashMap<>();
-        
-        // Built-in resources: Type -> (Name -> Supplier)
-        private final Map<KeyId, Map<KeyId, Supplier<ResourceObject>>> builtInResources = new ConcurrentHashMap<>();
-        private final Map<String, Set<OwnedResourceKey>> ownedBuiltInResources = new ConcurrentHashMap<>();
+        private final Map<KeyId, Map<KeyId, RegisteredResource>> loadedResources = new ConcurrentHashMap<>();
+        private final Map<KeyId, Map<KeyId, RegisteredBuiltIn>> builtInResources = new ConcurrentHashMap<>();
+        private final Map<String, Set<OwnedResourceKey>> ownedResources = new ConcurrentHashMap<>();
 
         /**
          * Get resource (built-in priority, then file-loaded).
@@ -368,9 +389,9 @@ public class GraphicsResourceManager {
             
             for (KeyId searchType : searchOrder) {
                 // 1. Check built-in first (priority)
-                Supplier<ResourceObject> builtIn = getBuiltInSupplier(searchType, name);
+                RegisteredBuiltIn builtIn = getBuiltIn(searchType, name);
                 if (builtIn != null) {
-                    ResourceObject result = builtIn.get();
+                    ResourceObject result = builtIn.supplier().get();
                     if (result != null) return (T) result;
                 }
                 
@@ -388,9 +409,9 @@ public class GraphicsResourceManager {
         @SuppressWarnings("unchecked")
         <T extends ResourceObject> T getExact(KeyId type, KeyId name) {
             // 1. Check built-in first (priority)
-            Supplier<ResourceObject> builtIn = getBuiltInSupplier(type, name);
+            RegisteredBuiltIn builtIn = getBuiltIn(type, name);
             if (builtIn != null) {
-                ResourceObject result = builtIn.get();
+                ResourceObject result = builtIn.supplier().get();
                 if (result != null) return (T) result;
             }
             
@@ -398,50 +419,56 @@ public class GraphicsResourceManager {
             return getLoaded(type, name);
         }
 
-        private Supplier<ResourceObject> getBuiltInSupplier(KeyId type, KeyId name) {
-            Map<KeyId, Supplier<ResourceObject>> typeMap = builtInResources.get(type);
+        private RegisteredBuiltIn getBuiltIn(KeyId type, KeyId name) {
+            Map<KeyId, RegisteredBuiltIn> typeMap = builtInResources.get(type);
             return typeMap != null ? typeMap.get(name) : null;
         }
 
         @SuppressWarnings("unchecked")
         private <T extends ResourceObject> T getLoaded(KeyId type, KeyId name) {
-            Map<KeyId, ResourceObject> typeMap = loadedResources.get(type);
-            return typeMap != null ? (T) typeMap.get(name) : null;
+            Map<KeyId, RegisteredResource> typeMap = loadedResources.get(type);
+            RegisteredResource registered = typeMap != null ? typeMap.get(name) : null;
+            return registered != null ? (T) registered.resource() : null;
         }
 
-        void registerBuiltIn(KeyId type, KeyId name, Supplier<ResourceObject> supplier) {
-            builtInResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(name, supplier);
+        void registerBuiltIn(KeyId type, KeyId name, Supplier<ResourceObject> supplier, ResourceScope scope, String ownerId) {
+            builtInResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
+                    .put(name, new RegisteredBuiltIn(supplier, scope, ownerId));
+            trackOwned(type, name, ownerId);
         }
 
-        void registerBuiltIn(String ownerId, KeyId type, KeyId name, Supplier<ResourceObject> supplier) {
-            registerBuiltIn(type, name, supplier);
-            ownedBuiltInResources
-                    .computeIfAbsent(ownerId, key -> ConcurrentHashMap.newKeySet())
+        void registerLoaded(KeyId type, KeyId name, ResourceObject resource, ResourceScope scope, String ownerId, boolean reloadable) {
+            loadedResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>())
+                    .put(name, new RegisteredResource(resource, scope, ownerId, reloadable));
+            trackOwned(type, name, ownerId);
+        }
+
+        private void trackOwned(KeyId type, KeyId name, String ownerId) {
+            if (ownerId == null || ownerId.isBlank()) {
+                return;
+            }
+            ownedResources.computeIfAbsent(ownerId, key -> ConcurrentHashMap.newKeySet())
                     .add(new OwnedResourceKey(type, name));
         }
 
-        void registerLoaded(KeyId type, KeyId name, ResourceObject resource) {
-            loadedResources.computeIfAbsent(type, k -> new ConcurrentHashMap<>()).put(name, resource);
-        }
-
         boolean hasBuiltIn(KeyId type, KeyId name) {
-            Map<KeyId, Supplier<ResourceObject>> typeMap = builtInResources.get(type);
+            Map<KeyId, RegisteredBuiltIn> typeMap = builtInResources.get(type);
             return typeMap != null && typeMap.containsKey(name);
         }
 
         boolean hasLoaded(KeyId type, KeyId name) {
-            Map<KeyId, ResourceObject> typeMap = loadedResources.get(type);
+            Map<KeyId, RegisteredResource> typeMap = loadedResources.get(type);
             return typeMap != null && typeMap.containsKey(name);
         }
 
         void remove(KeyId type, KeyId name) {
             // Remove from loaded
-            Map<KeyId, ResourceObject> typeResources = loadedResources.get(type);
+            Map<KeyId, RegisteredResource> typeResources = loadedResources.get(type);
             if (typeResources != null) {
-                ResourceObject removed = typeResources.remove(name);
-                if (removed != null) {
+                RegisteredResource removed = typeResources.remove(name);
+                if (removed != null && removed.resource() != null) {
                     try {
-                        removed.dispose();
+                        removed.resource().dispose();
                     } catch (Exception e) {
                         SketchDiagnostics.get().warn("resource-manager", "Error disposing resource " + name, e);
                     }
@@ -449,14 +476,18 @@ public class GraphicsResourceManager {
             }
             
             // Remove from built-in
-            Map<KeyId, Supplier<ResourceObject>> typeBuiltIn = builtInResources.get(type);
+            Map<KeyId, RegisteredBuiltIn> typeBuiltIn = builtInResources.get(type);
             if (typeBuiltIn != null) {
                 typeBuiltIn.remove(name);
             }
+            ownedResources.values().removeIf(keys -> {
+                keys.removeIf(key -> key.type().equals(type) && key.name().equals(name));
+                return keys.isEmpty();
+            });
         }
 
         Set<OwnedResourceKey> removeOwned(String ownerId) {
-            Set<OwnedResourceKey> owned = ownedBuiltInResources.remove(ownerId);
+            Set<OwnedResourceKey> owned = ownedResources.remove(ownerId);
             if (owned == null) {
                 return Collections.emptySet();
             }
@@ -470,11 +501,11 @@ public class GraphicsResourceManager {
          * Clear only file-loaded resources (keep built-in).
          */
         void clearLoaded() {
-            for (Map<KeyId, ResourceObject> typeMap : loadedResources.values()) {
-                for (ResourceObject resource : typeMap.values()) {
-                    if (resource != null) {
+            for (Map<KeyId, RegisteredResource> typeMap : loadedResources.values()) {
+                for (RegisteredResource resource : typeMap.values()) {
+                    if (resource != null && resource.resource() != null) {
                         try {
-                            resource.dispose();
+                            resource.resource().dispose();
                         } catch (Exception e) {
                             SketchDiagnostics.get().warn("resource-manager", "Error disposing loaded resource", e);
                         }
@@ -482,6 +513,10 @@ public class GraphicsResourceManager {
                 }
             }
             loadedResources.clear();
+            ownedResources.values().removeIf(keys -> {
+                keys.removeIf(key -> !hasBuiltIn(key.type(), key.name()));
+                return keys.isEmpty();
+            });
         }
 
         /**
@@ -490,6 +525,7 @@ public class GraphicsResourceManager {
         void dispose() {
             clearLoaded();
             builtInResources.clear();
+            ownedResources.clear();
         }
 
         @SuppressWarnings("unchecked")
@@ -499,22 +535,22 @@ public class GraphicsResourceManager {
 
             for (KeyId searchType : searchOrder) {
                 // Add loaded resources
-                Map<KeyId, ResourceObject> typeLoaded = loadedResources.get(searchType);
+                Map<KeyId, RegisteredResource> typeLoaded = loadedResources.get(searchType);
                 if (typeLoaded != null) {
-                    for (Map.Entry<KeyId, ResourceObject> entry : typeLoaded.entrySet()) {
+                    for (Map.Entry<KeyId, RegisteredResource> entry : typeLoaded.entrySet()) {
                         if (!result.containsKey(entry.getKey())) {
-                            result.put(entry.getKey(), (T) entry.getValue());
+                            result.put(entry.getKey(), (T) entry.getValue().resource());
                         }
                     }
                 }
 
                 // Add built-in resources
-                Map<KeyId, Supplier<ResourceObject>> typeBuiltIn = builtInResources.get(searchType);
+                Map<KeyId, RegisteredBuiltIn> typeBuiltIn = builtInResources.get(searchType);
                 if (typeBuiltIn != null) {
-                    for (Map.Entry<KeyId, Supplier<ResourceObject>> entry : typeBuiltIn.entrySet()) {
+                    for (Map.Entry<KeyId, RegisteredBuiltIn> entry : typeBuiltIn.entrySet()) {
                         if (!result.containsKey(entry.getKey())) {
                             try {
-                                ResourceObject resource = entry.getValue().get();
+                                ResourceObject resource = entry.getValue().supplier().get();
                                 if (resource != null) {
                                     result.put(entry.getKey(), (T) resource);
                                 }
@@ -534,20 +570,20 @@ public class GraphicsResourceManager {
             Map<KeyId, T> result = new HashMap<>();
 
             // Add loaded resources
-            Map<KeyId, ResourceObject> typeLoaded = loadedResources.get(type);
+            Map<KeyId, RegisteredResource> typeLoaded = loadedResources.get(type);
             if (typeLoaded != null) {
-                for (Map.Entry<KeyId, ResourceObject> entry : typeLoaded.entrySet()) {
-                    result.put(entry.getKey(), (T) entry.getValue());
+                for (Map.Entry<KeyId, RegisteredResource> entry : typeLoaded.entrySet()) {
+                    result.put(entry.getKey(), (T) entry.getValue().resource());
                 }
             }
 
             // Add built-in resources
-            Map<KeyId, Supplier<ResourceObject>> typeBuiltIn = builtInResources.get(type);
+            Map<KeyId, RegisteredBuiltIn> typeBuiltIn = builtInResources.get(type);
             if (typeBuiltIn != null) {
-                for (Map.Entry<KeyId, Supplier<ResourceObject>> entry : typeBuiltIn.entrySet()) {
+                for (Map.Entry<KeyId, RegisteredBuiltIn> entry : typeBuiltIn.entrySet()) {
                     if (!result.containsKey(entry.getKey())) {
                         try {
-                            ResourceObject resource = entry.getValue().get();
+                            ResourceObject resource = entry.getValue().supplier().get();
                             if (resource != null) {
                                 result.put(entry.getKey(), (T) resource);
                             }
@@ -562,6 +598,12 @@ public class GraphicsResourceManager {
         }
 
         private record OwnedResourceKey(KeyId type, KeyId name) {
+        }
+
+        private record RegisteredBuiltIn(Supplier<ResourceObject> supplier, ResourceScope scope, String ownerId) {
+        }
+
+        private record RegisteredResource(ResourceObject resource, ResourceScope scope, String ownerId, boolean reloadable) {
         }
     }
 
@@ -678,3 +720,4 @@ public class GraphicsResourceManager {
         void onResourceReload(KeyId resourceName, ResourceObject newResource);
     }
 }
+

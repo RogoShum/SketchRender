@@ -20,6 +20,7 @@ final class VulkanBootstrapArtifacts {
     final int swapchainExtentWidth;
     final int swapchainExtentHeight;
     final long[] swapchainImages;
+    final boolean debugUtilsEnabled;
 
     VulkanBootstrapArtifacts(
             VkInstance instance,
@@ -35,7 +36,8 @@ final class VulkanBootstrapArtifacts {
             int swapchainImageFormat,
             int swapchainExtentWidth,
             int swapchainExtentHeight,
-            long[] swapchainImages) {
+            long[] swapchainImages,
+            boolean debugUtilsEnabled) {
         this.instance = instance;
         this.physicalDevice = physicalDevice;
         this.physicalDeviceName = physicalDeviceName;
@@ -50,5 +52,7 @@ final class VulkanBootstrapArtifacts {
         this.swapchainExtentWidth = swapchainExtentWidth;
         this.swapchainExtentHeight = swapchainExtentHeight;
         this.swapchainImages = swapchainImages != null ? swapchainImages.clone() : new long[0];
+        this.debugUtilsEnabled = debugUtilsEnabled;
     }
 }
+

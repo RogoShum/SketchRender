@@ -1,5 +1,6 @@
 package rogo.sketch.core.pipeline.module.runtime;
 
+import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
@@ -37,7 +38,7 @@ public interface ModuleRuntime {
         return false;
     }
 
-    default void onGraphicsAttached(Graphics graphics, RenderParameter renderParameter, KeyId containerType, ModuleRuntimeContext context) {
+    default void onGraphicsAttached(Graphics graphics, @Nullable RenderParameter renderParameter, @Nullable KeyId containerType, ModuleRuntimeContext context) {
     }
 
     default void onGraphicsDetached(Graphics graphics, ModuleRuntimeContext context) {
@@ -52,3 +53,4 @@ public interface ModuleRuntime {
     default void onShutdown(ModuleRuntimeContext context) {
     }
 }
+

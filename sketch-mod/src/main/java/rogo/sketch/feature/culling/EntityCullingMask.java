@@ -6,10 +6,10 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketch.backend.opengl.OpenGLPersistentReadStorageBuffer;
+import rogo.sketch.backend.opengl.OpenGLStorageBuffer;
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.api.ResourceObject;
-import rogo.sketch.core.resource.buffer.PersistentReadSSBO;
-import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
 import rogo.sketch.core.util.IndexPool;
 import rogo.sketch.core.util.LifeTimer;
 import rogo.sketch.vanilla.PipelineUtil;
@@ -20,9 +20,9 @@ import static net.minecraftforge.common.extensions.IForgeBlockEntity.INFINITE_EX
 
 public class EntityCullingMask {
     private final EntityMap entityMap = new EntityMap();
-    private ShaderStorageBuffer entityDataShaderStorageBuffer;
-    private PersistentReadSSBO cullingResultSSBO;
-    private PersistentReadSSBO prevCullingResultSSBO;
+    private OpenGLStorageBuffer entityDataShaderStorageBuffer;
+    private OpenGLPersistentReadStorageBuffer cullingResultSSBO;
+    private OpenGLPersistentReadStorageBuffer prevCullingResultSSBO;
 
     public EntityCullingMask(int initialCapacity) {
         int adjustedCapacity = calculateNewCapacity(initialCapacity);
@@ -30,9 +30,9 @@ public class EntityCullingMask {
     }
 
     private void initializeSSBOs(int initialCapacity) {
-        this.entityDataShaderStorageBuffer = new ShaderStorageBuffer(initialCapacity, 6 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
-        this.cullingResultSSBO = new PersistentReadSSBO(initialCapacity, Byte.BYTES);
-        this.prevCullingResultSSBO = new PersistentReadSSBO(initialCapacity, Byte.BYTES);
+        this.entityDataShaderStorageBuffer = new OpenGLStorageBuffer(initialCapacity, 6 * Float.BYTES, GL43.GL_DYNAMIC_DRAW);
+        this.cullingResultSSBO = new OpenGLPersistentReadStorageBuffer(initialCapacity, Byte.BYTES);
+        this.prevCullingResultSSBO = new OpenGLPersistentReadStorageBuffer(initialCapacity, Byte.BYTES);
     }
 
     public boolean isObjectVisible(Object o) {
@@ -130,7 +130,7 @@ public class EntityCullingMask {
     }
 
     public void swapBuffer(int tickCount) {
-        PersistentReadSSBO buffer = this.prevCullingResultSSBO;
+        OpenGLPersistentReadStorageBuffer buffer = this.prevCullingResultSSBO;
         this.prevCullingResultSSBO = this.cullingResultSSBO;
         this.cullingResultSSBO = buffer;
         MemoryUtil.memSet(buffer.getMemoryAddress(), 0, buffer.getCapacity());

@@ -1,6 +1,8 @@
 package rogo.sketch.core.pipeline;
 
-import rogo.sketch.core.driver.state.gl.ShaderState;
+import rogo.sketch.core.driver.state.component.ShaderState;
+import rogo.sketch.core.driver.state.CompiledRenderState;
+import rogo.sketch.core.driver.state.RenderStateCompiler;
 import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.shader.variant.ShaderVariantKey;
@@ -19,6 +21,7 @@ public final class RenderSettingCompiler {
                 : RenderSetting.fromPartial(null, PartialRenderSetting.EMPTY);
         ResourceBindingPlan bindingPlan = ResourceBindingPlan.from(setting.resourceBinding());
         TargetBindingDescriptor targetBindingDescriptor = TargetBindingDescriptor.from(setting.targetBinding());
+        CompiledRenderState compiledRenderState = RenderStateCompiler.compile(setting.renderState());
 
         ShaderState shaderState = null;
         if (setting.renderState() != null && setting.renderState().get(ShaderState.TYPE) instanceof ShaderState state) {
@@ -28,6 +31,7 @@ public final class RenderSettingCompiler {
         PipelineStateDescriptor pipelineDescriptor = new PipelineStateDescriptor(
                 setting.renderParameter(),
                 setting.renderState(),
+                compiledRenderState,
                 setting.shouldSwitchRenderState(),
                 shaderState != null ? shaderState.getShaderId() : UNBOUND_SHADER,
                 shaderState != null ? shaderState.getVariantKey() : ShaderVariantKey.EMPTY,
@@ -36,7 +40,7 @@ public final class RenderSettingCompiler {
                         : EMPTY_VERTEX_LAYOUT,
                 targetBindingDescriptor.passCompatibilityKey(),
                 bindingPlan.layoutKey(),
-                setting.renderState() != null ? setting.renderState().hashCode() : 0);
+                compiledRenderState.pipelineRasterState() != null ? compiledRenderState.pipelineRasterState().hashCode() : 0);
 
         PipelineStateKey stateKey = pipelineDescriptor.toStateKey(bindingPlan);
         return new CompiledRenderSetting(
@@ -48,3 +52,4 @@ public final class RenderSettingCompiler {
                 stateKey);
     }
 }
+

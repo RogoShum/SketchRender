@@ -75,7 +75,13 @@ public class RenderResourceManager implements ResourceManagerReloadListener, Res
         
         Map<ResourceLocation, Resource> found = resourceManager.listResources(
             pathPrefix,
-            loc -> loc.getPath().endsWith(".json")
+            loc -> {
+                String path = loc.getPath();
+                if (ResourceTypes.MESH.equals(resourceType)) {
+                    return path.endsWith(".json") || path.endsWith(".obj");
+                }
+                return path.endsWith(".json");
+            }
         );
         
         for (Map.Entry<ResourceLocation, Resource> entry : found.entrySet()) {
@@ -263,3 +269,4 @@ public class RenderResourceManager implements ResourceManagerReloadListener, Res
         return loc.getNamespace() + ":" + fileName;
     }
 }
+

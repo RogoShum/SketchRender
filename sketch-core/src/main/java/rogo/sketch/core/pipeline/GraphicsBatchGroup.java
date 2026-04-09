@@ -1,29 +1,22 @@
 package rogo.sketch.core.pipeline;
 
 import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.command.prosessor.GeometryBatchProcessor;
 import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.data.FrameDataDomain;
-import rogo.sketch.core.pipeline.data.PipelineDataStore;
-import rogo.sketch.core.pipeline.flow.BatchContainer;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.flow.container.ContainerDescriptor;
 import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
-import rogo.sketch.core.pipeline.flow.impl.ComputeBatchContainer;
-import rogo.sketch.core.pipeline.flow.impl.FunctionBatchContainer;
-import rogo.sketch.core.pipeline.flow.impl.RasterizationBatchContainer;
-import rogo.sketch.core.pipeline.flow.v2.LegacyStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.ComputeStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.FunctionStageFlowScene;
 import rogo.sketch.core.pipeline.flow.v2.RasterStageFlowScene;
-import rogo.sketch.core.pipeline.flow.v2.StageFlowCompilerFacade;
 import rogo.sketch.core.pipeline.flow.v2.StageFlowScene;
 import rogo.sketch.core.pipeline.kernel.StageExecutionPlan;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.util.*;
 import java.util.function.Supplier;
@@ -33,10 +26,7 @@ import static rogo.sketch.core.pipeline.PipelineType.*;
 /**
  * Stage-local pipeline router.
  * <p>
- * Raster/translucent stages now compile through {@link RasterStageFlowScene}
- * and no longer use legacy {@link BatchContainer}-based packet compilation.
- * Legacy batch containers are retained only for compat compute/function flows
- * and migration seams that still need the old storage model.
+ * All formal pipeline types now compile directly through V2 stage scenes.
  * </p>
  */
 public class GraphicsBatchGroup<C extends RenderContext> {
@@ -55,35 +45,24 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     private void initializePipeline(PipelineType pipelineType) {
-        VertexResourceManager resourceManager = graphicsPipeline.getVertexResourceManager(pipelineType);
-        PipelineDataStore dataStore = graphicsPipeline.getPipelineDataStore(pipelineType, FrameDataDomain.ASYNC_BUILD);
         if (pipelineType == RASTERIZATION || pipelineType == TRANSLUCENT) {
             flowScenes.put(pipelineType, new RasterStageFlowScene<>(
                     stageKeyId,
                     pipelineType,
-                    resourceManager,
-                    dataStore,
+                    graphicsPipeline.getGeometryResourceCoordinator(pipelineType),
+                    () -> graphicsPipeline.getPipelineDataStore(pipelineType, FrameDataDomain.ASYNC_BUILD),
                     graphicsPipeline.renderTraceRecorder()));
             return;
         }
-
-        BatchContainer<?, ?> container = createLegacyBatchContainer(pipelineType);
-        GeometryBatchProcessor processor = new GeometryBatchProcessor(resourceManager, dataStore);
-        flowScenes.put(pipelineType, new LegacyStageFlowScene<>(pipelineType, container, new StageFlowCompilerFacade(processor)));
-    }
-
-    /**
-     * Create a legacy {@link BatchContainer} for non-raster compatibility
-     * pipelines. Raster/translucent stages use {@link RasterStageFlowScene}.
-     */
-    private BatchContainer<?, ?> createLegacyBatchContainer(PipelineType pipelineType) {
         if (pipelineType == COMPUTE) {
-            return new ComputeBatchContainer();
+            flowScenes.put(pipelineType, new ComputeStageFlowScene<>(pipelineType));
+            return;
         }
         if (pipelineType == FUNCTION) {
-            return new FunctionBatchContainer();
+            flowScenes.put(pipelineType, new FunctionStageFlowScene<>(pipelineType));
+            return;
         }
-        throw new IllegalArgumentException("Legacy batch containers are not used for pipeline type " + pipelineType);
+        throw new IllegalArgumentException("Unsupported pipeline type " + pipelineType + " for stage " + stageKeyId);
     }
 
     public void addGraphInstance(Graphics instance, RenderParameter renderParameter, PipelineType pipelineType) {
@@ -105,8 +84,20 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             throw new IllegalArgumentException("Pipeline type " + pipelineType + " does not contain any pipeline groups");
         }
 
-        Supplier<? extends GraphicsContainer<? extends RenderContext>> supplier =
-                containerSupplier != null ? containerSupplier : resolveContainerSupplier(containerType);
+        Supplier<? extends GraphicsContainer<? extends RenderContext>> supplier;
+        if (pipelineType == RASTERIZATION || pipelineType == TRANSLUCENT) {
+            supplier = null;
+            if (containerSupplier != null) {
+                SketchDiagnostics.get().warn(
+                        "graphics-batch-group",
+                        "Ignoring custom GraphicsContainer supplier for raster/translucent instance "
+                                + (instance != null ? instance.getIdentifier() : KeyId.of("sketch:null_graphics"))
+                                + " in stage " + stageKeyId
+                                + ". Built-in VisibilityIndex implementations are now the only formal main path.");
+            }
+        } else {
+            supplier = containerSupplier != null ? containerSupplier : resolveContainerSupplier(containerType);
+        }
         scene.registerGraphicsInstance(instance, renderParameter, containerType, supplier);
     }
 
@@ -143,7 +134,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     /**
-     * Create render packets for a specific pipeline type using BatchContainer.
+     * Create render packets for a specific pipeline type through the formal v2 stage flow scene.
      *
      * @param pipelineType   Pipeline type to create commands for
      * @param context        Render context
@@ -195,30 +186,6 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     /**
-     * Legacy compatibility path kept until backend migration finishes.
-     */
-    @Deprecated
-    public Map<RenderSetting, List<rogo.sketch.core.command.RenderCommand>> createRenderCommands(PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
-        try {
-            StageFlowScene<C> scene = flowScenes.get(pipelineType);
-            if (scene == null) {
-                return Collections.emptyMap();
-            }
-
-            RenderFlowType flowType = pipelineType.getDefaultFlowType();
-
-            return scene.createLegacyCommands(
-                    stageKeyId,
-                    flowType,
-                    postProcessors,
-                    context);
-        } catch (Exception e) {
-            SketchDiagnostics.get().error("graphics-batch-group", "Failed to create legacy render commands for stage " + stageKeyId, e);
-            return Collections.emptyMap();
-        }
-    }
-
-    /**
      * Clean up discarded instances from all batches across all pipeline types.
      * Also marks discarded instances for batch removal.
      */
@@ -237,19 +204,6 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             scene.prepareForFrame();
         }
     }
-
-    /**
-     * Get the BatchContainer for a specific pipeline type.
-     *
-     * @param pipelineType The pipeline type
-     * @return The BatchContainer, or null if not found
-     */
-    @Deprecated(forRemoval = false)
-    public BatchContainer<?, ?> getBatchContainer(PipelineType pipelineType) {
-        StageFlowScene<C> scene = flowScenes.get(pipelineType);
-        return scene != null ? scene.legacyBatchContainer() : null;
-    }
-
 
     /**
      * Clear all instance groups across all pipeline types.
@@ -298,3 +252,4 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         return descriptor != null ? descriptor.supplier() : null;
     }
 }
+

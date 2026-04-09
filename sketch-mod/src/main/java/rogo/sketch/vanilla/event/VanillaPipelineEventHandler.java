@@ -6,16 +6,10 @@ import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.SodiumCompatModuleDescriptor;
 import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
-import rogo.sketch.core.event.RenderFlowRegisterEvent;
 import rogo.sketch.core.event.UniformHookRegisterEvent;
-import rogo.sketch.core.pipeline.flow.impl.ComputeFlowStrategy;
-import rogo.sketch.core.pipeline.flow.impl.FunctionFlowStrategy;
-import rogo.sketch.core.pipeline.flow.impl.RasterizationFlowStrategy;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.loader.DrawCallGraphicsLoader;
-import rogo.sketch.core.resource.loader.FunctionGraphicsLoader;
 import rogo.sketch.event.ProxyEvent;
 import rogo.sketch.event.ProxyModEvent;
 import rogo.sketch.module.culling.CullingModuleDescriptor;
@@ -62,8 +56,6 @@ public class VanillaPipelineEventHandler {
             case NORMAL -> MinecraftRenderStages.registerExtraStages(mcPipeline);
             case LATE -> {
                 GraphicsResourceManager.getInstance().registerLoader(ResourceTypes.TEXTURE, new VanillaTextureLoader());
-                GraphicsResourceManager.getInstance().registerLoader(ResourceTypes.FUNCTION, new FunctionGraphicsLoader(pipelineInitEvent.getPipeline()));
-                GraphicsResourceManager.getInstance().registerLoader(ResourceTypes.DRAW_CALL, new DrawCallGraphicsLoader(pipelineInitEvent.getPipeline()));
                 if (!mcPipeline.getPendingStages().isEmpty()) {
                     SketchRender.LOGGER.warn("Warning: {} stages are still pending", mcPipeline.getPendingStages().size());
                 }
@@ -75,11 +67,5 @@ public class VanillaPipelineEventHandler {
     public void onStaticGraphicsRegister(ProxyEvent<RegisterStaticGraphicsEvent> event) {
         // Static graphics registration is now owned by module sessions.
     }
-
-    public static void onBaseRenderFlowRegisterInit(ProxyModEvent<RenderFlowRegisterEvent> event) {
-        RenderFlowRegisterEvent registerEvent = event.getWrapped();
-        registerEvent.register(new ComputeFlowStrategy());
-        registerEvent.register(new RasterizationFlowStrategy());
-        registerEvent.register(new FunctionFlowStrategy());
-    }
 }
+

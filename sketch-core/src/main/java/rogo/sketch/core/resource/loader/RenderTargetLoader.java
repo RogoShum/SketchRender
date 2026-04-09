@@ -3,13 +3,17 @@ package rogo.sketch.core.resource.loader;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import org.lwjgl.opengl.GL30;
+import rogo.sketch.core.backend.BackendResourceInstaller;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.vision.RenderTarget;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.vision.StandardRenderTarget;
+import rogo.sketch.core.resource.descriptor.RenderTargetResolutionMode;
+import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
 import rogo.sketch.core.util.KeyId;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Loader for RenderTarget resources from JSON with smart texture loading
@@ -30,10 +34,10 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                 return null;
 
             // Parse resolution mode
-            StandardRenderTarget.ResolutionMode mode = StandardRenderTarget.ResolutionMode.FIXED;
+            RenderTargetResolutionMode mode = RenderTargetResolutionMode.FIXED;
             if (json.has("resolutionMode")) {
                 String modeStr = json.get("resolutionMode").getAsString();
-                mode = parseResolutionMode(modeStr);
+                mode = RenderTargetResolutionMode.fromString(modeStr);
             }
 
             // Parse base dimensions
@@ -55,12 +59,10 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                 scaleX = scaleY = scale;
             }
 
-            // Create framebuffer
-            int handle = GL30.glGenFramebuffers();
-            GraphicsDriver.getCurrentAPI().bindFrameBuffer(handle);
-
-            StandardRenderTarget renderTarget = new StandardRenderTarget(handle, keyId, mode, baseWidth, baseHeight, scaleX, scaleY, null);
             GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
+            List<KeyId> colorAttachmentIds = new ArrayList<>();
+            KeyId depthAttachmentId = null;
+            KeyId stencilAttachmentId = null;
 
             // Attach color textures using smart loading
             if (json.has("colorAttachments")) {
@@ -72,7 +74,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                     // Use TextureHelper for smart texture loading
                     KeyId textureId = CoreTextureHelper.loadTextureFromElement(element, resourceManager);
                     if (textureId != null) {
-                        renderTarget.setColorAttachment(i, textureId);
+                        colorAttachmentIds.add(textureId);
                     } else {
                         System.err.println("Failed to load color attachment texture at index " + i);
                     }
@@ -82,9 +84,9 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
             // Attach depth texture using smart loading
             if (json.has("depthAttachment")) {
                 JsonElement depthElement = json.get("depthAttachment");
-                KeyId depthTextureId = CoreTextureHelper.loadTextureFromElement(depthElement, resourceManager);
-                if (depthTextureId != null) {
-                    renderTarget.setDepthAttachment(depthTextureId);
+                depthAttachmentId = CoreTextureHelper.loadTextureFromElement(depthElement, resourceManager);
+                if (depthAttachmentId != null) {
+                    // parsed into spec below
                 } else {
                     System.err.println("Failed to load depth attachment texture");
                 }
@@ -93,23 +95,28 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
             // Attach stencil texture using smart loading
             if (json.has("stencilAttachment")) {
                 JsonElement stencilElement = json.get("stencilAttachment");
-                KeyId stencilTextureId = CoreTextureHelper.loadTextureFromElement(stencilElement, resourceManager);
-                if (stencilTextureId != null) {
-                    renderTarget.setStencilAttachment(stencilTextureId);
+                stencilAttachmentId = CoreTextureHelper.loadTextureFromElement(stencilElement, resourceManager);
+                if (stencilAttachmentId != null) {
+                    // parsed into spec below
                 } else {
                     System.err.println("Failed to load stencil attachment texture");
                 }
             }
 
-            // Check framebuffer completeness
-            int status = GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
-            if (status != GL30.GL_FRAMEBUFFER_COMPLETE) {
-                System.err.println("Framebuffer not complete: " + status);
-            }
-
-            GraphicsDriver.getCurrentAPI().bindFrameBuffer(0);
-
-            return renderTarget;
+            ResolvedRenderTargetSpec descriptor = new ResolvedRenderTargetSpec(
+                    keyId,
+                    mode,
+                    baseWidth,
+                    baseHeight,
+                    scaleX,
+                    scaleY,
+                    colorAttachmentIds,
+                    depthAttachmentId,
+                    stencilAttachmentId);
+            BackendResourceInstaller installer = GraphicsDriver.runtime() != null
+                    ? GraphicsDriver.runtime().resourceInstaller()
+                    : BackendResourceInstaller.NO_OP;
+            return installer.createRenderTarget(keyId, descriptor);
 
         } catch (Exception e) {
             System.err.println("Failed to load render target from JSON: " + e.getMessage());
@@ -117,13 +124,5 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
             return null;
         }
     }
-
-    private StandardRenderTarget.ResolutionMode parseResolutionMode(String mode) {
-        return switch (mode.toUpperCase()) {
-            case "FIXED" -> StandardRenderTarget.ResolutionMode.FIXED;
-            case "SCREEN_SIZE", "SCREEN" -> StandardRenderTarget.ResolutionMode.SCREEN_SIZE;
-            case "SCREEN_RELATIVE", "RELATIVE" -> StandardRenderTarget.ResolutionMode.SCREEN_RELATIVE;
-            default -> StandardRenderTarget.ResolutionMode.FIXED;
-        };
-    }
 }
+

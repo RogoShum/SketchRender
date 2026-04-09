@@ -90,10 +90,14 @@ public class RenderPacketQueue<C extends RenderContext> {
     }
 
     public void executeStage(KeyId stageId, RenderStateManager manager, C context) {
-        executeStageRange(List.of(stageId), manager, context);
+        executeStageRange(List.of(stageId), manager, context, "single");
     }
 
     public void executeStageRange(List<KeyId> stageIds, RenderStateManager manager, C context) {
+        executeStageRange(stageIds, manager, context, "range");
+    }
+
+    public void executeStageRange(List<KeyId> stageIds, RenderStateManager manager, C context, String scopeLabel) {
         List<KeyId> orderedStageIds = normalizeStageIds(stageIds);
         if (orderedStageIds.isEmpty()) {
             return;
@@ -101,6 +105,7 @@ public class RenderPacketQueue<C extends RenderContext> {
 
         SnapshotScope rangeSnapshotScope = snapshotScopeForStages(orderedStageIds);
         boolean hasPackets = hasPacketsInStages(orderedStageIds);
+        traceRangeScopeBegin(scopeLabel, orderedStageIds, hasPackets, rangeSnapshotScope != null && !rangeSnapshotScope.isEmpty());
 
         try (BackendStageScope ignored = hasPackets
                 ? GraphicsDriver.runtime().frameExecutor().beginExecutionScope(
@@ -114,6 +119,8 @@ public class RenderPacketQueue<C extends RenderContext> {
             for (KeyId stageId : orderedStageIds) {
                 executeStageInternal(stageId, manager, context);
             }
+        } finally {
+            traceRangeScopeEnd(scopeLabel, orderedStageIds);
         }
     }
 
@@ -390,4 +397,19 @@ public class RenderPacketQueue<C extends RenderContext> {
         }
         return List.copyOf(ordered);
     }
+
+    private void traceRangeScopeBegin(String scopeLabel, List<KeyId> stageIds, boolean hasPackets, boolean hasSnapshotScope) {
+        RenderTraceRecorder renderTraceRecorder = graphicsPipeline.renderTraceRecorder();
+        if (renderTraceRecorder != null) {
+            renderTraceRecorder.recordRangeScopeBegin(scopeLabel, stageIds, hasPackets, hasSnapshotScope);
+        }
+    }
+
+    private void traceRangeScopeEnd(String scopeLabel, List<KeyId> stageIds) {
+        RenderTraceRecorder renderTraceRecorder = graphicsPipeline.renderTraceRecorder();
+        if (renderTraceRecorder != null) {
+            renderTraceRecorder.recordRangeScopeEnd(scopeLabel, stageIds);
+        }
+    }
 }
+

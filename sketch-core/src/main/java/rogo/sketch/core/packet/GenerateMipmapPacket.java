@@ -16,4 +16,11 @@ public record GenerateMipmapPacket(
         List<? extends Graphics> completionGraphics,
         KeyId textureId
 ) implements RenderPacket {
+    private static final RenderPacketType TYPE = RenderPacketType.GENERATE_MIPMAP;
+
+    @Override
+    public RenderPacketType packetType() {
+        return TYPE;
+    }
 }
+

@@ -3,21 +3,24 @@ package rogo.sketch.vanilla.graphics;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import rogo.sketch.module.transform.FrameTransformSource;
-import rogo.sketch.core.api.model.PreparedMesh;
-import rogo.sketch.core.data.builder.VertexStreamBuilder;
-import rogo.sketch.core.instance.MeshGraphics;
-import rogo.sketch.core.pipeline.PartialRenderSetting;
-import rogo.sketch.module.transform.TransformWriter;
+import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.module.transform.FrameTransformSource;
+import rogo.sketch.module.transform.TransformWriter;
 
 /**
  * Player transform provider collected in the frame graph after sync frame prepare.
  */
-public class PlayerGraphics extends MeshGraphics implements FrameTransformSource {
+public class PlayerGraphics implements Graphics, FrameTransformSource {
+    private final KeyId id;
 
     public PlayerGraphics(KeyId keyId) {
-        super(keyId);
+        this.id = keyId;
+    }
+
+    @Override
+    public KeyId getIdentifier() {
+        return id;
     }
 
     @Override
@@ -27,24 +30,7 @@ public class PlayerGraphics extends MeshGraphics implements FrameTransformSource
     
     @Override
     public boolean shouldRender() {
-        // This graphics doesn't render anything itself
-        // It just provides the player transform for children
         return false;
-    }
-    
-    @Override
-    public PartialRenderSetting getPartialRenderSetting() {
-        return PartialRenderSetting.EMPTY;
-    }
-    
-    @Override
-    public PreparedMesh getPreparedMesh() {
-        return null;
-    }
-    
-    @Override
-    public void fillVertex(KeyId componentKey, VertexStreamBuilder builder) {
-        // No vertices to fill - this is just a transform provider
     }
 
     @Override
@@ -63,3 +49,4 @@ public class PlayerGraphics extends MeshGraphics implements FrameTransformSource
         }
     }
 }
+

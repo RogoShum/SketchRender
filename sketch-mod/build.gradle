@@ -75,7 +75,10 @@ mixin {
     debug.export = true
 }
 
-sourceSets.main.resources { srcDir 'src/generated/resources' }
+sourceSets.main.resources {
+    srcDir 'src/generated/resources'
+    srcDir project(':sketch-core').file('src/main/resources')
+}
 
 repositories {
     maven {
@@ -192,8 +195,11 @@ tasks.register("runRenderDoc", Exec.class) {
 
 gradle.taskGraph.whenReady {
     tasks.named("runClient", JavaExec).configure {
-        jvmArgs += [
-                "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"
-        ]
+        if (project.findProperty("enableRunClientDebug")?.toString()?.toBoolean()) {
+            def debugPort = project.findProperty("runClientDebugPort")?.toString() ?: "5005"
+            jvmArgs += [
+                    "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=${debugPort}"
+            ]
+        }
     }
 }

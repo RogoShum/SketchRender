@@ -1,0 +1,9 @@
+{
+  "compute": "sketch_render:copy_counter.comp",
+  "resourceBindings": {
+    "shader_storage_buffer": [
+      "InputBuffer",
+      "OutputBuffer"
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 package rogo.sketch.core.pipeline.information;
 
 import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.api.graphics.MeshBasedGraphics;
+import rogo.sketch.core.api.graphics.RasterGraphics;
 import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.pipeline.RenderSetting;
 
@@ -16,7 +16,7 @@ import rogo.sketch.core.pipeline.RenderSetting;
  * </ul>
  * </p>
  */
-public class RasterizationInstanceInfo extends InstanceInfo<MeshBasedGraphics> {
+public class RasterizationInstanceInfo extends InstanceInfo<RasterGraphics> {
     // Mesh data
     @Nullable
     private final PreparedMesh mesh;
@@ -24,7 +24,7 @@ public class RasterizationInstanceInfo extends InstanceInfo<MeshBasedGraphics> {
     private final int vertexCount;
 
     public RasterizationInstanceInfo(
-            MeshBasedGraphics instance,
+            RasterGraphics instance,
             RenderSetting renderSetting,
             @Nullable PreparedMesh mesh,
             int vertexCount) {
@@ -55,3 +55,4 @@ public class RasterizationInstanceInfo extends InstanceInfo<MeshBasedGraphics> {
         return vertexCount;
     }
 }
+

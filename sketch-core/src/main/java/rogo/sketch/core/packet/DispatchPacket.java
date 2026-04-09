@@ -1,15 +1,13 @@
 package rogo.sketch.core.packet;
 
 import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.api.graphics.ComputeDispatchCommand;
 import rogo.sketch.core.pipeline.PipelineType;
-import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.information.ComputeInstanceInfo;
-import rogo.sketch.core.shader.ComputeShader;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.List;
-import java.util.function.BiConsumer;
 
 public record DispatchPacket(
         KeyId stageId,
@@ -22,6 +20,13 @@ public record DispatchPacket(
         int workGroupsY,
         int workGroupsZ,
         ComputeInstanceInfo computeInfo,
-        BiConsumer<RenderContext, ComputeShader> dispatchFunction
+        ComputeDispatchCommand dispatchCommand
 ) implements RenderPacket {
+    private static final RenderPacketType TYPE = RenderPacketType.DISPATCH;
+
+    @Override
+    public RenderPacketType packetType() {
+        return TYPE;
+    }
 }
+

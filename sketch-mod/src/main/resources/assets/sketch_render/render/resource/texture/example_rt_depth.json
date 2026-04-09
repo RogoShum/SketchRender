@@ -1,8 +1,0 @@
-{
-  "isRenderTarget": true,
-  "format": "DEPTH",
-  "minFilter": "NEAREST",
-  "magFilter": "NEAREST",
-  "wrapS": "CLAMP_TO_EDGE",
-  "wrapT": "CLAMP_TO_EDGE"
-}

@@ -1,10 +1,13 @@
 package rogo.sketch.module.transform.manager;
 
-import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.core.data.builder.UnsafeBatchBuilder;
-import rogo.sketch.core.driver.GraphicsDriver;
-import rogo.sketch.core.resource.buffer.ShaderStorageBuffer;
+import rogo.sketch.core.backend.BackendBufferFactory;
+import rogo.sketch.core.backend.BackendStorageBuffer;
+import rogo.sketch.core.data.builder.NativeWriteBuffer;
+import rogo.sketch.core.resource.descriptor.BufferRole;
+import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
+import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
+import rogo.sketch.core.util.KeyId;
 import rogo.sketch.module.transform.TransformData;
 
 import java.util.ArrayList;
@@ -14,8 +17,9 @@ import java.util.List;
  * Render-owned GPU input resources and staging buffers for one transform stream.
  */
 public class TransformGpuInputSet {
-    private ShaderStorageBuffer inputSSBO;
-    private UnsafeBatchBuilder inputBuilder;
+    private final KeyId bufferId;
+    private BackendStorageBuffer inputSSBO;
+    private NativeWriteBuffer inputBuilder;
     private final List<TransformDispatchRange> dispatchRanges = new ArrayList<>();
     private int maxDepth = 0;
     private int capacity;
@@ -23,8 +27,9 @@ public class TransformGpuInputSet {
 
     public TransformGpuInputSet(int initialCapacity) {
         capacity = Math.max(1, initialCapacity);
-        inputSSBO = new ShaderStorageBuffer(capacity, TransformUploadSnapshot.INPUT_STRIDE, GL15.GL_DYNAMIC_DRAW);
-        inputBuilder = UnsafeBatchBuilder.createInternal((long) capacity * TransformUploadSnapshot.INPUT_STRIDE);
+        bufferId = KeyId.of("sketch_render:transform_input_runtime_" + Integer.toUnsignedString(System.identityHashCode(this)));
+        inputSSBO = BackendBufferFactory.createStorageBuffer(bufferId, descriptorFor(capacity), null);
+        inputBuilder = NativeWriteBuffer.createInternal((long) capacity * TransformUploadSnapshot.INPUT_STRIDE);
     }
 
     public void loadSnapshot(TransformUploadSnapshot snapshot) {
@@ -81,13 +86,12 @@ public class TransformGpuInputSet {
 
     public void upload() {
         if (inputDirty) {
-            GraphicsDriver.getCurrentAPI().updateBuffer(
-                    inputSSBO.getHandle(), 0, inputBuilder.getWriteOffset(), inputBuilder.getBaseAddress());
+            inputSSBO.upload(inputBuilder.getBaseAddress(), inputBuilder.getWriteOffset());
             inputDirty = false;
         }
     }
 
-    public ShaderStorageBuffer inputSSBO() {
+    public BackendStorageBuffer inputSSBO() {
         return inputSSBO;
     }
 
@@ -122,6 +126,19 @@ public class TransformGpuInputSet {
         inputSSBO.ensureCapacity(newCapacity, false);
 
         inputBuilder.close();
-        inputBuilder = UnsafeBatchBuilder.createInternal((long) capacity * TransformUploadSnapshot.INPUT_STRIDE);
+        inputBuilder = NativeWriteBuffer.createInternal((long) capacity * TransformUploadSnapshot.INPUT_STRIDE);
+    }
+
+    private ResolvedBufferResource descriptorFor(int elementCount) {
+        long safeCount = Math.max(1L, elementCount);
+        long stride = TransformUploadSnapshot.INPUT_STRIDE;
+        return new ResolvedBufferResource(
+                bufferId,
+                BufferRole.STORAGE,
+                BufferUpdatePolicy.DYNAMIC,
+                safeCount,
+                stride,
+                safeCount * stride);
     }
 }
+

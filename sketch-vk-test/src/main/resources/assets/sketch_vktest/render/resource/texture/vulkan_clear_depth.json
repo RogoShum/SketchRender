@@ -1,0 +1,13 @@
+{
+  "isRenderTarget": true,
+  "width": 4,
+  "height": 4,
+  "format": "D24_UNORM",
+  "minFilter": "NEAREST",
+  "magFilter": "NEAREST",
+  "wrapS": "CLAMP_TO_EDGE",
+  "wrapT": "CLAMP_TO_EDGE",
+  "usages": [
+    "DEPTH_ATTACHMENT"
+  ]
+}

@@ -1,21 +1,23 @@
 package rogo.sketch.core.pipeline.kernel;
 
 import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
-import rogo.sketch.core.packet.BindRenderTargetPacket;
-import rogo.sketch.core.packet.ClearPacket;
-import rogo.sketch.core.packet.DispatchPacket;
-import rogo.sketch.core.packet.DrawBuffersPacket;
-import rogo.sketch.core.packet.DrawPacket;
-import rogo.sketch.core.packet.GenerateMipmapPacket;
 import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.packet.RenderPacket;
+import rogo.sketch.core.packet.RenderPacketKind;
+import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.pipeline.PipelineType;
+import rogo.sketch.core.resource.GraphicsResourceManager;
+import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.shader.variant.ShaderTemplate;
+import rogo.sketch.core.shader.variant.ShaderVariantKey;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public record StageExecutionPlan(
         KeyId stageId,
@@ -78,6 +80,8 @@ public record StageExecutionPlan(
         }
 
         SnapshotScope.Builder builder = SnapshotScope.builder();
+        Map<PipelineStateKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache = new LinkedHashMap<>();
+        Set<BindingPlanScopeCacheKey> appliedBindingScopes = new LinkedHashSet<>();
         boolean hasPackets = false;
         boolean touchesFramebuffer = false;
         boolean touchesVertexArrays = false;
@@ -88,13 +92,13 @@ public record StageExecutionPlan(
                 PipelineStateKey stateKey = stateEntry.getKey();
                 if (stateKey != null) {
                     if (stateKey.renderState() != null) {
-                        builder.addStatesFromRenderState(stateKey.renderState());
+                        builder.addStatesFromRenderStatePatch(stateKey.renderState());
                     }
                     if (stateKey.shaderId() != null) {
-                        builder.addState(SnapshotScope.StateType.SHADER_PROGRAM);
+                        builder.addState(SnapshotScope.StateType.PROGRAM);
                     }
                     if (stateKey.bindingPlan() != null && !stateKey.bindingPlan().isEmpty()) {
-                        addBindingPlanScope(builder);
+                        addBindingPlanScope(builder, stateKey, stateKey.bindingPlan(), resolvedBindingsCache, appliedBindingScopes);
                     }
                 }
 
@@ -103,34 +107,32 @@ public record StageExecutionPlan(
                         continue;
                     }
                     hasPackets = true;
-                    if (packet.bindingPlan() != null && !packet.bindingPlan().isEmpty()) {
-                        addBindingPlanScope(builder);
+                    if (packet.bindingPlan() != null
+                            && !packet.bindingPlan().isEmpty()
+                            && !packet.bindingPlan().equals(stateKey != null ? stateKey.bindingPlan() : null)) {
+                        addBindingPlanScope(builder, packet.stateKey(), packet.bindingPlan(), resolvedBindingsCache, appliedBindingScopes);
                     }
-                    if (packet instanceof DrawPacket) {
+                    if (packet.packetKind() == RenderPacketKind.DRAW) {
                         touchesFramebuffer = true;
                         touchesVertexArrays = true;
                         continue;
                     }
-                    if (packet instanceof ClearPacket clearPacket) {
+                    if (packet.packetKind() == RenderPacketKind.CLEAR && packet instanceof rogo.sketch.core.packet.ClearPacket clearPacket) {
                         touchesFramebuffer = true;
                         if (clearPacket.colorMask() != null && clearPacket.colorMask().length >= 4) {
-                            builder.addState(SnapshotScope.StateType.COLOR_MASK);
+                            builder.addState(SnapshotScope.StateType.PIPELINE_RASTER);
                         }
                         if (clearPacket.clearDepth()) {
-                            builder.addState(SnapshotScope.StateType.DEPTH_MASK);
+                            builder.addState(SnapshotScope.StateType.PIPELINE_RASTER);
                         }
                         continue;
                     }
-                    if (packet instanceof BindRenderTargetPacket || packet instanceof DrawBuffersPacket) {
-                        touchesFramebuffer = true;
+                    if (packet.packetKind() == RenderPacketKind.DISPATCH || PipelineType.COMPUTE.equals(pipelineType)) {
+                        builder.addState(SnapshotScope.StateType.PROGRAM);
                         continue;
                     }
-                    if (packet instanceof DispatchPacket || PipelineType.COMPUTE.equals(pipelineType)) {
-                        builder.addState(SnapshotScope.StateType.SHADER_PROGRAM);
-                        continue;
-                    }
-                    if (packet instanceof GenerateMipmapPacket) {
-                        builder.addState(SnapshotScope.StateType.SHADER_PROGRAM);
+                    if (packet.packetKind() == RenderPacketKind.GENERATE_MIPMAP) {
+                        builder.addState(SnapshotScope.StateType.PROGRAM);
                     }
                 }
             }
@@ -145,7 +147,101 @@ public record StageExecutionPlan(
         return builder.build();
     }
 
-    private static void addBindingPlanScope(SnapshotScope.Builder builder) {
-        builder.addState(SnapshotScope.StateType.SHADER_PROGRAM);
+    private static void addBindingPlanScope(
+            SnapshotScope.Builder builder,
+            PipelineStateKey stateKey,
+            ResourceBindingPlan bindingPlan,
+            Map<PipelineStateKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache,
+            Set<BindingPlanScopeCacheKey> appliedBindingScopes) {
+        builder.addState(SnapshotScope.StateType.PROGRAM);
+        builder.addState(SnapshotScope.StateType.PASS_BINDINGS);
+        if (bindingPlan == null || bindingPlan.isEmpty() || stateKey == null || stateKey.shaderId() == null) {
+            return;
+        }
+
+        BindingPlanScopeCacheKey cacheKey = new BindingPlanScopeCacheKey(
+                stateKey.shaderId(),
+                stateKey.shaderVariantKey() != null ? stateKey.shaderVariantKey() : ShaderVariantKey.EMPTY,
+                bindingPlan.layoutKey());
+        if (appliedBindingScopes != null && !appliedBindingScopes.add(cacheKey)) {
+            return;
+        }
+
+        Map<KeyId, Map<KeyId, Integer>> resolvedBindings = resolveShaderBindings(stateKey, resolvedBindingsCache);
+        if (resolvedBindings.isEmpty()) {
+            return;
+        }
+
+        for (ResourceBindingPlan.BindingEntry entry : bindingPlan.entries()) {
+            if (entry == null || entry.bindingName() == null || entry.resourceType() == null) {
+                continue;
+            }
+            Integer bindingIndex = resolveBindingIndex(resolvedBindings, entry);
+            if (bindingIndex == null || bindingIndex < 0) {
+                continue;
+            }
+            KeyId normalizedType = ResourceTypes.normalize(entry.resourceType());
+            if (ResourceTypes.TEXTURE.equals(normalizedType)) {
+                builder.addTextureUnit(bindingIndex);
+            } else if (ResourceTypes.IMAGE.equals(normalizedType)) {
+                builder.addImageBinding(bindingIndex);
+            } else if (ResourceTypes.STORAGE_BUFFER.equals(normalizedType)) {
+                builder.addSSBOBinding(bindingIndex);
+            } else if (ResourceTypes.UNIFORM_BUFFER.equals(normalizedType)) {
+                builder.addUBOBinding(bindingIndex);
+            }
+        }
+    }
+
+    private static Map<KeyId, Map<KeyId, Integer>> resolveShaderBindings(
+            PipelineStateKey stateKey,
+            Map<PipelineStateKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache) {
+        if (stateKey == null) {
+            return Map.of();
+        }
+        if (resolvedBindingsCache != null) {
+            Map<KeyId, Map<KeyId, Integer>> cached = resolvedBindingsCache.get(stateKey);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        Object resource = GraphicsResourceManager.getInstance()
+                .getResource(ResourceTypes.SHADER_TEMPLATE, stateKey.shaderId());
+        if (!(resource instanceof ShaderTemplate shaderTemplate)) {
+            return Map.of();
+        }
+        try {
+            Map<KeyId, Map<KeyId, Integer>> resolved = shaderTemplate.resolveResourceBindings(stateKey.shaderVariantKey());
+            if (resolvedBindingsCache != null) {
+                resolvedBindingsCache.put(stateKey, resolved);
+            }
+            return resolved;
+        } catch (Exception ignored) {
+            return Map.of();
+        }
+    }
+
+    private static Integer resolveBindingIndex(
+            Map<KeyId, Map<KeyId, Integer>> resolvedBindings,
+            ResourceBindingPlan.BindingEntry entry) {
+        for (KeyId searchType : ResourceTypes.getSearchOrder(entry.resourceType())) {
+            Map<KeyId, Integer> typeBindings = resolvedBindings.get(ResourceTypes.normalize(searchType));
+            if (typeBindings == null || typeBindings.isEmpty()) {
+                continue;
+            }
+            Integer binding = typeBindings.get(entry.bindingName());
+            if (binding != null) {
+                return binding;
+            }
+        }
+        return null;
+    }
+
+    private record BindingPlanScopeCacheKey(
+            KeyId shaderId,
+            ShaderVariantKey shaderVariantKey,
+            KeyId resourceLayoutKey
+    ) {
     }
 }
+

@@ -1,10 +1,13 @@
 package rogo.sketch.core.driver.state.snapshot;
 
 import rogo.sketch.core.api.ShaderProvider;
-import rogo.sketch.core.driver.state.FullRenderState;
+import rogo.sketch.core.driver.state.CompiledRenderState;
+import rogo.sketch.core.driver.state.RenderStatePatch;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.shader.ShaderProgramHandle;
+import rogo.sketch.core.shader.ShaderProgramResolver;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
@@ -19,17 +22,10 @@ public class SnapshotScope {
      * State types that can be captured
      */
     public enum StateType {
-        BLEND,
-        DEPTH_TEST,
-        DEPTH_MASK,
-        CULL,
-        SCISSOR,
-        STENCIL,
-        VIEWPORT,
-        COLOR_MASK,
-        POLYGON_OFFSET,
-        LOGIC_OP,
-        SHADER_PROGRAM,
+        PIPELINE_RASTER,
+        DYNAMIC_STATE,
+        PASS_BINDINGS,
+        PROGRAM,
         VAO,
         FBO
     }
@@ -88,7 +84,7 @@ public class SnapshotScope {
         
         // Add states from render state
         if (setting != null && setting.renderState() != null) {
-            builder.addStatesFromRenderState(setting.renderState());
+            builder.addStatesFromRenderStatePatch(setting.renderState());
         }
         
         // Add bindings from resource binding
@@ -102,15 +98,15 @@ public class SnapshotScope {
     /**
      * Create a scope from a ShaderProvider (captures bindings discovered in shader)
      */
-    public static SnapshotScope fromShader(ShaderProvider shader) {
-        if (shader == null) {
+    public static SnapshotScope fromShader(ShaderProgramHandle shaderProgramHandle) {
+        if (shaderProgramHandle == null) {
             return empty();
         }
         
         Builder builder = builder();
-        builder.addState(StateType.SHADER_PROGRAM);
+        builder.addState(StateType.PROGRAM);
         
-        Map<KeyId, Map<KeyId, Integer>> bindings = shader.getResourceBindings();
+        Map<KeyId, Map<KeyId, Integer>> bindings = shaderProgramHandle.interfaceSpec().resourceBindings();
         
         // Texture bindings
         if (bindings.containsKey(ResourceTypes.TEXTURE)) {
@@ -141,6 +137,16 @@ public class SnapshotScope {
         }
         
         return builder.build();
+    }
+
+    /**
+     * Compatibility bridge for legacy ShaderProvider call sites.
+     */
+    public static SnapshotScope fromShader(ShaderProvider shaderProvider) {
+        if (shaderProvider == null) {
+            return empty();
+        }
+        return fromShader(ShaderProgramResolver.adaptProgramHandle(shaderProvider));
     }
     
     /**
@@ -233,23 +239,21 @@ public class SnapshotScope {
             return this;
         }
         
-        public Builder addStatesFromRenderState(FullRenderState state) {
-            if (state == null) return this;
-            
-            // Add all state types that the render state might modify
-            // In practice, we should check which components are non-default
-            stateTypes.add(StateType.BLEND);
-            stateTypes.add(StateType.DEPTH_TEST);
-            stateTypes.add(StateType.DEPTH_MASK);
-            stateTypes.add(StateType.CULL);
-            stateTypes.add(StateType.SCISSOR);
-            stateTypes.add(StateType.STENCIL);
-            stateTypes.add(StateType.VIEWPORT);
-            stateTypes.add(StateType.COLOR_MASK);
-            stateTypes.add(StateType.POLYGON_OFFSET);
-            stateTypes.add(StateType.LOGIC_OP);
-            stateTypes.add(StateType.FBO);
-            
+        public Builder addStatesFromRenderStatePatch(RenderStatePatch state) {
+            if (state == null || state.isEmpty()) {
+                return this;
+            }
+
+            CompiledRenderState compiledRenderState = rogo.sketch.core.driver.state.RenderStateCompiler.compile(state);
+            if (compiledRenderState.pipelineRasterState() != null) {
+                stateTypes.add(StateType.PIPELINE_RASTER);
+            }
+            if (compiledRenderState.dynamicRenderState() != null) {
+                stateTypes.add(StateType.DYNAMIC_STATE);
+            }
+            if (compiledRenderState.passBindingState() != null) {
+                stateTypes.add(StateType.PASS_BINDINGS);
+            }
             return this;
         }
         
@@ -260,9 +264,10 @@ public class SnapshotScope {
             
             // We don't know the actual binding points from ResourceBinding
             // Those are determined at bind time from the shader
-            // So we just mark that we need to capture the shader program
+            // So we just mark that we need to capture pass/program bindings
             if (!allBindings.isEmpty()) {
-                stateTypes.add(StateType.SHADER_PROGRAM);
+                stateTypes.add(StateType.PASS_BINDINGS);
+                stateTypes.add(StateType.PROGRAM);
             }
             
             return this;
@@ -309,5 +314,6 @@ public class SnapshotScope {
         }
     }
 }
+
 
 

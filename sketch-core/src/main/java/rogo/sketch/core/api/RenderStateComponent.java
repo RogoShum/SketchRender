@@ -2,15 +2,12 @@ package rogo.sketch.core.api;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.util.KeyId;
 
 public interface RenderStateComponent {
     KeyId getIdentifier();
 
     boolean equals(Object other);
-
-    void apply(RenderContext context);
 
     int hashCode();
     

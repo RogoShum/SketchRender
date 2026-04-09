@@ -1,0 +1,15 @@
+{
+  "renderState": {
+    "shader_template": {
+      "identifier": "sketch_vktest:depth_validation_shader"
+    },
+    "depth_test": {
+      "enabled": true,
+      "function": "LESS"
+    },
+    "cull_face": {
+      "enabled": false
+    }
+  },
+  "shouldSwitchRenderState": true
+}

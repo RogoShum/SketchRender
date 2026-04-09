@@ -1,6 +1,8 @@
 package rogo.sketch.core.data.format;
 
 import rogo.sketch.core.api.model.PreparedMesh;
+import rogo.sketch.core.data.layout.FieldSpec;
+import rogo.sketch.core.data.layout.StructLayout;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -26,7 +28,7 @@ public class VertexLayoutSpec {
         this.components = components.toArray(new ComponentSpec[0]);
         this.staticComponents = components.stream().filter(ComponentSpec::isImmutable).collect(Collectors.toUnmodifiableSet()).toArray(new ComponentSpec[0]);
         this.dynamicComponents = components.stream().filter(ComponentSpec::isMutable).collect(Collectors.toUnmodifiableSet()).toArray(new ComponentSpec[0]);
-        this.sortKey = components.stream().filter(componentSpec -> componentSpec.getFormat().getSortKeyElement() != null).findFirst().orElse(null);
+        this.sortKey = components.stream().filter(componentSpec -> componentSpec.getFormat().getSortKeyField() != null).findFirst().orElse(null);
         this.hasInstancing = components.stream().anyMatch(ComponentSpec::isInstanced);
         this.hash = Arrays.hashCode(this.components);
     }
@@ -61,7 +63,7 @@ public class VertexLayoutSpec {
      * @return true if compatible
      */
     public boolean validateMesh(PreparedMesh mesh) {
-        DataFormat meshFormat = mesh.getVertexFormat();
+        StructLayout meshFormat = mesh.getVertexFormat();
         for (ComponentSpec spec : getStaticSpecs()) {
             // Each static component's format must be present in the mesh
             // Note: In the new design, Mesh might provide ONE big format (flat attributes)
@@ -93,7 +95,7 @@ public class VertexLayoutSpec {
          * Automatically assigns binding point and adjusts attribute indices.
          * Throws IllegalArgumentException if KeyId is already used.
          */
-        public Builder add(KeyId id, DataFormat format, boolean instanced, boolean mutable, boolean tickUpdate) {
+        public Builder add(KeyId id, StructLayout format, boolean instanced, boolean mutable, boolean tickUpdate) {
             // 1. Validation: Check Key Collision
             if (usedKeys.contains(id)) {
                 throw new IllegalArgumentException(
@@ -109,16 +111,16 @@ public class VertexLayoutSpec {
             boolean hasElements = format.getElementCount() > 0;
 
             if (hasElements) {
-                for (DataElement element : format.getElements()) {
-                    minIndex = Math.min(minIndex, element.getIndex());
-                    maxIndex = Math.max(maxIndex, element.getIndex());
+                for (FieldSpec field : format.getFields()) {
+                    minIndex = Math.min(minIndex, field.getSlot());
+                    maxIndex = Math.max(maxIndex, field.getSlot());
                 }
 
                 // Calculate shift needed to place minIndex at nextAttributeIndex
                 int shift = nextAttributeIndex - minIndex;
 
                 if (shift != 0) {
-                    format = format.withAttributeIndexOffset(shift);
+                    format = format.withSlotOffset(shift);
                     // Update maxIndex for tracking
                     maxIndex += shift;
                 }
@@ -133,26 +135,26 @@ public class VertexLayoutSpec {
             return this;
         }
 
-        public Builder addStatic(KeyId id, DataFormat format) {
+        public Builder addStatic(KeyId id, StructLayout format) {
             return add(id, format, false, false, false);
         }
 
-        public Builder addStaticInstanced(KeyId id, DataFormat format) {
+        public Builder addStaticInstanced(KeyId id, StructLayout format) {
             return add(id, format, true, true, false);
         }
 
-        public Builder addDynamic(KeyId id, DataFormat format) {
+        public Builder addDynamic(KeyId id, StructLayout format) {
             return add(id, format, false, true, false);
         }
 
-        public Builder addDynamicInstanced(KeyId id, DataFormat format) {
+        public Builder addDynamicInstanced(KeyId id, StructLayout format) {
             return add(id, format, true, true, false);
         }
 
         public VertexLayoutSpec build() {
             long sortKeyCount = specs.stream()
                     .map(ComponentSpec::getFormat)
-                    .mapToLong(f -> Arrays.stream(f.getElements()).filter(DataElement::isSortKey).count())
+                    .mapToLong(f -> Arrays.stream(f.getFields()).filter(FieldSpec::isSortKey).count())
                     .sum();
 
             if (sortKeyCount > 1) {
@@ -185,3 +187,4 @@ public class VertexLayoutSpec {
                 '}';
     }
 }
+

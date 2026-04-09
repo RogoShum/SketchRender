@@ -1,0 +1,13 @@
+{
+  "stage": "vanilla_clear",
+  "command": [
+    {
+      "operate": "clearRenderTarget",
+      "renderTarget": "sketch_render:example_render_target",
+      "clearChannels": "color|depth",
+      "color": [0.0, 0.0, 0.0, 0.0],
+      "depth": 1.0,
+      "restorePreviousRenderTarget": true
+    }
+  ]
+}

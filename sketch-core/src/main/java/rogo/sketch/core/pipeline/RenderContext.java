@@ -4,6 +4,8 @@ import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import rogo.sketch.core.api.ShaderProvider;
+import rogo.sketch.core.shader.ShaderProgramHandle;
+import rogo.sketch.core.shader.ShaderProgramResolver;
 import rogo.sketch.module.transform.TransformModule;
 import rogo.sketch.core.util.KeyId;
 
@@ -27,7 +29,7 @@ public class RenderContext {
     protected float partialTicks;
     protected boolean nextTick = true;
     protected FrustumIntersection frustum; // JOML frustum for culling
-    protected ShaderProvider shaderProvider;
+    protected ShaderProgramHandle shaderProgramHandle;
 
     public Matrix4f viewMatrix() {
         return viewMatrix;
@@ -73,12 +75,20 @@ public class RenderContext {
         return windowWidth;
     }
 
+    public void setShaderProgramHandle(ShaderProgramHandle shaderProgramHandle) {
+        this.shaderProgramHandle = shaderProgramHandle;
+    }
+
+    public ShaderProgramHandle shaderProgramHandle() {
+        return shaderProgramHandle;
+    }
+
     public void setShaderProvider(ShaderProvider shaderProvider) {
-        this.shaderProvider = shaderProvider;
+        this.shaderProgramHandle = ShaderProgramResolver.adaptProgramHandle(shaderProvider);
     }
 
     public ShaderProvider shaderProvider() {
-        return shaderProvider;
+        return shaderProgramHandle;
     }
 
     public void setRenderStateManager(RenderStateManager renderStateManager) {
@@ -122,3 +132,4 @@ public class RenderContext {
         return (T) contextMap.get(key);
     }
 }
+

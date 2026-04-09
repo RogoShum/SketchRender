@@ -12,7 +12,7 @@ import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.shader.variant.ShaderVariantKey;
 import rogo.sketch.core.driver.state.DefaultRenderStates;
-import rogo.sketch.core.driver.state.FullRenderState;
+import rogo.sketch.core.driver.state.RenderStatePatch;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
@@ -71,7 +71,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
                 shaderVariantCache.put(keyId, variantKey);
             }
             
-            FullRenderState renderState = loadFullRenderState(json, gson);
+            RenderStatePatch renderState = loadRenderStatePatch(json, gson);
             TargetBinding targetBinding = loadTargetBinding(json);
             ResourceBinding resourceBinding = loadResourceBinding(json, gson);
 
@@ -169,12 +169,11 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
     }
 
     /**
-     * Load FullRenderState from JSON
+     * Load sparse render-state overrides from JSON
      */
-    private FullRenderState loadFullRenderState(JsonObject json, Gson gson) {
+    private RenderStatePatch loadRenderStatePatch(JsonObject json, Gson gson) {
         if (!json.has("renderState")) {
-            // Return defaults only
-            return DefaultRenderStates.createDefaultFullRenderState();
+            return RenderStatePatch.empty();
         }
 
         JsonObject renderStateObj = json.getAsJsonObject("renderState");
@@ -199,7 +198,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
         }
 
         // Build state map with defaults + overrides
-        return DefaultRenderStates.createFullRenderState(overrideComponents);
+        return DefaultRenderStates.createPatch(overrideComponents);
     }
 
     /**
@@ -264,3 +263,4 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
         return null;
     }
 }
+

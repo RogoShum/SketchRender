@@ -42,6 +42,7 @@ import static org.lwjgl.vulkan.KHRSwapchain.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_I
 import static org.lwjgl.vulkan.KHRSwapchain.vkCreateSwapchainKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.vkDestroySwapchainKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.vkGetSwapchainImagesKHR;
+import static org.lwjgl.vulkan.EXTDebugUtils.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.VK_API_VERSION_1_0;
 import static org.lwjgl.vulkan.VK10.VK_FALSE;
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_SRGB;
@@ -70,6 +71,7 @@ import static org.lwjgl.vulkan.VK10.vkCreateInstance;
 import static org.lwjgl.vulkan.VK10.vkDestroyDevice;
 import static org.lwjgl.vulkan.VK10.vkDestroyInstance;
 import static org.lwjgl.vulkan.VK10.vkEnumerateDeviceExtensionProperties;
+import static org.lwjgl.vulkan.VK10.vkEnumerateInstanceExtensionProperties;
 import static org.lwjgl.vulkan.VK10.vkEnumeratePhysicalDevices;
 import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
 import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceProperties;
@@ -93,7 +95,8 @@ final class VulkanDeviceBootstrapper {
         long swapchainHandle = VK_NULL_HANDLE;
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            instance = createInstance(entryPoint, stack);
+            InstanceBootstrap instanceBootstrap = createInstance(entryPoint, stack);
+            instance = instanceBootstrap.instance();
             surfaceHandle = createSurface(instance, windowHandle, stack);
 
             VulkanDeviceSelection selection = pickPhysicalDevice(instance, surfaceHandle);
@@ -124,7 +127,8 @@ final class VulkanDeviceBootstrapper {
                     swapchain.imageFormat,
                     swapchain.extentWidth,
                     swapchain.extentHeight,
-                    swapchain.images);
+                    swapchain.images,
+                    instanceBootstrap.debugUtilsEnabled());
         } catch (RuntimeException ex) {
             if (swapchainHandle != VK_NULL_HANDLE && device != null) {
                 vkDestroySwapchainKHR(device, swapchainHandle, null);
@@ -148,11 +152,20 @@ final class VulkanDeviceBootstrapper {
         }
     }
 
-    private static VkInstance createInstance(String entryPoint, MemoryStack stack) {
+    private static InstanceBootstrap createInstance(String entryPoint, MemoryStack stack) {
         PointerBuffer requiredExtensions = GLFWVulkan.glfwGetRequiredInstanceExtensions();
         if (requiredExtensions == null || requiredExtensions.remaining() == 0) {
             throw new IllegalStateException("GLFW did not provide required Vulkan instance extensions");
         }
+        boolean debugUtilsEnabled = supportsInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, stack);
+        PointerBuffer enabledExtensions = stack.mallocPointer(requiredExtensions.remaining() + (debugUtilsEnabled ? 1 : 0));
+        for (int i = requiredExtensions.position(); i < requiredExtensions.limit(); i++) {
+            enabledExtensions.put(requiredExtensions.get(i));
+        }
+        if (debugUtilsEnabled) {
+            enabledExtensions.put(stack.UTF8(VK_EXT_DEBUG_UTILS_EXTENSION_NAME));
+        }
+        enabledExtensions.flip();
 
         VkApplicationInfo applicationInfo = VkApplicationInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
@@ -165,11 +178,31 @@ final class VulkanDeviceBootstrapper {
         VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
                 .pApplicationInfo(applicationInfo)
-                .ppEnabledExtensionNames(requiredExtensions);
+                .ppEnabledExtensionNames(enabledExtensions);
 
         PointerBuffer instancePointer = stack.mallocPointer(1);
         checkVkResult(vkCreateInstance(createInfo, null, instancePointer), "vkCreateInstance");
-        return new VkInstance(instancePointer.get(0), createInfo);
+        return new InstanceBootstrap(new VkInstance(instancePointer.get(0), createInfo), debugUtilsEnabled);
+    }
+
+    private static boolean supportsInstanceExtension(String extensionName, MemoryStack stack) {
+        IntBuffer extensionCount = stack.ints(0);
+        checkVkResult(
+                vkEnumerateInstanceExtensionProperties((java.nio.ByteBuffer) null, extensionCount, null),
+                "vkEnumerateInstanceExtensionProperties(count)");
+        if (extensionCount.get(0) <= 0) {
+            return false;
+        }
+        VkExtensionProperties.Buffer properties = VkExtensionProperties.malloc(extensionCount.get(0), stack);
+        checkVkResult(
+                vkEnumerateInstanceExtensionProperties((java.nio.ByteBuffer) null, extensionCount, properties),
+                "vkEnumerateInstanceExtensionProperties(list)");
+        for (int i = 0; i < properties.capacity(); i++) {
+            if (extensionName.equals(properties.get(i).extensionNameString())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static long createSurface(VkInstance instance, long windowHandle, MemoryStack stack) {
@@ -483,19 +516,19 @@ final class VulkanDeviceBootstrapper {
                 "vkGetPhysicalDeviceSurfaceFormatsKHR(list)");
 
         if (formats.capacity() == 1 && formats.get(0).format() == VK_FORMAT_UNDEFINED) {
-            return new SurfaceFormatChoice(VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR);
+            return new SurfaceFormatChoice(VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR);
         }
 
         for (int i = 0; i < formats.capacity(); i++) {
             VkSurfaceFormatKHR format = formats.get(i);
-            if (format.format() == VK_FORMAT_B8G8R8A8_SRGB
+            if (format.format() == VK_FORMAT_B8G8R8A8_UNORM
                     && format.colorSpace() == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
                 return new SurfaceFormatChoice(format.format(), format.colorSpace());
             }
         }
         for (int i = 0; i < formats.capacity(); i++) {
             VkSurfaceFormatKHR format = formats.get(i);
-            if (format.format() == VK_FORMAT_B8G8R8A8_UNORM
+            if (format.format() == VK_FORMAT_B8G8R8A8_SRGB
                     && format.colorSpace() == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
                 return new SurfaceFormatChoice(format.format(), format.colorSpace());
             }
@@ -575,4 +608,8 @@ final class VulkanDeviceBootstrapper {
             this.colorSpace = colorSpace;
         }
     }
+
+    private record InstanceBootstrap(VkInstance instance, boolean debugUtilsEnabled) {
+    }
 }
+

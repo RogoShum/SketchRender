@@ -12,7 +12,6 @@ import java.util.Set;
 
 public final class GraphicsDriver {
     private static volatile BackendRuntime runtime = NoOpBackendRuntime.INSTANCE;
-    private static volatile GraphicsAPI legacyApiOverride;
 
     private GraphicsDriver() {
     }
@@ -45,14 +44,12 @@ public final class GraphicsDriver {
             throw new IllegalStateException("Backend bootstrap returned null runtime");
         }
         runtime = bootstrappedRuntime;
-        legacyApiOverride = null;
         return runtime;
     }
 
     public static synchronized void shutdown() {
         BackendRuntime current = runtime;
         runtime = NoOpBackendRuntime.INSTANCE;
-        legacyApiOverride = null;
         current.shutdown();
     }
 
@@ -75,21 +72,5 @@ public final class GraphicsDriver {
     public static Set<BackendKind> registeredBackends() {
         return BackendBootstrapRegistry.registeredKinds();
     }
-
-    @Deprecated
-    public static GraphicsAPI getCurrentAPI() {
-        GraphicsAPI api = runtime.legacyGraphicsApi();
-        if (api == null) {
-            api = legacyApiOverride;
-        }
-        if (api == null) {
-            throw new IllegalStateException("Legacy GraphicsAPI is not available");
-        }
-        return api;
-    }
-
-    @Deprecated
-    public static void setCurrentAPI(GraphicsAPI api) {
-        legacyApiOverride = api;
-    }
 }
+

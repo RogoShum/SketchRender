@@ -1,0 +1,6 @@
+{
+  "stage": "sketch_vktest:overlay_stage",
+  "renderSetting": "sketch_vktest:draw_call_scene",
+  "modelName": "sketch_vktest:shared_source_asset",
+  "meshName": "sketch_vktest:shared_right_mesh"
+}

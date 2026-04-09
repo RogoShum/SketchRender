@@ -34,7 +34,14 @@ public interface RenderPacket {
         return uniformGroups().drawUniforms();
     }
 
+    RenderPacketType packetType();
+
+    default RenderPacketKind packetKind() {
+        return packetType().kind();
+    }
+
     UniformValueSnapshot uniformSnapshot();
 
     List<? extends Graphics> completionGraphics();
 }
+

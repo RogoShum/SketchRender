@@ -1,18 +1,20 @@
 package rogo.sketch.core.resource.vision;
 
-import rogo.sketch.core.api.GpuObject;
-import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.api.ResourceObject;
+import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
 import rogo.sketch.core.util.KeyId;
 
-public abstract class RenderTarget implements GpuObject {
+public abstract class RenderTarget implements ResourceObject {
     protected final int handle;
     protected final KeyId keyId;
+    protected final ResolvedRenderTargetSpec descriptor;
     protected int currentWidth, currentHeight;
     protected boolean disposed = false;
 
-    public RenderTarget(int handle, KeyId keyId) {
+    public RenderTarget(int handle, KeyId keyId, ResolvedRenderTargetSpec descriptor) {
         this.handle = handle;
         this.keyId = keyId;
+        this.descriptor = descriptor;
     }
 
     public void resize(int newWidth, int newHeight) {
@@ -24,29 +26,25 @@ public abstract class RenderTarget implements GpuObject {
         this.currentHeight = newHeight;
     }
 
-    @Override
-    public int getHandle() {
-        return handle;
-    }
-
     public KeyId getIdentifier() {
         return keyId;
+    }
+
+    public ResolvedRenderTargetSpec descriptor() {
+        return descriptor;
     }
 
     public boolean isDisposed() {
         return disposed;
     }
 
-    public void bind() {
-        GraphicsDriver.getCurrentAPI().bindFrameBuffer(getHandle());
-    }
-
-    public static void unbind() {
-        GraphicsDriver.getCurrentAPI().bindFrameBuffer(0);
-    }
-
     @Override
     public void dispose() {
         this.disposed = true;
     }
+
+    protected final void markDisposed() {
+        this.disposed = true;
+    }
 }
+

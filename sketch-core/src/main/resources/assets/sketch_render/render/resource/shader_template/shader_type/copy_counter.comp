@@ -1,0 +1,13 @@
+#version 430 core
+layout(std430) buffer InputBuffer {
+    int counter;
+};
+
+layout(std430) buffer OutputBuffer {
+    int value;
+};
+
+layout(local_size_x = 1) in;
+void main() {
+    value = counter;
+}

@@ -9,12 +9,12 @@ import org.lwjgl.opengl.GL32;
 import org.lwjgl.opengl.GL42;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL40;
-import rogo.sketch.core.data.DataType;
-import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.data.type.ValueType;
+import rogo.sketch.core.api.ShaderResource;
+import rogo.sketch.backend.opengl.driver.GraphicsAPI;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.ProgramReflectionRegistry;
 import rogo.sketch.core.shader.ProgramReflectionService;
-import rogo.sketch.core.shader.uniform.ShaderUniform;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.shader.uniform.UniformHookRegistry;
 import rogo.sketch.core.util.KeyId;
@@ -24,18 +24,22 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class OpenGLProgramReflectionService implements ProgramReflectionService {
-    private static final OpenGLProgramReflectionService INSTANCE = new OpenGLProgramReflectionService();
+    private static volatile OpenGLProgramReflectionService instance;
+    private final GraphicsAPI api;
 
-    private OpenGLProgramReflectionService() {
+    private OpenGLProgramReflectionService(GraphicsAPI api) {
+        this.api = api;
     }
 
-    public static void install() {
-        ProgramReflectionRegistry.register(INSTANCE);
+    public static void install(GraphicsAPI api) {
+        OpenGLProgramReflectionService service = new OpenGLProgramReflectionService(api);
+        instance = service;
+        ProgramReflectionRegistry.register(service);
     }
 
     @Override
-    public Map<String, ShaderUniform<?>> collectUniforms(int program) {
-        Map<String, ShaderUniform<?>> uniforms = new HashMap<>();
+    public Map<String, ShaderResource<?>> collectUniforms(int program) {
+        Map<String, ShaderResource<?>> uniforms = new HashMap<>();
 
         IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
         IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
@@ -52,9 +56,9 @@ public final class OpenGLProgramReflectionService implements ProgramReflectionSe
             int glSize = sizeBuffer.get(0);
 
             if (location >= 0) {
-                DataType dataType = inferUniformType(glType);
+                ValueType dataType = inferUniformType(glType);
                 if (dataType != null) {
-                    uniforms.put(uniformName, new ShaderUniform<>(KeyId.of(uniformName), location, dataType, glSize, program));
+                    uniforms.put(uniformName, new OpenGLShaderUniform<>(KeyId.of(uniformName), location, dataType, glSize, program));
                 }
             }
         }
@@ -66,7 +70,7 @@ public final class OpenGLProgramReflectionService implements ProgramReflectionSe
     public Map<KeyId, Map<KeyId, Integer>> discoverResourceBindings(int program) {
         Map<KeyId, Map<KeyId, Integer>> bindings = new HashMap<>();
 
-        GraphicsDriver.getCurrentAPI().useProgram(program);
+        api.useProgram(program);
         discoverTextureBindings(program, bindings);
         if (GL.getCapabilities().OpenGL43) {
             discoverSsboBindings(program, bindings);
@@ -75,7 +79,7 @@ public final class OpenGLProgramReflectionService implements ProgramReflectionSe
         if (GL.getCapabilities().OpenGL42) {
             discoverImageBindings(program, bindings);
         }
-        GraphicsDriver.getCurrentAPI().useProgram(0);
+        api.useProgram(0);
 
         return bindings;
     }
@@ -91,7 +95,6 @@ public final class OpenGLProgramReflectionService implements ProgramReflectionSe
         IntBuffer sizeBuffer = BufferUtils.createIntBuffer(1);
         IntBuffer typeBuffer = BufferUtils.createIntBuffer(1);
         int uniformCount = GL20.glGetProgrami(program, GL20.GL_ACTIVE_UNIFORMS);
-        int nextTextureUnit = 0;
 
         Map<KeyId, Integer> textureBindings = new HashMap<>();
         for (int i = 0; i < uniformCount; i++) {
@@ -104,9 +107,7 @@ public final class OpenGLProgramReflectionService implements ProgramReflectionSe
             int glType = typeBuffer.get(0);
 
             if (location >= 0 && isSamplerType(glType)) {
-                int unit = nextTextureUnit++;
-                GraphicsDriver.getCurrentAPI().uniform1i(program, location, unit);
-                textureBindings.put(KeyId.of(uniformName), unit);
+                textureBindings.put(KeyId.of(uniformName), GL20.glGetUniformi(program, location));
             }
         }
 
@@ -208,24 +209,25 @@ public final class OpenGLProgramReflectionService implements ProgramReflectionSe
         };
     }
 
-    private static DataType inferUniformType(int glType) {
+    private static ValueType inferUniformType(int glType) {
         return switch (glType) {
-            case GL20.GL_FLOAT -> DataType.FLOAT;
-            case GL20.GL_FLOAT_VEC2 -> DataType.VEC2F;
-            case GL20.GL_FLOAT_VEC3 -> DataType.VEC3F;
-            case GL20.GL_FLOAT_VEC4 -> DataType.VEC4F;
-            case GL20.GL_INT -> DataType.INT;
-            case GL20.GL_INT_VEC2 -> DataType.VEC2I;
-            case GL20.GL_INT_VEC3 -> DataType.VEC3I;
-            case GL20.GL_INT_VEC4 -> DataType.VEC4I;
-            case GL30.GL_UNSIGNED_INT -> DataType.UINT;
-            case GL30.GL_UNSIGNED_INT_VEC2 -> DataType.VEC2UI;
-            case GL30.GL_UNSIGNED_INT_VEC3 -> DataType.VEC3UI;
-            case GL30.GL_UNSIGNED_INT_VEC4 -> DataType.VEC4UI;
-            case GL20.GL_FLOAT_MAT2 -> DataType.MAT2;
-            case GL20.GL_FLOAT_MAT3 -> DataType.MAT3;
-            case GL20.GL_FLOAT_MAT4 -> DataType.MAT4;
+            case GL20.GL_FLOAT -> ValueType.FLOAT;
+            case GL20.GL_FLOAT_VEC2 -> ValueType.VEC2F;
+            case GL20.GL_FLOAT_VEC3 -> ValueType.VEC3F;
+            case GL20.GL_FLOAT_VEC4 -> ValueType.VEC4F;
+            case GL20.GL_INT -> ValueType.INT;
+            case GL20.GL_INT_VEC2 -> ValueType.VEC2I;
+            case GL20.GL_INT_VEC3 -> ValueType.VEC3I;
+            case GL20.GL_INT_VEC4 -> ValueType.VEC4I;
+            case GL30.GL_UNSIGNED_INT -> ValueType.UINT;
+            case GL30.GL_UNSIGNED_INT_VEC2 -> ValueType.VEC2UI;
+            case GL30.GL_UNSIGNED_INT_VEC3 -> ValueType.VEC3UI;
+            case GL30.GL_UNSIGNED_INT_VEC4 -> ValueType.VEC4UI;
+            case GL20.GL_FLOAT_MAT2 -> ValueType.MAT2;
+            case GL20.GL_FLOAT_MAT3 -> ValueType.MAT3;
+            case GL20.GL_FLOAT_MAT4 -> ValueType.MAT4;
             default -> null;
         };
     }
 }
+

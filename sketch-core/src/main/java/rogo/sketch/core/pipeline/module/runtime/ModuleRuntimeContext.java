@@ -8,6 +8,7 @@ import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.container.GraphicsContainer;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
+import rogo.sketch.core.pipeline.indirect.IndirectPlanRequest;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.module.macro.ModuleMacroRegistry;
 import rogo.sketch.core.pipeline.module.metric.MetricDescriptor;
@@ -82,5 +83,18 @@ public interface ModuleRuntimeContext {
 
     void unregisterOwnedGraphics();
 
+    void requestIndirectPlan(KeyId stageId, KeyId graphicsId, IndirectPlanRequest.RequestMode requestMode);
+
+    default void requestIndirectPlan(KeyId stageId, KeyId graphicsId) {
+        requestIndirectPlan(stageId, graphicsId, IndirectPlanRequest.RequestMode.INDIRECT);
+    }
+
+    default void requestGpuCullPlan(KeyId stageId, KeyId graphicsId) {
+        requestIndirectPlan(stageId, graphicsId, IndirectPlanRequest.RequestMode.GPU_CULL);
+    }
+
+    void clearOwnedIndirectRequests();
+
     void rebuildGraphs();
 }
+

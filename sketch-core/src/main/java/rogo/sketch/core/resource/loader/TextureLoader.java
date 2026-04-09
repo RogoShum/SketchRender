@@ -1,11 +1,10 @@
 package rogo.sketch.core.resource.loader;
 
 import com.google.gson.JsonObject;
-import org.lwjgl.opengl.*;
+import rogo.sketch.core.backend.BackendResourceInstaller;
 import rogo.sketch.core.driver.GraphicsDriver;
-import rogo.sketch.core.driver.internal.IGLTextureStrategy;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.vision.StandardTexture;
+import rogo.sketch.core.resource.descriptor.ResolvedImageResource;
 import rogo.sketch.core.resource.vision.Texture;
 import rogo.sketch.core.util.ImageUtil;
 import rogo.sketch.core.util.KeyId;
@@ -20,13 +19,6 @@ import java.util.function.Function;
  * Uses GraphicsAPI texture strategy for DSA/Legacy abstraction.
  */
 public class TextureLoader implements ResourceLoader<Texture> {
-
-    /**
-     * Get the texture strategy from the current graphics API
-     */
-    private static IGLTextureStrategy getTextureStrategy() {
-        return GraphicsDriver.getCurrentAPI().getTextureStrategy();
-    }
 
     @Override
     public KeyId getResourceType() {
@@ -50,56 +42,9 @@ public class TextureLoader implements ResourceLoader<Texture> {
                 return null;
             }
 
-            // Parse Filters
-            int minFilter = GL11.GL_LINEAR;
-            int magFilter = GL11.GL_LINEAR;
-
-            if (json.has("minFilter"))
-                minFilter = parseFilter(json.get("minFilter").getAsString());
-            else if (json.has("filter"))
-                minFilter = parseFilter(json.get("filter").getAsString());
-
-            if (json.has("magFilter"))
-                magFilter = parseFilter(json.get("magFilter").getAsString());
-            else if (json.has("filter"))
-                magFilter = parseFilter(json.get("filter").getAsString());
-
-            // Parse Wraps
-            int wrapS = GL11.GL_REPEAT;
-            int wrapT = GL11.GL_REPEAT;
-
-            if (json.has("wrapS"))
-                wrapS = parseWrap(json.get("wrapS").getAsString());
-            else if (json.has("wrap"))
-                wrapS = parseWrap(json.get("wrap").getAsString());
-
-            if (json.has("wrapT"))
-                wrapT = parseWrap(json.get("wrapT").getAsString());
-            else if (json.has("wrap"))
-                wrapT = parseWrap(json.get("wrap").getAsString());
-
-            // Mipmaps
-            boolean useMipmap = json.has("mipmaps") && json.get("mipmaps").getAsBoolean();
-            int mipmapFormat = GL11.GL_LINEAR; // Default
-            if (useMipmap && json.has("mipmapFormat")) {
-                mipmapFormat = parseFilter(json.get("mipmapFormat").getAsString());
-            }
-
-            // Determine Format & Load Image logic
-            int internalFormat = GL11.GL_RGBA;
-            int dataFormat = GL11.GL_RGBA;
-            int dataType = GL11.GL_UNSIGNED_BYTE;
-
             ByteBuffer imageBuffer = null;
             int width = 0;
             int height = 0;
-
-            if (json.has("format")) {
-                internalFormat = parseInternalFormat(json.get("format").getAsString());
-                // 自动推断 uploadFormat 和 type
-                dataFormat = inferBaseFormat(internalFormat);
-                dataType = inferDataType(internalFormat);
-            }
 
             if (imagePath != null) {
                 ImageUtil.ImageData imageData = ImageUtil.loadImage(KeyId.of(imagePath), createImageResourceProvider(resourceProvider), true);
@@ -107,53 +52,23 @@ public class TextureLoader implements ResourceLoader<Texture> {
                     width = imageData.width;
                     height = imageData.height;
 
-                    // Infer format if not explicitly set
-                    if (!json.has("format")) {
-                        internalFormat = imageData.hasAlpha ? GL11.GL_RGBA : GL11.GL_RGB;
-                        dataFormat = imageData.hasAlpha ? GL11.GL_RGBA : GL11.GL_RGB;
-                    }
-
                     imageBuffer = imageData.buffer;
                 } else {
                     System.err.println("Image not found: " + imagePath);
                 }
             }
-
-            // Create Texture using strategy
-            IGLTextureStrategy strategy = getTextureStrategy();
-            int handle = strategy.createTexture(GL11.GL_TEXTURE_2D);
-
-            // Set texture parameters using handle-based methods
-            strategy.texParameteri(handle, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
-            strategy.texParameteri(handle, GL11.GL_TEXTURE_MAG_FILTER, magFilter);
-            strategy.texParameteri(handle, GL11.GL_TEXTURE_WRAP_S, wrapS);
-            strategy.texParameteri(handle, GL11.GL_TEXTURE_WRAP_T, wrapT);
-
-            if (imageBuffer != null) {
-                strategy.texImage2D(handle, 0, internalFormat, width, height, dataFormat, dataType, imageBuffer);
-
-                if (useMipmap) {
-                    strategy.generateMipmap(handle);
-                }
-            } else if (isRenderTarget) {
-                int rtW = json.has("width") ? json.get("width").getAsInt() : 1;
-                int rtH = json.has("height") ? json.get("height").getAsInt() : 1;
-
-                strategy.texImage2D(handle, 0, internalFormat, rtW, rtH, dataFormat, dataType, null);
-
-                if (useMipmap) {
-                    strategy.generateMipmap(handle);
-                }
+            if (width <= 0 && json.has("width")) {
+                width = json.get("width").getAsInt();
+            }
+            if (height <= 0 && json.has("height")) {
+                height = json.get("height").getAsInt();
             }
 
-            StandardTexture tex = new StandardTexture(handle, keyId, width, height, internalFormat, dataFormat, dataType,
-                    minFilter, magFilter, wrapS, wrapT,
-                    useMipmap, mipmapFormat, isRenderTarget, imagePath);
-            if (imageBuffer != null && !isRenderTarget) {
-                tex.updateCurrentSize(width, height);
-            }
-
-            return tex;
+            ResolvedImageResource descriptor = TextureDescriptorParser.parse(keyId, json, width > 0 ? width : 1, height > 0 ? height : 1, imagePath);
+            BackendResourceInstaller installer = GraphicsDriver.runtime() != null
+                    ? GraphicsDriver.runtime().resourceInstaller()
+                    : BackendResourceInstaller.NO_OP;
+            return installer.createTexture(keyId, descriptor, imagePath, imageBuffer);
 
         } catch (Exception e) {
             System.err.println("Failed to load texture from JSON: " + e.getMessage());
@@ -185,95 +100,5 @@ public class TextureLoader implements ResourceLoader<Texture> {
         };
     }
 
-    private int parseInternalFormat(String format) {
-        return switch (format.toUpperCase()) {
-            // Base / Standard
-            case "RGB", "RGB8" -> GL11.GL_RGB8;
-            case "RGB_S", "RGB_SNORM" -> GL31.GL_RGB8_SNORM;
-            case "RGBA", "RGBA8" -> GL11.GL_RGBA8;
-            case "R", "R8" -> GL30.GL_R8;
-            case "RG", "RG8" -> GL30.GL_RG8;
-
-            // SRGB
-            case "SRGB", "SRGB8" -> GL21.GL_SRGB8;
-            case "SRGB_ALPHA", "SRGB8_ALPHA8" -> GL21.GL_SRGB8_ALPHA8;
-
-            // Float (HDR)
-            case "RGBA16F" -> GL30.GL_RGBA16F;
-            case "RGBA32F" -> GL30.GL_RGBA32F;
-            case "RGB16F" -> GL30.GL_RGB16F;
-            case "RGB32F" -> GL30.GL_RGB32F;
-            case "R16F" -> GL30.GL_R16F;
-            case "R32F" -> GL30.GL_R32F;
-            case "RG16F" -> GL30.GL_RG16F;
-            case "RG32F" -> GL30.GL_RG32F;
-
-            // Depth / Stencil
-            case "DEPTH", "DEPTH16" -> GL14.GL_DEPTH_COMPONENT16;
-            case "DEPTH24" -> GL14.GL_DEPTH_COMPONENT24;
-            case "DEPTH32F" -> GL30.GL_DEPTH_COMPONENT32F;
-            case "DEPTH24_STENCIL8" -> GL30.GL_DEPTH24_STENCIL8;
-
-            default -> GL11.GL_RGBA8;
-        };
-    }
-
-    private int inferBaseFormat(int internalFormat) {
-        return switch (internalFormat) {
-            case GL30.GL_R8, GL30.GL_R16F, GL30.GL_R32F -> GL11.GL_RED;
-            case GL30.GL_RG8, GL30.GL_RG16F, GL30.GL_RG32F -> GL30.GL_RG;
-
-            case GL11.GL_RGB8, GL30.GL_RGB16F, GL30.GL_RGB32F,
-                 0x8C41 /* GL_SRGB8 */ -> GL11.GL_RGB;
-
-            case GL11.GL_RGBA8, GL30.GL_RGBA16F, GL30.GL_RGBA32F,
-                 0x8C43 /* GL_SRGB8_ALPHA8 */, GL11.GL_RGBA -> GL11.GL_RGBA;
-
-            case GL14.GL_DEPTH_COMPONENT16, GL14.GL_DEPTH_COMPONENT24,
-                 GL30.GL_DEPTH_COMPONENT32F -> GL11.GL_DEPTH_COMPONENT;
-
-            case GL30.GL_DEPTH24_STENCIL8 -> GL30.GL_DEPTH_STENCIL;
-
-            default -> GL11.GL_RGBA;
-        };
-    }
-
-    private int inferDataType(int internalFormat) {
-        return switch (internalFormat) {
-            case GL30.GL_RGBA16F, GL30.GL_RGBA32F,
-                 GL30.GL_RGB16F, GL30.GL_RGB32F,
-                 GL30.GL_R16F, GL30.GL_R32F,
-                 GL30.GL_RG16F, GL30.GL_RG32F -> GL11.GL_FLOAT;
-
-            case GL14.GL_DEPTH_COMPONENT16 -> GL11.GL_UNSIGNED_SHORT;
-            case GL14.GL_DEPTH_COMPONENT24 -> GL11.GL_UNSIGNED_INT;
-            case GL30.GL_DEPTH_COMPONENT32F -> GL11.GL_FLOAT;
-            case GL30.GL_DEPTH24_STENCIL8 -> GL30.GL_UNSIGNED_INT_24_8;
-
-            default -> GL11.GL_UNSIGNED_BYTE;
-        };
-    }
-
-    private int parseFilter(String filter) {
-        return switch (filter.toUpperCase()) {
-            case "NEAREST" -> GL11.GL_NEAREST;
-            case "LINEAR" -> GL11.GL_LINEAR;
-            case "NEAREST_MIPMAP_NEAREST" -> GL11.GL_NEAREST_MIPMAP_NEAREST;
-            case "LINEAR_MIPMAP_NEAREST" -> GL11.GL_LINEAR_MIPMAP_NEAREST;
-            case "NEAREST_MIPMAP_LINEAR" -> GL11.GL_NEAREST_MIPMAP_LINEAR;
-            case "LINEAR_MIPMAP_LINEAR" -> GL11.GL_LINEAR_MIPMAP_LINEAR;
-            default -> GL11.GL_LINEAR;
-        };
-    }
-
-    private int parseWrap(String wrap) {
-        return switch (wrap.toUpperCase()) {
-            case "REPEAT" -> GL11.GL_REPEAT;
-            case "CLAMP" -> GL11.GL_CLAMP;
-            case "CLAMP_TO_EDGE" -> GL13.GL_CLAMP_TO_EDGE;
-            case "CLAMP_TO_BORDER" -> GL13.GL_CLAMP_TO_BORDER;
-            case "MIRRORED_REPEAT" -> GL14.GL_MIRRORED_REPEAT;
-            default -> GL11.GL_REPEAT;
-        };
-    }
 }
+

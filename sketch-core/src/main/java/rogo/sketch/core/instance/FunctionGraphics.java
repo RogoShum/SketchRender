@@ -2,19 +2,17 @@ package rogo.sketch.core.instance;
 
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.api.graphics.FunctionalGraphics;
-import rogo.sketch.core.pipeline.PartialRenderSetting;
-import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.flow.dirty.DirtyReason;
 import rogo.sketch.core.util.KeyId;
 
 public abstract class FunctionGraphics implements FunctionalGraphics, ResourceObject, Comparable<FunctionGraphics> {
     private final KeyId id;
+    private final KeyId stageId;
     private boolean disposed = false;
     private int priority = 100;
-    protected DirtyReason batchDirty = DirtyReason.NOT;
 
-    public FunctionGraphics(KeyId keyId) {
+    public FunctionGraphics(KeyId keyId, KeyId stageId) {
         this.id = keyId;
+        this.stageId = stageId;
     }
 
     public FunctionGraphics setPriority(int priority) {
@@ -26,12 +24,9 @@ public abstract class FunctionGraphics implements FunctionalGraphics, ResourceOb
         return priority;
     }
 
-    /**
-     * Execute the function logic
-     *
-     * @param context Render context
-     */
-    public abstract void execute(RenderContext context);
+    public KeyId stageId() {
+        return stageId;
+    }
 
     @Override
     public int compareTo(FunctionGraphics o) {
@@ -54,11 +49,6 @@ public abstract class FunctionGraphics implements FunctionalGraphics, ResourceOb
     }
 
     @Override
-    public PartialRenderSetting getPartialRenderSetting() {
-        return PartialRenderSetting.EMPTY;
-    }
-
-    @Override
     public boolean shouldDiscard() {
         return isDisposed();
     }
@@ -67,14 +57,5 @@ public abstract class FunctionGraphics implements FunctionalGraphics, ResourceOb
     public boolean shouldRender() {
         return !isDisposed();
     }
-
-    @Override
-    public void resetBatchDirtyFlags() {
-        batchDirty = DirtyReason.NOT;
-    }
-
-    @Override
-    public DirtyReason getBatchDirtyFlags() {
-        return batchDirty;
-    }
 }
+

@@ -3,6 +3,8 @@ package rogo.sketch.backend.vulkan;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.vulkan.VkImageBlit;
+import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkCommandBufferAllocateInfo;
 import org.lwjgl.vulkan.VkCommandBufferBeginInfo;
@@ -19,6 +21,9 @@ import org.lwjgl.vulkan.VkSubmitInfo;
 import rogo.sketch.core.backend.BackendCapabilities;
 import rogo.sketch.core.backend.BackendFrameExecutor;
 import rogo.sketch.core.backend.BackendKind;
+import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
+import rogo.sketch.core.backend.BackendResourceInstaller;
+import rogo.sketch.core.backend.BackendResourceResolver;
 import rogo.sketch.core.backend.BackendRuntime;
 import rogo.sketch.core.backend.BackendStageScope;
 import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
@@ -36,13 +41,12 @@ import rogo.sketch.core.util.KeyId;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR;
+import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_SUBOPTIMAL_KHR;
 import static org.lwjgl.vulkan.KHRSwapchain.vkAcquireNextImageKHR;
@@ -53,6 +57,9 @@ import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_FENCE_CREATE_SIGNALED_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -70,6 +77,8 @@ import static org.lwjgl.vulkan.VK10.vkCreateCommandPool;
 import static org.lwjgl.vulkan.VK10.vkCreateFence;
 import static org.lwjgl.vulkan.VK10.vkCreateImageView;
 import static org.lwjgl.vulkan.VK10.vkCreateSemaphore;
+import static org.lwjgl.vulkan.VK10.vkCmdBlitImage;
+import static org.lwjgl.vulkan.VK10.vkCmdPipelineBarrier;
 import static org.lwjgl.vulkan.VK10.vkDestroyCommandPool;
 import static org.lwjgl.vulkan.VK10.vkDestroyDevice;
 import static org.lwjgl.vulkan.VK10.vkDestroyFence;
@@ -103,15 +112,20 @@ public final class VulkanBackendRuntime implements BackendRuntime {
     private int swapchainExtentHeight;
     private long[] swapchainImages;
     private long[] swapchainImageViews;
+    private VulkanTextureResource[] mainColorAttachments;
+    private VulkanTextureResource[] swapchainDepthAttachments;
     private final BackendFrameExecutor frameExecutor = new VulkanFrameExecutor();
     private final VulkanPipelineLayoutCache pipelineLayoutCache;
+    private final VulkanResourceResolver resourceResolver;
+    private final BackendResourceInstaller resourceInstaller;
     private final VulkanDescriptorArena descriptorArena;
     private final VulkanGeometryArena geometryArena;
     private final VulkanPacketExecutor packetExecutor;
     private VulkanRasterPipelineCache rasterPipelineCache;
+    private final VulkanComputePipelineCache computePipelineCache;
     private final long commandPool;
     private final VulkanFrameSlot[] frameSlots;
-    private final Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> queuedPackets = new LinkedHashMap<>();
+    private final List<RenderPacket> immediatePackets = new ArrayList<>();
     private long[] imagesInFlight;
     private volatile long mainThreadId;
     private volatile boolean shutdown;
@@ -121,6 +135,7 @@ public final class VulkanBackendRuntime implements BackendRuntime {
     private long renderedFrameCount;
     private long swapchainGeneration;
     private long swapchainRecreationCount;
+    private final boolean debugUtilsEnabled;
 
     public VulkanBackendRuntime(
             String entryPoint,
@@ -138,7 +153,8 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             int swapchainImageFormat,
             int swapchainExtentWidth,
             int swapchainExtentHeight,
-            long[] swapchainImages) {
+            long[] swapchainImages,
+            boolean debugUtilsEnabled) {
         this.entryPoint = Objects.requireNonNull(entryPoint, "entryPoint");
         this.windowHandle = windowHandle;
         this.instance = Objects.requireNonNull(instance, "instance");
@@ -151,13 +167,23 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         this.graphicsQueue = Objects.requireNonNull(graphicsQueue, "graphicsQueue");
         this.presentQueue = Objects.requireNonNull(presentQueue, "presentQueue");
         this.pipelineLayoutCache = new VulkanPipelineLayoutCache(this.device);
-        this.descriptorArena = new VulkanDescriptorArena(this.device);
+        this.resourceResolver = new VulkanResourceResolver();
+        this.resourceInstaller = new VulkanBackendResourceInstaller(this);
+        this.descriptorArena = new VulkanDescriptorArena(this.device, this.resourceResolver);
         this.geometryArena = new VulkanGeometryArena(this.physicalDevice, this.device);
-        this.packetExecutor = new VulkanPacketExecutor(this.device, this.descriptorArena, this.geometryArena);
+        this.packetExecutor = new VulkanPacketExecutor(
+                this.device,
+                this.descriptorArena,
+                this.geometryArena,
+                this.resourceResolver,
+                debugUtilsEnabled);
+        this.debugUtilsEnabled = debugUtilsEnabled;
+        this.computePipelineCache = new VulkanComputePipelineCache(this.device, this.pipelineLayoutCache);
         this.mainThreadId = Thread.currentThread().getId();
         this.framebufferResized = false;
 
         long[] createdImageViews = null;
+        VulkanTextureResource[] createdDepthAttachments = null;
         long createdCommandPool = VK_NULL_HANDLE;
         VulkanFrameSlot[] createdFrameSlots = null;
 
@@ -168,21 +194,34 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             this.swapchainExtentHeight = swapchainExtentHeight;
             this.swapchainImages = swapchainImages != null ? swapchainImages.clone() : new long[0];
             createdImageViews = createSwapchainImageViews(this.swapchainImages, this.swapchainImageFormat);
+            this.mainColorAttachments = createMainColorAttachments(
+                    this.swapchainExtentWidth,
+                    this.swapchainExtentHeight,
+                    this.swapchainImages.length,
+                    this.swapchainImageFormat);
+            createdDepthAttachments = createSwapchainDepthAttachments(
+                    this.swapchainExtentWidth,
+                    this.swapchainExtentHeight,
+                    this.swapchainImages.length);
             this.rasterPipelineCache = new VulkanRasterPipelineCache(this.device, this.pipelineLayoutCache);
             this.rasterPipelineCache.recreate(
                     this.swapchainImageFormat,
+                    resolveSwapchainDepthFormat(createdDepthAttachments),
                     this.swapchainExtentWidth,
                     this.swapchainExtentHeight,
-                    createdImageViews);
+                    toImageViews(this.mainColorAttachments),
+                    toImageViews(createdDepthAttachments));
             createdCommandPool = createCommandPool();
             createdFrameSlots = createFrameSlots(createdCommandPool);
         } catch (RuntimeException ex) {
             destroyCreatedResources(createdFrameSlots, createdCommandPool, createdImageViews);
+            destroyDepthAttachments(createdDepthAttachments);
             destroyBaseArtifacts();
             throw ex;
         }
 
         this.swapchainImageViews = createdImageViews;
+        this.swapchainDepthAttachments = createdDepthAttachments != null ? createdDepthAttachments : new VulkanTextureResource[0];
         this.commandPool = createdCommandPool;
         this.frameSlots = createdFrameSlots;
         this.imagesInFlight = new long[this.swapchainImages.length];
@@ -213,6 +252,16 @@ public final class VulkanBackendRuntime implements BackendRuntime {
     }
 
     @Override
+    public BackendResourceResolver resourceResolver() {
+        return resourceResolver;
+    }
+
+    @Override
+    public BackendResourceInstaller resourceInstaller() {
+        return resourceInstaller;
+    }
+
+    @Override
     public void registerMainThread() {
         mainThreadId = Thread.currentThread().getId();
     }
@@ -238,12 +287,78 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         framebufferResized = true;
     }
 
+    @Override
     public synchronized void installExecutionPlan(FrameExecutionPlan executionPlan) {
-        this.installedExecutionPlan = executionPlan != null ? executionPlan : FrameExecutionPlan.empty();
+        FrameExecutionPlan nextExecutionPlan = executionPlan != null ? executionPlan : FrameExecutionPlan.empty();
+        geometryArena.install(nextExecutionPlan.geometryUploadPlans(), renderedFrameCount, frameSlots.length);
+        descriptorArena.install(nextExecutionPlan.resourceUploadPlans());
+        this.installedExecutionPlan = nextExecutionPlan;
     }
 
     public synchronized void registerInterleavedColorGeometry(GeometryHandleKey geometryHandle, float[] vertexData, int vertexCount) {
         geometryArena.registerInterleavedColorGeometry(geometryHandle, vertexData, vertexCount);
+    }
+
+    public void registerTextureResource(KeyId resourceId, VulkanTextureResource textureResource) {
+        resourceResolver.registerTexture(resourceId, textureResource);
+    }
+
+    public void registerUniformBufferResource(KeyId resourceId, VulkanUniformBufferResource uniformBufferResource) {
+        resourceResolver.registerUniformBuffer(resourceId, uniformBufferResource);
+    }
+
+    void registerStorageBufferResource(KeyId resourceId, VulkanStorageBufferResource storageBufferResource) {
+        resourceResolver.registerStorageBuffer(resourceId, storageBufferResource);
+    }
+
+    void registerCounterBufferResource(KeyId resourceId, VulkanCounterBufferResource counterBufferResource) {
+        resourceResolver.registerCounterBuffer(resourceId, counterBufferResource);
+    }
+
+    VulkanResourceResolver resourceResolverInternal() {
+        return resourceResolver;
+    }
+
+    public VulkanTextureResource createPlaceholderTextureResource(int width, int height) {
+        return VulkanTextureFactory.createPlaceholderTexture(physicalDevice, device, width, height);
+    }
+
+    public VulkanTextureResource createPlaceholderTextureResource(int width, int height, int mipLevels) {
+        return VulkanTextureFactory.createPlaceholderTexture(physicalDevice, device, width, height, mipLevels);
+    }
+
+    public VulkanTextureResource createRenderTargetColorTextureResource(int width, int height, int mipLevels) {
+        return VulkanTextureFactory.createRenderTargetColorTexture(physicalDevice, device, width, height, mipLevels);
+    }
+
+    public VulkanTextureResource createDepthTextureResource(int width, int height) {
+        return VulkanTextureFactory.createDepthTexture(physicalDevice, device, width, height);
+    }
+
+    public boolean debugUtilsEnabled() {
+        return debugUtilsEnabled;
+    }
+
+    public BackendPacketHandlerRegistry<VulkanPacketHandler> packetHandlerRegistry() {
+        return packetExecutor.packetHandlerRegistry();
+    }
+
+    public VulkanUniformBufferResource createUniformBufferResource(long size) {
+        return new VulkanUniformBufferResource(physicalDevice, device, size);
+    }
+
+    rogo.sketch.core.backend.BackendStorageBuffer createStorageBufferResource(
+            KeyId resourceId,
+            rogo.sketch.core.resource.descriptor.ResolvedBufferResource descriptor,
+            java.nio.ByteBuffer initialData) {
+        return new VulkanStorageBufferResource(resourceId, physicalDevice, device, descriptor, initialData);
+    }
+
+    public VulkanUniformBufferResource createUniformBufferResource(byte[] initialBytes) {
+        byte[] bytes = initialBytes != null ? initialBytes.clone() : new byte[0];
+        VulkanUniformBufferResource resource = createUniformBufferResource(Math.max(bytes.length, 16));
+        resource.update(bytes);
+        return resource;
     }
 
     public boolean drawFrame() {
@@ -356,11 +471,15 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         swapchainExtentHeight = swapchain.extentHeight;
         swapchainImages = swapchain.images.clone();
         swapchainImageViews = createSwapchainImageViews(swapchainImages, swapchainImageFormat);
+        mainColorAttachments = createMainColorAttachments(swapchainExtentWidth, swapchainExtentHeight, swapchainImages.length, swapchainImageFormat);
+        swapchainDepthAttachments = createSwapchainDepthAttachments(swapchainExtentWidth, swapchainExtentHeight, swapchainImages.length);
         rasterPipelineCache.recreate(
                 swapchainImageFormat,
+                resolveSwapchainDepthFormat(swapchainDepthAttachments),
                 swapchainExtentWidth,
                 swapchainExtentHeight,
-                swapchainImageViews);
+                toImageViews(mainColorAttachments),
+                toImageViews(swapchainDepthAttachments));
         imagesInFlight = new long[swapchainImages.length];
         framebufferResized = false;
         swapchainGeneration++;
@@ -402,6 +521,46 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             }
         }
         return imageViews;
+    }
+
+    private VulkanTextureResource[] createSwapchainDepthAttachments(int width, int height, int count) {
+        VulkanTextureResource[] attachments = new VulkanTextureResource[Math.max(0, count)];
+        for (int i = 0; i < attachments.length; i++) {
+            attachments[i] = VulkanTextureFactory.createDepthTexture(physicalDevice, device, width, height);
+        }
+        return attachments;
+    }
+
+    private VulkanTextureResource[] createMainColorAttachments(int width, int height, int count, int imageFormat) {
+        VulkanTextureResource[] attachments = new VulkanTextureResource[Math.max(0, count)];
+        for (int i = 0; i < attachments.length; i++) {
+            attachments[i] = VulkanTextureFactory.createRenderTargetColorTexture(
+                    physicalDevice,
+                    device,
+                    width,
+                    height,
+                    1,
+                    imageFormat);
+        }
+        return attachments;
+    }
+
+    private long[] toImageViews(VulkanTextureResource[] textures) {
+        if (textures == null || textures.length == 0) {
+            return new long[0];
+        }
+        long[] imageViews = new long[textures.length];
+        for (int i = 0; i < textures.length; i++) {
+            imageViews[i] = textures[i] != null ? textures[i].imageView() : VK_NULL_HANDLE;
+        }
+        return imageViews;
+    }
+
+    private int resolveSwapchainDepthFormat(VulkanTextureResource[] textures) {
+        if (textures == null || textures.length == 0 || textures[0] == null) {
+            throw new IllegalStateException("Swapchain depth attachments were not created");
+        }
+        return textures[0].format();
     }
 
     private long createCommandPool() {
@@ -474,9 +633,11 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             packetExecutor.record(
                     commandBuffer,
                     rasterPipelineCache,
-                    currentExecutionPlan(),
-                    imageIndex,
-                    currentClearColor());
+                    computePipelineCache,
+                    installedExecutionPlan,
+                    consumeImmediatePackets(),
+                    imageIndex);
+            recordPresentBlit(commandBuffer, imageIndex, stack);
 
             VulkanDeviceBootstrapper.checkVkResult(
                     vkEndCommandBuffer(commandBuffer),
@@ -484,44 +645,20 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         }
     }
 
-    private synchronized FrameExecutionPlan currentExecutionPlan() {
-        if (installedExecutionPlan != null && !installedExecutionPlan.isEmpty()) {
-            return installedExecutionPlan;
+    private synchronized List<RenderPacket> consumeImmediatePackets() {
+        if (immediatePackets.isEmpty()) {
+            return List.of();
         }
-        if (queuedPackets.isEmpty()) {
-            return FrameExecutionPlan.empty();
-        }
-
-        Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> snapshot = new LinkedHashMap<>();
-        for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : queuedPackets.entrySet()) {
-            Map<PipelineStateKey, List<RenderPacket>> states = new LinkedHashMap<>();
-            for (Map.Entry<PipelineStateKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
-                states.put(stateEntry.getKey(), new ArrayList<>(stateEntry.getValue()));
-            }
-            snapshot.put(pipelineEntry.getKey(), states);
-        }
-        queuedPackets.clear();
-        return FrameExecutionPlan.fromPackets(snapshot);
+        List<RenderPacket> snapshot = List.copyOf(immediatePackets);
+        immediatePackets.clear();
+        return snapshot;
     }
 
-    private synchronized void queuePackets(PipelineType pipelineType, PipelineStateKey stateKey, List<RenderPacket> packets) {
-        if (pipelineType == null || stateKey == null || packets == null || packets.isEmpty()) {
+    private synchronized void queueImmediatePacket(RenderPacket packet) {
+        if (packet == null) {
             return;
         }
-        Map<PipelineStateKey, List<RenderPacket>> stateMap = queuedPackets.computeIfAbsent(pipelineType, ignored -> new LinkedHashMap<>());
-        stateMap.computeIfAbsent(stateKey, ignored -> new ArrayList<>()).addAll(packets);
-    }
-
-    private float[] currentClearColor() {
-        double t = renderedFrameCount * 0.02;
-        float r = (float) (0.45 + 0.35 * Math.sin(t));
-        float g = (float) (0.35 + 0.25 * Math.sin(t * 1.7 + 1.2));
-        float b = (float) (0.55 + 0.30 * Math.sin(t * 0.7 + 2.4));
-        return new float[]{clamp01(r), clamp01(g), clamp01(b), 1.0f};
-    }
-
-    private static float clamp01(float value) {
-        return Math.max(0.0f, Math.min(1.0f, value));
+        immediatePackets.add(packet);
     }
 
     private void destroyCreatedResources(VulkanFrameSlot[] createdFrameSlots, long createdCommandPool, long[] createdImageViews) {
@@ -529,6 +666,7 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             rasterPipelineCache.destroy();
             rasterPipelineCache = null;
         }
+        computePipelineCache.destroy();
         if (createdFrameSlots != null) {
             for (VulkanFrameSlot frameSlot : createdFrameSlots) {
                 if (frameSlot == null) {
@@ -557,8 +695,13 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                 }
             }
         }
+        destroyColorAttachments(mainColorAttachments);
+        mainColorAttachments = new VulkanTextureResource[0];
+        destroyDepthAttachments(swapchainDepthAttachments);
+        swapchainDepthAttachments = new VulkanTextureResource[0];
         geometryArena.destroy();
         descriptorArena.destroy();
+        resourceResolver.destroy();
         pipelineLayoutCache.destroy();
     }
 
@@ -574,6 +717,10 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             }
         }
         swapchainImageViews = new long[0];
+        destroyColorAttachments(mainColorAttachments);
+        mainColorAttachments = new VulkanTextureResource[0];
+        destroyDepthAttachments(swapchainDepthAttachments);
+        swapchainDepthAttachments = new VulkanTextureResource[0];
         swapchainImages = new long[0];
         imagesInFlight = new long[0];
 
@@ -581,6 +728,127 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             vkDestroySwapchainKHR(device, swapchainHandle, null);
             swapchainHandle = VK_NULL_HANDLE;
         }
+    }
+
+    private void destroyDepthAttachments(VulkanTextureResource[] depthAttachments) {
+        if (depthAttachments == null) {
+            return;
+        }
+        for (VulkanTextureResource depthAttachment : depthAttachments) {
+            if (depthAttachment == null || depthAttachment.isDisposed()) {
+                continue;
+            }
+            depthAttachment.dispose();
+        }
+    }
+
+    private void destroyColorAttachments(VulkanTextureResource[] colorAttachments) {
+        if (colorAttachments == null) {
+            return;
+        }
+        for (VulkanTextureResource colorAttachment : colorAttachments) {
+            if (colorAttachment == null || colorAttachment.isDisposed()) {
+                continue;
+            }
+            colorAttachment.dispose();
+        }
+    }
+
+    private void recordPresentBlit(VkCommandBuffer commandBuffer, int imageIndex, MemoryStack stack) {
+        if (imageIndex < 0 || imageIndex >= swapchainImages.length || imageIndex >= mainColorAttachments.length) {
+            return;
+        }
+        VulkanTextureResource source = mainColorAttachments[imageIndex];
+        if (source == null || source.isDisposed()) {
+            return;
+        }
+
+        transitionImageLayout(commandBuffer, source.image(), VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        transitionImageLayout(commandBuffer, swapchainImages[imageIndex], VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkImageBlit.Buffer blit = VkImageBlit.calloc(1, stack);
+        blit.srcSubresource()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .mipLevel(0)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        blit.srcOffsets(0).set(0, 0, 0);
+        blit.srcOffsets(1).set(swapchainExtentWidth, swapchainExtentHeight, 1);
+        blit.dstSubresource()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .mipLevel(0)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        blit.dstOffsets(0).set(0, swapchainExtentHeight, 0);
+        blit.dstOffsets(1).set(swapchainExtentWidth, 0, 1);
+        vkCmdBlitImage(
+                commandBuffer,
+                source.image(),
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                swapchainImages[imageIndex],
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                blit,
+                org.lwjgl.vulkan.VK10.VK_FILTER_NEAREST);
+
+        transitionImageLayout(commandBuffer, source.image(), VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        transitionImageLayout(commandBuffer, swapchainImages[imageIndex], VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
+
+    private void transitionImageLayout(
+            VkCommandBuffer commandBuffer,
+            long image,
+            int aspectMask,
+            int oldLayout,
+            int newLayout) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.calloc(1, stack)
+                    .sType(org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                    .oldLayout(oldLayout)
+                    .newLayout(newLayout)
+                    .srcQueueFamilyIndex(org.lwjgl.vulkan.VK10.VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(org.lwjgl.vulkan.VK10.VK_QUEUE_FAMILY_IGNORED)
+                    .image(image);
+            barrier.get(0).subresourceRange()
+                    .aspectMask(aspectMask)
+                    .baseMipLevel(0)
+                    .levelCount(1)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            barrier.get(0).srcAccessMask(accessMaskForLayout(oldLayout));
+            barrier.get(0).dstAccessMask(accessMaskForLayout(newLayout));
+
+            vkCmdPipelineBarrier(
+                    commandBuffer,
+                    stageMaskForLayout(oldLayout),
+                    stageMaskForLayout(newLayout),
+                    0,
+                    null,
+                    null,
+                    barrier);
+        }
+    }
+
+    private int accessMaskForLayout(int layout) {
+        return switch (layout) {
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> org.lwjgl.vulkan.VK10.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL -> org.lwjgl.vulkan.VK10.VK_ACCESS_TRANSFER_READ_BIT;
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL -> org.lwjgl.vulkan.VK10.VK_ACCESS_TRANSFER_WRITE_BIT;
+            case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED -> 0;
+            default -> 0;
+        };
+    }
+
+    private int stageMaskForLayout(int layout) {
+        return switch (layout) {
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL -> org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_TRANSFER_BIT;
+            case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED -> org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            default -> org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        };
     }
 
     private void destroyBaseArtifacts() {
@@ -596,6 +864,14 @@ public final class VulkanBackendRuntime implements BackendRuntime {
 
     public String entryPoint() {
         return entryPoint;
+    }
+
+    VkPhysicalDevice physicalDevice() {
+        return physicalDevice;
+    }
+
+    VkDevice device() {
+        return device;
     }
 
     public long windowHandle() {
@@ -704,10 +980,8 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                 List<RenderPacket> packets,
                 RenderStateManager manager,
                 C context) {
-            if (packets == null || packets.isEmpty()) {
-                return;
-            }
-            queuePackets(packets.get(0).pipelineType(), stateKey, packets);
+            // Vulkan's normal render path consumes the installed FrameExecutionPlan from drawFrame().
+            // Packet group callbacks are intentionally no-ops to avoid reviving the old queue-based path.
         }
 
         @Override
@@ -716,10 +990,8 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                 RenderPacket packet,
                 RenderStateManager manager,
                 C context) {
-            if (packet == null) {
-                return;
-            }
-            queuePackets(packet.pipelineType(), packet.stateKey(), List.of(packet));
+            queueImmediatePacket(packet);
         }
     }
 }
+

@@ -2,7 +2,7 @@ package rogo.sketch.core.pipeline;
 
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.resource.ResourceBinding;
-import rogo.sketch.core.driver.state.FullRenderState;
+import rogo.sketch.core.driver.state.RenderStatePatch;
 
 import java.util.Objects;
 
@@ -11,24 +11,24 @@ import java.util.Objects;
  * Enhanced with automatic reload support using the generic reloadable system
  */
 public class PartialRenderSetting implements ResourceObject {
-    public static final PartialRenderSetting EMPTY = new PartialRenderSetting(null, null, null, false);
-    protected final FullRenderState renderState;
+    public static final PartialRenderSetting EMPTY = new PartialRenderSetting(RenderStatePatch.empty(), null, null, false);
+    protected final RenderStatePatch renderState;
     protected final TargetBinding targetBinding;
     protected final ResourceBinding resourceBinding;
     protected final boolean shouldSwitchRenderState;
     private boolean disposed = false;
 
-    public PartialRenderSetting(FullRenderState renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState) {
+    public PartialRenderSetting(RenderStatePatch renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState) {
         this(renderState, null, resourceBinding, shouldSwitchRenderState);
     }
 
     public PartialRenderSetting(
-            FullRenderState renderState,
+            RenderStatePatch renderState,
             TargetBinding targetBinding,
             ResourceBinding resourceBinding,
             boolean shouldSwitchRenderState) {
-        this.renderState = renderState;
-        this.targetBinding = targetBinding != null ? targetBinding : TargetBinding.fromLegacy(renderState);
+        this.renderState = renderState != null ? renderState : RenderStatePatch.empty();
+        this.targetBinding = targetBinding != null ? targetBinding : TargetBinding.fromRenderState(renderState);
         this.resourceBinding = resourceBinding;
         this.shouldSwitchRenderState = shouldSwitchRenderState;
     }
@@ -59,7 +59,7 @@ public class PartialRenderSetting implements ResourceObject {
         return disposed;
     }
 
-    public FullRenderState renderState() {
+    public RenderStatePatch renderState() {
         return renderState;
     }
 
@@ -75,15 +75,16 @@ public class PartialRenderSetting implements ResourceObject {
         return shouldSwitchRenderState;
     }
 
-    public static PartialRenderSetting create(FullRenderState renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState) {
+    public static PartialRenderSetting create(RenderStatePatch renderState, ResourceBinding resourceBinding, boolean shouldSwitchRenderState) {
         return new PartialRenderSetting(renderState, null, resourceBinding, shouldSwitchRenderState);
     }
 
     public static PartialRenderSetting create(
-            FullRenderState renderState,
+            RenderStatePatch renderState,
             TargetBinding targetBinding,
             ResourceBinding resourceBinding,
             boolean shouldSwitchRenderState) {
         return new PartialRenderSetting(renderState, targetBinding, resourceBinding, shouldSwitchRenderState);
     }
 }
+

@@ -1,10 +1,14 @@
 package rogo.sketch.core.pipeline.geometry;
 
-import rogo.sketch.core.api.graphics.MeshBasedGraphics;
-import rogo.sketch.core.vertex.VertexResourceManager;
+import rogo.sketch.core.api.graphics.RasterGraphics;
+import rogo.sketch.core.data.format.VertexBufferKey;
+import rogo.sketch.core.vertex.GeometryResourceCoordinator;
 
-public interface GeometryEncoder<G extends MeshBasedGraphics> {
+public interface GeometryEncoder<G extends RasterGraphics> {
     GeometryEncodeResult inspect(G graphics);
 
-    void encodeInstance(G graphics, VertexResourceManager.BuilderPair[] builders);
+    void encodeDynamicComponents(
+            G graphics,
+            VertexBufferKey vertexBufferKey,
+            GeometryResourceCoordinator.BuilderPair[] builders);
 }

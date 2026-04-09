@@ -2,52 +2,61 @@ package rogo.sketch.core.resource.vision;
 
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2i;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
-import rogo.sketch.core.api.GpuObject;
 import rogo.sketch.core.api.Resizable;
-import rogo.sketch.core.driver.GraphicsDriver;
-import rogo.sketch.core.driver.internal.IGLFramebufferStrategy;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.descriptor.RenderTargetResolutionMode;
+import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class StandardRenderTarget extends RenderTarget implements Resizable {
+public class StandardRenderTarget extends RenderTarget implements Resizable, AttachmentBackedRenderTarget {
     private final List<KeyId> colorAttachmentIds = new ArrayList<>();
     private KeyId depthAttachmentId;
     private KeyId stencilAttachmentId;
 
     // Resolution management
-    private final ResolutionMode resolutionMode;
+    private final RenderTargetResolutionMode resolutionMode;
     private final int baseWidth, baseHeight;
     private final float scaleX, scaleY;
 
-    /**
-     * Get the framebuffer strategy from the current graphics API
-     */
-    private static IGLFramebufferStrategy getFramebufferStrategy() {
-        return GraphicsDriver.getCurrentAPI().getFramebufferStrategy();
-    }
-
-    public StandardRenderTarget(int handle, KeyId keyId, ResolutionMode mode, int baseWidth, int baseHeight, float scaleX, float scaleY, @Nullable KeyId linkedTexture) {
-        super(handle, keyId);
+    public StandardRenderTarget(int handle, KeyId keyId, ResolvedRenderTargetSpec descriptor, @Nullable KeyId linkedTexture) {
+        super(handle, keyId, descriptor);
+        RenderTargetResolutionMode mode = descriptor.resolutionMode();
         this.resolutionMode = mode;
-        this.scaleX = scaleX;
-        this.scaleY = scaleY;
+        this.scaleX = descriptor.scaleX();
+        this.scaleY = descriptor.scaleY();
 
-        Vector2i dimension = updateDimensions(baseWidth, baseHeight, linkedTexture);
+        Vector2i dimension = updateDimensions(descriptor.baseWidth(), descriptor.baseHeight(), linkedTexture);
         this.baseWidth = dimension.x;
         this.baseHeight = dimension.y;
+        for (int i = 0; i < descriptor.colorAttachments().size(); i++) {
+            setColorAttachment(i, descriptor.colorAttachments().get(i));
+        }
+        if (descriptor.depthAttachment() != null) {
+            setDepthAttachment(descriptor.depthAttachment());
+        }
+        if (descriptor.stencilAttachment() != null) {
+            setStencilAttachment(descriptor.stencilAttachment());
+        }
     }
 
     /**
      * Convenience constructor for fixed resolution
      */
     public StandardRenderTarget(int handle, KeyId keyId, int width, int height) {
-        this(handle, keyId, ResolutionMode.FIXED, width, height, 1.0f, 1.0f, null);
+        this(handle, keyId, new ResolvedRenderTargetSpec(
+                keyId,
+                RenderTargetResolutionMode.FIXED,
+                width,
+                height,
+                1.0f,
+                1.0f,
+                List.of(),
+                null,
+                null), null);
     }
 
     public Vector2i updateDimensions(int baseWidth, int baseHeight, @Nullable KeyId linkedTexture) {
@@ -81,11 +90,6 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
         }
 
         colorAttachmentIds.set(index, textureId);
-
-        // Attach new texture reference
-        if (textureId != null) {
-            attachTextureToFramebuffer(textureId, GL30.GL_COLOR_ATTACHMENT0 + index);
-        }
     }
 
     /**
@@ -93,10 +97,6 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
      */
     public void setDepthAttachment(KeyId textureId) {
         this.depthAttachmentId = textureId;
-
-        if (textureId != null) {
-            attachTextureToFramebuffer(textureId, GL30.GL_DEPTH_ATTACHMENT);
-        }
     }
 
     /**
@@ -104,33 +104,11 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
      */
     public void setStencilAttachment(KeyId textureId) {
         this.stencilAttachmentId = textureId;
-
-        if (textureId != null) {
-            attachTextureToFramebuffer(textureId, GL30.GL_STENCIL_ATTACHMENT);
-        }
-    }
-
-    /**
-     * Attach a texture to the framebuffer
-     */
-    private void attachTextureToFramebuffer(KeyId textureId, int attachment) {
-        GraphicsResourceManager.getInstance().getReference(ResourceTypes.TEXTURE, textureId)
-                .ifPresent(texture -> {
-                    if (texture instanceof GpuObject gpuObject) {
-                        IGLFramebufferStrategy strategy = getFramebufferStrategy();
-                        // DSA-style: directly attach to framebuffer without binding
-                        strategy.framebufferTexture2D(getHandle(), attachment,
-                                GL11.GL_TEXTURE_2D, gpuObject.getHandle(), 0);
-                    }
-                });
     }
 
     @Override
     public void dispose() {
-        if (!disposed) {
-            getFramebufferStrategy().deleteFramebuffer(getHandle());
-            this.disposed = true;
-        }
+        markDisposed();
     }
 
     public int getCurrentWidth() {
@@ -141,7 +119,7 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
         return currentHeight;
     }
 
-    public ResolutionMode getResolutionMode() {
+    public RenderTargetResolutionMode getResolutionMode() {
         return resolutionMode;
     }
 
@@ -173,12 +151,10 @@ public class StandardRenderTarget extends RenderTarget implements Resizable {
         return stencilAttachmentId;
     }
 
-    /**
-     * Resolution mode enumeration
-     */
-    public enum ResolutionMode {
-        FIXED, // Fixed resolution
-        SCREEN_SIZE, // Follow screen size exactly
-        SCREEN_RELATIVE // Scale relative to screen size
+    protected void attachAllAttachments() {
+        // Backend-installed targets may override to attach native image views or
+        // framebuffers once all attachment ids are known.
     }
+
 }
+

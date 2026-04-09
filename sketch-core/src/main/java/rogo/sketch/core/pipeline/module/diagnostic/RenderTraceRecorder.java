@@ -107,6 +107,34 @@ public final class RenderTraceRecorder {
         }
     }
 
+    public synchronized void recordRangeScopeBegin(
+            String scopeLabel,
+            Iterable<KeyId> stageIds,
+            boolean hasPackets,
+            boolean hasSnapshotScope) {
+        if (!config.rangeScopeTracingEnabled()) {
+            return;
+        }
+        SketchDiagnostics.get().debug(
+                MODULE_ID,
+                "frame=" + currentFrame() + " range_scope_begin"
+                        + " kind=" + normalizeScopeLabel(scopeLabel)
+                        + " stages=" + formatStageIds(stageIds)
+                        + " hasPackets=" + hasPackets
+                        + " hasSnapshotScope=" + hasSnapshotScope);
+    }
+
+    public synchronized void recordRangeScopeEnd(String scopeLabel, Iterable<KeyId> stageIds) {
+        if (!config.rangeScopeTracingEnabled()) {
+            return;
+        }
+        SketchDiagnostics.get().debug(
+                MODULE_ID,
+                "frame=" + currentFrame() + " range_scope_end"
+                        + " kind=" + normalizeScopeLabel(scopeLabel)
+                        + " stages=" + formatStageIds(stageIds));
+    }
+
     private synchronized TraceState trace(KeyId stageId, Graphics graphics) {
         if (!config.matches(graphics)) {
             return null;
@@ -171,6 +199,30 @@ public final class RenderTraceRecorder {
         return dirty ? "dirty" : "clean";
     }
 
+    private long currentFrame() {
+        return activeFrame >= 0L ? activeFrame : 0L;
+    }
+
+    private String normalizeScopeLabel(String scopeLabel) {
+        return scopeLabel != null && !scopeLabel.isBlank() ? scopeLabel : "range";
+    }
+
+    private String formatStageIds(Iterable<KeyId> stageIds) {
+        if (stageIds == null) {
+            return "[]";
+        }
+        StringBuilder builder = new StringBuilder("[");
+        boolean first = true;
+        for (KeyId stageId : stageIds) {
+            if (!first) {
+                builder.append(',');
+            }
+            builder.append(stageId);
+            first = false;
+        }
+        return builder.append(']').toString();
+    }
+
     private record TraceKey(
             long frameNumber,
             KeyId stageId,
@@ -191,3 +243,4 @@ public final class RenderTraceRecorder {
         private KeyId lastShaderId;
     }
 }
+

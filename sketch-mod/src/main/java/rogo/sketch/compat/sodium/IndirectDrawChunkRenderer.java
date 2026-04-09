@@ -33,7 +33,7 @@ import rogo.sketch.compat.sodium.api.TessellationDevice;
 import rogo.sketch.feature.culling.graphics.ComputeChunkCullingGraphics;
 import rogo.sketch.feature.culling.graphics.CopyCounterGraphics;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
-import rogo.sketch.core.util.GLFeatureChecker;
+import rogo.sketch.backend.opengl.util.GLFeatureChecker;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.vanilla.PipelineUtil;
 
@@ -144,8 +144,8 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         MeshResource.CULLING_COUNTER.updateCount(0);
         MeshResource.ORDERED_REGION_SIZE = orderedRegions.size();
 
-        PipelineUtil.renderHelper().renderInstanceImmediately(chunkCullingGraphics, ComputeParameter.COMPUTE_PARAMETER);
-        PipelineUtil.renderHelper().renderInstanceImmediately(copyCounterGraphics, ComputeParameter.COMPUTE_PARAMETER);
+        PipelineUtil.pipeline().renderImmediate(chunkCullingGraphics, ComputeParameter.COMPUTE_PARAMETER);
+        PipelineUtil.pipeline().renderImmediate(copyCounterGraphics, ComputeParameter.COMPUTE_PARAMETER);
 
         GL20.glUseProgram(ChunkShaderTracker.lastProgram);
     }
@@ -248,3 +248,4 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
         MeshResource.clearRegions();
     }
 }
+

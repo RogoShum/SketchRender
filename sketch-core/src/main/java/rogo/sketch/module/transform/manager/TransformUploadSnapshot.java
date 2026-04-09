@@ -1,6 +1,6 @@
 package rogo.sketch.module.transform.manager;
 
-import rogo.sketch.core.data.builder.UnsafeBatchBuilder;
+import rogo.sketch.core.data.builder.NativeWriteBuffer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,7 +13,7 @@ import java.util.Map;
 public class TransformUploadSnapshot {
     public static final int INPUT_STRIDE = 128;
 
-    private UnsafeBatchBuilder inputBuilder;
+    private NativeWriteBuffer inputBuilder;
     private final List<TransformDispatchRange> dispatchRanges = new ArrayList<>();
     private final Map<Integer, Integer> bindingOffsets = new HashMap<>();
     private int capacity;
@@ -22,7 +22,7 @@ public class TransformUploadSnapshot {
 
     public TransformUploadSnapshot(int initialCapacity) {
         capacity = Math.max(1, initialCapacity);
-        inputBuilder = UnsafeBatchBuilder.createInternal((long) capacity * INPUT_STRIDE);
+        inputBuilder = NativeWriteBuffer.createInternal((long) capacity * INPUT_STRIDE);
     }
 
     public void beginBuild(int requiredCount, int maxDepth) {
@@ -34,7 +34,7 @@ public class TransformUploadSnapshot {
         this.maxDepth = maxDepth;
     }
 
-    public UnsafeBatchBuilder inputBuilder() {
+    public NativeWriteBuffer inputBuilder() {
         return inputBuilder;
     }
 
@@ -85,6 +85,7 @@ public class TransformUploadSnapshot {
         capacity = newCapacity;
 
         inputBuilder.close();
-        inputBuilder = UnsafeBatchBuilder.createInternal((long) capacity * INPUT_STRIDE);
+        inputBuilder = NativeWriteBuffer.createInternal((long) capacity * INPUT_STRIDE);
     }
 }
+

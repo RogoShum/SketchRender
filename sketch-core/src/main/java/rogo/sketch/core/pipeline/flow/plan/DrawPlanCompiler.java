@@ -1,9 +1,10 @@
 package rogo.sketch.core.pipeline.flow.plan;
 
-import rogo.sketch.core.command.prosessor.DrawRange;
 import rogo.sketch.core.data.PrimitiveType;
+import rogo.sketch.core.backend.BackendIndirectBuffer;
 import rogo.sketch.core.packet.DrawPlan;
-import rogo.sketch.core.resource.buffer.IndirectCommandBuffer;
+import rogo.sketch.core.packet.draw.IndexedDrawSlice;
+import rogo.sketch.core.packet.draw.IndirectCommandRange;
 
 import java.util.List;
 
@@ -11,26 +12,35 @@ public final class DrawPlanCompiler {
     private DrawPlanCompiler() {
     }
 
-    public static DrawPlan compileIndirect(PrimitiveType primitiveType, DrawRange range, IndirectCommandBuffer indirectBuffer) {
+    public static DrawPlan compileIndirect(PrimitiveType primitiveType, IndirectCommandRange range, BackendIndirectBuffer indirectBuffer) {
+        return compileIndirect(primitiveType, true, range, indirectBuffer);
+    }
+
+    public static DrawPlan compileIndirect(
+            PrimitiveType primitiveType,
+            boolean indexed,
+            IndirectCommandRange range,
+            BackendIndirectBuffer indirectBuffer) {
         if (primitiveType == null || range == null || indirectBuffer == null) {
             return null;
         }
         return DrawPlan.multiDrawIndirect(
                 primitiveType,
+                indexed,
                 range.count(),
-                (long) range.startCommandIndex() * indirectBuffer.getStride(),
-                (int) indirectBuffer.getStride());
+                (long) range.startCommandIndex() * indirectBuffer.strideBytes(),
+                (int) indirectBuffer.strideBytes());
     }
 
     public static DrawPlan compileDirectIndexed(
             PrimitiveType primitiveType,
-            rogo.sketch.core.data.vertex.VertexDataShard indexedShard,
+            IndexedDrawSlice indexedSlice,
             int instanceCount,
             int baseInstance) {
-        if (primitiveType == null || indexedShard == null || instanceCount <= 0) {
+        if (primitiveType == null || indexedSlice == null || instanceCount <= 0) {
             return null;
         }
-        return DrawPlan.directIndexed(primitiveType, indexedShard, instanceCount, baseInstance);
+        return DrawPlan.directIndexed(primitiveType, indexedSlice, instanceCount, baseInstance);
     }
 
     public static DrawPlan compileDirectNonIndexed(
@@ -51,10 +61,10 @@ public final class DrawPlanCompiler {
         if (primitiveType == null || drawItems == null || drawItems.isEmpty()) {
             return null;
         }
-        if (drawItems.size() == 1) {
-            DrawPlan.DirectDrawItem item = drawItems.get(0);
-            if (item.indexed()) {
-                return compileDirectIndexed(primitiveType, item.indexedShard(), item.instanceCount(), item.baseInstance());
+            if (drawItems.size() == 1) {
+                DrawPlan.DirectDrawItem item = drawItems.get(0);
+                if (item.indexed()) {
+                return compileDirectIndexed(primitiveType, item.indexedSlice(), item.instanceCount(), item.baseInstance());
             }
             return compileDirectNonIndexed(
                     primitiveType,
@@ -66,3 +76,4 @@ public final class DrawPlanCompiler {
         return DrawPlan.directBatch(primitiveType, drawItems);
     }
 }
+

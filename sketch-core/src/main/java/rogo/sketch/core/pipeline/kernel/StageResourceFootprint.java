@@ -4,6 +4,7 @@ import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
 import rogo.sketch.core.packet.GeometryHandleKey;
 import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.packet.RenderPacket;
+import rogo.sketch.core.packet.RenderPacketKind;
 import rogo.sketch.core.packet.ResourceSetKey;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.util.KeyId;
@@ -93,7 +94,7 @@ public record StageResourceFootprint(
                     }
                     packetCount++;
                     resourceSetKeys.add(packet.resourceSetKey());
-                    if (packet instanceof rogo.sketch.core.packet.DrawPacket drawPacket) {
+                    if (packet.packetKind() == RenderPacketKind.DRAW && packet instanceof rogo.sketch.core.packet.DrawPacket drawPacket) {
                         drawPacketCount++;
                         geometryHandles.add(drawPacket.geometryHandle());
                     }
@@ -123,3 +124,4 @@ public record StageResourceFootprint(
         return List.copyOf(keys);
     }
 }
+

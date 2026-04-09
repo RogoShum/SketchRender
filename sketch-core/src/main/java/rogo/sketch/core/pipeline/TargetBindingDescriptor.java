@@ -16,7 +16,7 @@ public record TargetBindingDescriptor(
         drawBuffers = drawBuffers != null ? List.copyOf(drawBuffers) : List.of();
         passCompatibilityKey = passCompatibilityKey != null
                 ? passCompatibilityKey
-                : KeyId.of("sketch:pass_compat_" + Integer.toHexString(java.util.Objects.hash(renderTargetId, drawBuffers, clearColor, clearDepth)));
+                : KeyId.of("sketch:pass_target_" + Integer.toHexString(java.util.Objects.hash(renderTargetId, drawBuffers, clearColor, clearDepth)));
     }
 
     public static TargetBindingDescriptor from(TargetBinding binding) {

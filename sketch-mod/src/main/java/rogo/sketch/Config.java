@@ -15,7 +15,7 @@ import rogo.sketch.core.debugger.DashboardPanelMode;
 import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
 import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.ui.geometry.UiRect;
-import rogo.sketch.core.util.GLFeatureChecker;
+import rogo.sketch.backend.opengl.util.GLFeatureChecker;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.module.culling.CullingModuleDescriptor;
@@ -503,3 +503,4 @@ public class Config {
         registerBindings();
     }
 }
+

@@ -12,6 +12,9 @@ import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.module.descriptor.ModuleDescriptor;
 import rogo.sketch.core.pipeline.module.descriptor.ModuleDescriptorContext;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
+import rogo.sketch.core.pipeline.data.FrameDataDomain;
+import rogo.sketch.core.pipeline.data.IndirectPlanData;
+import rogo.sketch.core.pipeline.data.PipelineDataStore;
 import rogo.sketch.core.pipeline.module.macro.ModuleMacroDefinition;
 import rogo.sketch.core.pipeline.module.macro.ModuleMacroRegistry;
 import rogo.sketch.core.pipeline.module.metric.MetricDescriptor;
@@ -26,8 +29,10 @@ import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.pipeline.module.setting.SettingNode;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
 import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
+import rogo.sketch.core.pipeline.indirect.IndirectPlanRequest;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
+import rogo.sketch.core.resource.ResourceScope;
 import rogo.sketch.core.shader.uniform.PipelineUniformRegistry;
 import rogo.sketch.core.shader.uniform.UniformHookRegistry;
 import rogo.sketch.core.shader.uniform.ValueGetter;
@@ -48,6 +53,7 @@ public class ModuleRuntimeHost {
     private final Map<String, ModuleDescriptor> descriptors = new LinkedHashMap<>();
     private final Map<String, ModuleRecord> records = new LinkedHashMap<>();
     private final Map<Graphics, Set<String>> graphicsBindings = new IdentityHashMap<>();
+    private final Map<String, Set<ManagedIndirectRequest>> ownedIndirectRequests = new LinkedHashMap<>();
     private final Map<KeyId, MetricDescriptor> descriptorMetrics = new LinkedHashMap<>();
     private PipelineKernel<?> kernel;
     private boolean processInitialized = false;
@@ -248,7 +254,7 @@ public class ModuleRuntimeHost {
         }
     }
 
-    public void onGraphicsAdded(Graphics graphics, RenderParameter renderParameter, KeyId containerType) {
+    public void onGraphicsAdded(Graphics graphics, @Nullable RenderParameter renderParameter, @Nullable KeyId containerType) {
         for (ModuleRecord record : records.values()) {
             if (!isModuleEnabled(record.descriptor.id())) {
                 continue;
@@ -285,6 +291,32 @@ public class ModuleRuntimeHost {
 
     public void flushPendingSettingChanges() {
         applySettingChanges(settingRegistry.flushPendingChanges());
+    }
+
+    public void installIndirectRequests(GraphicsPipeline<?> pipeline) {
+        if (pipeline == null) {
+            return;
+        }
+        for (PipelineType pipelineType : List.of(PipelineType.RASTERIZATION, PipelineType.TRANSLUCENT)) {
+            PipelineDataStore pipelineDataStore = pipeline.getPipelineDataStore(pipelineType, FrameDataDomain.ASYNC_BUILD);
+            if (pipelineDataStore == null) {
+                continue;
+            }
+            IndirectPlanData indirectPlanData = pipelineDataStore.get(IndirectPlanData.KEY);
+            if (indirectPlanData == null) {
+                continue;
+            }
+            for (Set<ManagedIndirectRequest> requests : ownedIndirectRequests.values()) {
+                if (requests == null || requests.isEmpty()) {
+                    continue;
+                }
+                for (ManagedIndirectRequest request : requests) {
+                    if (request != null) {
+                        indirectPlanData.request(request.stageId(), request.graphicsId(), request.requestMode());
+                    }
+                }
+            }
+        }
     }
 
     private void ensureModuleEnabledSetting(String moduleId) {
@@ -430,10 +462,24 @@ public class ModuleRuntimeHost {
 
     private void clearOwnedState(String ownerId) {
         unregisterOwnedGraphics(ownerId);
+        clearOwnedIndirectRequests(ownerId);
         GraphicsResourceManager.getInstance().unregisterOwnedResources(ownerId);
         uniformRegistry.unregisterOwner(ownerId);
         metricRegistry.unregisterOwner(ownerId);
         macroRegistry.clearOwner(ownerId);
+    }
+
+    private void requestIndirectPlan(String ownerId, KeyId stageId, KeyId graphicsId, IndirectPlanRequest.RequestMode requestMode) {
+        if (stageId == null || graphicsId == null || requestMode == null) {
+            return;
+        }
+        ownedIndirectRequests
+                .computeIfAbsent(ownerId, ignored -> new LinkedHashSet<>())
+                .add(new ManagedIndirectRequest(stageId, graphicsId, requestMode));
+    }
+
+    private void clearOwnedIndirectRequests(String ownerId) {
+        ownedIndirectRequests.remove(ownerId);
     }
 
     private void registerGraphics(
@@ -456,6 +502,11 @@ public class ModuleRuntimeHost {
 
     private void registerCompute(String ownerId, KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
         pipeline.addCompute(stageId, graphics);
+        trackOwnedGraphics(ownerId, graphics, lifetime);
+    }
+
+    private void registerAuxiliaryGraphics(String ownerId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
+        pipeline.attachAuxiliaryGraphics(graphics);
         trackOwnedGraphics(ownerId, graphics, lifetime);
     }
 
@@ -488,7 +539,7 @@ public class ModuleRuntimeHost {
     }
 
     private ModuleRuntimeContext runtimeContext(ModuleRecord record) {
-        return new RuntimeContextImpl(record, runtimeOwnerId(record.descriptor.id()));
+        return new RuntimeContextImpl(record, runtimeOwnerId(record.descriptor.id()), ResourceScope.MODULE_OWNED);
     }
 
     private ModuleSessionContext sessionContext(ModuleRecord record) {
@@ -553,10 +604,12 @@ public class ModuleRuntimeHost {
     private class RuntimeContextImpl implements ModuleRuntimeContext {
         protected final ModuleRecord record;
         private final String ownerId;
+        private final ResourceScope resourceScope;
 
-        private RuntimeContextImpl(ModuleRecord record, String ownerId) {
+        private RuntimeContextImpl(ModuleRecord record, String ownerId, ResourceScope resourceScope) {
             this.record = record;
             this.ownerId = ownerId;
+            this.resourceScope = resourceScope;
         }
 
         @Override
@@ -631,7 +684,7 @@ public class ModuleRuntimeHost {
 
         @Override
         public void registerBuiltInResource(KeyId type, KeyId name, Supplier<? extends ResourceObject> supplier) {
-            GraphicsResourceManager.getInstance().registerBuiltIn(ownerId, type, name, (Supplier<ResourceObject>) supplier);
+            GraphicsResourceManager.getInstance().registerBuiltIn(ownerId, resourceScope, type, name, (Supplier<ResourceObject>) supplier);
         }
 
         @Override
@@ -695,6 +748,16 @@ public class ModuleRuntimeHost {
         }
 
         @Override
+        public void requestIndirectPlan(KeyId stageId, KeyId graphicsId, IndirectPlanRequest.RequestMode requestMode) {
+            ModuleRuntimeHost.this.requestIndirectPlan(ownerId, stageId, graphicsId, requestMode);
+        }
+
+        @Override
+        public void clearOwnedIndirectRequests() {
+            ModuleRuntimeHost.this.clearOwnedIndirectRequests(ownerId);
+        }
+
+        @Override
         public void rebuildGraphs() {
             if (kernel != null) {
                 kernel.rebuildGraphs();
@@ -704,7 +767,12 @@ public class ModuleRuntimeHost {
 
     private final class SessionContextImpl extends RuntimeContextImpl implements ModuleSessionContext {
         private SessionContextImpl(ModuleRecord record, String ownerId) {
-            super(record, ownerId);
+            super(record, ownerId, ResourceScope.SESSION_OWNED);
+        }
+
+        @Override
+        public void registerAuxiliaryGraphics(Graphics graphics, ModuleGraphicsLifetime lifetime) {
+            ModuleRuntimeHost.this.registerAuxiliaryGraphics(ownerId(), graphics, lifetime);
         }
     }
 
@@ -725,4 +793,12 @@ public class ModuleRuntimeHost {
             ModuleGraphicsLifetime lifetime
     ) {
     }
+
+    private record ManagedIndirectRequest(
+            KeyId stageId,
+            KeyId graphicsId,
+            IndirectPlanRequest.RequestMode requestMode
+    ) {
+    }
 }
+

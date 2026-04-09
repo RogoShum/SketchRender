@@ -5,7 +5,9 @@ import net.minecraft.client.Minecraft;
 import rogo.sketch.SketchRender;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.core.instance.ComputeGraphics;
+import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
@@ -46,21 +48,6 @@ public class ComputeHIZGraphics extends ComputeGraphics {
     }
 
     @Override
-    public PartialRenderSetting getPartialRenderSetting() {
-        if (first) {
-            if (firstRenderSetting.isAvailable()) {
-                return firstRenderSetting.get();
-            }
-        } else {
-            if (secRenderSetting.isAvailable()) {
-                return secRenderSetting.get();
-            }
-        }
-
-        return null;
-    }
-
-    @Override
     public boolean shouldDiscard() {
         return false;
     }
@@ -73,4 +60,25 @@ public class ComputeHIZGraphics extends ComputeGraphics {
     public boolean first() {
         return first;
     }
+
+    @Override
+    public long descriptorVersion() {
+        return partialDescriptorVersion(resolvePartialRenderSetting());
+    }
+
+    @Override
+    public CompiledRenderSetting buildRenderDescriptor(RenderParameter renderParameter) {
+        return compilePartialDescriptor(renderParameter, resolvePartialRenderSetting());
+    }
+
+    private PartialRenderSetting resolvePartialRenderSetting() {
+        if (first && firstRenderSetting.isAvailable()) {
+            return firstRenderSetting.get();
+        }
+        if (!first && secRenderSetting.isAvailable()) {
+            return secRenderSetting.get();
+        }
+        return PartialRenderSetting.EMPTY;
+    }
 }
+

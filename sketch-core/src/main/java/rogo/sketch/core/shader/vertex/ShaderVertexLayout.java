@@ -1,9 +1,7 @@
 package rogo.sketch.core.shader.vertex;
 
 import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.data.DataType;
-import rogo.sketch.core.data.format.DataFormat;
-import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.data.layout.StructLayout;
 
 import java.util.*;
 
@@ -13,7 +11,7 @@ import java.util.*;
  * 
  * Used by:
  * - ShaderPreprocessor: to inject layout(location=N) into GLSL
- * - VertexResource: to build DataFormat for VAO setup
+     * - backend geometry binding: to build StructLayout for vertex input setup
  * - ShaderTemplate: to track attribute requirements
  */
 public class ShaderVertexLayout {
@@ -192,25 +190,25 @@ public class ShaderVertexLayout {
     }
     
     /**
-     * Build a DataFormat for this vertex layout.
+     * Build a structured layout for this vertex layout.
      * All attributes are included regardless of macros (for full VAO binding).
      * 
-     * @param formatName The name for the DataFormat
-     * @return The DataFormat
+     * @param formatName The name for the layout
+     * @return The struct layout
      */
-    public DataFormat buildDataFormat(String formatName) {
-        return buildDataFormat(formatName, null);
+    public StructLayout buildStructLayout(String formatName) {
+        return buildStructLayout(formatName, null);
     }
     
     /**
-     * Build a DataFormat for this vertex layout with optional macro filtering.
+     * Build a structured layout for this vertex layout with optional macro filtering.
      * 
-     * @param formatName The name for the DataFormat
+     * @param formatName The name for the layout
      * @param activeMacros Set of active macros (null = include all)
-     * @return The DataFormat
+     * @return The struct layout
      */
-    public DataFormat buildDataFormat(String formatName, @Nullable Set<String> activeMacros) {
-        DataFormat.Builder builder = DataFormat.builder(formatName);
+    public StructLayout buildStructLayout(String formatName, @Nullable Set<String> activeMacros) {
+        StructLayout.Builder builder = StructLayout.builder(formatName);
         
         for (VertexAttributeSpec spec : attributes) {
             // If activeMacros is null, include all; otherwise filter
@@ -261,4 +259,5 @@ public class ShaderVertexLayout {
         return sb.toString();
     }
 }
+
 

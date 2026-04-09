@@ -3,13 +3,13 @@ package rogo.sketch.core.pipeline;
 import rogo.sketch.core.pipeline.parmeter.InvalidParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.ResourceBinding;
-import rogo.sketch.core.driver.state.FullRenderState;
+import rogo.sketch.core.driver.state.RenderStatePatch;
 
 import java.util.Objects;
 
 public class RenderSetting {
     private final RenderParameter renderParameter;
-    private final FullRenderState renderState;
+    private final RenderStatePatch renderState;
     private final TargetBinding targetBinding;
     private final ResourceBinding resourceBinding;
     private final boolean shouldSwitchRenderState;
@@ -24,7 +24,7 @@ public class RenderSetting {
         this.hash = Objects.hash(renderParameter, partialRenderSetting, targetBinding, resourceBinding, shouldSwitchRenderState);
     }
 
-    public FullRenderState renderState() {
+    public RenderStatePatch renderState() {
         return renderState;
     }
 
@@ -65,3 +65,4 @@ public class RenderSetting {
         return new RenderSetting(renderParameter, partial);
     }
 }
+

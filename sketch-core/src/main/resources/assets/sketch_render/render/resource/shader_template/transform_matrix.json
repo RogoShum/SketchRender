@@ -1,0 +1,9 @@
+{
+  "compute": "sketch_render:transform_matrix.comp",
+  "resourceBindings": {
+    "shader_storage_buffer": [
+      "InputBuffer",
+      "OutputBuffer"
+    ]
+  }
+}

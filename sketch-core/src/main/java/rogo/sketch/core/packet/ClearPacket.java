@@ -15,10 +15,19 @@ public record ClearPacket(
         UniformValueSnapshot uniformSnapshot,
         List<? extends Graphics> completionGraphics,
         KeyId renderTargetId,
+        List<Object> colorAttachments,
         boolean clearColor,
         boolean clearDepth,
         float[] colorValue,
         float depthValue,
-        boolean[] colorMask
+        boolean[] colorMask,
+        boolean restorePreviousRenderTarget
 ) implements RenderPacket {
+    private static final RenderPacketType TYPE = RenderPacketType.CLEAR;
+
+    @Override
+    public RenderPacketType packetType() {
+        return TYPE;
+    }
 }
+

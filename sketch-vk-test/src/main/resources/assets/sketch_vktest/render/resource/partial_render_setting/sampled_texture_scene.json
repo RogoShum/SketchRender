@@ -1,0 +1,19 @@
+{
+  "renderState": {
+    "shader_template": {
+      "identifier": "sketch_vktest:sampled_texture_shader"
+    },
+    "depth_test": {
+      "enabled": false
+    },
+    "cull_face": {
+      "enabled": false
+    }
+  },
+  "resourceBinding": {
+    "texture": {
+      "test_texture": "sketch_vktest:vulkan_clear_color"
+    }
+  },
+  "shouldSwitchRenderState": true
+}

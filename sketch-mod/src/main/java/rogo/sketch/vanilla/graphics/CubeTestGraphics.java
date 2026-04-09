@@ -3,15 +3,18 @@ package rogo.sketch.vanilla.graphics;
 import net.minecraft.client.Minecraft;
 import org.joml.Vector3f;
 import rogo.sketch.SketchRender;
+import rogo.sketch.core.api.graphics.InstanceVertexEncoder;
 import rogo.sketch.module.transform.AsyncTickTransformSource;
 import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.module.transform.TransformIdAware;
 import rogo.sketch.module.transform.TransformParentSource;
 import rogo.sketch.core.api.model.PreparedMesh;
-import rogo.sketch.core.data.builder.VertexStreamBuilder;
+import rogo.sketch.core.pipeline.CompiledRenderSetting;
+import rogo.sketch.core.data.builder.VertexRecordWriter;
 import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.core.model.MeshGroup;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
@@ -23,7 +26,7 @@ import rogo.sketch.core.util.KeyId;
  * Parent linkage is resolved by the transform module through graphics references.
  */
 public class CubeTestGraphics extends MeshGraphics
-        implements AsyncTickTransformSource, TransformParentSource, TransformIdAware {
+        implements InstanceVertexEncoder, AsyncTickTransformSource, TransformParentSource, TransformIdAware {
     private final ResourceReference<PartialRenderSetting> renderSetting;
     
     // Transform component keys
@@ -64,14 +67,6 @@ public class CubeTestGraphics extends MeshGraphics
     }
 
     @Override
-    public PartialRenderSetting getPartialRenderSetting() {
-        if (renderSetting.isAvailable()) {
-            return renderSetting.get();
-        }
-        return null;
-    }
-
-    @Override
     public void writeAsyncTickTransform(TransformWriter writer) {
         writer.setPosition(offset);
         writer.setScale(scale);
@@ -99,9 +94,9 @@ public class CubeTestGraphics extends MeshGraphics
     }
 
     @Override
-    public void fillVertex(KeyId componentKey, VertexStreamBuilder builder) {
+    public void writeInstanceVertex(KeyId componentKey, VertexRecordWriter writer) {
         if (componentKey.equals(TRANSFORM_ID)) {
-            builder.put(transformId);
+            writer.put(transformId);
         }
     }
 
@@ -109,4 +104,19 @@ public class CubeTestGraphics extends MeshGraphics
     public void setTransformId(int transformId) {
         this.transformId = transformId;
     }
+
+    @Override
+    public long descriptorVersion() {
+        return partialDescriptorVersion(resolvePartialRenderSetting());
+    }
+
+    @Override
+    public CompiledRenderSetting buildRenderDescriptor(RenderParameter renderParameter) {
+        return compilePartialDescriptor(renderParameter, resolvePartialRenderSetting());
+    }
+
+    private PartialRenderSetting resolvePartialRenderSetting() {
+        return renderSetting.isAvailable() ? renderSetting.get() : PartialRenderSetting.EMPTY;
+    }
 }
+

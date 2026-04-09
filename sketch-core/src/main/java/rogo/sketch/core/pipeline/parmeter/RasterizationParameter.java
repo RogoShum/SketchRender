@@ -1,12 +1,13 @@
 package rogo.sketch.core.pipeline.parmeter;
 
 import org.jetbrains.annotations.NotNull;
+import rogo.sketch.core.data.MeshIndexMode;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.Usage;
 import rogo.sketch.core.data.format.ComponentSpec;
-import rogo.sketch.core.data.format.DataFormat;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
+import rogo.sketch.core.data.layout.StructLayout;
+import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
 
 import java.util.Objects;
 
@@ -18,7 +19,7 @@ import java.util.Objects;
  * <ul>
  * <li>Data format - Vertex attribute layout</li>
  * <li>Primitive type - Triangle, quad, etc.</li>
- * <li>Usage - Static, dynamic, stream</li>
+ * <li>Buffer update policy - immutable, dynamic, stream</li>
  * <li>Sorting - Whether to enable depth sorting</li>
  * </ul>
  * </p>
@@ -26,7 +27,8 @@ import java.util.Objects;
 public class RasterizationParameter extends RenderParameter {
     private final VertexLayoutSpec layout;
     private final PrimitiveType primitiveType;
-    private final Usage usage;
+    private final MeshIndexMode indexMode;
+    private final BufferUpdatePolicy updatePolicy;
     private final boolean enableSorting;
     private final BuilderBatchKey builderBatchKey;
     private final BuilderKey[] builderKeys;
@@ -35,9 +37,15 @@ public class RasterizationParameter extends RenderParameter {
     /**
      * Primary constructor with explicit VertexLayoutSpec.
      */
-    public RasterizationParameter(VertexLayoutSpec layout, PrimitiveType primitiveType, Usage usage, boolean enableSorting) {
+    public RasterizationParameter(
+            VertexLayoutSpec layout,
+            PrimitiveType primitiveType,
+            MeshIndexMode indexMode,
+            BufferUpdatePolicy updatePolicy,
+            boolean enableSorting) {
         this.layout = Objects.requireNonNull(layout);
         this.primitiveType = Objects.requireNonNull(primitiveType);
+        this.indexMode = Objects.requireNonNull(indexMode);
         this.builderBatchKey = new BuilderBatchKey(layout, primitiveType);
         this.builderKeys = new BuilderKey[layout.getDynamicSpecs().length];
 
@@ -46,19 +54,11 @@ public class RasterizationParameter extends RenderParameter {
             builderKeys[i] = new BuilderKey(spec.getFormat(), primitiveType, spec.isInstanced());
         }
 
-        this.usage = Objects.requireNonNull(usage);
+        this.updatePolicy = Objects.requireNonNull(updatePolicy);
         this.enableSorting = enableSorting;
-        this.hash = Objects.hash(layout, primitiveType, usage, enableSorting);
+        this.hash = Objects.hash(layout, primitiveType, indexMode, updatePolicy, enableSorting);
     }
 
-    /**
-     * Legacy constructor taking DataFormat.
-     * Creates a default VertexLayoutSpec with one mutable component at Binding 0.
-     */
-    /**
-     * Legacy constructor taking DataFormat.
-     * Creates a default VertexLayoutSpec with one mutable component at Binding 0.
-     */
     @Override
     public RenderFlowType getFlowType() {
         return RenderFlowType.RASTERIZATION;
@@ -76,6 +76,12 @@ public class RasterizationParameter extends RenderParameter {
         return primitiveType;
     }
 
+    @Override
+    @NotNull
+    public MeshIndexMode indexMode() {
+        return indexMode;
+    }
+
     public BuilderBatchKey builderBatchKey() {
         return builderBatchKey;
     }
@@ -85,8 +91,8 @@ public class RasterizationParameter extends RenderParameter {
     }
 
     //todo
-    public Usage usage() {
-        return usage;
+    public BufferUpdatePolicy updatePolicy() {
+        return updatePolicy;
     }
 
     public boolean enableSorting() {
@@ -102,7 +108,8 @@ public class RasterizationParameter extends RenderParameter {
         return enableSorting == that.enableSorting &&
                 Objects.equals(layout, that.layout) &&
                 primitiveType == that.primitiveType &&
-                usage == that.usage;
+                indexMode == that.indexMode &&
+                updatePolicy == that.updatePolicy;
     }
 
     @Override
@@ -115,7 +122,8 @@ public class RasterizationParameter extends RenderParameter {
         return "RasterizationParameter{" +
                 "layout=" + layout +
                 ", primitiveType=" + primitiveType +
-                ", usage=" + usage +
+                ", indexMode=" + indexMode +
+                ", updatePolicy=" + updatePolicy +
                 ", enableSorting=" + enableSorting +
                 '}';
     }
@@ -126,12 +134,14 @@ public class RasterizationParameter extends RenderParameter {
     public static RasterizationParameter create(
             VertexLayoutSpec layout,
             PrimitiveType primitiveType,
-            Usage usage,
+            MeshIndexMode indexMode,
+            BufferUpdatePolicy updatePolicy,
             boolean enableSorting) {
-        return new RasterizationParameter(layout, primitiveType, usage, enableSorting);
+        return new RasterizationParameter(layout, primitiveType, indexMode, updatePolicy, enableSorting);
     }
 
-    public record BuilderKey(DataFormat format, PrimitiveType primitiveType, boolean instanced){}
+    public record BuilderKey(StructLayout format, PrimitiveType primitiveType, boolean instanced){}
 
     public record BuilderBatchKey(VertexLayoutSpec spec, PrimitiveType primitiveType){}
 }
+

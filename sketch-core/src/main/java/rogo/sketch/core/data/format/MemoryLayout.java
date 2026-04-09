@@ -1,5 +1,8 @@
 package rogo.sketch.core.data.format;
 
+import rogo.sketch.core.data.layout.FieldSpec;
+import rogo.sketch.core.data.layout.StructLayout;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,7 +12,7 @@ import java.util.List;
  * Includes debugging utilities to visualize memory structure.
  */
 public class MemoryLayout {
-    private final DataFormat baseFormat;
+    private final StructLayout baseFormat;
     private final List<Dimension> dimensions;
     private final long[] strides;  // Element stride for each dimension (in base elements)
     private final long baseElementSize;  // Base element size in bytes
@@ -53,7 +56,7 @@ public class MemoryLayout {
         }
     }
     
-    private MemoryLayout(DataFormat baseFormat, List<Dimension> dimensions) {
+    private MemoryLayout(StructLayout baseFormat, List<Dimension> dimensions) {
         this.baseFormat = baseFormat;
         this.dimensions = new ArrayList<>(dimensions);
         this.baseElementSize = baseFormat.getStride();
@@ -184,7 +187,7 @@ public class MemoryLayout {
     /**
      * Get base data format
      */
-    public DataFormat getBaseFormat() {
+    public StructLayout getBaseFormat() {
         return baseFormat;
     }
     
@@ -217,7 +220,7 @@ public class MemoryLayout {
     /**
      * Create layout builder
      */
-    public static Builder builder(DataFormat baseFormat) {
+    public static Builder builder(StructLayout baseFormat) {
         return new Builder(baseFormat);
     }
     
@@ -225,10 +228,10 @@ public class MemoryLayout {
      * Layout builder
      */
     public static class Builder {
-        private final DataFormat baseFormat;
+        private final StructLayout baseFormat;
         private final List<Dimension> dimensions = new ArrayList<>();
         
-        private Builder(DataFormat baseFormat) {
+        private Builder(StructLayout baseFormat) {
             this.baseFormat = baseFormat;
         }
         
@@ -290,8 +293,8 @@ public class MemoryLayout {
         
         // This assumes baseFormat elements map 1:1 to struct members
         // and doesn't handle nested structs or arrays within the base format itself
-        // (DataFormat is usually flat).
-        for (DataElement element : baseFormat.getElements()) {
+        // (StructLayout is usually flat).
+        for (FieldSpec element : baseFormat.getFields()) {
              sb.append("    ").append(getGLSLType(element)).append(" ")
                .append(element.getName()).append(";\n");
         }
@@ -300,9 +303,9 @@ public class MemoryLayout {
         return sb.toString();
     }
     
-    private String getGLSLType(DataElement element) {
+    private String getGLSLType(FieldSpec element) {
         // Simple mapping, can be expanded
-        return switch (element.getDataType()) {
+        return switch (element.getValueType()) {
             case FLOAT -> "float";
             case VEC2F -> "vec2";
             case VEC3F -> "vec3";
@@ -317,3 +320,4 @@ public class MemoryLayout {
         };
     }
 }
+

@@ -2,6 +2,7 @@ package rogo.sketch.core.pipeline.geometry;
 
 import rogo.sketch.core.api.model.BakedTypeMesh;
 import rogo.sketch.core.api.model.PreparedMesh;
+import rogo.sketch.core.api.model.SharedGeometrySourceSnapshot;
 import rogo.sketch.core.util.KeyId;
 
 public record GeometrySourceKey(
@@ -25,10 +26,12 @@ public record GeometrySourceKey(
             return empty();
         }
         if (mesh instanceof BakedTypeMesh bakedMesh) {
-            long sourceStableId = bakedMesh.getSourceResource() != null
-                    && bakedMesh.getSourceResource().getComponent(BakedTypeMesh.BAKED_MESH) != null
-                    ? bakedMesh.getSourceResource().getComponent(BakedTypeMesh.BAKED_MESH).getVboHandle()
-                    : bakedMesh.getVAOHandle();
+            SharedGeometrySourceSnapshot sharedSnapshot = bakedMesh.sharedGeometrySourceSnapshot();
+            long sourceStableId = sharedSnapshot != null && sharedSnapshot.sharedSourceRef() > 0L
+                    ? sharedSnapshot.sharedSourceRef()
+                    : bakedMesh.sourceGeometryBinding() != null
+                    ? Integer.toUnsignedLong(System.identityHashCode(bakedMesh.sourceGeometryBinding()))
+                    : -1L;
             return new GeometrySourceKey(
                     BAKED_KIND,
                     sourceStableId,
@@ -53,4 +56,12 @@ public record GeometrySourceKey(
     public long sharedSourceId() {
         return sharesSourceBuffers() ? stableId : -1L;
     }
+
+    public GeometrySourceKey sharedBatchKey() {
+        if (!sharesSourceBuffers()) {
+            return this;
+        }
+        return new GeometrySourceKey(sourceKind, stableId, 0, 0, 0, 0);
+    }
 }
+

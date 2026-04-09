@@ -1,7 +1,9 @@
 package rogo.sketch.core.data.format;
 
-import java.util.Objects;
+import rogo.sketch.core.data.layout.StructLayout;
 import rogo.sketch.core.util.KeyId;
+
+import java.util.Objects;
 
 /**
  * Describes a VBO component specification.
@@ -9,12 +11,12 @@ import rogo.sketch.core.util.KeyId;
 public class ComponentSpec {
     private final KeyId id;
     private final int bindingPoint;
-    private final DataFormat format;
+    private final StructLayout format;
     private final boolean instanced;
     private final boolean mutable;
     private final boolean tickUpdate;
 
-    protected ComponentSpec(KeyId id, int bindingPoint, DataFormat format, boolean instanced, boolean mutable, boolean tickUpdate) {
+    protected ComponentSpec(KeyId id, int bindingPoint, StructLayout format, boolean instanced, boolean mutable, boolean tickUpdate) {
         this.id = id;
         this.bindingPoint = bindingPoint;
         this.format = format;
@@ -26,14 +28,14 @@ public class ComponentSpec {
     /**
      * Create a mutable component (needs data filling).
      */
-    public static ComponentSpec mutable(KeyId id, int bindingPoint, DataFormat format, boolean instanced) {
+    public static ComponentSpec mutable(KeyId id, int bindingPoint, StructLayout format, boolean instanced) {
         return new ComponentSpec(id, bindingPoint, format, instanced, true, false);
     }
 
     /**
      * Create an immutable component (pre-baked, doesn't need filling).
      */
-    public static ComponentSpec immutable(KeyId id, int bindingPoint, DataFormat format, boolean instanced) {
+    public static ComponentSpec immutable(KeyId id, int bindingPoint, StructLayout format, boolean instanced) {
         return new ComponentSpec(id, bindingPoint, format, instanced, false, false);
     }
 
@@ -45,7 +47,7 @@ public class ComponentSpec {
         return bindingPoint;
     }
 
-    public DataFormat getFormat() {
+    public StructLayout getFormat() {
         return format;
     }
 

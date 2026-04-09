@@ -21,8 +21,8 @@ dependencies {
     // MC 1.20.1 uses LWJGL 3.3.1.
     compileOnly platform("org.lwjgl:lwjgl-bom:3.3.3")
     compileOnly "org.lwjgl:lwjgl"
-    compileOnly "org.lwjgl:lwjgl-opengl"
-    compileOnly "org.lwjgl:lwjgl-glfw"
+    //compileOnly "org.lwjgl:lwjgl-opengl"
+    //compileOnly "org.lwjgl:lwjgl-glfw"
 
     compileOnly 'it.unimi.dsi:fastutil:8.5.12'
 }

@@ -2,12 +2,13 @@ package rogo.sketch.feature.culling.graphics;
 
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.api.model.PreparedMesh;
-import rogo.sketch.core.data.builder.VertexStreamBuilder;
+import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.instance.MeshGraphics;
 import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.model.DynamicMesh;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
@@ -43,15 +44,6 @@ public class ChunkCullingTestGraphics extends MeshGraphics {
     }
 
     @Override
-    public PartialRenderSetting getPartialRenderSetting() {
-        if (partialRenderSetting.isAvailable()) {
-            return partialRenderSetting.get();
-        }
-
-        return null;
-    }
-
-    @Override
     public boolean shouldDiscard() {
         return false;
     }
@@ -70,9 +62,17 @@ public class ChunkCullingTestGraphics extends MeshGraphics {
     }
 
     @Override
-    public void fillVertex(KeyId componentKey, VertexStreamBuilder builder) {
-        if (mesh.generator() != null) {
-            mesh.generator().accept(builder);
-        }
+    public long descriptorVersion() {
+        return partialDescriptorVersion(resolvePartialRenderSetting());
+    }
+
+    @Override
+    public CompiledRenderSetting buildRenderDescriptor(RenderParameter renderParameter) {
+        return compilePartialDescriptor(renderParameter, resolvePartialRenderSetting());
+    }
+
+    private PartialRenderSetting resolvePartialRenderSetting() {
+        return partialRenderSetting.isAvailable() ? partialRenderSetting.get() : PartialRenderSetting.EMPTY;
     }
 }
+

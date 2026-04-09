@@ -2,9 +2,15 @@ package rogo.sketch.core.instance;
 
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.graphics.AsyncTickable;
+import rogo.sketch.core.api.graphics.DescriptorStability;
+import rogo.sketch.core.api.graphics.ComputeDispatchCommand;
 import rogo.sketch.core.api.graphics.DispatchableGraphics;
+import rogo.sketch.core.pipeline.CompiledRenderSetting;
+import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.flow.dirty.DirtyReason;
+import rogo.sketch.core.pipeline.RenderSetting;
+import rogo.sketch.core.pipeline.RenderSettingCompiler;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.shader.ComputeShader;
 import rogo.sketch.core.util.KeyId;
 
@@ -14,9 +20,10 @@ public abstract class ComputeGraphics implements DispatchableGraphics, AsyncTick
     private final KeyId id;
     @Nullable
     private final Runnable tick;
-    private final BiConsumer<RenderContext, ComputeShader> dispatch;
+    private final ComputeDispatchCommand dispatchOperation;
+    @Nullable
+    private final BiConsumer<RenderContext, ComputeShader> dispatchAdapter;
     private int priority;
-    protected DirtyReason batchDirty = DirtyReason.NOT;
 
     public ComputeGraphics(KeyId keyId, @Nullable Runnable tick,
                            BiConsumer<RenderContext, ComputeShader> dispatchCommand) {
@@ -25,9 +32,38 @@ public abstract class ComputeGraphics implements DispatchableGraphics, AsyncTick
 
     public ComputeGraphics(KeyId keyId, @Nullable Runnable tick,
                            BiConsumer<RenderContext, ComputeShader> dispatchCommand, int priority) {
+        this(
+                keyId,
+                tick,
+                dispatchCommand != null
+                        ? dispatchContext -> dispatchCommand.accept(
+                        dispatchContext.renderContext(),
+                        dispatchContext.programHandle() != null
+                                ? dispatchContext.programHandle().computeShaderAdapter()
+                                : null)
+                        : null,
+                dispatchCommand,
+                priority);
+    }
+
+    public ComputeGraphics(KeyId keyId, @Nullable Runnable tick,
+                           ComputeDispatchCommand dispatchOperation) {
+        this(keyId, tick, dispatchOperation, null, 100);
+    }
+
+    public ComputeGraphics(KeyId keyId, @Nullable Runnable tick,
+                           ComputeDispatchCommand dispatchOperation, int priority) {
+        this(keyId, tick, dispatchOperation, null, priority);
+    }
+
+    private ComputeGraphics(KeyId keyId, @Nullable Runnable tick,
+                            ComputeDispatchCommand dispatchOperation,
+                            @Nullable BiConsumer<RenderContext, ComputeShader> dispatchAdapter,
+                            int priority) {
         this.id = keyId;
         this.tick = tick;
-        this.dispatch = dispatchCommand;
+        this.dispatchOperation = dispatchOperation;
+        this.dispatchAdapter = dispatchAdapter;
         this.priority = priority;
     }
 
@@ -57,22 +93,38 @@ public abstract class ComputeGraphics implements DispatchableGraphics, AsyncTick
     }
 
     @Override
-    public void resetBatchDirtyFlags() {
-        batchDirty = DirtyReason.NOT;
+    public ComputeDispatchCommand getDispatchOperation() {
+        return dispatchOperation;
     }
 
     @Override
-    public DirtyReason getBatchDirtyFlags() {
-        return batchDirty;
-    }
-
-    @Override
+    @Deprecated(forRemoval = false)
     public BiConsumer<RenderContext, ComputeShader> getDispatchCommand() {
-        return dispatch;
+        return dispatchAdapter;
     }
 
     @Override
     public int compareTo(ComputeGraphics o) {
         return Integer.compare(this.priority, o.priority);
     }
+
+    @Override
+    public DescriptorStability descriptorStability() {
+        return DescriptorStability.STABLE;
+    }
+
+    protected final long partialDescriptorVersion(PartialRenderSetting partialRenderSetting) {
+        return java.util.Objects.hash(
+                descriptorStability(),
+                partialRenderSetting != null ? partialRenderSetting : PartialRenderSetting.EMPTY);
+    }
+
+    protected final CompiledRenderSetting compilePartialDescriptor(
+            RenderParameter renderParameter,
+            PartialRenderSetting partialRenderSetting) {
+        return RenderSettingCompiler.compile(RenderSetting.fromPartial(
+                renderParameter,
+                partialRenderSetting != null ? partialRenderSetting : PartialRenderSetting.EMPTY));
+    }
 }
+

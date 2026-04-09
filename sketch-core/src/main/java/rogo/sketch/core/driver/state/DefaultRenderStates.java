@@ -2,9 +2,8 @@ package rogo.sketch.core.driver.state;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import org.lwjgl.opengl.GL11;
 import rogo.sketch.core.api.RenderStateComponent;
-import rogo.sketch.core.driver.state.gl.*;
+import rogo.sketch.core.driver.state.component.*;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
@@ -21,18 +20,26 @@ public class DefaultRenderStates {
 
         Map<KeyId, RenderStateComponent> tempDefaults = new LinkedHashMap<>();
         // Register GL default states with OpenGL default values
-        registerTemp(tempDefaults, new BlendState(false, GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA));
-        registerTemp(tempDefaults, new DepthTestState(true, GL11.GL_LESS));
+        registerTemp(tempDefaults, new BlendState(
+                false,
+                BlendFactor.SRC_ALPHA,
+                BlendFactor.ONE_MINUS_SRC_ALPHA,
+                BlendFactor.SRC_ALPHA,
+                BlendFactor.ONE_MINUS_SRC_ALPHA,
+                BlendOp.ADD,
+                BlendOp.ADD));
+        registerTemp(tempDefaults, new DepthTestState(true, CompareOp.LESS));
         registerTemp(tempDefaults, new DepthMaskState(true));
-        registerTemp(tempDefaults, new CullState(true, GL11.GL_BACK, GL11.GL_CCW));
+        registerTemp(tempDefaults, new CullState(true, CullFaceMode.BACK, FrontFaceMode.CCW));
         registerTemp(tempDefaults, new ScissorState(false, 0, 0, 0, 0));
-        registerTemp(tempDefaults, new StencilState(false, GL11.GL_ALWAYS, 0, 0xFF, GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_KEEP));
+        registerTemp(tempDefaults, new StencilState(false, CompareOp.ALWAYS, 0, 0xFF,
+                StencilOperation.KEEP, StencilOperation.KEEP, StencilOperation.KEEP));
         registerTemp(tempDefaults, new ViewportState(0, 0, 1920, 1080));
         registerTemp(tempDefaults, new ShaderState()); // No default shader
         registerTemp(tempDefaults, RenderTargetState.defaultFramebuffer()); // Default framebuffer
         registerTemp(tempDefaults, new ColorMaskState(true, true, true, true));
         registerTemp(tempDefaults, new PolygonOffsetState(false, 0, 0));
-        registerTemp(tempDefaults, new LogicOpState(false, GL11.GL_COPY));
+        registerTemp(tempDefaults, new LogicOpState(false, LogicOp.COPY));
 
         int index = 0;
         defaultStateArray = new RenderStateComponent[tempDefaults.size()];
@@ -68,7 +75,7 @@ public class DefaultRenderStates {
     }
 
     public static boolean isRegistered(KeyId type) {
-        return getIndex(type) > -1;
+        return keyToIndex.containsKey(type);
     }
 
     /**
@@ -87,30 +94,24 @@ public class DefaultRenderStates {
         return instance;
     }
 
-    /**
-     * Create a FullRenderState with defaults only
-     */
-    public static FullRenderState createDefaultFullRenderState() {
-        return new FullRenderState(defaultStateArray.clone());
+    public static RenderStateComponent getDefaultComponent(KeyId componentType) {
+        Integer index = keyToIndex.get(componentType);
+        if (index == null) {
+            throw new IllegalArgumentException("Unregistered RenderState KeyId: " + componentType);
+        }
+        return defaultStateArray[index];
     }
 
-    /**
-     * Create a FullRenderState with defaults and overrides
-     */
-    public static FullRenderState createFullRenderState(Map<KeyId, RenderStateComponent> overrides) {
-        RenderStateComponent[] snapshot = defaultStateArray.clone();
-
-        if (overrides != null && !overrides.isEmpty()) {
-            for (Map.Entry<KeyId, RenderStateComponent> entry : overrides.entrySet()) {
-                Integer index = keyToIndex.get(entry.getKey());
-                if (index != null) {
-                    snapshot[index] = entry.getValue();
-                } else {
-                    throw new IllegalArgumentException("Unregistered RenderState KeyId: " + entry.getKey());
-                }
+    public static RenderStatePatch createPatch(Map<KeyId, RenderStateComponent> overrides) {
+        if (overrides == null || overrides.isEmpty()) {
+            return RenderStatePatch.empty();
+        }
+        for (KeyId type : overrides.keySet()) {
+            if (!isRegistered(type)) {
+                throw new IllegalArgumentException("Unregistered RenderState KeyId: " + type);
             }
         }
-
-        return new FullRenderState(snapshot);
+        return RenderStatePatch.of(overrides);
     }
 }
+

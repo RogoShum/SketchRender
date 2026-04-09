@@ -2,7 +2,9 @@ package rogo.sketch.feature.culling.graphics;
 
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.instance.ComputeGraphics;
+import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
@@ -22,15 +24,6 @@ public class CopyCounterGraphics extends ComputeGraphics {
     }
 
     @Override
-    public PartialRenderSetting getPartialRenderSetting() {
-        if (copyCounterSetting.isAvailable()) {
-            return copyCounterSetting.get();
-        }
-
-        return null;
-    }
-
-    @Override
     public boolean shouldDiscard() {
         return false;
     }
@@ -39,4 +32,19 @@ public class CopyCounterGraphics extends ComputeGraphics {
     public boolean shouldRender() {
         return true;
     }
+
+    @Override
+    public long descriptorVersion() {
+        return partialDescriptorVersion(resolvePartialRenderSetting());
+    }
+
+    @Override
+    public CompiledRenderSetting buildRenderDescriptor(RenderParameter renderParameter) {
+        return compilePartialDescriptor(renderParameter, resolvePartialRenderSetting());
+    }
+
+    private PartialRenderSetting resolvePartialRenderSetting() {
+        return copyCounterSetting.isAvailable() ? copyCounterSetting.get() : PartialRenderSetting.EMPTY;
+    }
 }
+

@@ -87,6 +87,7 @@ public abstract class BaseGraphicsContainer<C extends RenderContext> implements 
 
     @Override
     public void dirtyCheck() {
-        // Dirty reconciliation is orchestrated by AbstractMergedBatchContainer.
+        // Formal v2 stage flows reconcile dirty state; base containers no longer orchestrate it here.
     }
 }
+

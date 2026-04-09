@@ -21,13 +21,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import rogo.sketch.backend.opengl.OpenGLIndirectBuffer;
 import rogo.sketch.Config;
 import rogo.sketch.compat.sodium.IndirectDrawChunkRenderer;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.compat.sodium.SodiumSectionAsyncUtil;
 import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
 import rogo.sketch.feature.culling.CullingStateManager;
-import rogo.sketch.core.resource.buffer.IndirectCommandBuffer;
 
 import java.lang.reflect.Field;
 import java.util.ArrayDeque;
@@ -74,7 +74,7 @@ public abstract class MixinRenderSectionManager {
 
     @Inject(method = "renderLayer", at = @At(value = "RETURN"), remap = false)
     private void onRenderEnd(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
-        IndirectCommandBuffer.unBind();
+        OpenGLIndirectBuffer.unBind();
     }
 
     @ModifyArg(method = "destroy", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/ChunkRenderer;delete(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;)V"), remap = false)

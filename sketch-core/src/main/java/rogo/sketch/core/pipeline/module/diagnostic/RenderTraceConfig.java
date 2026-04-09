@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class RenderTraceConfig {
     private volatile boolean enabled;
+    private volatile boolean rangeScopeTracingEnabled;
     private final Set<KeyId> graphicsIds = ConcurrentHashMap.newKeySet();
     private final Set<String> graphicsClasses = ConcurrentHashMap.newKeySet();
 
@@ -24,6 +25,14 @@ public final class RenderTraceConfig {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public boolean rangeScopeTracingEnabled() {
+        return rangeScopeTracingEnabled;
+    }
+
+    public void setRangeScopeTracingEnabled(boolean rangeScopeTracingEnabled) {
+        this.rangeScopeTracingEnabled = rangeScopeTracingEnabled;
     }
 
     public void clearFilters() {
@@ -62,3 +71,4 @@ public final class RenderTraceConfig {
         return graphicsClasses.contains(graphics.getClass().getName());
     }
 }
+

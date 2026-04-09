@@ -1,0 +1,38 @@
+{
+  "vendored": [
+    {
+      "name": "bunny",
+      "path": "models/bunny/bunny.obj",
+      "sourceArchive": "bunny.zip",
+      "sourceUrl": "https://casual-effects.com/data/",
+      "license": "Stanford Scan Repository terms",
+      "attribution": "McGuire Computer Graphics Archive / Stanford bunny scan"
+    },
+    {
+      "name": "teapot",
+      "path": "models/teapot/teapot.obj",
+      "sourceArchive": "teapot.zip",
+      "sourceUrl": "https://casual-effects.com/data/",
+      "license": "CC0",
+      "attribution": "McGuire Computer Graphics Archive teapot asset"
+    }
+  ],
+  "externalOnly": [
+    {
+      "name": "sponza",
+      "sourceArchive": "sponza.zip",
+      "sourceUrl": "https://casual-effects.com/data/",
+      "upstreamUrl": "http://www.crytek.com/cryengine/cryengine3/downloads",
+      "license": "CC BY 3.0 / upstream-specific attribution requirements",
+      "notes": "Not vendored. Download manually into an ignored local cache if needed."
+    },
+    {
+      "name": "rungholt",
+      "sourceArchive": "rungholt.zip",
+      "sourceUrl": "https://casual-effects.com/data/",
+      "upstreamUrl": "http://www.planetminecraft.com/project/neu-rungholt/",
+      "license": "CC BY 3.0 / upstream-specific attribution requirements",
+      "notes": "Not vendored. Download manually into an ignored local cache if needed."
+    }
+  ]
+}

@@ -4,8 +4,6 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL12;
 import rogo.sketch.core.instance.TransformComputeGraphics;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.module.runtime.ModuleGraphicsLifetime;
@@ -14,6 +12,12 @@ import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
 import rogo.sketch.core.pipeline.module.session.ModuleSession;
 import rogo.sketch.core.pipeline.module.session.ModuleSessionContext;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.descriptor.ImageFormat;
+import rogo.sketch.core.resource.descriptor.ImageUsage;
+import rogo.sketch.core.resource.descriptor.RenderTargetResolutionMode;
+import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
+import rogo.sketch.core.resource.descriptor.SamplerFilter;
+import rogo.sketch.core.resource.descriptor.SamplerWrap;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.module.transform.TransformModule;
@@ -21,13 +25,43 @@ import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.resource.BuildInRTTexture;
 import rogo.sketch.vanilla.resource.BuildInRenderTarget;
 
+import java.util.List;
+import java.util.Set;
+
 public class VanillaModuleRuntime implements ModuleRuntime {
     public static final BuildInRTTexture MAIN_COLOR = new BuildInRTTexture(
-            () -> Minecraft.getInstance().getMainRenderTarget(), GL11.GL_RGBA, false, GL11.GL_NEAREST, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE, GL12.GL_CLAMP_TO_EDGE);
+            KeyId.of("minecraft", "main_color"),
+            () -> Minecraft.getInstance().getMainRenderTarget(),
+            ImageFormat.RGBA8_UNORM,
+            Set.of(ImageUsage.SAMPLED, ImageUsage.COLOR_ATTACHMENT, ImageUsage.TRANSFER_SRC, ImageUsage.TRANSFER_DST),
+            false,
+            SamplerFilter.NEAREST,
+            SamplerFilter.NEAREST,
+            SamplerWrap.CLAMP_TO_EDGE,
+            SamplerWrap.CLAMP_TO_EDGE);
     public static final BuildInRTTexture MAIN_DEPTH = new BuildInRTTexture(
-            () -> Minecraft.getInstance().getMainRenderTarget(), GL11.GL_RGBA, true, GL11.GL_NEAREST, GL11.GL_NEAREST, GL12.GL_CLAMP_TO_EDGE, GL12.GL_CLAMP_TO_EDGE);
+            KeyId.of("minecraft", "main_depth"),
+            () -> Minecraft.getInstance().getMainRenderTarget(),
+            ImageFormat.D32_FLOAT,
+            Set.of(ImageUsage.SAMPLED, ImageUsage.DEPTH_ATTACHMENT, ImageUsage.TRANSFER_SRC, ImageUsage.TRANSFER_DST),
+            true,
+            SamplerFilter.NEAREST,
+            SamplerFilter.NEAREST,
+            SamplerWrap.CLAMP_TO_EDGE,
+            SamplerWrap.CLAMP_TO_EDGE);
     public static final BuildInRenderTarget MAIN_TARGET = new BuildInRenderTarget(
-            () -> Minecraft.getInstance().getMainRenderTarget().frameBufferId, KeyId.of("minecraft:main_target"));
+            () -> Minecraft.getInstance().getMainRenderTarget().frameBufferId,
+            KeyId.of("minecraft:main_target"),
+            new ResolvedRenderTargetSpec(
+                    KeyId.of("minecraft:main_target"),
+                    RenderTargetResolutionMode.SCREEN_SIZE,
+                    1,
+                    1,
+                    1.0f,
+                    1.0f,
+                    List.of(KeyId.of("minecraft", "main_color")),
+                    KeyId.of("minecraft", "main_depth"),
+                    null));
 
     @Override
     public String id() {
@@ -87,3 +121,4 @@ public class VanillaModuleRuntime implements ModuleRuntime {
         };
     }
 }
+

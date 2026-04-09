@@ -32,6 +32,8 @@ public final class VulkanBackendBootstrap implements BackendBootstrap {
                 artifacts.swapchainImageFormat,
                 artifacts.swapchainExtentWidth,
                 artifacts.swapchainExtentHeight,
-                artifacts.swapchainImages);
+                artifacts.swapchainImages,
+                artifacts.debugUtilsEnabled);
     }
 }
+

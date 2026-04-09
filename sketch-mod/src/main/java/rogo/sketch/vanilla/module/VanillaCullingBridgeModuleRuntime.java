@@ -10,8 +10,8 @@ import org.joml.*;
 import rogo.sketch.Config;
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.data.MeshIndexMode;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.Usage;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
@@ -25,6 +25,7 @@ import rogo.sketch.core.pipeline.module.session.ModuleSessionContext;
 import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.DefaultDataFormats;
@@ -235,7 +236,12 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
                         .addDynamic(rogo.sketch.core.api.model.DynamicTypeMesh.BASED_MESH, DefaultDataFormats.POSITION)
                         .build();
                 rogo.sketch.core.pipeline.parmeter.RenderParameter renderParameter =
-                        RasterizationParameter.create(layout, PrimitiveType.QUADS, Usage.DYNAMIC_DRAW, false);
+                        RasterizationParameter.create(
+                                layout,
+                                PrimitiveType.QUADS,
+                                MeshIndexMode.GENERATED,
+                                BufferUpdatePolicy.DYNAMIC,
+                                false);
                 context.registerGraphics(MinecraftRenderStages.POST_PROGRESS.getIdentifier(),
                         new ChunkCullingTestGraphics(KeyId.of(SketchRender.MOD_ID, "culling_test_chunk_new")),
                         renderParameter, PipelineType.RASTERIZATION, ModuleGraphicsLifetime.SESSION);
@@ -249,3 +255,4 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
         };
     }
 }
+

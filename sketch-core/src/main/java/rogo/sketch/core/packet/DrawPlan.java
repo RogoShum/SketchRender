@@ -1,14 +1,15 @@
 package rogo.sketch.core.packet;
 
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.vertex.VertexDataShard;
+import rogo.sketch.core.packet.draw.IndexedDrawSlice;
 
 import java.util.List;
 
 public record DrawPlan(
         DrawSubmission submission,
         PrimitiveType primitiveType,
-        VertexDataShard indexedShard,
+        boolean indexed,
+        IndexedDrawSlice indexedSlice,
         int vertexCount,
         int firstVertex,
         int instanceCount,
@@ -29,12 +30,13 @@ public record DrawPlan(
         directItems = directItems != null ? List.copyOf(directItems) : List.of();
     }
 
-    public static DrawPlan directIndexed(PrimitiveType primitiveType, VertexDataShard indexedShard, int instanceCount, int baseInstance) {
-        DirectDrawItem item = DirectDrawItem.indexed(indexedShard, instanceCount, baseInstance);
+    public static DrawPlan directIndexed(PrimitiveType primitiveType, IndexedDrawSlice indexedSlice, int instanceCount, int baseInstance) {
+        DirectDrawItem item = DirectDrawItem.indexed(indexedSlice, instanceCount, baseInstance);
         return new DrawPlan(
                 DrawSubmission.DIRECT_INDEXED_INSTANCED,
                 primitiveType,
-                indexedShard,
+                true,
+                indexedSlice,
                 0,
                 0,
                 instanceCount,
@@ -50,6 +52,7 @@ public record DrawPlan(
         return new DrawPlan(
                 DrawSubmission.DIRECT_NON_INDEXED_INSTANCED,
                 primitiveType,
+                false,
                 null,
                 vertexCount,
                 firstVertex,
@@ -66,10 +69,11 @@ public record DrawPlan(
             throw new IllegalArgumentException("directItems must not be empty");
         }
         DirectDrawItem first = directItems.get(0);
-        return new DrawPlan(
+            return new DrawPlan(
                 DrawSubmission.DIRECT_BATCH,
                 primitiveType,
-                first.indexedShard(),
+                first.indexed(),
+                first.indexedSlice(),
                 first.vertexCount(),
                 first.firstVertex(),
                 first.instanceCount(),
@@ -82,12 +86,14 @@ public record DrawPlan(
 
     public static DrawPlan multiDrawIndirect(
             PrimitiveType primitiveType,
+            boolean indexed,
             int drawCount,
             long indirectOffset,
             int indirectStride) {
         return new DrawPlan(
                 DrawSubmission.MULTI_DRAW_INDIRECT,
                 primitiveType,
+                indexed,
                 null,
                 0,
                 0,
@@ -112,14 +118,14 @@ public record DrawPlan(
     }
 
     public record DirectDrawItem(
-            VertexDataShard indexedShard,
+            IndexedDrawSlice indexedSlice,
             int vertexCount,
             int firstVertex,
             int instanceCount,
             int baseInstance
     ) {
-        public static DirectDrawItem indexed(VertexDataShard indexedShard, int instanceCount, int baseInstance) {
-            return new DirectDrawItem(indexedShard, 0, 0, instanceCount, baseInstance);
+        public static DirectDrawItem indexed(IndexedDrawSlice indexedSlice, int instanceCount, int baseInstance) {
+            return new DirectDrawItem(indexedSlice, 0, 0, instanceCount, baseInstance);
         }
 
         public static DirectDrawItem nonIndexed(int vertexCount, int firstVertex, int instanceCount, int baseInstance) {
@@ -127,7 +133,8 @@ public record DrawPlan(
         }
 
         public boolean indexed() {
-            return indexedShard != null;
+            return indexedSlice != null;
         }
     }
 }
+

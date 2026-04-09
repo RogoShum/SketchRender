@@ -23,7 +23,7 @@ public record UniformGroupSet(
         return EMPTY;
     }
 
-    public static UniformGroupSet fromLegacy(UniformValueSnapshot snapshot) {
+    public static UniformGroupSet fromSnapshot(UniformValueSnapshot snapshot) {
         return new UniformGroupSet(
                 FrameUniformSet.empty(),
                 PassUniformSet.empty(),

@@ -1,6 +1,7 @@
 package rogo.sketch.core.pipeline.parmeter;
 
 import org.jetbrains.annotations.Nullable;
+import rogo.sketch.core.data.MeshIndexMode;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.format.VertexLayoutSpec;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
@@ -27,9 +28,15 @@ public abstract class RenderParameter {
         return this instanceof RasterizationParameter rp ? rp.primitiveType() : null;
     }
 
+    @Nullable
+    public MeshIndexMode indexMode() {
+        return this instanceof RasterizationParameter rp ? rp.indexMode() : null;
+    }
+
     @Override
     public abstract boolean equals(Object o);
 
     @Override
     public abstract int hashCode();
 }
+

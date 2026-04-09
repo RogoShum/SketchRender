@@ -1,139 +1,56 @@
 package rogo.sketch.core.resource.loader;
 
-import com.google.gson.Gson;
-import rogo.sketch.core.api.model.BakedTypeMesh;
+import rogo.sketch.core.data.MeshIndexMode;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.Usage;
-import rogo.sketch.core.data.builder.VertexStreamBuilder;
-import rogo.sketch.core.data.format.ComponentSpec;
-import rogo.sketch.core.data.format.DataFormat;
-import rogo.sketch.core.model.BakedMesh;
 import rogo.sketch.core.model.MeshGroup;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.resource.buffer.VertexBufferObject;
-import rogo.sketch.core.resource.buffer.VertexResource;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.DefaultDataFormats;
-import rogo.sketch.core.vertex.VertexResourceManager;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
-import java.util.function.Function;
+import java.util.Locale;
+import java.util.Map;
 
 /**
- * Simple Loader for OBJ files.
- * Supports vertices (v), texture coordinates (vt), normals (vn) and faces (f).
- * Assumes TRIANGLES primitive type and POS_UV_NORMAL format.
+ * Formal OBJ loader.
+ * <p>
+ * OBJ is parsed into canonical local-indexed submeshes and then compiled through the
+ * same canonical mesh path as JSON mesh resources.
  */
 public class ObjLoader implements ResourceLoader<MeshGroup> {
 
     @Override
     public MeshGroup load(ResourceLoadContext context) {
         BufferedReader reader = context.getReader();
-        if (reader == null)
+        if (reader == null) {
             return null;
+        }
 
         try (reader) {
-            List<Float> positions = new ArrayList<>();
-            List<Float> texCoords = new ArrayList<>();
-            List<Float> normals = new ArrayList<>();
-
-            List<Float> finalVertices = new ArrayList<>();
-
+            ObjParseState state = new ObjParseState(context.getResourceId());
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] tokens = line.trim().split("\\s+");
-                if (tokens.length == 0)
-                    continue;
-
-                switch (tokens[0]) {
-                    case "v" -> {
-                        positions.add(Float.parseFloat(tokens[1]));
-                        positions.add(Float.parseFloat(tokens[2]));
-                        positions.add(Float.parseFloat(tokens[3]));
-                    }
-                    case "vt" -> {
-                        texCoords.add(Float.parseFloat(tokens[1]));
-                        texCoords.add(Float.parseFloat(tokens[2]));
-                    }
-                    case "vn" -> {
-                        normals.add(Float.parseFloat(tokens[1]));
-                        normals.add(Float.parseFloat(tokens[2]));
-                        normals.add(Float.parseFloat(tokens[3]));
-                    }
-                    case "f" -> {
-                        // Fan triangulation for polygons > 3 vertices
-                        for (int i = 1; i < tokens.length - 1; i++) {
-                            processVertex(tokens[1], positions, texCoords, normals, finalVertices);
-                            processVertex(tokens[i], positions, texCoords, normals, finalVertices);
-                            processVertex(tokens[i + 1], positions, texCoords, normals, finalVertices);
-                        }
-                    }
-                }
+                parseLine(state, line);
             }
 
-            // Create MeshGroup
-            // Use POS_UV_NORMAL format (Position 3, UV 2, Normal 3)
-            DataFormat format = DefaultDataFormats.OBJ;
-            MeshGroup meshGroup = new MeshGroup(context.getResourceId().toString(), PrimitiveType.TRIANGLES, format);
-
-            // Create VertexResource
-            VertexResource resource = new VertexResource(
-                    PrimitiveType.TRIANGLES, false); // OBJ usually unindexed in this loader?
-
-            // Note: The loader implementation below generates unindexed triangles (f v1 v2
-            // v3 -> 3 vertices)
-            // But BakedMesh can work with unindexed too.
-
-            // Create VBO
-            VertexBufferObject vbo = new VertexBufferObject(Usage.STATIC_DRAW);
-            resource.attachVBO(ComponentSpec.immutable(BakedTypeMesh.BAKED_MESH, 0, format, false), vbo);
-
-            int vertexCount = finalVertices.size() / 8; // 3+2+3 = 8 floats per vertex
-
-            // Upload
-            VertexResourceManager vrm = VertexResourceManager
-                    .globalInstance();
-            VertexStreamBuilder builder = vrm.createBuilder(format, PrimitiveType.TRIANGLES, false);
-
-            // Fill
-            float[] vData = new float[finalVertices.size()];
-            for (int i = 0; i < finalVertices.size(); i++)
-                vData[i] = finalVertices.get(i);
-
-            int strideFloats = 8;
-            for (int i = 0; i < vertexCount; i++) {
-                int base = i * strideFloats;
-                builder.put(vData[base + 0]); // x
-                builder.put(vData[base + 1]); // y
-                builder.put(vData[base + 2]); // z
-                builder.put(vData[base + 3]); // u
-                builder.put(vData[base + 4]); // v
-                builder.put(vData[base + 5]); // nx
-                builder.put(vData[base + 6]); // ny
-                builder.put(vData[base + 7]); // nz
-            }
-
-            resource.upload(BakedTypeMesh.BAKED_MESH, builder);
-
-            // Create BakedMesh
-            BakedMesh bakedMesh = new BakedMesh(
-                    resource,
-                    KeyId.of("main"),
-                    0, // srcVertexOffset
-                    0, // srcIndexOffset
-                    vertexCount,
-                    0 // indexCount (unindexed)
-            );
-
-            meshGroup.addMesh(KeyId.of("main"), bakedMesh);
+            MeshGroup meshGroup = new MeshGroup(
+                    state.meshName(),
+                    PrimitiveType.TRIANGLES,
+                    DefaultDataFormats.OBJ);
+            CanonicalMeshCompiler.compile(
+                    context.getResourceId(),
+                    meshGroup,
+                    MeshIndexMode.EXPLICIT_LOCAL,
+                    state.buildCanonicalSubMeshes());
+            meshGroup.setMetadata("indexMode", MeshIndexMode.EXPLICIT_LOCAL.name().toLowerCase(Locale.ROOT));
+            meshGroup.setMetadata("sourceFormat", "obj");
             return meshGroup;
         } catch (Exception e) {
-            e.printStackTrace();
-            return null;
+            throw new IllegalArgumentException("Failed to parse OBJ mesh " + context.getResourceId(), e);
         }
     }
 
@@ -142,35 +59,264 @@ public class ObjLoader implements ResourceLoader<MeshGroup> {
         return ResourceTypes.MESH;
     }
 
-    private void processVertex(String token, List<Float> v, List<Float> vt, List<Float> vn, List<Float> output) {
-        String[] parts = token.split("/");
-
-        // Position
-        int idxV = Integer.parseInt(parts[0]) - 1;
-        output.add(v.get(idxV * 3));
-        output.add(v.get(idxV * 3 + 1));
-        output.add(v.get(idxV * 3 + 2));
-
-        // TexCoord
-        if (parts.length > 1 && !parts[1].isEmpty()) {
-            int idxVT = Integer.parseInt(parts[1]) - 1;
-            output.add(vt.get(idxVT * 2));
-            output.add(vt.get(idxVT * 2 + 1));
-        } else {
-            output.add(0f);
-            output.add(0f);
+    private void parseLine(ObjParseState state, String rawLine) throws IOException {
+        String line = stripComment(rawLine).trim();
+        if (line.isEmpty()) {
+            return;
         }
 
-        // Normal
-        if (parts.length > 2 && !parts[2].isEmpty()) {
-            int idxVN = Integer.parseInt(parts[2]) - 1;
-            output.add(vn.get(idxVN * 3));
-            output.add(vn.get(idxVN * 3 + 1));
-            output.add(vn.get(idxVN * 3 + 2));
-        } else {
-            output.add(0f);
-            output.add(1f);
-            output.add(0f);
+        String[] tokens = line.split("\\s+");
+        if (tokens.length == 0) {
+            return;
+        }
+
+        switch (tokens[0]) {
+            case "v" -> state.addPosition(parseFloat(tokens, 1), parseFloat(tokens, 2), parseFloat(tokens, 3));
+            case "vt" -> state.addTexCoord(parseFloat(tokens, 1), parseFloat(tokens, 2));
+            case "vn" -> state.addNormal(parseFloat(tokens, 1), parseFloat(tokens, 2), parseFloat(tokens, 3));
+            case "o" -> state.setObjectName(joinTokens(tokens, 1));
+            case "g" -> state.setGroupName(joinTokens(tokens, 1));
+            case "usemtl" -> state.setMaterialName(joinTokens(tokens, 1));
+            case "f" -> parseFace(state, tokens);
+            default -> {
+                // Ignore unsupported directives for now. OBJ support is intentionally scoped.
+            }
+        }
+    }
+
+    private void parseFace(ObjParseState state, String[] tokens) throws IOException {
+        if (tokens.length < 4) {
+            throw new IOException("OBJ face requires at least three vertices");
+        }
+        FaceVertex[] face = new FaceVertex[tokens.length - 1];
+        for (int i = 1; i < tokens.length; i++) {
+            face[i - 1] = FaceVertex.parse(tokens[i], state);
+        }
+        for (int i = 1; i < face.length - 1; i++) {
+            state.currentSubMesh().addTriangle(face[0], face[i], face[i + 1], state);
+        }
+    }
+
+    private float parseFloat(String[] tokens, int index) throws IOException {
+        if (index >= tokens.length) {
+            throw new IOException("OBJ directive missing numeric component");
+        }
+        return Float.parseFloat(tokens[index]);
+    }
+
+    private String stripComment(String line) {
+        int commentIndex = line.indexOf('#');
+        return commentIndex >= 0 ? line.substring(0, commentIndex) : line;
+    }
+
+    private String joinTokens(String[] tokens, int startInclusive) {
+        if (startInclusive >= tokens.length) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = startInclusive; i < tokens.length; i++) {
+            if (i > startInclusive) {
+                builder.append('_');
+            }
+            builder.append(tokens[i]);
+        }
+        return builder.toString();
+    }
+
+    private record FaceVertex(int positionIndex, int texCoordIndex, int normalIndex) {
+        private static FaceVertex parse(String token, ObjParseState state) throws IOException {
+            String[] parts = token.split("/", -1);
+            int positionIndex = resolveObjIndex(parts, 0, state.positionCount(), "position");
+            int texCoordIndex = resolveObjIndex(parts, 1, state.texCoordCount(), "texCoord");
+            int normalIndex = resolveObjIndex(parts, 2, state.normalCount(), "normal");
+            return new FaceVertex(positionIndex, texCoordIndex, normalIndex);
+        }
+
+        private static int resolveObjIndex(String[] parts, int partIndex, int currentCount, String label) throws IOException {
+            if (partIndex >= parts.length || parts[partIndex].isEmpty()) {
+                return -1;
+            }
+            int raw = Integer.parseInt(parts[partIndex]);
+            int resolved = raw > 0 ? raw - 1 : currentCount + raw;
+            if (resolved < 0 || resolved >= currentCount) {
+                throw new IOException("OBJ " + label + " index out of range: " + raw);
+            }
+            return resolved;
+        }
+    }
+
+    private static final class ObjParseState {
+        private final KeyId resourceId;
+        private final List<float[]> positions = new ArrayList<>();
+        private final List<float[]> texCoords = new ArrayList<>();
+        private final List<float[]> normals = new ArrayList<>();
+        private final Map<String, ObjSubMesh> subMeshes = new LinkedHashMap<>();
+        private String objectName = "main";
+        private String groupName = "main";
+        private String materialName = "default";
+
+        private ObjParseState(KeyId resourceId) {
+            this.resourceId = resourceId;
+        }
+
+        private void addPosition(float x, float y, float z) {
+            positions.add(new float[]{x, y, z});
+        }
+
+        private void addTexCoord(float u, float v) {
+            texCoords.add(new float[]{u, v});
+        }
+
+        private void addNormal(float x, float y, float z) {
+            normals.add(new float[]{x, y, z});
+        }
+
+        private void setObjectName(String objectName) {
+            if (!objectName.isBlank()) {
+                this.objectName = sanitize(objectName);
+            }
+        }
+
+        private void setGroupName(String groupName) {
+            if (!groupName.isBlank()) {
+                this.groupName = sanitize(groupName);
+            }
+        }
+
+        private void setMaterialName(String materialName) {
+            this.materialName = materialName == null || materialName.isBlank()
+                    ? "default"
+                    : sanitize(materialName);
+        }
+
+        private ObjSubMesh currentSubMesh() {
+            String key = objectName + "__" + groupName + "__" + materialName;
+            return subMeshes.computeIfAbsent(key, ignored -> new ObjSubMesh(key, materialName));
+        }
+
+        private int positionCount() {
+            return positions.size();
+        }
+
+        private int texCoordCount() {
+            return texCoords.size();
+        }
+
+        private int normalCount() {
+            return normals.size();
+        }
+
+        private float[] position(int index) {
+            return positions.get(index);
+        }
+
+        private float[] texCoord(int index) {
+            return index >= 0 ? texCoords.get(index) : null;
+        }
+
+        private float[] normal(int index) {
+            return index >= 0 ? normals.get(index) : null;
+        }
+
+        private String meshName() {
+            return resourceId.toString();
+        }
+
+        private List<CanonicalMeshCompiler.CanonicalSubMesh> buildCanonicalSubMeshes() {
+            if (subMeshes.isEmpty()) {
+                throw new IllegalArgumentException("OBJ mesh " + resourceId + " produced no submeshes");
+            }
+            List<CanonicalMeshCompiler.CanonicalSubMesh> result = new ArrayList<>(subMeshes.size());
+            for (ObjSubMesh subMesh : subMeshes.values()) {
+                Map<String, Object> metadata = new LinkedHashMap<>();
+                if (!subMesh.materialName().isBlank()) {
+                    metadata.put("material", subMesh.materialName());
+                }
+                result.add(new CanonicalMeshCompiler.CanonicalSubMesh(
+                        subMesh.name(),
+                        subMesh.vertices(),
+                        subMesh.indices(),
+                        metadata));
+            }
+            return result;
+        }
+
+        private static String sanitize(String raw) {
+            String lowered = raw.toLowerCase(Locale.ROOT);
+            StringBuilder builder = new StringBuilder(lowered.length());
+            for (int i = 0; i < lowered.length(); i++) {
+                char c = lowered.charAt(i);
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == ':' || c == '/' || c == '-') {
+                    builder.append(c);
+                } else {
+                    builder.append('_');
+                }
+            }
+            return builder.toString();
+        }
+    }
+
+    private record VertexTuple(int positionIndex, int texCoordIndex, int normalIndex) {
+    }
+
+    private static final class ObjSubMesh {
+        private final String name;
+        private final String materialName;
+        private final Map<VertexTuple, Integer> vertexLookup = new LinkedHashMap<>();
+        private final List<Float> vertices = new ArrayList<>();
+        private final List<Integer> indices = new ArrayList<>();
+
+        private ObjSubMesh(String name, String materialName) {
+            this.name = name;
+            this.materialName = materialName;
+        }
+
+        private void addTriangle(FaceVertex a, FaceVertex b, FaceVertex c, ObjParseState state) {
+            indices.add(resolveVertex(a, state));
+            indices.add(resolveVertex(b, state));
+            indices.add(resolveVertex(c, state));
+        }
+
+        private int resolveVertex(FaceVertex faceVertex, ObjParseState state) {
+            VertexTuple key = new VertexTuple(faceVertex.positionIndex(), faceVertex.texCoordIndex(), faceVertex.normalIndex());
+            Integer existing = vertexLookup.get(key);
+            if (existing != null) {
+                return existing;
+            }
+
+            int newIndex = vertexLookup.size();
+            vertexLookup.put(key, newIndex);
+
+            float[] position = state.position(faceVertex.positionIndex());
+            float[] texCoord = state.texCoord(faceVertex.texCoordIndex());
+            float[] normal = state.normal(faceVertex.normalIndex());
+
+            vertices.add(position[0]);
+            vertices.add(position[1]);
+            vertices.add(position[2]);
+            vertices.add(texCoord != null ? texCoord[0] : 0.0f);
+            vertices.add(texCoord != null ? texCoord[1] : 0.0f);
+            vertices.add(normal != null ? normal[0] : 0.0f);
+            vertices.add(normal != null ? normal[1] : 1.0f);
+            vertices.add(normal != null ? normal[2] : 0.0f);
+            return newIndex;
+        }
+
+        private String name() {
+            return name;
+        }
+
+        private String materialName() {
+            return materialName;
+        }
+
+        private List<Float> vertices() {
+            return vertices;
+        }
+
+        private List<Integer> indices() {
+            return indices;
         }
     }
 }
+

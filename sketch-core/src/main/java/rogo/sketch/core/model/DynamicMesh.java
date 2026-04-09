@@ -2,8 +2,8 @@ package rogo.sketch.core.model;
 
 import rogo.sketch.core.api.model.DynamicTypeMesh;
 import rogo.sketch.core.data.PrimitiveType;
-import rogo.sketch.core.data.builder.VertexStreamBuilder;
-import rogo.sketch.core.data.format.DataFormat;
+import rogo.sketch.core.data.builder.VertexRecordWriter;
+import rogo.sketch.core.data.layout.StructLayout;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.function.Consumer;
@@ -12,15 +12,15 @@ import java.util.function.Consumer;
  * Implementation of a dynamic mesh that generates data on demand via a consumer.
  */
 public class DynamicMesh implements DynamicTypeMesh {
-    private final DataFormat format;
+    private final StructLayout format;
     private final PrimitiveType primitiveType;
     private final int vertexCount;
     private final int indexCount;
-    private final Consumer<VertexStreamBuilder> generator;
+    private final Consumer<VertexRecordWriter> generator;
     private final KeyId id;
     private int[] indices;
 
-    public DynamicMesh(KeyId id, DataFormat format, PrimitiveType primitiveType, int vertexCount, int indexCount, Consumer<VertexStreamBuilder> generator) {
+    public DynamicMesh(KeyId id, StructLayout format, PrimitiveType primitiveType, int vertexCount, int indexCount, Consumer<VertexRecordWriter> generator) {
         this.format = format;
         this.primitiveType = primitiveType;
         this.vertexCount = vertexCount;
@@ -48,7 +48,7 @@ public class DynamicMesh implements DynamicTypeMesh {
     }
 
     @Override
-    public DataFormat getVertexFormat() {
+    public StructLayout getVertexFormat() {
         return format;
     }
 
@@ -72,7 +72,8 @@ public class DynamicMesh implements DynamicTypeMesh {
         return 0;
     }
 
-    public Consumer<VertexStreamBuilder> generator() {
+    public Consumer<VertexRecordWriter> generator() {
         return generator;
     }
 }
+

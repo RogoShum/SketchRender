@@ -17,7 +17,6 @@ import java.util.Map;
  * </p>
  *
  * @param frameNumber      the frame this was built for
- * @param packets          the built render packets grouped by pipeline type and compiled pipeline state
  * @param postProcessors   post-processors that may need sync execution
  * @param uploadsCompleted true if the worker thread already performed VBO uploads
  */

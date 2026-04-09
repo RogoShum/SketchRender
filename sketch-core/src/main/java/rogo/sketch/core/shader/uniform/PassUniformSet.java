@@ -1,10 +1,10 @@
 package rogo.sketch.core.shader.uniform;
 
-public record PassUniformSet(UniformValueSnapshot legacySnapshot) {
+public record PassUniformSet(UniformValueSnapshot snapshot) {
     private static final PassUniformSet EMPTY = new PassUniformSet(UniformValueSnapshot.empty());
 
     public PassUniformSet {
-        legacySnapshot = legacySnapshot != null ? legacySnapshot : UniformValueSnapshot.empty();
+        snapshot = snapshot != null ? snapshot : UniformValueSnapshot.empty();
     }
 
     public static PassUniformSet empty() {
@@ -12,6 +12,6 @@ public record PassUniformSet(UniformValueSnapshot legacySnapshot) {
     }
 
     public boolean isEmpty() {
-        return legacySnapshot.isEmpty();
+        return snapshot.isEmpty();
     }
 }

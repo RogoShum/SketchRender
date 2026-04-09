@@ -1,8 +1,11 @@
 package rogo.sketch.core.pipeline;
 
 import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.RenderHelper;
+import rogo.sketch.core.packet.GeometryHandleKey;
+import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.packet.RenderPacketQueue;
 import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
@@ -13,7 +16,14 @@ import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticEntry;
 import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceConfig;
 import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceRecorder;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
+import rogo.sketch.core.pipeline.flow.RenderFlowType;
+import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
+import rogo.sketch.core.pipeline.flow.impl.RasterizationPostProcessor;
+import rogo.sketch.core.pipeline.flow.v2.ComputeStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.FunctionStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.RasterStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.StageFlowScene;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.module.metric.MetricSnapshot;
 import rogo.sketch.core.pipeline.module.PipelineModule;
@@ -22,27 +32,37 @@ import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
 import rogo.sketch.core.pipeline.parmeter.FunctionParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pool.InstancePoolManager;
+import rogo.sketch.core.resource.GraphicsResourceManager;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.util.OrderedList;
 import rogo.sketch.core.util.RenderTargetUtil;
-import rogo.sketch.core.vertex.VertexResourceManager;
+import rogo.sketch.core.pipeline.data.FrameDataDomain;
+import rogo.sketch.core.pipeline.data.GeometryFrameData;
+import rogo.sketch.core.vertex.GeometryResourceCoordinator;
+import rogo.sketch.core.instance.DrawCallGraphics;
+import rogo.sketch.core.instance.FunctionGraphics;
 
 import java.util.*;
 import java.util.function.Supplier;
 
 public class GraphicsPipeline<C extends RenderContext> {
+    private static final KeyId IMMEDIATE_STAGE_ID = KeyId.of("sketch_render", "immediate");
+
     private final OrderedList<GraphicsStage> stages;
     private final Map<GraphicsStage, GraphicsBatchGroup<C>> passMap = new LinkedHashMap<>();
     private final Map<KeyId, GraphicsStage> idToStage = new LinkedHashMap<>();
+    private final Set<Graphics> auxiliaryGraphics = Collections.newSetFromMap(new IdentityHashMap<>());
     private final RenderStateManager renderStateManager = new RenderStateManager();
     private final InstancePoolManager poolManager = InstancePoolManager.getInstance();
     private final RenderPacketQueue<C> renderPacketQueue;
-    private final RenderHelper renderHelper;
     private final Map<KeyId, PipelineType> pipelineTypes = new HashMap<>();
-    private final Map<PipelineType, VertexResourceManager> resourceManagers = new LinkedHashMap<>();
+    private final Map<PipelineType, GeometryResourceCoordinator> resourceManagers = new LinkedHashMap<>();
     private final Map<PipelineType, FrameDataStore> frameDataStores = new LinkedHashMap<>();
     private final RenderTraceConfig renderTraceConfig = new RenderTraceConfig();
     private final RenderTraceRecorder renderTraceRecorder = new RenderTraceRecorder(renderTraceConfig);
+    private final Map<KeyId, FunctionGraphics> installedFunctionResources = new LinkedHashMap<>();
+    private final Map<KeyId, DrawCallGraphics> installedDrawCallResources = new LinkedHashMap<>();
 
     private final PipelineConfig config;
     private C currentContext;
@@ -62,7 +82,6 @@ public class GraphicsPipeline<C extends RenderContext> {
         this.currentContext = defaultContext;
         initPipelineData();
         this.renderPacketQueue = new RenderPacketQueue<>(this);
-        this.renderHelper = new RenderHelper(this);
     }
 
     private void initPipelineData() {
@@ -75,7 +94,7 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     private void initializePipeline(PipelineType pipelineType) {
         pipelineTypes.put(pipelineType.getIdentifier(), pipelineType);
-        VertexResourceManager manager = new VertexResourceManager();
+        GeometryResourceCoordinator manager = new GeometryResourceCoordinator();
         PipelineDataStore renderStore = new PipelineDataStore();
         PipelineDataStore asyncStore = new PipelineDataStore();
 
@@ -91,6 +110,7 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     private void registerDefaultPipelineData(PipelineDataStore dataStore) {
         dataStore.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
+        dataStore.register(IndirectPlanData.KEY, new IndirectPlanData());
         dataStore.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
         dataStore.register(GeometryFrameData.KEY, new GeometryFrameData());
     }
@@ -157,6 +177,63 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     /**
+     * Attach auxiliary graphics that should participate in module/session
+     * lifecycle without entering any stage flow or packet compilation path.
+     */
+    public void attachAuxiliaryGraphics(Graphics graphics) {
+        if (graphics == null) {
+            return;
+        }
+        auxiliaryGraphics.add(graphics);
+        if (kernel != null && kernel.moduleRegistry().isInitialized()) {
+            kernel.moduleRegistry().onGraphicsAdded(graphics, null, null);
+        }
+    }
+
+    public void renderImmediate(Graphics instance, RenderParameter renderParameter) {
+        if (instance == null || renderParameter == null || renderParameter.isInvalid()) {
+            return;
+        }
+
+        C context = currentContext;
+        if (context == null) {
+            return;
+        }
+
+        PipelineType pipelineType = pipelineTypeFor(renderParameter.getFlowType());
+        StageFlowScene<C> immediateScene = createImmediateStageScene(pipelineType);
+        RenderPostProcessors postProcessors = new RenderPostProcessors();
+        if (pipelineType == PipelineType.RASTERIZATION || pipelineType == PipelineType.TRANSLUCENT) {
+            postProcessors.register(RenderFlowType.RASTERIZATION, new RasterizationPostProcessor());
+        }
+
+        try {
+            immediateScene.registerGraphicsInstance(instance, renderParameter, DefaultBatchContainers.DEFAULT, null);
+            immediateScene.prepareForFrame();
+
+            Map<PipelineStateKey, List<RenderPacket>> packets = immediateScene.createRenderPackets(
+                    IMMEDIATE_STAGE_ID,
+                    pipelineType.getDefaultFlowType(),
+                    postProcessors,
+                    context);
+            if (packets.isEmpty()) {
+                return;
+            }
+
+            GraphicsDriver.runtime().installImmediateGeometryBindings(this, pipelineType, postProcessors);
+            postProcessors.executeAllExcept(RenderFlowType.RASTERIZATION);
+
+            for (List<RenderPacket> statePackets : packets.values()) {
+                for (RenderPacket packet : statePackets) {
+                    renderPacketQueue.executeImmediate(packet, renderStateManager, context);
+                }
+            }
+        } finally {
+            immediateScene.clear();
+        }
+    }
+
+    /**
      * Add a GraphInstance to a specific stage with default rasterization pipeline.
      */
     public void addGraphInstance(KeyId stageId, Graphics graph, RenderParameter renderParameter) {
@@ -198,7 +275,14 @@ public class GraphicsPipeline<C extends RenderContext> {
             if (kernel != null && kernel.moduleRegistry().isInitialized()) {
                 kernel.moduleRegistry().onGraphicsAdded(graph, renderParameter, containerType);
             }
+            return;
         }
+
+        SketchDiagnostics.get().warn(
+                "graphics-pipeline",
+                "Failed to register graphics "
+                        + (graph != null ? graph.getIdentifier() : "<null>")
+                        + " because stage " + stageId + " is not registered");
     }
 
     /**
@@ -206,29 +290,29 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Only renders the stages strictly between fromId and toId.
      */
     public void renderStagesBetween(KeyId fromId, KeyId toId) {
-        renderStageRange(fromId, toId);
+        renderOrderedStages(collectStageIdsBetweenExclusiveInclusive(fromId, toId), "between");
     }
 
     /**
      * Render the inclusive range {@code (fromExclusive, toInclusive]} as a single execution scope.
      */
     public void renderStageRange(KeyId fromExclusive, KeyId toInclusive) {
-        renderOrderedStages(collectStageIdsBetweenExclusiveInclusive(fromExclusive, toInclusive));
+        renderOrderedStages(collectStageIdsBetweenExclusiveInclusive(fromExclusive, toInclusive), "range");
     }
 
     /**
      * Render a single stage.
      */
     public void renderStage(KeyId id) {
-        renderOrderedStages(List.of(id));
+        renderOrderedStages(List.of(id), "single");
     }
 
     public void renderStagesBefore(KeyId id) {
-        renderOrderedStages(collectStageIdsBeforeInclusive(id));
+        renderOrderedStages(collectStageIdsBeforeInclusive(id), "before");
     }
 
     public void renderStagesAfter(KeyId id) {
-        renderOrderedStages(collectStageIdsAfterInclusive(id));
+        renderOrderedStages(collectStageIdsAfterInclusive(id), "after");
     }
 
     public void resetRenderContext(C context) {
@@ -366,9 +450,16 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public void onResourceReload() {
+        installPipelineResources();
         if (kernel != null && kernel.moduleRegistry().isInitialized()) {
             kernel.moduleRegistry().onResourceReload();
         }
+    }
+
+    public void installPipelineResources() {
+        clearInstalledPipelineResources();
+        installFunctionResources();
+        installDrawCallResources();
     }
 
     public void shutdown() {
@@ -422,10 +513,6 @@ public class GraphicsPipeline<C extends RenderContext> {
         return renderStateManager;
     }
 
-    public RenderHelper renderHelper() {
-        return renderHelper;
-    }
-
     public C currentContext() {
         return currentContext;
     }
@@ -454,7 +541,7 @@ public class GraphicsPipeline<C extends RenderContext> {
         return frameDataStore.buffer(domain);
     }
 
-    public VertexResourceManager getVertexResourceManager(PipelineType pipelineType) {
+    public GeometryResourceCoordinator getGeometryResourceCoordinator(PipelineType pipelineType) {
         return resourceManagers.computeIfAbsent(pipelineType, pt -> {
             initializePipeline(pt);
             return resourceManagers.get(pt);
@@ -514,10 +601,8 @@ public class GraphicsPipeline<C extends RenderContext> {
         return frameDataStores.get(pipelineType);
     }
 
-    public void materializePendingVertexResources() {
-        for (VertexResourceManager manager : resourceManagers.values()) {
-            manager.materializePending();
-        }
+    public void materializePendingGeometryBindings() {
+        GraphicsDriver.runtime().materializePendingGeometryResources(this);
     }
 
     /**
@@ -581,14 +666,15 @@ public class GraphicsPipeline<C extends RenderContext> {
         if (graphics == null) {
             return;
         }
+        boolean auxiliaryRemoved = auxiliaryGraphics.remove(graphics);
         for (GraphicsBatchGroup<C> group : passMap.values()) {
             group.removeGraphicsInstance(graphics);
         }
         notifyGraphicsRemoved(graphics);
     }
 
-    private void renderOrderedStages(List<KeyId> stageIds) {
-        renderPacketQueue.executeStageRange(stageIds, this.renderStateManager, this.currentContext);
+    private void renderOrderedStages(List<KeyId> stageIds, String scopeLabel) {
+        renderPacketQueue.executeStageRange(stageIds, this.renderStateManager, this.currentContext, scopeLabel);
     }
 
     private List<KeyId> collectStageIdsBetweenExclusiveInclusive(KeyId fromExclusive, KeyId toInclusive) {
@@ -645,4 +731,79 @@ public class GraphicsPipeline<C extends RenderContext> {
         return stage != null ? ordered.indexOf(stage) : -1;
     }
 
+    private StageFlowScene<C> createImmediateStageScene(PipelineType pipelineType) {
+        GeometryResourceCoordinator resourceManager = getGeometryResourceCoordinator(pipelineType);
+        if (pipelineType == PipelineType.RASTERIZATION || pipelineType == PipelineType.TRANSLUCENT) {
+            return new RasterStageFlowScene<>(
+                    IMMEDIATE_STAGE_ID,
+                    pipelineType,
+                    resourceManager,
+                    () -> getPipelineDataStore(pipelineType, FrameDataDomain.SYNC_READ),
+                    renderTraceRecorder);
+        }
+        if (pipelineType == PipelineType.COMPUTE) {
+            return new ComputeStageFlowScene<>(pipelineType);
+        }
+        if (pipelineType == PipelineType.FUNCTION) {
+            return new FunctionStageFlowScene<>(pipelineType);
+        }
+        throw new IllegalArgumentException("Unsupported immediate pipeline type: " + pipelineType);
+    }
+
+    private PipelineType pipelineTypeFor(RenderFlowType flowType) {
+        if (RenderFlowType.COMPUTE.equals(flowType)) {
+            return PipelineType.COMPUTE;
+        }
+        if (RenderFlowType.FUNCTION.equals(flowType)) {
+            return PipelineType.FUNCTION;
+        }
+        return PipelineType.RASTERIZATION;
+    }
+
+    private void clearInstalledPipelineResources() {
+        for (FunctionGraphics graphics : installedFunctionResources.values()) {
+            removeGraphInstance(graphics);
+        }
+        installedFunctionResources.clear();
+        for (DrawCallGraphics graphics : installedDrawCallResources.values()) {
+            removeGraphInstance(graphics);
+        }
+        installedDrawCallResources.clear();
+    }
+
+    private void installFunctionResources() {
+        Map<KeyId, FunctionGraphics> resources = GraphicsResourceManager.getInstance().getResourcesOfType(ResourceTypes.FUNCTION);
+        if (resources.isEmpty()) {
+            return;
+        }
+        List<Map.Entry<KeyId, FunctionGraphics>> orderedEntries = new ArrayList<>(resources.entrySet());
+        orderedEntries.sort(Map.Entry.comparingByKey());
+        for (Map.Entry<KeyId, FunctionGraphics> entry : orderedEntries) {
+            FunctionGraphics graphics = entry.getValue();
+            if (graphics == null || graphics.stageId() == null) {
+                continue;
+            }
+            addFunction(graphics.stageId(), graphics);
+            installedFunctionResources.put(entry.getKey(), graphics);
+        }
+    }
+
+    private void installDrawCallResources() {
+        Map<KeyId, DrawCallGraphics> resources = GraphicsResourceManager.getInstance().getResourcesOfType(ResourceTypes.DRAW_CALL);
+        if (resources.isEmpty()) {
+            return;
+        }
+        List<Map.Entry<KeyId, DrawCallGraphics>> orderedEntries = new ArrayList<>(resources.entrySet());
+        orderedEntries.sort(Map.Entry.comparingByKey());
+        for (Map.Entry<KeyId, DrawCallGraphics> entry : orderedEntries) {
+            DrawCallGraphics graphics = entry.getValue();
+            if (graphics == null || graphics.stageId() == null || graphics.renderParameter() == null) {
+                continue;
+            }
+            addGraphInstance(graphics.stageId(), graphics, graphics.renderParameter(), PipelineType.RASTERIZATION);
+            installedDrawCallResources.put(entry.getKey(), graphics);
+        }
+    }
+
 }
+

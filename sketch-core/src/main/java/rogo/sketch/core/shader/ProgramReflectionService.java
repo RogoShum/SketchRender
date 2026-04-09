@@ -1,7 +1,6 @@
 package rogo.sketch.core.shader;
 
 import rogo.sketch.core.api.ShaderResource;
-import rogo.sketch.core.shader.uniform.ShaderUniform;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.util.KeyId;
 
@@ -11,7 +10,7 @@ import java.util.Map;
 public interface ProgramReflectionService {
     ProgramReflectionService NO_OP = new ProgramReflectionService() {
         @Override
-        public Map<String, ShaderUniform<?>> collectUniforms(int program) {
+        public Map<String, ShaderResource<?>> collectUniforms(int program) {
             return Collections.emptyMap();
         }
 
@@ -26,7 +25,7 @@ public interface ProgramReflectionService {
         }
     };
 
-    Map<String, ShaderUniform<?>> collectUniforms(int program);
+    Map<String, ShaderResource<?>> collectUniforms(int program);
 
     Map<KeyId, Map<KeyId, Integer>> discoverResourceBindings(int program);
 

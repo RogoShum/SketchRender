@@ -14,13 +14,14 @@ public class RenderStateBuilder {
         return this;
     }
 
-    public FullRenderState build() {
+    public RenderStatePatch build() {
         for (KeyId type : components.keySet()) {
             if (!DefaultRenderStates.isRegistered(type)) {
                 throw new IllegalStateException("RenderStateComponent type not registered: " + type.getName());
             }
         }
 
-        return DefaultRenderStates.createFullRenderState(components);
+        return DefaultRenderStates.createPatch(components);
     }
 }
+

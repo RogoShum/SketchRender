@@ -2,10 +2,7 @@ package rogo.sketch.core.pipeline.graph.pass;
 
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.*;
-import rogo.sketch.core.pipeline.flow.RenderFlowRegistry;
-import rogo.sketch.core.pipeline.flow.RenderFlowStrategy;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
-import rogo.sketch.core.pipeline.flow.RenderPostProcessor;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.flow.impl.RasterizationPostProcessor;
 import rogo.sketch.core.pipeline.graph.PipelinePass;
@@ -49,12 +46,7 @@ public class AsyncRenderPass<C extends RenderContext> implements PipelinePass<C>
 
         // Create post-processors
         RenderPostProcessors postProcessors = new RenderPostProcessors();
-        for (RenderFlowStrategy strategy : RenderFlowRegistry.getInstance().getAllStrategies()) {
-            RenderPostProcessor processor = strategy.createPostProcessor();
-            if (processor != null) {
-                postProcessors.register(strategy.getFlowType(), processor);
-            }
-        }
+        postProcessors.register(RenderFlowType.RASTERIZATION, new RasterizationPostProcessor());
 
         // Build packets from all stages
         Map<KeyId, StageExecutionPlan> stagePlans = new LinkedHashMap<>();
@@ -79,8 +71,13 @@ public class AsyncRenderPass<C extends RenderContext> implements PipelinePass<C>
 
         boolean uploadsCompleted = false;
         if (GraphicsDriver.capabilities().uploadWorkerSupported()) {
-            postProcessors.executeAll();
-            uploadsCompleted = true;
+            if (GraphicsDriver.runtime().supportsGeometryMaterialization()) {
+                // Keep OpenGL raster geometry materialization/upload in the sync/runtime seam.
+                postProcessors.executeAllExcept(RenderFlowType.RASTERIZATION);
+            } else {
+                postProcessors.executeAll();
+                uploadsCompleted = true;
+            }
         }
 
         // Publish result
@@ -92,4 +89,5 @@ public class AsyncRenderPass<C extends RenderContext> implements PipelinePass<C>
         ));
     }
 }
+
 

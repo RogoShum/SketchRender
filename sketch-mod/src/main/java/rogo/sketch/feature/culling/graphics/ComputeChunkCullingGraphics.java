@@ -5,7 +5,9 @@ import org.lwjgl.opengl.GL13;
 import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.core.instance.ComputeGraphics;
+import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
@@ -32,15 +34,6 @@ public class ComputeChunkCullingGraphics extends ComputeGraphics {
     }
 
     @Override
-    public PartialRenderSetting getPartialRenderSetting() {
-        if (cullingChunkSetting.isAvailable()) {
-            return cullingChunkSetting.get();
-        }
-
-        return null;
-    }
-
-    @Override
     public boolean shouldDiscard() {
         return false;
     }
@@ -49,4 +42,19 @@ public class ComputeChunkCullingGraphics extends ComputeGraphics {
     public boolean shouldRender() {
         return true;
     }
+
+    @Override
+    public long descriptorVersion() {
+        return partialDescriptorVersion(resolvePartialRenderSetting());
+    }
+
+    @Override
+    public CompiledRenderSetting buildRenderDescriptor(RenderParameter renderParameter) {
+        return compilePartialDescriptor(renderParameter, resolvePartialRenderSetting());
+    }
+
+    private PartialRenderSetting resolvePartialRenderSetting() {
+        return cullingChunkSetting.isAvailable() ? cullingChunkSetting.get() : PartialRenderSetting.EMPTY;
+    }
 }
+

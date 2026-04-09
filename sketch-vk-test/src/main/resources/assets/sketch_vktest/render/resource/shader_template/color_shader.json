@@ -1,0 +1,9 @@
+{
+  "vertex": "sketch_vktest:color_triangle.vsh",
+  "fragment": "sketch_vktest:color_triangle.fsh",
+  "attributes": [
+    "position",
+    "color",
+    "instanceOffset : ENABLE_INSTANCE_OFFSET"
+  ]
+}

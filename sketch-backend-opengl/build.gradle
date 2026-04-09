@@ -13,6 +13,7 @@ dependencies {
     implementation project(':sketch-core')
 
     compileOnly 'org.jetbrains:annotations:24.0.0'
+    compileOnly 'org.joml:joml:1.10.5'
 
     compileOnly platform("org.lwjgl:lwjgl-bom:3.3.3")
     compileOnly "org.lwjgl:lwjgl"
