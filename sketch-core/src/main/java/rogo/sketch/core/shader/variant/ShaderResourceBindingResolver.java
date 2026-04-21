@@ -8,6 +8,8 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,18 +59,27 @@ final class ShaderResourceBindingResolver {
 
         validateDeclaredBindings(declarationsByType, declaredBindings);
 
+        int nextGlobalBinding = 0;
+        HashSet<Integer> usedBindings = collectDeclaredBindingSlots(declaredBindings);
         for (Map.Entry<KeyId, LinkedHashSet<KeyId>> entry : declarationsByType.entrySet()) {
             KeyId resourceType = ResourceTypes.normalize(entry.getKey());
             Map<KeyId, Integer> typeBindings = new LinkedHashMap<>();
             Map<KeyId, Integer> declaredTypeBindings = declaredBindings != null
                     ? declaredBindings.get(resourceType)
                     : null;
-            int nextBinding = 0;
             for (KeyId bindingName : entry.getValue()) {
                 Integer declaredBinding = declaredTypeBindings != null ? declaredTypeBindings.get(bindingName) : null;
-                int binding = declaredBinding != null ? declaredBinding : nextBinding++;
+                int binding;
+                if (declaredBinding != null) {
+                    binding = declaredBinding;
+                } else {
+                    while (usedBindings.contains(nextGlobalBinding)) {
+                        nextGlobalBinding++;
+                    }
+                    binding = nextGlobalBinding++;
+                    usedBindings.add(binding);
+                }
                 typeBindings.put(bindingName, binding);
-                nextBinding = Math.max(nextBinding, binding + 1);
             }
             if (!typeBindings.isEmpty()) {
                 bindings.put(resourceType, typeBindings);
@@ -95,6 +106,24 @@ final class ShaderResourceBindingResolver {
     private static void validateDeclaredBindings(
             Map<KeyId, LinkedHashSet<KeyId>> declarationsByType,
             Map<KeyId, Map<KeyId, Integer>> declaredBindings) {
+        validateGlobalBindingUniqueness(declaredBindings);
+        boolean hasDeclarations = declarationsByType != null && !declarationsByType.isEmpty();
+        boolean hasDeclaredBindings = declaredBindings != null && !declaredBindings.isEmpty();
+        if (hasDeclarations && hasDeclaredBindings) {
+            for (Map.Entry<KeyId, LinkedHashSet<KeyId>> entry : declarationsByType.entrySet()) {
+                KeyId resourceType = ResourceTypes.normalize(entry.getKey());
+                Map<KeyId, Integer> declaredTypeBindings = declaredBindings.get(resourceType);
+                for (KeyId name : entry.getValue()) {
+                    if (declaredTypeBindings == null || !declaredTypeBindings.containsKey(name)) {
+                        throw new IllegalArgumentException(
+                                "Shader template declares " + resourceType
+                                        + " resource " + name
+                                        + " but resourceBindings is missing an entry for it");
+                    }
+                }
+            }
+            return;
+        }
         for (Map.Entry<KeyId, LinkedHashSet<KeyId>> entry : declarationsByType.entrySet()) {
             KeyId resourceType = ResourceTypes.normalize(entry.getKey());
             List<KeyId> names = List.copyOf(entry.getValue());
@@ -121,9 +150,52 @@ final class ShaderResourceBindingResolver {
         }
     }
 
+    private static void validateGlobalBindingUniqueness(Map<KeyId, Map<KeyId, Integer>> declaredBindings) {
+        if (declaredBindings == null || declaredBindings.isEmpty()) {
+            return;
+        }
+        Map<Integer, BindingKey> used = new HashMap<>();
+        for (Map.Entry<KeyId, Map<KeyId, Integer>> typeEntry : declaredBindings.entrySet()) {
+            KeyId resourceType = ResourceTypes.normalize(typeEntry.getKey());
+            Map<KeyId, Integer> typeBindings = typeEntry.getValue();
+            if (typeBindings == null) {
+                continue;
+            }
+            for (Map.Entry<KeyId, Integer> bindingEntry : typeBindings.entrySet()) {
+                Integer slot = bindingEntry.getValue();
+                if (slot == null || slot < 0) {
+                    throw new IllegalArgumentException("resourceBindings slot must be >= 0 for " + resourceType + "." + bindingEntry.getKey());
+                }
+                BindingKey previous = used.putIfAbsent(slot, new BindingKey(resourceType, bindingEntry.getKey()));
+                if (previous != null) {
+                    throw new IllegalArgumentException(
+                            "resourceBindings slot " + slot + " is reused by "
+                                    + previous.resourceType() + "." + previous.bindingName()
+                                    + " and " + resourceType + "." + bindingEntry.getKey());
+                }
+            }
+        }
+    }
+
+    private static HashSet<Integer> collectDeclaredBindingSlots(Map<KeyId, Map<KeyId, Integer>> declaredBindings) {
+        HashSet<Integer> used = new HashSet<>();
+        if (declaredBindings == null || declaredBindings.isEmpty()) {
+            return used;
+        }
+        for (Map<KeyId, Integer> typeBindings : declaredBindings.values()) {
+            if (typeBindings != null) {
+                used.addAll(typeBindings.values());
+            }
+        }
+        return used;
+    }
+
     private static String stripComments(String source) {
         String withoutBlocks = COMMENT_BLOCK.matcher(source).replaceAll("");
         return COMMENT_LINE.matcher(withoutBlocks).replaceAll("");
+    }
+
+    private record BindingKey(KeyId resourceType, KeyId bindingName) {
     }
 }
 

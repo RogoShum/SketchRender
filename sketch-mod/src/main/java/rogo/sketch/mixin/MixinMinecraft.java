@@ -7,7 +7,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketch.SketchRender;
-import rogo.sketch.feature.culling.CullingStateManager;
 import rogo.sketch.profiler.Profiler;
 import rogo.sketch.vanilla.McPipelineRegister;
 import rogo.sketch.vanilla.MinecraftRenderStages;
@@ -53,14 +52,13 @@ public class MixinMinecraft {
     @Inject(method = "setLevel", at = @At(value = "HEAD"))
     public void onJoinWorld(ClientLevel world, CallbackInfo ci) {
         if (Minecraft.getInstance().level != world) {
-            McPipelineRegister.leaveWorld();
+            McPipelineRegister.leaveWorld(Minecraft.getInstance().level);
         }
-        CullingStateManager.onWorldReload(world);
         SketchRender.getShaderManager().resetShader(Minecraft.getInstance().getResourceManager());
     }
 
     @Inject(method = "setLevel", at = @At(value = "RETURN"))
     public void onLeaveWorld(ClientLevel world, CallbackInfo ci) {
-        McPipelineRegister.enterWorld();
+        McPipelineRegister.enterWorld(world);
     }
 }

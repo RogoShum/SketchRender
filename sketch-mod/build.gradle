@@ -102,7 +102,7 @@ dependencies {
     implementation fg.deobf("maven.modrinth:l6YH9Als:4FXHDE9F")
 
     // JOML primitives for spatial data structures
-    minecraftLibrary ("org.joml:joml-primitives:1.10.0")
+    minecraftLibrary("org.joml:joml-primitives:1.10.0")
     implementation(jarJar("org.joml:joml-primitives:1.10.0")) {
         jarJar.ranged(it, "[1.10.0,)")
     }
@@ -110,13 +110,13 @@ dependencies {
     // Project dependencies
     implementation project(':sketch-core')
     implementation project(':sketch-backend-opengl')
-    
+
     // JarJar sketch-core so it's included in the final mod jar
     jarJar(project(':sketch-core')) {
-         jarJar.ranged(it, "[${mod_version},)")
+        jarJar.ranged(it, "[${mod_version},)")
     }
     jarJar(project(':sketch-backend-opengl')) {
-         jarJar.ranged(it, "[${mod_version},)")
+        jarJar.ranged(it, "[${mod_version},)")
     }
 }
 
@@ -190,15 +190,16 @@ tasks.register("runRenderDoc", Exec.class) {
             "-classpath",
             wrapperJar.absolutePath,
             "org.gradle.wrapper.GradleWrapperMain",
+            "-PsketchRenderDocCapture=true",
             "runClient"
 }
 
 gradle.taskGraph.whenReady {
     tasks.named("runClient", JavaExec).configure {
-        if (project.findProperty("enableRunClientDebug")?.toString()?.toBoolean()) {
-            def debugPort = project.findProperty("runClientDebugPort")?.toString() ?: "5005"
+        if (project.findProperty("sketchRenderDocCapture")?.toString()?.toBoolean()) {
             jvmArgs += [
-                    "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=${debugPort}"
+                    "-Dsketch.renderdoc.capture=true",
+                    "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"
             ]
         }
     }

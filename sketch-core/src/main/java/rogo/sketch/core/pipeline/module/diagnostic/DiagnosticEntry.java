@@ -10,6 +10,7 @@ public record DiagnosticEntry(
         String threadName,
         String message,
         String throwableType,
+        String stackPreview,
         String stackTrace,
         int repeatCount
 ) {

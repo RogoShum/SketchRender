@@ -13,7 +13,7 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.Level;
 import rogo.sketch.compat.sodium.api.CollectorAccessor;
 import rogo.sketch.compat.sodium.api.ResourceChecker;
-import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.feature.culling.MinecraftShaderCapabilityService;
 
 import java.util.*;
 import java.util.concurrent.Semaphore;
@@ -41,13 +41,11 @@ public class SodiumSectionAsyncUtil {
 
     public static void asyncSearchRebuildSection() {
         SHOULD_UPDATE.acquireUninterruptibly();
-        if (CullingStateManager.enabledShader() && SHADOW_VIEWPORT != null) {
+        if (MinecraftShaderCapabilityService.getInstance().enabledShader() && SHADOW_VIEWPORT != null) {
             ASYNC_FRAME++;
-            CullingStateManager.USE_OCCLUSION_CULLING = false;
             VisibleChunkCollector shadowCollector = new AsynchronousChunkCollector(ASYNC_FRAME);
             OCCLUSION_CULLER.findVisible(shadowCollector, SHADOW_VIEWPORT, SHADOW_SEARCH_DISTANCE, SHADOW_USE_OCCLUSION_CULLING, ASYNC_FRAME);
             SodiumSectionAsyncUtil.SHADOW_COLLECTOR = shadowCollector;
-            CullingStateManager.USE_OCCLUSION_CULLING = true;
         }
 
         if (VIEWPORT != null) {
@@ -58,7 +56,7 @@ public class SodiumSectionAsyncUtil {
             SodiumSectionAsyncUtil.COLLECTOR = collector;
             SodiumSectionAsyncUtil.VISIBLE_SECTIONS = SWAP_VISIBLE_SECTIONS;
 
-            MeshResource.QUEUE_UPDATE_COUNT++;
+            MeshResource.resourceSet().incrementQueueUpdateCount();
             Map<ChunkUpdateType, ArrayDeque<RenderSection>> rebuildList = SodiumSectionAsyncUtil.COLLECTOR.getRebuildLists();
             for (ArrayDeque<RenderSection> arrayDeque : rebuildList.values()) {
                 if (!arrayDeque.isEmpty()) {
@@ -75,7 +73,7 @@ public class SodiumSectionAsyncUtil {
     }
 
     public static void update(Viewport viewport, float searchDistance, boolean useOcclusionCulling) {
-        if (CullingStateManager.renderingShadowPass()) {
+        if (MinecraftShaderCapabilityService.getInstance().renderingShadowPass()) {
             SodiumSectionAsyncUtil.SHADOW_VIEWPORT = viewport;
             SodiumSectionAsyncUtil.SHADOW_SEARCH_DISTANCE = searchDistance;
             SodiumSectionAsyncUtil.SHADOW_USE_OCCLUSION_CULLING = useOcclusionCulling;

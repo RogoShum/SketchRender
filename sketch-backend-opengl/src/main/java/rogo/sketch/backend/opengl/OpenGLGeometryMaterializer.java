@@ -20,7 +20,7 @@ import rogo.sketch.core.data.MeshIndexMode;
 import rogo.sketch.core.data.builder.VertexRecordWriter;
 import rogo.sketch.core.data.format.ComponentSpec;
 import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
-import rogo.sketch.core.vertex.GeometryResourceCoordinator;
+import rogo.sketch.core.vertex.MeshResidencyPool;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -32,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 final class OpenGLGeometryMaterializer {
     private static final Map<Long, OpenGLGeometryBinding> sharedSourceBindings = new ConcurrentHashMap<>();
+    private static final Map<InstallBindingKey, Integer> installedGeometryVersions = new ConcurrentHashMap<>();
 
     private OpenGLGeometryMaterializer() {
     }
@@ -41,17 +42,17 @@ final class OpenGLGeometryMaterializer {
             return;
         }
         for (var pipelineType : pipeline.getPipelineTypes()) {
-            GeometryResourceCoordinator manager = pipeline.getGeometryResourceCoordinator(pipelineType);
-            for (GeometryResourceCoordinator.PendingGeometryBindingRequest request : manager.drainPendingMaterializationRequests()) {
-                if (request == null || request.key() == null || manager.getIfPresent(request.key()) != null) {
+            MeshResidencyPool residencyPool = pipeline.getMeshResidencyPool(pipelineType);
+            for (MeshResidencyPool.PendingResidencyRequest request : residencyPool.drainPendingMaterializationRequests()) {
+                if (request == null || request.vertexBufferKey() == null || residencyPool.getIfPresent(request.vertexBufferKey()) != null) {
                     continue;
                 }
                 OpenGLGeometryBinding sourceBinding = request.sourceProvider() instanceof OpenGLGeometryBinding openGLGeometryBinding
                         ? openGLGeometryBinding
                         : null;
-                OpenGLGeometryBinding geometryBinding = OpenGLGeometryBinding.materialize(request.key(), sourceBinding);
+                OpenGLGeometryBinding geometryBinding = OpenGLGeometryBinding.materialize(request.vertexBufferKey(), sourceBinding);
                 if (geometryBinding != null) {
-                    manager.registerInstalledBinding(request.key(), geometryBinding);
+                    residencyPool.registerInstalledBinding(request.vertexBufferKey(), geometryBinding);
                 }
             }
         }
@@ -75,13 +76,14 @@ final class OpenGLGeometryMaterializer {
             return;
         }
 
-        GeometryResourceCoordinator manager = pipeline.getGeometryResourceCoordinator(pipelineType);
         for (FrameExecutionPlan.GeometryUploadPlan geometryUploadPlan : rasterizationPostProcessor.geometryUploadPlans()) {
             if (geometryUploadPlan == null || geometryUploadPlan.geometryHandle() == null) {
                 continue;
             }
             try {
-                OpenGLGeometryBinding geometryBinding = resolveOrCreateBinding(manager, geometryUploadPlan);
+                OpenGLGeometryBinding geometryBinding = resolveOrCreateBinding(
+                        pipeline.getMeshResidencyPool(pipelineType),
+                        geometryUploadPlan);
                 if (geometryBinding == null) {
                     continue;
                 }
@@ -115,7 +117,7 @@ final class OpenGLGeometryMaterializer {
             return;
         }
 
-        Map<GeometryHandleKey, Set<PipelineType>> consumersByHandle = collectGeometryConsumers(executionPlan);
+        Map<GeometryHandleKey, Set<PipelineType>> consumersByHandle = executionPlan.geometryConsumers();
         for (FrameExecutionPlan.GeometryUploadPlan geometryUploadPlan : executionPlan.geometryUploadPlans()) {
             if (geometryUploadPlan == null || geometryUploadPlan.geometryHandle() == null) {
                 continue;
@@ -132,14 +134,21 @@ final class OpenGLGeometryMaterializer {
                     if (pipelineType != PipelineType.RASTERIZATION && pipelineType != PipelineType.TRANSLUCENT) {
                         continue;
                     }
-                    GeometryResourceCoordinator manager = pipeline.getGeometryResourceCoordinator(pipelineType);
-                    OpenGLGeometryBinding geometryBinding = resolveOrCreateBinding(manager, geometryUploadPlan);
+                    OpenGLGeometryBinding geometryBinding = resolveOrCreateBinding(
+                            pipeline.getMeshResidencyPool(pipelineType),
+                            geometryUploadPlan);
                     if (geometryBinding == null) {
                         continue;
                     }
+                    InstallBindingKey installBindingKey = new InstallBindingKey(pipelineType, geometryUploadPlan.geometryHandle());
+                    Integer installedVersion = installedGeometryVersions.get(installBindingKey);
+                    boolean versionChanged = installedVersion == null || installedVersion != geometryUploadPlan.installVersion();
                     if (uploadGeometryData) {
-                        geometryUploadPlan.uploadTo(geometryBinding);
-                        if (!indirectUploaded) {
+                        if (versionChanged) {
+                            geometryUploadPlan.uploadTo(geometryBinding);
+                            installedGeometryVersions.put(installBindingKey, geometryUploadPlan.installVersion());
+                        }
+                        if (!indirectUploaded && versionChanged) {
                             geometryUploadPlan.uploadIndirect();
                             indirectUploaded = true;
                         }
@@ -170,34 +179,16 @@ final class OpenGLGeometryMaterializer {
         }
     }
 
-    private static Map<GeometryHandleKey, Set<PipelineType>> collectGeometryConsumers(FrameExecutionPlan executionPlan) {
-        Map<GeometryHandleKey, Set<PipelineType>> consumers = new LinkedHashMap<>();
-        for (var stagePlan : executionPlan.stagePlans().values()) {
-            if (stagePlan == null) {
-                continue;
-            }
-            for (Map.Entry<PipelineType, Map<rogo.sketch.core.packet.PipelineStateKey, java.util.List<rogo.sketch.core.packet.RenderPacket>>> pipelineEntry : stagePlan.packets().entrySet()) {
-                PipelineType pipelineType = pipelineEntry.getKey();
-                for (var packetList : pipelineEntry.getValue().values()) {
-                    for (var packet : packetList) {
-                        if (packet instanceof DrawPacket drawPacket && drawPacket.geometryHandle() != null) {
-                            consumers.computeIfAbsent(drawPacket.geometryHandle(), ignored -> new LinkedHashSet<>())
-                                    .add(pipelineType);
-                        }
-                    }
-                }
-            }
-        }
-        return consumers;
+    private record InstallBindingKey(PipelineType pipelineType, GeometryHandleKey geometryHandle) {
     }
 
     private static OpenGLGeometryBinding resolveOrCreateBinding(
-            GeometryResourceCoordinator manager,
+            MeshResidencyPool residencyPool,
             FrameExecutionPlan.GeometryUploadPlan geometryUploadPlan) {
-        if (manager == null || geometryUploadPlan == null || geometryUploadPlan.geometryHandle() == null) {
+        if (residencyPool == null || geometryUploadPlan == null || geometryUploadPlan.geometryHandle() == null) {
             return null;
         }
-        BackendGeometryBinding existing = manager.getIfPresent(geometryUploadPlan.geometryHandle().vertexBufferKey());
+        BackendGeometryBinding existing = residencyPool.getIfPresent(geometryUploadPlan.geometryHandle().vertexBufferKey());
         if (existing instanceof OpenGLGeometryBinding openGLGeometryBinding) {
             return openGLGeometryBinding;
         }
@@ -208,7 +199,7 @@ final class OpenGLGeometryMaterializer {
                 geometryUploadPlan.geometryHandle().vertexBufferKey(),
                 sourceBinding);
         if (geometryBinding != null) {
-            manager.registerInstalledBinding(geometryUploadPlan.geometryHandle().vertexBufferKey(), geometryBinding);
+            residencyPool.registerInstalledBinding(geometryUploadPlan.geometryHandle().vertexBufferKey(), geometryBinding);
         }
         return geometryBinding;
     }

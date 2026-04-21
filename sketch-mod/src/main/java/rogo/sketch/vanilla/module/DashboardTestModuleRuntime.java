@@ -1,5 +1,6 @@
 package rogo.sketch.vanilla.module;
 
+import rogo.sketch.core.backend.RuntimeDebugToggles;
 import rogo.sketch.core.pipeline.module.macro.MacroChoiceTarget;
 import rogo.sketch.core.pipeline.module.macro.ModuleMacroProjector;
 import rogo.sketch.core.pipeline.module.metric.MetricDescriptor;
@@ -43,8 +44,10 @@ public class DashboardTestModuleRuntime implements ModuleRuntime {
     public void onProcessInit(ModuleRuntimeContext context) {
         context.diagnostics().debug(id(), "Dashboard test module initialized");
         context.diagnostics().info(id(), "Dashboard test controls are available in development mode");
+        applyRuntimeToggles(context);
         settingListener = event -> {
             if (id().equals(event.moduleId())) {
+                applyRuntimeToggles(context);
                 applyMacros(context);
             }
         };
@@ -54,6 +57,7 @@ public class DashboardTestModuleRuntime implements ModuleRuntime {
     @Override
     public void onKernelInit(ModuleRuntimeContext context) {
         registerRuntimeOwnedState(context);
+        applyRuntimeToggles(context);
         applyMacros(context);
     }
 
@@ -61,6 +65,7 @@ public class DashboardTestModuleRuntime implements ModuleRuntime {
     public void onEnable(ModuleRuntimeContext context) {
         context.diagnostics().info(id(), "Dashboard test module enabled");
         registerRuntimeOwnedState(context);
+        applyRuntimeToggles(context);
         applyMacros(context);
     }
 
@@ -74,6 +79,7 @@ public class DashboardTestModuleRuntime implements ModuleRuntime {
     @Override
     public void onDisable(ModuleRuntimeContext context) {
         context.diagnostics().warn(id(), "Dashboard test module disabled");
+        RuntimeDebugToggles.reset();
         context.clearOwnedMacros();
     }
 
@@ -83,6 +89,7 @@ public class DashboardTestModuleRuntime implements ModuleRuntime {
             context.settings().removeListener(settingListener);
             settingListener = null;
         }
+        RuntimeDebugToggles.reset();
         context.clearOwnedMacros();
     }
 
@@ -117,5 +124,10 @@ public class DashboardTestModuleRuntime implements ModuleRuntime {
 
     private void applyMacros(ModuleRuntimeContext context) {
         macroProjector.apply(context.ownerId(), context.settings().snapshot(), context.macros());
+    }
+
+    private void applyRuntimeToggles(ModuleRuntimeContext context) {
+        RuntimeDebugToggles.setGlAsyncGpuWorkersDisabled(
+                context.settings().getBoolean(DashboardTestModuleDescriptor.DISABLE_GL_ASYNC_GPU_WORKERS, false));
     }
 }

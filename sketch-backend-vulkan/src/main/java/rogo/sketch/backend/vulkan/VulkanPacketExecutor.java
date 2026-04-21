@@ -10,23 +10,28 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkDebugUtilsLabelEXT;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkImageBlit;
+import org.lwjgl.vulkan.VkImageCopy;
 import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import org.lwjgl.vulkan.VkImageSubresourceRange;
 import org.lwjgl.vulkan.VkRenderPassBeginInfo;
 import rogo.sketch.core.packet.ClearPacket;
+import rogo.sketch.core.packet.CopyTexturePacket;
 import rogo.sketch.core.packet.DispatchPacket;
 import rogo.sketch.core.packet.DrawPacket;
 import rogo.sketch.core.packet.DrawPlan;
 import rogo.sketch.core.packet.GenerateMipmapPacket;
-import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.RenderPacketKind;
+import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.packet.ResourceSetKey;
 import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.TargetBinding;
+import rogo.sketch.core.pipeline.graph.scheduler.SimpleProfiler;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -46,8 +51,11 @@ import static org.lwjgl.vulkan.VK10.VK_ACCESS_SHADER_READ_BIT;
 import static org.lwjgl.vulkan.VK10.VK_ACCESS_TRANSFER_READ_BIT;
 import static org.lwjgl.vulkan.VK10.VK_ACCESS_TRANSFER_WRITE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_FILTER_NEAREST;
+import static org.lwjgl.vulkan.VK10.VK_FORMAT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -78,6 +86,7 @@ import static org.lwjgl.vulkan.VK10.vkCmdBlitImage;
 import static org.lwjgl.vulkan.VK10.vkCmdClearAttachments;
 import static org.lwjgl.vulkan.VK10.vkCmdClearColorImage;
 import static org.lwjgl.vulkan.VK10.vkCmdClearDepthStencilImage;
+import static org.lwjgl.vulkan.VK10.vkCmdCopyImage;
 import static org.lwjgl.vulkan.VK10.vkCmdDispatch;
 import static org.lwjgl.vulkan.VK10.vkCmdDraw;
 import static org.lwjgl.vulkan.VK10.vkCmdDrawIndexed;
@@ -91,9 +100,11 @@ final class VulkanPacketExecutor {
 
     @SuppressWarnings("unused")
     private final VkDevice device;
+    private final VulkanPipelineLayoutCache pipelineLayoutCache;
     private final VulkanDescriptorArena descriptorArena;
     private final VulkanGeometryArena geometryArena;
     private final VulkanResourceResolver resourceResolver;
+    private final Map<KeyId, NamedRenderTargetCache> namedRenderTargetCaches = new ConcurrentHashMap<>();
     private final Set<String> warnedMipmap = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedUnsupportedClearTargets = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedUnsupportedClearDepth = ConcurrentHashMap.newKeySet();
@@ -102,11 +113,13 @@ final class VulkanPacketExecutor {
 
     VulkanPacketExecutor(
             VkDevice device,
+            VulkanPipelineLayoutCache pipelineLayoutCache,
             VulkanDescriptorArena descriptorArena,
             VulkanGeometryArena geometryArena,
             VulkanResourceResolver resourceResolver,
             boolean debugUtilsEnabled) {
         this.device = device;
+        this.pipelineLayoutCache = pipelineLayoutCache;
         this.descriptorArena = descriptorArena;
         this.geometryArena = geometryArena;
         this.resourceResolver = resourceResolver;
@@ -129,6 +142,7 @@ final class VulkanPacketExecutor {
         if (immediatePackets != null && !immediatePackets.isEmpty()) {
             packets.addAll(immediatePackets);
         }
+        String threadName = Thread.currentThread().getName();
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VulkanPacketExecutionContext executionContext = new VulkanPacketExecutionContext(
@@ -142,13 +156,14 @@ final class VulkanPacketExecutor {
                 pushDebugLabel(commandBuffer, debugLabel(packet));
                 try {
                     if (packet.packetKind() == RenderPacketKind.CLEAR && packet instanceof ClearPacket clearPacket) {
-                        if (targetsCurrentRenderPass(clearPacket.renderTargetId())) {
-                            executionContext.ensureRenderPassOpen();
+                        if (targetsRenderPass(clearPacket.renderTargetId())) {
+                            executionContext.ensureRenderPassOpen(clearPacket.renderTargetId());
                         } else {
                             executionContext.ensureRenderPassClosed();
                         }
                     } else if (packet.packetKind() == RenderPacketKind.DRAW) {
-                        executionContext.ensureRenderPassOpen();
+                        KeyId renderTargetId = packet.stateKey() != null ? packet.stateKey().renderTargetKey() : null;
+                        executionContext.ensureRenderPassOpen(renderTargetId);
                     } else {
                         executionContext.ensureRenderPassClosed();
                     }
@@ -159,7 +174,13 @@ final class VulkanPacketExecutor {
                                 "No Vulkan packet handler registered for " + packet.packetType().id()
                                         + " (" + packet.getClass().getName() + ")");
                     }
-                    handler.record(executionContext, packet);
+                    String profileName = packetProfileName(packet);
+                    SimpleProfiler.get().begin(profileName, threadName);
+                    try {
+                        handler.record(executionContext, packet);
+                    } finally {
+                        SimpleProfiler.get().end(profileName, threadName);
+                    }
                 } finally {
                     popDebugLabel(commandBuffer);
                 }
@@ -182,7 +203,7 @@ final class VulkanPacketExecutor {
         packetHandlers.register(rogo.sketch.core.packet.RenderPacketType.CLEAR,
                 (context, packet) -> {
                     ClearPacket clearPacket = (ClearPacket) packet;
-                    if (targetsCurrentRenderPass(clearPacket.renderTargetId())) {
+                    if (targetsRenderPass(clearPacket.renderTargetId())) {
                         clearCurrentAttachments(
                                 context.commandBuffer(),
                                 clearPacket,
@@ -192,6 +213,10 @@ final class VulkanPacketExecutor {
                         recordClearPacket(context.commandBuffer(), clearPacket);
                     }
                 });
+        packetHandlers.register(rogo.sketch.core.packet.RenderPacketType.COPY_TEXTURE,
+                (context, packet) -> recordCopyTexturePacket(
+                        context.commandBuffer(),
+                        (CopyTexturePacket) packet));
         packetHandlers.register(rogo.sketch.core.packet.RenderPacketType.GENERATE_MIPMAP,
                 (context, packet) -> recordGenerateMipmapPacket(
                         context.commandBuffer(),
@@ -220,6 +245,7 @@ final class VulkanPacketExecutor {
             return;
         }
 
+        transitionBindingTexturesForSampling(commandBuffer, packet.bindingPlan());
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         descriptorArena.bindResources(commandBuffer, pipelineLayout, resourceSetKey);
         long[] vertexBuffers = new long[geometrySlice.vertexBindings().length];
@@ -299,6 +325,7 @@ final class VulkanPacketExecutor {
         }
         long pipelineLayout = computePipelineCache.pipelineLayout(resourceSetKey.resourceLayoutKey(), descriptorSetLayout);
 
+        transitionBindingTexturesForSampling(commandBuffer, packet.bindingPlan());
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
         descriptorArena.bindResources(commandBuffer, pipelineLayout, resourceSetKey, VK_PIPELINE_BIND_POINT_COMPUTE);
         vkCmdDispatch(
@@ -438,8 +465,114 @@ final class VulkanPacketExecutor {
         textureResource.setCurrentImageLayout(finalLayout);
     }
 
-    private boolean targetsCurrentRenderPass(KeyId renderTargetId) {
-        return renderTargetId == null || TargetBinding.DEFAULT_RENDER_TARGET.equals(renderTargetId);
+    private void recordCopyTexturePacket(VkCommandBuffer commandBuffer, CopyTexturePacket packet) {
+        if (packet == null || packet.sourceTextureId() == null || packet.destinationTextureId() == null) {
+            return;
+        }
+        VulkanTextureResource source = resourceResolver != null
+                ? resourceResolver.resolveTextureResource(packet.sourceTextureId())
+                : null;
+        VulkanTextureResource destination = resourceResolver != null
+                ? resourceResolver.resolveTextureResource(packet.destinationTextureId())
+                : null;
+        if (source == null || destination == null || source.isDisposed() || destination.isDisposed()) {
+            return;
+        }
+
+        int width = packet.width() > 0 ? packet.width() : Math.min(source.width(), destination.width());
+        int height = packet.height() > 0 ? packet.height() : Math.min(source.height(), destination.height());
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        int aspectMask = packet.depthCopy() ? source.aspectMask() : VK_IMAGE_ASPECT_COLOR_BIT;
+        int sourceFinalLayout = source.imageLayout() != 0 ? source.imageLayout() : source.currentImageLayout();
+        int destinationFinalLayout = destination.imageLayout() != 0 ? destination.imageLayout() : destination.currentImageLayout();
+
+        transitionImageLayout(
+                commandBuffer,
+                source.image(),
+                aspectMask,
+                source.currentImageLayout(),
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                0,
+                1);
+        transitionImageLayout(
+                commandBuffer,
+                destination.image(),
+                aspectMask,
+                destination.currentImageLayout(),
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                0,
+                1);
+
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkImageCopy.Buffer copyRegion = VkImageCopy.calloc(1, stack);
+            copyRegion.get(0).srcSubresource()
+                    .aspectMask(aspectMask)
+                    .mipLevel(0)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            copyRegion.get(0).srcOffset().set(0, 0, 0);
+            copyRegion.get(0).dstSubresource()
+                    .aspectMask(aspectMask)
+                    .mipLevel(0)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            copyRegion.get(0).dstOffset().set(0, 0, 0);
+            copyRegion.get(0).extent().set(width, height, 1);
+            vkCmdCopyImage(
+                    commandBuffer,
+                    source.image(),
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    destination.image(),
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    copyRegion);
+        }
+
+        transitionImageLayout(
+                commandBuffer,
+                source.image(),
+                aspectMask,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                sourceFinalLayout,
+                0,
+                1);
+        transitionImageLayout(
+                commandBuffer,
+                destination.image(),
+                aspectMask,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                destinationFinalLayout,
+                0,
+                1);
+        source.setCurrentImageLayout(sourceFinalLayout);
+        destination.setCurrentImageLayout(destinationFinalLayout);
+    }
+
+    KeyId normalizeRenderTargetId(KeyId renderTargetId) {
+        return renderTargetId != null ? renderTargetId : TargetBinding.DEFAULT_RENDER_TARGET;
+    }
+
+    private boolean isDefaultRenderTarget(KeyId renderTargetId) {
+        return TargetBinding.DEFAULT_RENDER_TARGET.equals(normalizeRenderTargetId(renderTargetId));
+    }
+
+    private boolean targetsRenderPass(KeyId renderTargetId) {
+        return isDefaultRenderTarget(renderTargetId) || resolveNamedRenderTargetCache(renderTargetId) != null;
+    }
+
+    VulkanRasterPipelineCache resolveRasterPipelineCache(
+            KeyId renderTargetId,
+            VulkanRasterPipelineCache defaultCache) {
+        if (isDefaultRenderTarget(renderTargetId)) {
+            return defaultCache;
+        }
+        return resolveNamedRenderTargetCache(renderTargetId);
+    }
+
+    int framebufferIndexFor(KeyId renderTargetId, int imageIndex) {
+        return isDefaultRenderTarget(renderTargetId) ? imageIndex : 0;
     }
 
     private void warnMissingNamedClearTarget(KeyId renderTargetId) {
@@ -486,7 +619,7 @@ final class VulkanPacketExecutor {
     void beginRenderPass(
             VkCommandBuffer commandBuffer,
             VulkanRasterPipelineCache pipelineCache,
-            int imageIndex,
+            int framebufferIndex,
             MemoryStack stack) {
         VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
         clearValues.get(0).color().float32(0, 0.0f).float32(1, 0.0f).float32(2, 0.0f).float32(3, 0.0f);
@@ -495,12 +628,48 @@ final class VulkanPacketExecutor {
         VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
                 .renderPass(pipelineCache.renderPass())
-                .framebuffer(pipelineCache.framebuffer(imageIndex))
+                .framebuffer(pipelineCache.framebuffer(framebufferIndex))
                 .pClearValues(clearValues);
         renderPassInfo.renderArea()
                 .offset(it -> it.set(0, 0))
                 .extent(it -> it.set(pipelineCache.extentWidth(), pipelineCache.extentHeight()));
         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    }
+
+    void prepareRenderTargetForRendering(VkCommandBuffer commandBuffer, KeyId renderTargetId) {
+        if (isDefaultRenderTarget(renderTargetId)) {
+            return;
+        }
+        VulkanResourceResolver.ResolvedRenderTarget renderTarget = resourceResolver.resolveRenderTargetResource(renderTargetId);
+        if (renderTarget == null) {
+            return;
+        }
+        for (VulkanTextureResource colorAttachment : renderTarget.colorAttachments().values()) {
+            if (colorAttachment == null || colorAttachment.isDisposed()) {
+                continue;
+            }
+            transitionImageLayout(
+                    commandBuffer,
+                    colorAttachment.image(),
+                    colorAttachment.aspectMask(),
+                    colorAttachment.currentImageLayout(),
+                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    0,
+                    colorAttachment.mipLevels());
+            colorAttachment.setCurrentImageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        }
+        VulkanTextureResource depthAttachment = renderTarget.depthAttachment();
+        if (depthAttachment != null && !depthAttachment.isDisposed()) {
+            transitionImageLayout(
+                    commandBuffer,
+                    depthAttachment.image(),
+                    depthAttachment.aspectMask(),
+                    depthAttachment.currentImageLayout(),
+                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                    0,
+                    depthAttachment.mipLevels());
+            depthAttachment.setCurrentImageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+        }
     }
 
     private void pushDebugLabel(VkCommandBuffer commandBuffer, String label) {
@@ -523,6 +692,19 @@ final class VulkanPacketExecutor {
         vkCmdEndDebugUtilsLabelEXT(commandBuffer);
     }
 
+    void destroy() {
+        for (NamedRenderTargetCache cache : namedRenderTargetCaches.values()) {
+            if (cache != null && cache.pipelineCache() != null) {
+                cache.pipelineCache().destroy();
+            }
+        }
+        namedRenderTargetCaches.clear();
+    }
+
+    void invalidateNamedRenderTargetCaches() {
+        destroy();
+    }
+
     private String debugLabel(RenderPacket packet) {
         if (packet == null) {
             return "sketch:packet:null";
@@ -532,12 +714,60 @@ final class VulkanPacketExecutor {
         if (packet.stageId() != null) {
             builder.append(" stage=").append(packet.stageId());
         }
-        List<? extends rogo.sketch.core.api.graphics.Graphics> completionGraphics = packet.completionGraphics();
-        if (completionGraphics != null && !completionGraphics.isEmpty()) {
-            rogo.sketch.core.api.graphics.Graphics graphics = completionGraphics.get(0);
-            if (graphics != null && graphics.getIdentifier() != null) {
-                builder.append(" graphics=").append(graphics.getIdentifier());
+        if (packet.stateKey() != null && packet.stateKey().shaderId() != null) {
+            builder.append(" shader=").append(packet.stateKey().shaderId());
+        }
+        if (packet instanceof DispatchPacket dispatchPacket) {
+            builder.append(" groups=")
+                    .append(dispatchPacket.workGroupsX())
+                    .append('x')
+                    .append(dispatchPacket.workGroupsY())
+                    .append('x')
+                    .append(dispatchPacket.workGroupsZ());
+        } else if (packet instanceof DrawPacket drawPacket) {
+            if (drawPacket.stateKey() != null && drawPacket.stateKey().renderTargetKey() != null) {
+                builder.append(" target=").append(drawPacket.stateKey().renderTargetKey());
             }
+            if (drawPacket.geometryHandle() != null) {
+                builder.append(" geometry=").append(drawPacket.geometryHandle());
+            }
+        } else if (packet instanceof ClearPacket clearPacket && clearPacket.renderTargetId() != null) {
+            builder.append(" target=").append(clearPacket.renderTargetId());
+        }
+        List<GraphicsUniformSubject> completionSubjects = packet.completionSubjects();
+        if (completionSubjects != null && !completionSubjects.isEmpty()) {
+            GraphicsUniformSubject subject = completionSubjects.get(0);
+            if (subject != null && subject.identifier() != null) {
+                builder.append(" graphics=").append(subject.identifier());
+            }
+        }
+        return builder.toString();
+    }
+
+    private String packetProfileName(RenderPacket packet) {
+        if (packet == null) {
+            return "VkRecordPacket:null";
+        }
+        StringBuilder builder = new StringBuilder("VkRecordPacket:");
+        builder.append(packet.packetType().id());
+        if (packet.stageId() != null) {
+            builder.append(":stage=").append(packet.stageId());
+        }
+        if (packet.stateKey() != null && packet.stateKey().shaderId() != null) {
+            builder.append(":shader=").append(packet.stateKey().shaderId());
+        }
+        if (packet instanceof DrawPacket drawPacket) {
+            if (drawPacket.geometryHandle() != null) {
+                builder.append(":geometry=").append(drawPacket.geometryHandle());
+            }
+            if (drawPacket.stateKey() != null && drawPacket.stateKey().renderTargetKey() != null) {
+                builder.append(":target=").append(drawPacket.stateKey().renderTargetKey());
+            }
+        } else if (packet instanceof DispatchPacket dispatchPacket) {
+            builder.append(":groups=")
+                    .append(dispatchPacket.workGroupsX()).append("x")
+                    .append(dispatchPacket.workGroupsY()).append("x")
+                    .append(dispatchPacket.workGroupsZ());
         }
         return builder.toString();
     }
@@ -587,6 +817,85 @@ final class VulkanPacketExecutor {
                 .layerCount(1);
 
         vkCmdClearAttachments(commandBuffer, attachments, rects);
+    }
+
+    private VulkanRasterPipelineCache resolveNamedRenderTargetCache(KeyId renderTargetId) {
+        if (renderTargetId == null) {
+            return null;
+        }
+        VulkanResourceResolver.ResolvedRenderTarget renderTarget = resourceResolver.resolveRenderTargetResource(renderTargetId);
+        if (renderTarget == null || renderTarget.colorAttachments().isEmpty()) {
+            return null;
+        }
+        VulkanTextureResource colorAttachment = renderTarget.colorAttachments().values().stream()
+                .filter(texture -> texture != null && !texture.isDisposed())
+                .findFirst()
+                .orElse(null);
+        if (colorAttachment == null) {
+            return null;
+        }
+        VulkanTextureResource depthAttachment = renderTarget.depthAttachment();
+        long colorView = colorAttachment.imageView();
+        long depthView = depthAttachment != null ? depthAttachment.imageView() : VK_NULL_HANDLE;
+        int width = colorAttachment.width();
+        int height = colorAttachment.height();
+        int colorFormat = colorAttachment.format();
+        int depthFormat = depthAttachment != null ? depthAttachment.format() : VK_FORMAT_UNDEFINED;
+
+        NamedRenderTargetCache existing = namedRenderTargetCaches.get(renderTargetId);
+        if (existing != null && existing.matches(colorView, depthView, width, height, colorFormat, depthFormat)) {
+            return existing.pipelineCache();
+        }
+        if (existing != null && existing.pipelineCache() != null) {
+            existing.pipelineCache().destroy();
+        }
+
+        VulkanRasterPipelineCache pipelineCache = new VulkanRasterPipelineCache(device, pipelineLayoutCache);
+        pipelineCache.recreate(
+                colorFormat,
+                depthFormat,
+                width,
+                height,
+                new long[]{colorView},
+                depthAttachment != null ? new long[]{depthView} : new long[0]);
+        namedRenderTargetCaches.put(
+                renderTargetId,
+                new NamedRenderTargetCache(pipelineCache, colorView, depthView, width, height, colorFormat, depthFormat));
+        return pipelineCache;
+    }
+
+    private void transitionBindingTexturesForSampling(
+            VkCommandBuffer commandBuffer,
+            ResourceBindingPlan bindingPlan) {
+        if (bindingPlan == null || bindingPlan.isEmpty()) {
+            return;
+        }
+        for (ResourceBindingPlan.BindingEntry entry : bindingPlan.entries()) {
+            if (entry == null || entry.resourceId() == null || entry.resourceType() == null) {
+                continue;
+            }
+            KeyId normalizedType = ResourceTypes.normalize(entry.resourceType());
+            if (!ResourceTypes.TEXTURE.equals(normalizedType)) {
+                continue;
+            }
+            VulkanTextureResource textureResource = resourceResolver.resolveTextureResource(entry.resourceId());
+            if (textureResource == null || textureResource.isDisposed()) {
+                continue;
+            }
+            int sampledLayout = textureResource.imageLayout();
+            if (sampledLayout == 0 || textureResource.currentImageLayout() == sampledLayout) {
+                continue;
+            }
+            transitionImageLayout(
+                    commandBuffer,
+                    textureResource.image(),
+                    textureResource.aspectMask(),
+                    textureResource.currentImageLayout(),
+                    sampledLayout,
+                    0,
+                    textureResource.mipLevels());
+            textureResource.setCurrentImageLayout(sampledLayout);
+        }
     }
 
     private List<Integer> resolveNamedColorAttachments(
@@ -783,6 +1092,9 @@ final class VulkanPacketExecutor {
         } else if (oldLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
             srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        } else if (oldLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL) {
+            srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
         } else if (oldLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
             srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
         }
@@ -804,6 +1116,9 @@ final class VulkanPacketExecutor {
         } else if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
             dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        } else if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL) {
+            dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         }
         return new LayoutTransition(srcStageMask, srcAccessMask, dstStageMask, dstAccessMask);
     }
@@ -814,7 +1129,7 @@ final class VulkanPacketExecutor {
             return packets;
         }
         for (rogo.sketch.core.pipeline.kernel.StageExecutionPlan stagePlan : executionPlan.stagePlans().values()) {
-            for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : stagePlan.packets().entrySet()) {
+            for (Map.Entry<PipelineType, Map<rogo.sketch.core.packet.ExecutionKey, List<RenderPacket>>> pipelineEntry : stagePlan.packets().entrySet()) {
                 for (List<RenderPacket> statePackets : pipelineEntry.getValue().values()) {
                     packets.addAll(statePackets);
                 }
@@ -828,6 +1143,30 @@ final class VulkanPacketExecutor {
             int srcAccessMask,
             int dstStageMask,
             int dstAccessMask) {
+    }
+
+    private record NamedRenderTargetCache(
+            VulkanRasterPipelineCache pipelineCache,
+            long colorView,
+            long depthView,
+            int width,
+            int height,
+            int colorFormat,
+            int depthFormat) {
+        private boolean matches(
+                long colorView,
+                long depthView,
+                int width,
+                int height,
+                int colorFormat,
+                int depthFormat) {
+            return this.colorView == colorView
+                    && this.depthView == depthView
+                    && this.width == width
+                    && this.height == height
+                    && this.colorFormat == colorFormat
+                    && this.depthFormat == depthFormat;
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 package rogo.sketch.core.packet;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.shader.uniform.DrawUniformSet;
 import rogo.sketch.core.shader.uniform.UniformGroupSet;
@@ -14,7 +14,7 @@ public interface RenderPacket {
 
     PipelineType pipelineType();
 
-    PipelineStateKey stateKey();
+    ExecutionKey stateKey();
 
     ResourceBindingPlan bindingPlan();
 
@@ -42,6 +42,6 @@ public interface RenderPacket {
 
     UniformValueSnapshot uniformSnapshot();
 
-    List<? extends Graphics> completionGraphics();
+    List<GraphicsUniformSubject> completionSubjects();
 }
 

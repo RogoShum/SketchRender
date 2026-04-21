@@ -13,7 +13,7 @@ import rogo.sketch.core.util.KeyId;
 
 import java.util.Objects;
 
-public final class PipelineStateKey {
+public final class PipelineStateKey implements ExecutionKey {
     private static final KeyId UNBOUND_SHADER = KeyId.of("sketch:unbound_shader");
     private static final KeyId EMPTY_VERTEX_LAYOUT = KeyId.of("sketch:empty_vertex_layout");
     private static final KeyId DEFAULT_RENDER_TARGET = KeyId.of("sketch:default_render_target");
@@ -134,6 +134,11 @@ public final class PipelineStateKey {
 
     public RenderParameter renderParameter() {
         return renderParameter;
+    }
+
+    @Override
+    public ExecutionDomain domain() {
+        return ExecutionDomain.RASTER;
     }
 
     public RenderStatePatch renderState() {

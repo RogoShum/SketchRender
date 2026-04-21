@@ -1,53 +1,48 @@
 package rogo.sketch.core.pipeline.information;
 
-import rogo.sketch.core.api.graphics.DispatchableGraphics;
 import rogo.sketch.core.api.graphics.ComputeDispatchCommand;
 import rogo.sketch.core.api.graphics.ComputeDispatchContext;
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
 import rogo.sketch.core.pipeline.RenderSetting;
 
+import java.util.Objects;
+
 /**
- * Instance information for compute shader operations.
- * <p>
- * Contains the dispatch configuration for compute shader execution.
- * Unlike rasterization, compute instances don't have mesh or vertex data.
- * </p>
+ * ECS-backed compute dispatch information.
  */
-public class ComputeInstanceInfo extends InstanceInfo<DispatchableGraphics> {
+public final class ComputeInstanceInfo {
+    private final GraphicsEntityId entityId;
+    private final RenderSetting renderSetting;
     private final ComputeDispatchCommand dispatchCommand;
 
     public ComputeInstanceInfo(
-            DispatchableGraphics instance,
+            GraphicsEntityId entityId,
             RenderSetting renderSetting,
             ComputeDispatchCommand dispatchCommand) {
-        super(instance, renderSetting);
+        this.entityId = Objects.requireNonNull(entityId, "entityId");
+        this.renderSetting = Objects.requireNonNull(renderSetting, "renderSetting");
         this.dispatchCommand = dispatchCommand;
     }
 
-    @Override
+    public GraphicsEntityId entityId() {
+        return entityId;
+    }
+
+    public RenderSetting renderSetting() {
+        return renderSetting;
+    }
+
     public String getInfoType() {
         return "compute";
     }
 
-    /**
-     * Get the dispatch command consumer.
-     * This will be called when the compute shader is ready to dispatch.
-     *
-     * @return The dispatch command consumer
-     */
     public ComputeDispatchCommand getDispatchCommand() {
         return dispatchCommand;
     }
 
-    /**
-     * Execute the dispatch command with the given context and shader.
-     *
-     * @param dispatchContext The backend-neutral dispatch context
-     */
     public void dispatch(ComputeDispatchContext dispatchContext) {
         if (dispatchCommand != null) {
             dispatchCommand.dispatch(dispatchContext);
         }
     }
 }
-

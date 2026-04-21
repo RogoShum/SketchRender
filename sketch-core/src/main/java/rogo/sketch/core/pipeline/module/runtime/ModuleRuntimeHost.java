@@ -2,12 +2,15 @@ package rogo.sketch.core.pipeline.module.runtime;
 
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.ResourceObject;
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.extension.ExtensionHost;
+import rogo.sketch.core.extension.event.HostEventRegistrar;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityAssembler;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityBlueprint;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
+import rogo.sketch.core.graphics.ecs.GraphicsWorld;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.container.GraphicsContainer;
-import rogo.sketch.core.pipeline.flow.container.DefaultBatchContainers;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.module.descriptor.ModuleDescriptor;
 import rogo.sketch.core.pipeline.module.descriptor.ModuleDescriptorContext;
@@ -29,6 +32,10 @@ import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.pipeline.module.setting.SettingNode;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
 import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
+import rogo.sketch.core.pipeline.kernel.FrameResourceHandle;
+import rogo.sketch.core.pipeline.kernel.GraphSnapshot;
+import rogo.sketch.core.pipeline.kernel.LifecyclePhase;
+import rogo.sketch.core.pipeline.kernel.ModulePassDefinition;
 import rogo.sketch.core.pipeline.indirect.IndirectPlanRequest;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.GraphicsResourceManager;
@@ -36,6 +43,7 @@ import rogo.sketch.core.resource.ResourceScope;
 import rogo.sketch.core.shader.uniform.PipelineUniformRegistry;
 import rogo.sketch.core.shader.uniform.UniformHookRegistry;
 import rogo.sketch.core.shader.uniform.ValueGetter;
+import rogo.sketch.core.pipeline.submit.StageSubmitNode;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.*;
@@ -52,8 +60,9 @@ public class ModuleRuntimeHost {
     private final PipelineUniformRegistry uniformRegistry = new PipelineUniformRegistry();
     private final Map<String, ModuleDescriptor> descriptors = new LinkedHashMap<>();
     private final Map<String, ModuleRecord> records = new LinkedHashMap<>();
-    private final Map<Graphics, Set<String>> graphicsBindings = new IdentityHashMap<>();
+    private final ModuleSubscriptionIndex subscriptionIndex = new ModuleSubscriptionIndex();
     private final Map<String, Set<ManagedIndirectRequest>> ownedIndirectRequests = new LinkedHashMap<>();
+    private final Map<String, Map<KeyId, FrameResourceHandle<?>>> moduleFrameHandles = new LinkedHashMap<>();
     private final Map<KeyId, MetricDescriptor> descriptorMetrics = new LinkedHashMap<>();
     private PipelineKernel<?> kernel;
     private boolean processInitialized = false;
@@ -106,8 +115,10 @@ public class ModuleRuntimeHost {
 
         for (ModuleRecord record : records.values()) {
             record.runtime.onKernelInit(runtimeContext(record));
+            refreshEntitySubscriptions(record);
             if (isModuleEnabled(record.descriptor.id())) {
                 record.runtime.onEnable(runtimeContext(record));
+                scanExistingEntities(record);
             }
         }
 
@@ -129,6 +140,11 @@ public class ModuleRuntimeHost {
             record.session.onWorldEnter(sessionContext(record));
             if (isModuleEnabled(record.descriptor.id())) {
                 record.session.onEnable(sessionContext(record));
+            }
+        }
+        for (ModuleRecord record : records.values()) {
+            if (isModuleEnabled(record.descriptor.id())) {
+                scanExistingEntities(record);
             }
         }
     }
@@ -177,6 +193,8 @@ public class ModuleRuntimeHost {
         UniformHookRegistry.getInstance().setRuntimeRegistry(null);
         records.clear();
         descriptors.clear();
+        moduleFrameHandles.clear();
+        subscriptionIndex.clear();
         processInitialized = false;
         kernelInitialized = false;
     }
@@ -254,30 +272,35 @@ public class ModuleRuntimeHost {
         }
     }
 
-    public void onGraphicsAdded(Graphics graphics, @Nullable RenderParameter renderParameter, @Nullable KeyId containerType) {
+    public void onEntitySpawned(GraphicsEntityId entityId) {
         for (ModuleRecord record : records.values()) {
-            if (!isModuleEnabled(record.descriptor.id())) {
-                continue;
-            }
-            if (record.runtime.supports(graphics)) {
-                record.runtime.onGraphicsAttached(graphics, renderParameter, containerType, runtimeContext(record));
-                graphicsBindings
-                        .computeIfAbsent(graphics, ignored -> Collections.newSetFromMap(new IdentityHashMap<>()))
-                        .add(record.descriptor.id());
+            if (isModuleEnabled(record.descriptor.id())) {
+                attachMatchingEntity(record, entityId);
             }
         }
     }
 
-    public void onGraphicsRemoved(Graphics graphics) {
-        Set<String> boundModules = graphicsBindings.remove(graphics);
-        if (boundModules == null) {
-            return;
+    public void onEntityDestroyed(GraphicsEntityId entityId) {
+        Set<String> moduleIds = new LinkedHashSet<>();
+        for (ModuleSubscriptionIndex.BindingRecord binding : subscriptionIndex.bindingsForEntity(entityId)) {
+            moduleIds.add(binding.moduleId());
         }
-        for (String moduleId : boundModules) {
+        for (String moduleId : moduleIds) {
             ModuleRecord record = records.get(moduleId);
             if (record != null) {
-                record.runtime.onGraphicsDetached(graphics, runtimeContext(record));
+                record.runtime.onEntityDetached(entityId, entityAttachContext(record));
             }
+        }
+        subscriptionIndex.clearBindingsForEntity(entityId);
+    }
+
+    public void onEntityShapeChanged(GraphicsEntityId entityId) {
+        for (ModuleRecord record : records.values()) {
+            if (!isModuleEnabled(record.descriptor.id())) {
+                continue;
+            }
+            detachIfNoLongerMatching(record, entityId);
+            attachMatchingEntity(record, entityId);
         }
     }
 
@@ -287,6 +310,34 @@ public class ModuleRuntimeHost {
 
     public boolean isKernelInitialized() {
         return kernelInitialized;
+    }
+
+    public GraphSnapshot assembleGraphSnapshot(long version, long createdFrame) {
+        Map<String, List<ModulePassDefinition>> modulePasses = new LinkedHashMap<>();
+        Map<KeyId, FrameResourceHandle<?>> resourceHandles = new LinkedHashMap<>();
+
+        for (ModuleRecord record : records.values()) {
+            if (!isModuleEnabled(record.descriptor.id())) {
+                continue;
+            }
+            ModuleGraphAssemblyCollector collector = new ModuleGraphAssemblyCollector(record.descriptor.id());
+            Map<KeyId, FrameResourceHandle<?>> declaredHandles = moduleFrameHandles.get(record.descriptor.id());
+            if (declaredHandles != null) {
+                for (FrameResourceHandle<?> handle : declaredHandles.values()) {
+                    collector.registerExistingHandle(handle);
+                }
+            }
+
+            record.runtime.describeFrameResources(collector);
+            record.runtime.contributeModulePasses(collector);
+
+            if (!collector.modulePasses().isEmpty()) {
+                modulePasses.put(record.descriptor.id(), collector.modulePasses());
+            }
+            resourceHandles.putAll(collector.resourceHandles());
+        }
+
+        return new GraphSnapshot(version, createdFrame, modulePasses, resourceHandles);
     }
 
     public void flushPendingSettingChanges() {
@@ -316,6 +367,71 @@ public class ModuleRuntimeHost {
                     }
                 }
             }
+        }
+    }
+
+    private void refreshEntitySubscriptions(ModuleRecord record) {
+        if (record == null) {
+            return;
+        }
+        List<GraphicsEntitySubscription> subscriptions = new ArrayList<>();
+        record.runtime.registerEntitySubscriptions(subscriptions::add);
+        subscriptionIndex.replaceSubscriptions(record.descriptor.id(), subscriptions);
+    }
+
+    private void scanExistingEntities(ModuleRecord record) {
+        if (record == null) {
+            return;
+        }
+        for (GraphicsEntityId entityId : pipeline.graphicsWorld().query(rogo.sketch.core.graphics.ecs.GraphicsQuery.builder().build())) {
+            attachMatchingEntity(record, entityId);
+        }
+    }
+
+    private void attachMatchingEntity(ModuleRecord record, GraphicsEntityId entityId) {
+        if (record == null || entityId == null) {
+            return;
+        }
+        GraphicsWorld world = pipeline.graphicsWorld();
+        if (!world.contains(entityId)) {
+            return;
+        }
+        boolean wasAttached = subscriptionIndex.hasAnyBinding(entityId, record.descriptor.id());
+        boolean attached = false;
+        Set<rogo.sketch.core.graphics.ecs.GraphicsComponentType<?>> signature = world.signature(entityId);
+        for (GraphicsEntitySubscription subscription : subscriptionIndex.subscriptions(record.descriptor.id())) {
+            if (subscription == null || !subscription.filter().matches(signature)) {
+                continue;
+            }
+            if (subscriptionIndex.isBound(entityId, record.descriptor.id(), subscription.subscriptionId())) {
+                continue;
+            }
+            subscriptionIndex.bind(entityId, record.descriptor.id(), subscription.subscriptionId());
+            attached = true;
+        }
+        if (!wasAttached && attached) {
+            record.runtime.onEntityAttached(entityId, new GraphicsEntitySnapshot(world, entityId), entityAttachContext(record));
+        }
+    }
+
+    private void detachIfNoLongerMatching(ModuleRecord record, GraphicsEntityId entityId) {
+        if (record == null || entityId == null) {
+            return;
+        }
+        GraphicsWorld world = pipeline.graphicsWorld();
+        boolean wasAttached = subscriptionIndex.hasAnyBinding(entityId, record.descriptor.id());
+        Set<rogo.sketch.core.graphics.ecs.GraphicsComponentType<?>> signature = world.contains(entityId) ? world.signature(entityId) : Set.of();
+        for (GraphicsEntitySubscription subscription : subscriptionIndex.subscriptions(record.descriptor.id())) {
+            if (subscription == null || !subscriptionIndex.isBound(entityId, record.descriptor.id(), subscription.subscriptionId())) {
+                continue;
+            }
+            if (subscription.filter().matches(signature)) {
+                continue;
+            }
+            subscriptionIndex.unbind(entityId, record.descriptor.id(), subscription.subscriptionId());
+        }
+        if (wasAttached && !subscriptionIndex.hasAnyBinding(entityId, record.descriptor.id())) {
+            record.runtime.onEntityDetached(entityId, entityAttachContext(record));
         }
     }
 
@@ -373,6 +489,10 @@ public class ModuleRuntimeHost {
             handleModuleEnableChange(entry.getKey(), entry.getValue());
         }
 
+        if (!moduleEnableStates.isEmpty()) {
+            rebuildGraphs = true;
+        }
+
         refreshSessionModules.removeAll(recreateSessionModules);
 
         for (String moduleId : recreateSessionModules) {
@@ -408,13 +528,26 @@ public class ModuleRuntimeHost {
 
         ModuleRuntimeContext runtimeContext = runtimeContext(record);
         if (enabled) {
+            if (kernelInitialized) {
+                // Runtime-owned kernel registrations are cleared on disable.
+                // Re-run kernel init so built-in resources, uniforms, metrics,
+                // and similar owner-scoped registrations are restored before
+                // session graphics come back.
+                record.runtime.onKernelInit(runtimeContext);
+                refreshEntitySubscriptions(record);
+            }
             record.runtime.onEnable(runtimeContext);
             if (worldActive && record.session != null && record.session != ModuleSession.NOOP) {
                 record.session.onEnable(sessionContext(record));
             }
+            scanExistingEntities(record);
             return;
         }
 
+        for (GraphicsEntityId entityId : subscriptionIndex.entitiesForModule(moduleId)) {
+            record.runtime.onEntityDetached(entityId, entityAttachContext(record));
+        }
+        subscriptionIndex.clearBindingsForModule(moduleId);
         if (worldActive && record.session != null && record.session != ModuleSession.NOOP) {
             record.session.onDisable(sessionContext(record));
         }
@@ -463,6 +596,7 @@ public class ModuleRuntimeHost {
     private void clearOwnedState(String ownerId) {
         unregisterOwnedGraphics(ownerId);
         clearOwnedIndirectRequests(ownerId);
+        pipeline.extensionHost().hostEvents().clearOwner(ownerId);
         GraphicsResourceManager.getInstance().unregisterOwnedResources(ownerId);
         uniformRegistry.unregisterOwner(ownerId);
         metricRegistry.unregisterOwner(ownerId);
@@ -482,50 +616,34 @@ public class ModuleRuntimeHost {
         ownedIndirectRequests.remove(ownerId);
     }
 
-    private void registerGraphics(
-            String ownerId,
-            KeyId stageId,
-            Graphics graphics,
-            RenderParameter renderParameter,
-            PipelineType pipelineType,
-            KeyId containerType,
-            Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier,
-            ModuleGraphicsLifetime lifetime) {
-        pipeline.addGraphInstance(stageId, graphics, renderParameter, pipelineType, containerType, containerSupplier);
-        ModuleRecord record = records.get(moduleIdFromOwner(ownerId));
-        if (record != null) {
-            record.ownedGraphics
-                    .computeIfAbsent(ownerId, ignored -> new LinkedHashSet<>())
-                    .add(new ManagedGraphicsRegistration(graphics, lifetime));
+    private void registerStageSubmitNode(String ownerId, StageSubmitNode node) {
+        if (node == null) {
+            return;
         }
+        pipeline.registerStageSubmitNode(ownerId, node);
     }
 
-    private void registerCompute(String ownerId, KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
-        pipeline.addCompute(stageId, graphics);
-        trackOwnedGraphics(ownerId, graphics, lifetime);
+    private GraphicsEntityId registerGraphicsEntity(String ownerId, GraphicsEntityBlueprint blueprint, ModuleGraphicsLifetime lifetime) {
+        GraphicsEntityId entityId = pipeline.spawnGraphicsEntity(blueprint);
+        trackOwnedGraphics(ownerId, entityId, lifetime);
+        return entityId;
     }
 
-    private void registerAuxiliaryGraphics(String ownerId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
-        pipeline.attachAuxiliaryGraphics(graphics);
-        trackOwnedGraphics(ownerId, graphics, lifetime);
-    }
-
-    private void registerFunction(String ownerId, KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
-        pipeline.addFunction(stageId, graphics);
-        trackOwnedGraphics(ownerId, graphics, lifetime);
-    }
-
-    private void trackOwnedGraphics(String ownerId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
+    private void trackOwnedGraphics(String ownerId, GraphicsEntityId entityId, ModuleGraphicsLifetime lifetime) {
+        if (entityId == null) {
+            return;
+        }
         ModuleRecord record = records.get(moduleIdFromOwner(ownerId));
         if (record != null) {
             record.ownedGraphics
                     .computeIfAbsent(ownerId, ignored -> new LinkedHashSet<>())
-                    .add(new ManagedGraphicsRegistration(graphics, lifetime));
+                    .add(new ManagedGraphicsRegistration(entityId, lifetime));
         }
     }
 
     private void unregisterOwnedGraphics(String ownerId) {
         ModuleRecord record = records.get(moduleIdFromOwner(ownerId));
+        pipeline.unregisterStageSubmitNodes(ownerId);
         if (record == null) {
             return;
         }
@@ -534,12 +652,16 @@ public class ModuleRuntimeHost {
             return;
         }
         for (ManagedGraphicsRegistration registration : registrations) {
-            pipeline.removeGraphInstance(registration.graphics());
+            pipeline.destroyGraphicsEntity(registration.entityId());
         }
     }
 
     private ModuleRuntimeContext runtimeContext(ModuleRecord record) {
         return new RuntimeContextImpl(record, runtimeOwnerId(record.descriptor.id()), ResourceScope.MODULE_OWNED);
+    }
+
+    private EntityAttachContext entityAttachContext(ModuleRecord record) {
+        return new EntityAttachContext(runtimeContext(record));
     }
 
     private ModuleSessionContext sessionContext(ModuleRecord record) {
@@ -633,6 +755,26 @@ public class ModuleRuntimeHost {
         }
 
         @Override
+        public ExtensionHost extensionHost() {
+            return pipeline.extensionHost();
+        }
+
+        @Override
+        public HostEventRegistrar hostEvents() {
+            return pipeline.extensionHost().hostEvents();
+        }
+
+        @Override
+        public GraphicsWorld graphicsWorld() {
+            return pipeline.graphicsWorld();
+        }
+
+        @Override
+        public GraphicsEntityAssembler graphicsEntityAssembler() {
+            return pipeline.graphicsEntityAssembler();
+        }
+
+        @Override
         public @Nullable PipelineKernel<?> kernel() {
             return kernel;
         }
@@ -718,28 +860,47 @@ public class ModuleRuntimeHost {
         }
 
         @Override
-        public void registerCompute(KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
-            ModuleRuntimeHost.this.registerCompute(ownerId, stageId, graphics, lifetime);
+        public <T> FrameResourceHandle<T> registerFrameResourceHandle(FrameResourceHandle<T> handle) {
+            if (handle == null) {
+                throw new IllegalArgumentException("handle");
+            }
+            moduleFrameHandles
+                    .computeIfAbsent(moduleId(), ignored -> new LinkedHashMap<>())
+                    .put(handle.id(), handle);
+            return handle;
         }
 
         @Override
-        public void registerFunction(KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime) {
-            ModuleRuntimeHost.this.registerFunction(ownerId, stageId, graphics, lifetime);
+        public <T> FrameResourceHandle<T> frameResourceHandle(KeyId handleId, Class<T> valueType) {
+            if (handleId == null || valueType == null) {
+                return null;
+            }
+            Map<KeyId, FrameResourceHandle<?>> handles = moduleFrameHandles.get(moduleId());
+            if (handles == null) {
+                return null;
+            }
+            FrameResourceHandle<?> existing = handles.get(handleId);
+            if (existing == null || !valueType.isAssignableFrom(existing.valueType())) {
+                return null;
+            }
+            @SuppressWarnings("unchecked")
+            FrameResourceHandle<T> typed = (FrameResourceHandle<T>) existing;
+            return typed;
         }
 
         @Override
-        public void registerGraphics(KeyId stageId, Graphics graphics, RenderParameter renderParameter, ModuleGraphicsLifetime lifetime) {
-            registerGraphics(stageId, graphics, renderParameter, PipelineType.RASTERIZATION, lifetime);
+        public LifecyclePhase phaseForPass(String passId) {
+            return kernel != null ? kernel.phaseForPass(moduleId(), passId) : null;
         }
 
         @Override
-        public void registerGraphics(KeyId stageId, Graphics graphics, RenderParameter renderParameter, PipelineType pipelineType, ModuleGraphicsLifetime lifetime) {
-            registerGraphics(stageId, graphics, renderParameter, pipelineType, DefaultBatchContainers.DEFAULT, null, lifetime);
+        public void registerStageSubmitNode(StageSubmitNode node) {
+            ModuleRuntimeHost.this.registerStageSubmitNode(ownerId, node);
         }
 
         @Override
-        public void registerGraphics(KeyId stageId, Graphics graphics, RenderParameter renderParameter, PipelineType pipelineType, KeyId containerType, Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier, ModuleGraphicsLifetime lifetime) {
-            ModuleRuntimeHost.this.registerGraphics(ownerId, stageId, graphics, renderParameter, pipelineType, containerType, containerSupplier, lifetime);
+        public GraphicsEntityId registerGraphicsEntity(GraphicsEntityBlueprint blueprint, ModuleGraphicsLifetime lifetime) {
+            return ModuleRuntimeHost.this.registerGraphicsEntity(ownerId, blueprint, lifetime);
         }
 
         @Override
@@ -758,6 +919,11 @@ public class ModuleRuntimeHost {
         }
 
         @Override
+        public void clearOwnedHostEvents() {
+            pipeline.extensionHost().hostEvents().clearOwner(ownerId);
+        }
+
+        @Override
         public void rebuildGraphs() {
             if (kernel != null) {
                 kernel.rebuildGraphs();
@@ -771,8 +937,8 @@ public class ModuleRuntimeHost {
         }
 
         @Override
-        public void registerAuxiliaryGraphics(Graphics graphics, ModuleGraphicsLifetime lifetime) {
-            ModuleRuntimeHost.this.registerAuxiliaryGraphics(ownerId(), graphics, lifetime);
+        public void registerAuxiliaryEntity(GraphicsEntityBlueprint blueprint, ModuleGraphicsLifetime lifetime) {
+            ModuleRuntimeHost.this.registerGraphicsEntity(ownerId(), blueprint, lifetime);
         }
     }
 
@@ -789,7 +955,7 @@ public class ModuleRuntimeHost {
     }
 
     private record ManagedGraphicsRegistration(
-            Graphics graphics,
+            GraphicsEntityId entityId,
             ModuleGraphicsLifetime lifetime
     ) {
     }
@@ -799,6 +965,72 @@ public class ModuleRuntimeHost {
             KeyId graphicsId,
             IndirectPlanRequest.RequestMode requestMode
     ) {
+    }
+
+    private final class ModuleGraphAssemblyCollector implements ModuleGraphAssemblyContext {
+        private final String moduleId;
+        private final Map<KeyId, FrameResourceHandle<?>> resourceHandles = new LinkedHashMap<>();
+        private final List<ModulePassDefinition> modulePasses = new ArrayList<>();
+
+        private ModuleGraphAssemblyCollector(String moduleId) {
+            this.moduleId = moduleId;
+        }
+
+        @Override
+        public String moduleId() {
+            return moduleId;
+        }
+
+        @Override
+        public <T> FrameResourceHandle<T> registerFrameResourceHandle(FrameResourceHandle<T> handle) {
+            if (handle == null) {
+                throw new IllegalArgumentException("handle");
+            }
+            resourceHandles.put(handle.id(), handle);
+            moduleFrameHandles
+                    .computeIfAbsent(moduleId, ignored -> new LinkedHashMap<>())
+                    .put(handle.id(), handle);
+            return handle;
+        }
+
+        private void registerExistingHandle(FrameResourceHandle<?> handle) {
+            if (handle != null) {
+                resourceHandles.put(handle.id(), handle);
+            }
+        }
+
+        @Override
+        public <T> FrameResourceHandle<T> frameResourceHandle(KeyId handleId, Class<T> valueType) {
+            if (handleId == null || valueType == null) {
+                return null;
+            }
+            FrameResourceHandle<?> handle = resourceHandles.get(handleId);
+            if (handle == null) {
+                Map<KeyId, FrameResourceHandle<?>> handles = moduleFrameHandles.get(moduleId);
+                handle = handles != null ? handles.get(handleId) : null;
+            }
+            if (handle == null || !valueType.isAssignableFrom(handle.valueType())) {
+                return null;
+            }
+            @SuppressWarnings("unchecked")
+            FrameResourceHandle<T> typed = (FrameResourceHandle<T>) handle;
+            return typed;
+        }
+
+        @Override
+        public void registerModulePass(ModulePassDefinition definition) {
+            if (definition != null) {
+                modulePasses.add(definition);
+            }
+        }
+
+        private List<ModulePassDefinition> modulePasses() {
+            return List.copyOf(modulePasses);
+        }
+
+        private Map<KeyId, FrameResourceHandle<?>> resourceHandles() {
+            return Map.copyOf(resourceHandles);
+        }
     }
 }
 

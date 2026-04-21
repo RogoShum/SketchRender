@@ -4,11 +4,11 @@ import java.util.List;
 
 public record VisibleInstanceSlice(
         GeometryBatchKey geometryBatchKey,
-        List<InstanceHandle> visibleHandles,
+        List<StageEntityView.Entry> visibleEntries,
         long visibleRevision,
         long firstVisibleOrderKey
 ) {
     public VisibleInstanceSlice {
-        visibleHandles = visibleHandles != null ? List.copyOf(visibleHandles) : List.of();
+        visibleEntries = visibleEntries != null ? List.copyOf(visibleEntries) : List.of();
     }
 }

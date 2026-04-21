@@ -11,6 +11,8 @@ import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
 import rogo.sketch.core.pipeline.kernel.FrameContext;
 import rogo.sketch.core.pipeline.kernel.StageExecutionPlan;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
+import rogo.sketch.core.pipeline.data.FrameDataDomain;
+import rogo.sketch.core.pipeline.data.IndirectBufferData;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.LinkedHashMap;
@@ -53,6 +55,7 @@ public class AsyncRenderPass<C extends RenderContext> implements PipelinePass<C>
         for (GraphicsStage stage : pipeline.getOrderedStages()) {
             GraphicsBatchGroup<C> batchGroup = pipeline.getBatchGroup(stage);
             if (batchGroup != null) {
+                batchGroup.prepareForFrame(renderContext);
                 StageExecutionPlan stagePlan = batchGroup.createStageExecutionPlan(renderContext, postProcessors);
                 if (!stagePlan.isEmpty()) {
                     stagePlans.put(stage.getIdentifier(), stagePlan);
@@ -80,12 +83,23 @@ public class AsyncRenderPass<C extends RenderContext> implements PipelinePass<C>
             }
         }
 
+        for (PipelineType pipelineType : pipeline.getPipelineTypes()) {
+            IndirectBufferData indirectBufferData = pipeline.getPipelineDataStore(
+                    pipelineType,
+                    FrameDataDomain.ASYNC_BUILD).get(IndirectBufferData.KEY);
+            if (indirectBufferData != null) {
+                indirectBufferData.finishFrame();
+            }
+        }
+
         // Publish result
         ctx.kernel().publishBuildResult(new BuildResult(
                 ctx.frameNumber(),
-                new FrameExecutionPlan(stagePlans, geometryUploadPlans, resourceUploadPlans, null),
+                new FrameExecutionPlan(stagePlans, geometryUploadPlans, resourceUploadPlans, null, null),
                 postProcessors,
-                uploadsCompleted
+                uploadsCompleted,
+                ctx.kernel().graphSnapshot().version(),
+                ctx.renderFrameEpoch()
         ));
     }
 }

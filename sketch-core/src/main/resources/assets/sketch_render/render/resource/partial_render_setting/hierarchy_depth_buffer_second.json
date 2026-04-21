@@ -1,16 +1,26 @@
 {
+  "executionDomain": "COMPUTE",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_render:hierarchy_depth_buffer"
     }
   },
   "resourceBinding": {
-    "image_buffer": {
-      "output_texture_0": "sketch_render:hiz_texture"
+    "image": {
+      "output_texture_0": {
+        "resource": "sketch_render:hiz_async_texture",
+        "view": "STORAGE_IMAGE",
+        "access": "WRITE"
+      }
     },
     "texture": {
-      "sketch_SamplerTexture": "sketch_render:hiz_texture"
+      "sketch_SamplerTexture": {
+        "resource": "sketch_render:hiz_async_texture",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
     }
   },
-  "shouldSwitchRenderState": true
+  "shouldSwitchRenderState": true,
+  "aliasPolicy": "HIZ_ATLAS_READ_WRITE"
 }

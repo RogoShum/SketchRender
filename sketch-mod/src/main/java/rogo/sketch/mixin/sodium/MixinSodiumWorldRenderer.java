@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketch.Config;
 import rogo.sketch.compat.sodium.SodiumSectionAsyncUtil;
+import rogo.sketch.compat.sodium.SodiumTerrainCullCoordinator;
 
 import java.util.SortedSet;
 
@@ -29,6 +30,7 @@ public abstract class MixinSodiumWorldRenderer {
     @Inject(method = "setupTerrain", at = @At(value = "HEAD"), remap = false)
     public void injectTerrainSetup(Camera camera, Viewport viewport, int frame, boolean spectator, boolean updateChunksImmediately, CallbackInfo ci) {
         if (Config.getCullChunk()) {
+            SodiumTerrainCullCoordinator.getInstance().bind(this.renderSectionManager);
             SodiumSectionAsyncUtil.update(viewport, ((AccessorRenderSectionManager) this.renderSectionManager).invokeSearchDistance()
                     , ((AccessorRenderSectionManager) this.renderSectionManager).invokeShouldUseOcclusionCulling(camera, spectator));
             if(SodiumSectionAsyncUtil.NEED_ASYNC_BUILD) {

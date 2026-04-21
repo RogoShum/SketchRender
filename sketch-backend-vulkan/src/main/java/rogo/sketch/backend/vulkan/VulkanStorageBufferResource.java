@@ -10,6 +10,10 @@ import org.lwjgl.vulkan.VkMemoryRequirements;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkPhysicalDeviceMemoryProperties;
 import rogo.sketch.core.backend.BackendStorageBuffer;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.TrackedTransientAllocation;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
 import rogo.sketch.core.resource.descriptor.BufferRole;
 import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
 import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
@@ -32,7 +36,7 @@ import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceMemoryProperties;
 import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 
-final class VulkanStorageBufferResource implements BackendStorageBuffer {
+final class VulkanStorageBufferResource implements BackendStorageBuffer, VulkanDescriptorBufferResource {
     private final VkPhysicalDevice physicalDevice;
     private final VkDevice device;
     private final KeyId resourceId;
@@ -44,6 +48,7 @@ final class VulkanStorageBufferResource implements BackendStorageBuffer {
     private long memory;
     private long mappedAddress;
     private long position;
+    private final MemoryLease mappedLease;
     private boolean disposed;
 
     VulkanStorageBufferResource(
@@ -59,14 +64,16 @@ final class VulkanStorageBufferResource implements BackendStorageBuffer {
         this.strideBytes = Math.max(1L, descriptor.strideBytes());
         this.elementCount = Math.max(1L, descriptor.elementCount());
         this.capacityBytes = Math.max(strideBytes, descriptor.capacityBytes());
+        this.mappedLease = UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.GPU_PERSISTENT_MAPPED, "vk-storage-buffer/" + this.resourceId)
+                .bindSuppliers(this::trackedReservedBytes, this::trackedLiveBytes);
         allocate(capacityBytes);
         if (initialData != null) {
-            java.nio.ByteBuffer copy = MemoryUtil.memAlloc(initialData.remaining());
-            try {
-                copy.put(initialData.slice()).flip();
-                upload(MemoryUtil.memAddress(copy), copy.remaining());
-            } finally {
-                MemoryUtil.memFree(copy);
+            try (TrackedTransientAllocation copy = TrackedTransientAllocation.allocate(
+                    "vk-storage-buffer-init/" + this.resourceId,
+                    initialData.remaining())) {
+                copy.buffer().put(initialData.slice()).flip();
+                upload(copy.address(), copy.buffer().remaining());
             }
         }
     }
@@ -193,11 +200,22 @@ final class VulkanStorageBufferResource implements BackendStorageBuffer {
     }
 
     @Override
+    public long descriptorBuffer() {
+        return buffer;
+    }
+
+    @Override
+    public long descriptorRange() {
+        return capacityBytes;
+    }
+
+    @Override
     public void dispose() {
         if (disposed) {
             return;
         }
         disposed = true;
+        mappedLease.close();
         destroyBuffer();
     }
 
@@ -222,12 +240,11 @@ final class VulkanStorageBufferResource implements BackendStorageBuffer {
         destroyBuffer();
         allocate(newCapacityBytes);
         if (snapshot != null && snapshot.length > 0) {
-            java.nio.ByteBuffer copyBuffer = MemoryUtil.memAlloc(snapshot.length);
-            try {
-                copyBuffer.put(snapshot).flip();
-                MemoryUtil.memCopy(MemoryUtil.memAddress(copyBuffer), mappedAddress, snapshot.length);
-            } finally {
-                MemoryUtil.memFree(copyBuffer);
+            try (TrackedTransientAllocation copyBuffer = TrackedTransientAllocation.allocate(
+                    "vk-storage-buffer-resize/" + resourceId,
+                    snapshot.length)) {
+                copyBuffer.buffer().put(snapshot).flip();
+                MemoryUtil.memCopy(copyBuffer.address(), mappedAddress, snapshot.length);
             }
         }
         capacityBytes = newCapacityBytes;
@@ -295,6 +312,14 @@ final class VulkanStorageBufferResource implements BackendStorageBuffer {
         if (disposed) {
             throw new IllegalStateException("Storage buffer has been disposed");
         }
+    }
+
+    private long trackedReservedBytes() {
+        return disposed ? 0L : capacityBytes;
+    }
+
+    private long trackedLiveBytes() {
+        return disposed ? 0L : Math.min(capacityBytes, Math.max(position, 0L));
     }
 
     private static int findMemoryType(VkPhysicalDevice physicalDevice, int typeFilter, int properties) {

@@ -31,6 +31,7 @@ public final class TextureDescriptorParser {
         SamplerWrap wrapS = readWrap(json, "wrapS", json.has("wrap") ? json.get("wrap").getAsString() : "REPEAT");
         SamplerWrap wrapT = readWrap(json, "wrapT", json.has("wrap") ? json.get("wrap").getAsString() : "REPEAT");
 
+        boolean explicitUsages = hasExplicitUsages(json);
         EnumSet<ImageUsage> usages = parseUsages(json);
         if (usages.isEmpty()) {
             if (renderTarget) {
@@ -38,11 +39,15 @@ public final class TextureDescriptorParser {
                 usages.add(ImageUsage.SAMPLED);
                 usages.add(ImageUsage.TRANSFER_SRC);
                 usages.add(ImageUsage.TRANSFER_DST);
+                if (!format.isDepthFormat()) {
+                    usages.add(ImageUsage.STORAGE);
+                }
             } else {
                 usages.add(ImageUsage.SAMPLED);
                 usages.add(ImageUsage.TRANSFER_DST);
-                if (mipmaps) {
-                    usages.add(ImageUsage.TRANSFER_SRC);
+                usages.add(ImageUsage.TRANSFER_SRC);
+                if (!format.isDepthFormat()) {
+                    usages.add(ImageUsage.STORAGE);
                 }
             }
         }
@@ -70,11 +75,26 @@ public final class TextureDescriptorParser {
                 mipmapFilter,
                 wrapS,
                 wrapT,
-                sourcePath);
+                sourcePath,
+                explicitUsages);
+    }
+
+    private static boolean hasExplicitUsages(JsonObject json) {
+        return json.has("usages") || json.has("usage");
     }
 
     private static EnumSet<ImageUsage> parseUsages(JsonObject json) {
         EnumSet<ImageUsage> usages = EnumSet.noneOf(ImageUsage.class);
+        if (json.has("usage")) {
+            if (json.get("usage").isJsonArray()) {
+                JsonArray array = json.getAsJsonArray("usage");
+                for (int i = 0; i < array.size(); i++) {
+                    usages.add(parseUsage(array.get(i).getAsString()));
+                }
+            } else {
+                usages.add(parseUsage(json.get("usage").getAsString()));
+            }
+        }
         if (!json.has("usages") || !json.get("usages").isJsonArray()) {
             return usages;
         }

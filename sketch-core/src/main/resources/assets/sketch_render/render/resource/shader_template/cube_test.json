@@ -1,4 +1,9 @@
 {
   "vertex": "sketch_render:cube_test.vsh",
-  "fragment": "sketch_render:cube_test.fsh"
+  "fragment": "sketch_render:cube_test.fsh",
+  "resourceBindings": {
+    "texture": {
+      "Sampler0": 0
+    }
+  }
 }

@@ -24,5 +24,6 @@ public class PostTickAsyncGraphicsPass<C extends RenderContext> implements Pipel
     @Override
     public void execute(FrameContext<C> ctx) {
         ctx.pipeline().asyncTickGraphics();
+        ctx.pipeline().prepareNextFrameStageViews();
     }
 }

@@ -6,5 +6,8 @@ public enum MetricKind {
     FLOAT,
     STRING,
     DURATION,
-    COUNT
+    COUNT,
+    BYTES,
+    BYTES_PER_SECOND,
+    PERCENT
 }

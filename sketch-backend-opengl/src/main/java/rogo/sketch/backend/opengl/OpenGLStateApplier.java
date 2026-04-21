@@ -8,10 +8,12 @@ import org.lwjgl.opengl.GL30;
 import rogo.sketch.core.backend.BackendResourceResolver;
 import rogo.sketch.core.backend.BackendInstalledRenderTarget;
 import rogo.sketch.core.backend.BackendStateApplier;
+import rogo.sketch.core.driver.state.AttachmentBindingState;
 import rogo.sketch.core.driver.state.DepthState;
 import rogo.sketch.core.driver.state.DynamicRenderState;
 import rogo.sketch.core.driver.state.PassBindingState;
 import rogo.sketch.core.driver.state.PipelineRasterState;
+import rogo.sketch.core.driver.state.ShaderBindingState;
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
 import rogo.sketch.core.driver.state.BlendFactor;
 import rogo.sketch.core.driver.state.BlendOp;
@@ -113,6 +115,22 @@ public final class OpenGLStateApplier implements BackendStateApplier {
         if (state.shaderState() != null) {
             applyShader(state.shaderState(), context);
         }
+    }
+
+    @Override
+    public void applyAttachmentBindingState(AttachmentBindingState state, RenderContext context) {
+        if (state == null || state.renderTargetState() == null) {
+            return;
+        }
+        applyRenderTarget(state.renderTargetState());
+    }
+
+    @Override
+    public void applyShaderBindingState(ShaderBindingState state, RenderContext context) {
+        if (state == null || state.shaderState() == null) {
+            return;
+        }
+        applyShader(state.shaderState(), context);
     }
 
     private void applyBlend(BlendState state) {
@@ -242,6 +260,9 @@ public final class OpenGLStateApplier implements BackendStateApplier {
 
     private void applyShader(ShaderState state, RenderContext context) {
         try {
+            if (state == null || state.getShaderId() == null || "empty".equals(state.getShaderId().toString())) {
+                return;
+            }
             ShaderProgramHandle programHandle = ShaderProgramResolver.resolveProgramHandle(state);
             if (programHandle == null) {
                 SketchDiagnostics.get().warn(

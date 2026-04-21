@@ -191,7 +191,12 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                 return handleControlClick(hoveredNode, mouseX, mouseY);
             }
             case MACRO_SECTION_HEADER -> {
-                controller.toggleMacroConstantsExpanded();
+                String sectionId = String.valueOf(hoveredNode.props().get("sectionId"));
+                if ("memory".equals(sectionId)) {
+                    controller.toggleMemorySectionExpanded();
+                } else {
+                    controller.toggleMacroConstantsExpanded();
+                }
                 return true;
             }
             case METRICS_LAYOUT_TOGGLE -> {

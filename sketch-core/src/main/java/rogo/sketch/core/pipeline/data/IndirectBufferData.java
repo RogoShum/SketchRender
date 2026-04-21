@@ -2,6 +2,7 @@ package rogo.sketch.core.pipeline.data;
 
 import rogo.sketch.core.backend.BackendBufferFactory;
 import rogo.sketch.core.backend.BackendIndirectBuffer;
+import rogo.sketch.core.pipeline.indirect.PersistentIndirectBufferPool;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.resource.descriptor.BufferRole;
 import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
@@ -18,12 +19,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class IndirectBufferData implements RenderPipelineData {
     public static final KeyId KEY = KeyId.of("indirect_buffers");
-    private final Map<RenderParameter, BackendIndirectBuffer> buffers = new ConcurrentHashMap<>();
-    private final Set<RenderParameter> pendingCreate = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final PersistentIndirectBufferPool pool;
     private final int defaultBufferSize;
 
     public IndirectBufferData(int defaultBufferSize) {
         this.defaultBufferSize = defaultBufferSize;
+        this.pool = new PersistentIndirectBufferPool(defaultBufferSize);
     }
 
     public IndirectBufferData() {
@@ -37,32 +38,19 @@ public class IndirectBufferData implements RenderPipelineData {
      * @return The indirect command buffer, or null if it has not been materialized yet
      */
     public BackendIndirectBuffer get(RenderParameter param) {
-        return param == null ? null : buffers.get(param);
+        return pool.get(param);
     }
 
     public BackendIndirectBuffer getOrCreate(RenderParameter param) {
-        if (param == null) {
-            return null;
-        }
-        return buffers.computeIfAbsent(param, this::createIndirectBuffer);
+        return pool.getOrCreate(param);
     }
 
     public void planCreate(RenderParameter param) {
-        if (param != null && !buffers.containsKey(param)) {
-            pendingCreate.add(param);
-        }
+        pool.planCreate(param);
     }
 
     public int materializePending() {
-        int created = 0;
-        for (RenderParameter param : pendingCreate) {
-            if (!buffers.containsKey(param)) {
-                buffers.put(param, createIndirectBuffer(param));
-                created++;
-            }
-        }
-        pendingCreate.clear();
-        return created;
+        return pool.materializePending();
     }
 
     /**
@@ -71,26 +59,31 @@ public class IndirectBufferData implements RenderPipelineData {
      * @return The map of buffers
      */
     public Map<RenderParameter, BackendIndirectBuffer> getAll() {
-        return buffers;
+        return pool.buffersView();
+    }
+
+    public PersistentIndirectBufferPool pool() {
+        return pool;
+    }
+
+    public void beginFrame() {
+        pool.beginFrame();
+    }
+
+    public void finishFrame() {
+        pool.finishFrame();
+    }
+
+    public void synchronizeLayoutsFrom(IndirectBufferData other) {
+        if (other == null || other == this) {
+            return;
+        }
+        pool.synchronizeLayoutsFrom(other.pool);
     }
 
     @Override
     public void reset() {
-        for (BackendIndirectBuffer buffer : buffers.values()) {
-            buffer.clear();
-        }
-    }
-
-    private BackendIndirectBuffer createIndirectBuffer(RenderParameter param) {
-        KeyId resourceId = KeyId.of("indirect_" + Integer.toUnsignedLong(param != null ? param.hashCode() : 0));
-        ResolvedBufferResource descriptor = new ResolvedBufferResource(
-                resourceId,
-                BufferRole.INDIRECT,
-                BufferUpdatePolicy.DYNAMIC,
-                defaultBufferSize,
-                BackendIndirectBuffer.COMMAND_STRIDE_BYTES,
-                (long) defaultBufferSize * BackendIndirectBuffer.COMMAND_STRIDE_BYTES);
-        return BackendBufferFactory.createIndirectBuffer(resourceId, descriptor, defaultBufferSize);
+        beginFrame();
     }
 }
 

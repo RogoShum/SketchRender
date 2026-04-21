@@ -1,9 +1,12 @@
 {
   "compute": "sketch_render:cull_entity_batch.comp",
   "resourceBindings": {
-    "shader_storage_buffer": [
-      "EntityDataBuffer",
-      "CullingResultBuffer"
-    ]
+    "storage_buffer": {
+      "EntityDataBuffer": 0,
+      "CullingResultBuffer": 1
+    },
+    "texture": {
+      "Sampler0": 2
+    }
   }
 }

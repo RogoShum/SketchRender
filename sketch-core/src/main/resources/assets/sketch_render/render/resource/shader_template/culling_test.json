@@ -1,4 +1,9 @@
 {
   "vertex": "sketch_render:position.vsh",
-  "fragment": "sketch_render:culling_test.fsh"
+  "fragment": "sketch_render:culling_test.fsh",
+  "resourceBindings": {
+    "texture": {
+      "Sampler0": 0
+    }
+  }
 }

@@ -1,7 +1,7 @@
 package rogo.sketch.core.backend;
 
 import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.RenderPacketQueue;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
@@ -28,7 +28,7 @@ public enum NoOpBackendRuntime implements BackendRuntime {
         @Override
         public <C extends RenderContext> void executePacketGroup(
                 GraphicsPipeline<C> pipeline,
-                PipelineStateKey stateKey,
+                ExecutionKey stateKey,
                 List<RenderPacket> packets,
                 RenderStateManager manager,
                 C context) {
@@ -63,6 +63,11 @@ public enum NoOpBackendRuntime implements BackendRuntime {
     @Override
     public BackendFrameExecutor frameExecutor() {
         return EXECUTOR;
+    }
+
+    @Override
+    public CommandRecorderFactory commandRecorderFactory() {
+        return CommandRecorderFactory.noOp();
     }
 
     @Override

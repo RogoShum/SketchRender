@@ -9,6 +9,7 @@ public record DashboardViewSnapshot(
         List<DashboardTreeNode> settingRoots,
         List<DashboardTreeNode> macroRoots,
         List<DashboardSummaryMetric> summaryMetrics,
+        DashboardMemorySection memorySection,
         List<DashboardRatioMetric> ratioMetrics,
         List<Double> frameTimeHistory,
         List<DashboardMacroConstantView> macroConstants,
@@ -23,6 +24,7 @@ public record DashboardViewSnapshot(
         settingRoots = List.copyOf(settingRoots);
         macroRoots = List.copyOf(macroRoots);
         summaryMetrics = List.copyOf(summaryMetrics);
+        memorySection = memorySection != null ? memorySection : DashboardMemorySection.empty();
         ratioMetrics = List.copyOf(ratioMetrics);
         frameTimeHistory = List.copyOf(frameTimeHistory);
         macroConstants = List.copyOf(macroConstants);

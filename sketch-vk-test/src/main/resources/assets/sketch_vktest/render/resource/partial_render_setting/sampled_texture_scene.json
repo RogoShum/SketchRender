@@ -12,7 +12,11 @@
   },
   "resourceBinding": {
     "texture": {
-      "test_texture": "sketch_vktest:vulkan_clear_color"
+      "test_texture": {
+        "resource": "sketch_vktest:vulkan_clear_color",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
     }
   },
   "shouldSwitchRenderState": true

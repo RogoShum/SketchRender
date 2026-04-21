@@ -7,6 +7,7 @@ public record DashboardDiagnosticLine(
         DiagnosticLevel level,
         String moduleId,
         String message,
+        String stackPreview,
         int repeatCount
 ) {
 }

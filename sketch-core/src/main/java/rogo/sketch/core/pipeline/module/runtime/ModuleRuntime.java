@@ -1,10 +1,11 @@
 package rogo.sketch.core.pipeline.module.runtime;
 
 import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
 import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
+import rogo.sketch.core.pipeline.kernel.ModulePassDefinition;
 import rogo.sketch.core.pipeline.module.session.ModuleSession;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
@@ -34,20 +35,25 @@ public interface ModuleRuntime {
         return ModuleSession.NOOP;
     }
 
-    default boolean supports(Graphics graphics) {
-        return false;
+    default void registerEntitySubscriptions(ModuleSubscriptionRegistrar registrar) {
     }
 
-    default void onGraphicsAttached(Graphics graphics, @Nullable RenderParameter renderParameter, @Nullable KeyId containerType, ModuleRuntimeContext context) {
+    default void onEntityAttached(GraphicsEntityId entityId, GraphicsEntitySnapshot snapshot, EntityAttachContext context) {
     }
 
-    default void onGraphicsDetached(Graphics graphics, ModuleRuntimeContext context) {
+    default void onEntityDetached(GraphicsEntityId entityId, EntityAttachContext context) {
     }
 
     default <C extends RenderContext> void contributeToTickGraph(TickGraphBuilder<C> builder) {
     }
 
     default <C extends RenderContext> void contributeToFrameGraph(RenderGraphBuilder<C> builder) {
+    }
+
+    default void describeFrameResources(ModuleGraphAssemblyContext context) {
+    }
+
+    default void contributeModulePasses(ModuleGraphAssemblyContext context) {
     }
 
     default void onShutdown(ModuleRuntimeContext context) {

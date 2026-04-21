@@ -27,6 +27,9 @@ public class OpenGLAPI extends GraphicsAPI {
     // Shared GL contexts for worker threads
     private long sharedRenderWindowHandle = 0;
     private long sharedTickWindowHandle = 0;
+    private long sharedUploadWindowHandle = 0;
+    private long sharedComputeWindowHandle = 0;
+    private long sharedOffscreenGraphicsWindowHandle = 0;
 
     public OpenGLAPI() {
         // Initialize GLFeatureChecker if not already done
@@ -429,6 +432,42 @@ public class OpenGLAPI extends GraphicsAPI {
     }
 
     @Override
+    public void initUploadWorkerContext(long mainWindowHandle) {
+        if (sharedUploadWindowHandle != 0) return;
+        GLFW.glfwDefaultWindowHints();
+        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+        sharedUploadWindowHandle = GLFW.glfwCreateWindow(1, 1, "Sketch-UploadWorker", 0, mainWindowHandle);
+        if (sharedUploadWindowHandle == 0) {
+            throw new RuntimeException("[OpenGLAPI] Failed to create shared GLFW window for upload worker");
+        }
+        setUploadWorkerReady(true);
+    }
+
+    @Override
+    public void initComputeWorkerContext(long mainWindowHandle) {
+        if (sharedComputeWindowHandle != 0) return;
+        GLFW.glfwDefaultWindowHints();
+        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+        sharedComputeWindowHandle = GLFW.glfwCreateWindow(1, 1, "Sketch-ComputeWorker", 0, mainWindowHandle);
+        if (sharedComputeWindowHandle == 0) {
+            throw new RuntimeException("[OpenGLAPI] Failed to create shared GLFW window for compute worker");
+        }
+        setComputeWorkerReady(true);
+    }
+
+    @Override
+    public void initOffscreenGraphicsWorkerContext(long mainWindowHandle) {
+        if (sharedOffscreenGraphicsWindowHandle != 0) return;
+        GLFW.glfwDefaultWindowHints();
+        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+        sharedOffscreenGraphicsWindowHandle = GLFW.glfwCreateWindow(1, 1, "Sketch-OffscreenGraphicsWorker", 0, mainWindowHandle);
+        if (sharedOffscreenGraphicsWindowHandle == 0) {
+            throw new RuntimeException("[OpenGLAPI] Failed to create shared GLFW window for offscreen graphics worker");
+        }
+        setOffscreenGraphicsWorkerReady(true);
+    }
+
+    @Override
     public void onRenderWorkerThreadStart() {
         if (sharedRenderWindowHandle == 0) return;
         registerRenderWorkerThread();
@@ -445,12 +484,51 @@ public class OpenGLAPI extends GraphicsAPI {
     }
 
     @Override
+    public void onUploadWorkerThreadStart() {
+        if (sharedUploadWindowHandle == 0) return;
+        registerUploadWorkerThread();
+        GLFW.glfwMakeContextCurrent(sharedUploadWindowHandle);
+        GL.createCapabilities();
+    }
+
+    @Override
+    public void onComputeWorkerThreadStart() {
+        if (sharedComputeWindowHandle == 0) return;
+        registerComputeWorkerThread();
+        GLFW.glfwMakeContextCurrent(sharedComputeWindowHandle);
+        GL.createCapabilities();
+    }
+
+    @Override
+    public void onOffscreenGraphicsWorkerThreadStart() {
+        if (sharedOffscreenGraphicsWindowHandle == 0) return;
+        registerOffscreenGraphicsWorkerThread();
+        GLFW.glfwMakeContextCurrent(sharedOffscreenGraphicsWindowHandle);
+        GL.createCapabilities();
+    }
+
+    @Override
     public void onRenderWorkerThreadEnd() {
         GLFW.glfwMakeContextCurrent(0);
     }
 
     @Override
     public void onTickWorkerThreadEnd() {
+        GLFW.glfwMakeContextCurrent(0);
+    }
+
+    @Override
+    public void onUploadWorkerThreadEnd() {
+        GLFW.glfwMakeContextCurrent(0);
+    }
+
+    @Override
+    public void onComputeWorkerThreadEnd() {
+        GLFW.glfwMakeContextCurrent(0);
+    }
+
+    @Override
+    public void onOffscreenGraphicsWorkerThreadEnd() {
         GLFW.glfwMakeContextCurrent(0);
     }
 
@@ -472,6 +550,33 @@ public class OpenGLAPI extends GraphicsAPI {
         }
     }
 
+    @Override
+    public void destroyUploadWorkerContext() {
+        if (sharedUploadWindowHandle != 0) {
+            GLFW.glfwDestroyWindow(sharedUploadWindowHandle);
+            sharedUploadWindowHandle = 0;
+            setUploadWorkerReady(false);
+        }
+    }
+
+    @Override
+    public void destroyComputeWorkerContext() {
+        if (sharedComputeWindowHandle != 0) {
+            GLFW.glfwDestroyWindow(sharedComputeWindowHandle);
+            sharedComputeWindowHandle = 0;
+            setComputeWorkerReady(false);
+        }
+    }
+
+    @Override
+    public void destroyOffscreenGraphicsWorkerContext() {
+        if (sharedOffscreenGraphicsWindowHandle != 0) {
+            GLFW.glfwDestroyWindow(sharedOffscreenGraphicsWindowHandle);
+            sharedOffscreenGraphicsWindowHandle = 0;
+            setOffscreenGraphicsWorkerReady(false);
+        }
+    }
+
     // ==================== Sync Primitives ====================
 
     @Override
@@ -481,7 +586,13 @@ public class OpenGLAPI extends GraphicsAPI {
 
     @Override
     public boolean clientWaitSync(long fence, long timeoutNanos) {
-        int result = GL32.glClientWaitSync(fence, GL32.GL_SYNC_FLUSH_COMMANDS_BIT, timeoutNanos);
+        return clientWaitSync(fence, timeoutNanos, true);
+    }
+
+    @Override
+    public boolean clientWaitSync(long fence, long timeoutNanos, boolean flushCommands) {
+        int flags = flushCommands ? GL32.GL_SYNC_FLUSH_COMMANDS_BIT : 0;
+        int result = GL32.glClientWaitSync(fence, flags, timeoutNanos);
         return result == GL32.GL_ALREADY_SIGNALED || result == GL32.GL_CONDITION_SATISFIED;
     }
 

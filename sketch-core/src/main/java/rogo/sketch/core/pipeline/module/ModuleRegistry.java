@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline.module;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.RenderGraphBuilder;
@@ -8,12 +8,7 @@ import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
 import rogo.sketch.core.pipeline.module.descriptor.ModuleDescriptor;
 import rogo.sketch.core.pipeline.module.descriptor.ModuleDescriptorContext;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntime;
-import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
-import rogo.sketch.core.pipeline.module.session.ModuleSession;
-import rogo.sketch.core.pipeline.parmeter.RenderParameter;
-import rogo.sketch.core.util.KeyId;
-
 import java.util.*;
 
 /**
@@ -22,14 +17,8 @@ import java.util.*;
 public final class ModuleRegistry {
     private final List<ModuleDescriptor> pendingDescriptors = new ArrayList<>();
     private final Map<String, Object> namedModules = new LinkedHashMap<>();
-    private final ModuleBindingIndex bindingIndex = new ModuleBindingIndex();
     private ModuleRuntimeHost runtimeHost;
     private boolean initialized = false;
-
-    public void register(PipelineModule module) {
-        registerDescriptor(new LegacyModuleDescriptor(module));
-        namedModules.put(module.name(), module);
-    }
 
     public void registerDescriptor(ModuleDescriptor descriptor) {
         if (initialized) {
@@ -95,26 +84,22 @@ public final class ModuleRegistry {
         }
     }
 
-    public void onGraphicsAdded(Graphics graphics, RenderParameter renderParameter, KeyId containerType) {
+    public void onEntitySpawned(GraphicsEntityId entityId) {
         if (runtimeHost != null) {
-            runtimeHost.onGraphicsAdded(graphics, renderParameter, containerType);
+            runtimeHost.onEntitySpawned(entityId);
         }
     }
 
-    public void onGraphicsRemoved(Graphics graphics) {
+    public void onEntityDestroyed(GraphicsEntityId entityId) {
         if (runtimeHost != null) {
-            runtimeHost.onGraphicsRemoved(graphics);
+            runtimeHost.onEntityDestroyed(entityId);
         }
     }
 
-    public void cleanup() {
+    public void onEntityShapeChanged(GraphicsEntityId entityId) {
         if (runtimeHost != null) {
-            runtimeHost.shutdown();
+            runtimeHost.onEntityShapeChanged(entityId);
         }
-        bindingIndex.clear();
-        namedModules.clear();
-        pendingDescriptors.clear();
-        initialized = false;
     }
 
     public Collection<ModuleRuntime> allRuntimes() {
@@ -133,95 +118,16 @@ public final class ModuleRegistry {
         return runtimeHost;
     }
 
-    public ModuleBindingIndex bindingIndex() {
-        return bindingIndex;
-    }
-
     public boolean isInitialized() {
         return initialized;
     }
 
-    private static final class LegacyModuleDescriptor implements ModuleDescriptor {
-        private final PipelineModule delegate;
-
-        private LegacyModuleDescriptor(PipelineModule delegate) {
-            this.delegate = delegate;
+    public void cleanup() {
+        if (runtimeHost != null) {
+            runtimeHost.shutdown();
         }
-
-        @Override
-        public String id() {
-            return delegate.name();
-        }
-
-        @Override
-        public int priority() {
-            return delegate.priority();
-        }
-
-        @Override
-        public void describe(ModuleDescriptorContext context) {
-        }
-
-        @Override
-        public ModuleRuntime createRuntime() {
-            return new LegacyModuleRuntime(delegate);
-        }
-    }
-
-    private static final class LegacyModuleRuntime implements ModuleRuntime {
-        private final PipelineModule delegate;
-
-        private LegacyModuleRuntime(PipelineModule delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public String id() {
-            return delegate.name();
-        }
-
-        @Override
-        public void onKernelInit(ModuleRuntimeContext context) {
-            delegate.initialize(context.pipeline());
-        }
-
-        @Override
-        public boolean supports(Graphics graphics) {
-            return delegate instanceof GraphicsModule graphicsModule && graphicsModule.supports(graphics);
-        }
-
-        @Override
-        public void onGraphicsAttached(Graphics graphics, RenderParameter renderParameter, KeyId containerType, ModuleRuntimeContext context) {
-            if (delegate instanceof GraphicsModule graphicsModule) {
-                graphicsModule.onAttach(graphics, renderParameter, containerType);
-            }
-        }
-
-        @Override
-        public void onGraphicsDetached(Graphics graphics, ModuleRuntimeContext context) {
-            if (delegate instanceof GraphicsModule graphicsModule) {
-                graphicsModule.onDetach(graphics);
-            }
-        }
-
-        @Override
-        public <C extends RenderContext> void contributeToTickGraph(TickGraphBuilder<C> builder) {
-            delegate.contributeToTickGraph(builder);
-        }
-
-        @Override
-        public <C extends RenderContext> void contributeToFrameGraph(RenderGraphBuilder<C> builder) {
-            delegate.contributeToFrameGraph(builder);
-        }
-
-        @Override
-        public void onShutdown(ModuleRuntimeContext context) {
-            delegate.cleanup();
-        }
-
-        @Override
-        public ModuleSession createSession() {
-            return ModuleSession.NOOP;
-        }
+        namedModules.clear();
+        pendingDescriptors.clear();
+        initialized = false;
     }
 }

@@ -10,6 +10,9 @@ import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.core.backend.BackendStorageBuffer;
 import rogo.sketch.backend.opengl.internal.IGLBufferStrategy;
 import rogo.sketch.backend.opengl.internal.OpenGLRuntimeSupport;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
 import rogo.sketch.core.resource.descriptor.BufferRole;
 import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
 import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
@@ -23,6 +26,7 @@ public class OpenGLStorageBuffer implements DataResourceObject, Resizeable,
     private long bufferPointer;
     private long capacity;
     private long dataCount;
+    private final MemoryLease cpuLease;
     private final long stride;
     public long position;
 
@@ -53,6 +57,9 @@ public class OpenGLStorageBuffer implements DataResourceObject, Resizeable,
                 stride,
                 totalCapacity);
         bufferPointer = memoryAddress;
+        cpuLease = UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.CPU_NATIVE, "gl-storage-buffer/" + descriptor.identifier())
+                .bindSuppliers(this::trackedReservedBytes, this::trackedLiveBytes);
 
         IGLBufferStrategy strategy = getBufferStrategy();
         id = strategy.createBuffer();
@@ -74,6 +81,9 @@ public class OpenGLStorageBuffer implements DataResourceObject, Resizeable,
                 capacity / Math.max(1L, stride),
                 stride,
                 capacity);
+        this.cpuLease = UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.CPU_NATIVE, "gl-storage-buffer/" + descriptor.identifier())
+                .bindSuppliers(this::trackedReservedBytes, this::trackedLiveBytes);
 
         IGLBufferStrategy strategy = getBufferStrategy();
         strategy.bufferData(id, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
@@ -209,6 +219,7 @@ public class OpenGLStorageBuffer implements DataResourceObject, Resizeable,
 
     public void dispose() {
         if (disposed) return;
+        cpuLease.close();
         MemoryUtil.nmemFree(bufferPointer);
         getBufferStrategy().deleteBuffer(id);
         disposed = true;
@@ -230,6 +241,7 @@ public class OpenGLStorageBuffer implements DataResourceObject, Resizeable,
     }
 
     public void discardMemory() {
+        cpuLease.close();
         MemoryUtil.nmemFree(bufferPointer);
     }
 
@@ -280,6 +292,14 @@ public class OpenGLStorageBuffer implements DataResourceObject, Resizeable,
             case DYNAMIC -> GL15.GL_DYNAMIC_DRAW;
             case STREAM -> GL15.GL_STREAM_DRAW;
         };
+    }
+
+    private long trackedReservedBytes() {
+        return disposed ? 0L : capacity;
+    }
+
+    private long trackedLiveBytes() {
+        return disposed ? 0L : Math.min(capacity, Math.max(position, 0L));
     }
 }
 

@@ -16,22 +16,27 @@ import rogo.sketch.core.packet.ResourceSetKey;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.ResourceViewRole;
 import rogo.sketch.core.util.KeyId;
 
 import java.nio.LongBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 import static org.lwjgl.vulkan.VK10.VK_ERROR_FRAGMENTED_POOL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_GENERAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_BIND_POINT_COMPUTE;
@@ -55,6 +60,7 @@ final class VulkanDescriptorArena {
     private static final String DIAG_MODULE = "vulkan-descriptor-arena";
     private static final int INITIAL_MAX_DESCRIPTOR_SETS = 512;
     private static final int INITIAL_MAX_TEXTURE_DESCRIPTORS = 512;
+    private static final int INITIAL_MAX_STORAGE_IMAGE_DESCRIPTORS = 256;
     private static final int INITIAL_MAX_UNIFORM_BUFFER_DESCRIPTORS = 512;
     private static final int INITIAL_MAX_STORAGE_BUFFER_DESCRIPTORS = 512;
     private static final int VK_ERROR_OUT_OF_POOL_MEMORY = -1000069000;
@@ -76,6 +82,7 @@ final class VulkanDescriptorArena {
         this.descriptorPools.add(createDescriptorPoolArena(
                 INITIAL_MAX_DESCRIPTOR_SETS,
                 INITIAL_MAX_TEXTURE_DESCRIPTORS,
+                INITIAL_MAX_STORAGE_IMAGE_DESCRIPTORS,
                 INITIAL_MAX_UNIFORM_BUFFER_DESCRIPTORS,
                 INITIAL_MAX_STORAGE_BUFFER_DESCRIPTORS));
     }
@@ -112,7 +119,7 @@ final class VulkanDescriptorArena {
         if (commandBuffer == null || pipelineLayout == 0L || resourceSetKey == null || resourceSetKey.isEmpty()) {
             return;
         }
-        InstalledResourceSet installedResourceSet = installedSets.get(resourceSetKey);
+        InstalledResourceSet installedResourceSet = refreshInstalledResourceSet(resourceSetKey);
         if (installedResourceSet == null || !installedResourceSet.complete() || installedResourceSet.descriptorSet() == VK_NULL_HANDLE) {
             return;
         }
@@ -125,6 +132,20 @@ final class VulkanDescriptorArena {
                     stack.longs(installedResourceSet.descriptorSet()),
                     null);
         }
+    }
+
+    private InstalledResourceSet refreshInstalledResourceSet(ResourceSetKey resourceSetKey) {
+        InstalledResourceSet installedResourceSet = installedSets.get(resourceSetKey);
+        if (installedResourceSet == null || installedResourceSet.uploadPlan() == null) {
+            return installedResourceSet;
+        }
+        DescriptorLayout descriptorLayout = ensureLayout(installedResourceSet.uploadPlan().bindingPlan());
+        InstalledResourceSet refreshed = installResourceSet(installedResourceSet.uploadPlan(), descriptorLayout);
+        if (refreshed != null) {
+            installedSets.put(resourceSetKey, refreshed);
+            return refreshed;
+        }
+        return installedResourceSet;
     }
 
     void destroy() {
@@ -159,21 +180,35 @@ final class VulkanDescriptorArena {
     private DescriptorLayout createLayout(ResourceBindingPlan bindingPlan) {
         List<DescriptorBinding> bindings = new ArrayList<>();
         int nextBinding = 0;
-        List<ResourceBindingPlan.BindingEntry> sortedEntries = new ArrayList<>(bindingPlan.entries());
-        sortedEntries.sort(Comparator
-                .comparing((ResourceBindingPlan.BindingEntry entry) -> entry.bindingName().toString())
+        HashSet<Integer> usedBindings = new HashSet<>();
+        ResourceBindingPlan.BindingEntry[] sortedEntries = bindingPlan.entries().clone();
+        Arrays.sort(sortedEntries, Comparator
+                .comparingInt((ResourceBindingPlan.BindingEntry entry) -> entry.bindingSlot() >= 0 ? entry.bindingSlot() : Integer.MAX_VALUE)
+                .thenComparing(entry -> entry.bindingName().toString())
                 .thenComparing(entry -> entry.resourceType().toString()));
         for (ResourceBindingPlan.BindingEntry entry : sortedEntries) {
-            Integer descriptorType = descriptorType(entry.resourceType());
+            Integer descriptorType = descriptorType(entry);
             if (descriptorType == null) {
                 warnUnsupported(entry, bindingPlan.layoutKey());
                 continue;
             }
+            int bindingSlot = entry.bindingSlot();
+            if (bindingSlot < 0) {
+                while (usedBindings.contains(nextBinding)) {
+                    nextBinding++;
+                }
+                bindingSlot = nextBinding;
+            }
+            if (!usedBindings.add(bindingSlot)) {
+                throw new IllegalStateException("Duplicate Vulkan descriptor binding " + bindingSlot
+                        + " in layout=" + bindingPlan.layoutKey()
+                        + " for binding=" + entry.bindingName());
+            }
             bindings.add(new DescriptorBinding(
-                    nextBinding++,
+                    bindingSlot,
                     descriptorType,
                     entry.bindingName(),
-                    entry.resourceType()));
+                    entry.descriptorResourceType()));
         }
         long handle = bindings.isEmpty() ? emptySetLayout : createDescriptorSetLayout(bindings);
         return new DescriptorLayout(bindingPlan.layoutKey(), handle, List.copyOf(bindings));
@@ -221,10 +256,28 @@ final class VulkanDescriptorArena {
                 complete);
     }
 
-    private Integer descriptorType(KeyId resourceType) {
-        KeyId normalized = ResourceTypes.normalize(resourceType);
-        if (ResourceTypes.TEXTURE.equals(normalized) || ResourceTypes.IMAGE.equals(normalized)) {
+    private Integer descriptorType(ResourceBindingPlan.BindingEntry entry) {
+        if (entry == null) {
+            return null;
+        }
+        ResourceViewRole viewRole = entry.viewRole();
+        if (viewRole == ResourceViewRole.SAMPLED_TEXTURE) {
             return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        }
+        if (viewRole == ResourceViewRole.STORAGE_IMAGE) {
+            return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        }
+        if (viewRole == ResourceViewRole.UNIFORM_BUFFER) {
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        }
+        if (viewRole == ResourceViewRole.STORAGE_BUFFER) {
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        }
+        KeyId normalized = ResourceTypes.normalize(entry.resourceType());
+        if (ResourceTypes.TEXTURE.equals(normalized) || ResourceTypes.IMAGE.equals(normalized)) {
+            return ResourceTypes.IMAGE.equals(normalized)
+                    ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                    : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         }
         if (ResourceTypes.UNIFORM_BUFFER.equals(normalized)) {
             return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -264,17 +317,21 @@ final class VulkanDescriptorArena {
     private DescriptorPoolArena createDescriptorPoolArena(
             int maxSets,
             int textureDescriptors,
+            int storageImageDescriptors,
             int uniformBufferDescriptors,
             int storageBufferDescriptors) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(3, stack);
+            VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(4, stack);
             poolSizes.get(0)
                     .type(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(textureDescriptors);
             poolSizes.get(1)
+                    .type(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+                    .descriptorCount(storageImageDescriptors);
+            poolSizes.get(2)
                     .type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
                     .descriptorCount(uniformBufferDescriptors);
-            poolSizes.get(2)
+            poolSizes.get(3)
                     .type(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
                     .descriptorCount(storageBufferDescriptors);
 
@@ -291,6 +348,7 @@ final class VulkanDescriptorArena {
                     descriptorPoolPointer.get(0),
                     maxSets,
                     textureDescriptors,
+                    storageImageDescriptors,
                     uniformBufferDescriptors,
                     storageBufferDescriptors);
         }
@@ -342,16 +400,19 @@ final class VulkanDescriptorArena {
         DescriptorPoolArena newPool = createDescriptorPoolArena(
                 INITIAL_MAX_DESCRIPTOR_SETS * factor,
                 INITIAL_MAX_TEXTURE_DESCRIPTORS * factor,
+                INITIAL_MAX_STORAGE_IMAGE_DESCRIPTORS * factor,
                 INITIAL_MAX_UNIFORM_BUFFER_DESCRIPTORS * factor,
                 INITIAL_MAX_STORAGE_BUFFER_DESCRIPTORS * factor);
         descriptorPools.add(newPool);
-        String growthKey = newPool.maxSets() + ":" + newPool.textureDescriptors() + ":" + newPool.uniformBufferDescriptors()
+        String growthKey = newPool.maxSets() + ":" + newPool.textureDescriptors() + ":" + newPool.storageImageDescriptors()
+                + ":" + newPool.uniformBufferDescriptors()
                 + ":" + newPool.storageBufferDescriptors();
         if (warnedPoolGrowth.add(growthKey)) {
             SketchDiagnostics.get().warn(
                     DIAG_MODULE,
                     "Vulkan descriptor pool arena expanded to maxSets=" + newPool.maxSets()
                             + ", textures=" + newPool.textureDescriptors()
+                            + ", storageImages=" + newPool.storageImageDescriptors()
                             + ", uniformBuffers=" + newPool.uniformBufferDescriptors()
                             + ", storageBuffers=" + newPool.storageBufferDescriptors());
         }
@@ -385,16 +446,17 @@ final class VulkanDescriptorArena {
     private DescriptorWritePlan buildWritePlan(
             FrameExecutionPlan.ResourceUploadPlan resourceUploadPlan,
             DescriptorLayout descriptorLayout) {
-        Map<KeyId, ResourceBindingPlan.BindingEntry> entriesByBindingName = new HashMap<>();
+        Map<BindingLookupKey, ResourceBindingPlan.BindingEntry> entriesByBindingName = new HashMap<>();
         for (ResourceBindingPlan.BindingEntry entry : resourceUploadPlan.bindingPlan().entries()) {
-            entriesByBindingName.put(entry.bindingName(), entry);
+            entriesByBindingName.put(new BindingLookupKey(entry.descriptorResourceType(), entry.bindingName()), entry);
         }
 
         List<ResolvedDescriptorBinding> resolvedBindings = new ArrayList<>(descriptorLayout.bindings().size());
         long contentSignature = descriptorLayout.handle();
         boolean complete = true;
         for (DescriptorBinding descriptorBinding : descriptorLayout.bindings()) {
-            ResourceBindingPlan.BindingEntry entry = entriesByBindingName.get(descriptorBinding.bindingName());
+            ResourceBindingPlan.BindingEntry entry = entriesByBindingName.get(
+                    new BindingLookupKey(descriptorBinding.resourceType(), descriptorBinding.bindingName()));
             if (entry == null) {
                 warnMissingBinding(
                         new ResourceBindingPlan.BindingEntry(
@@ -409,8 +471,9 @@ final class VulkanDescriptorArena {
 
             VulkanTextureResource textureResource = null;
             VulkanUniformBufferResource uniformBufferResource = null;
-            VulkanStorageBufferResource storageBufferResource = null;
-            if (descriptorBinding.descriptorType() == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+            VulkanDescriptorBufferResource storageBufferResource = null;
+            if (descriptorBinding.descriptorType() == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                    || descriptorBinding.descriptorType() == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
                 textureResource = resourceResolver.resolveTextureResource(entry.resourceId());
                 if (textureResource == null || textureResource.isDisposed()) {
                     warnMissingBinding(entry, resourceUploadPlan.resourceSetKey().resourceLayoutKey(), "missing_vulkan_texture");
@@ -421,7 +484,9 @@ final class VulkanDescriptorArena {
                 contentSignature = mixSignature(contentSignature, descriptorBinding.descriptorType());
                 contentSignature = mixSignature(contentSignature, entry.resourceId().hashCode());
                 contentSignature = mixSignature(contentSignature, textureResource.imageView());
-                contentSignature = mixSignature(contentSignature, textureResource.sampler());
+                if (descriptorBinding.descriptorType() == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+                    contentSignature = mixSignature(contentSignature, textureResource.sampler());
+                }
             } else if (descriptorBinding.descriptorType() == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
                 uniformBufferResource = resourceResolver.resolveUniformBufferResource(entry.resourceId());
                 if (uniformBufferResource == null || uniformBufferResource.isDisposed()) {
@@ -444,8 +509,8 @@ final class VulkanDescriptorArena {
                 contentSignature = mixSignature(contentSignature, descriptorBinding.binding());
                 contentSignature = mixSignature(contentSignature, descriptorBinding.descriptorType());
                 contentSignature = mixSignature(contentSignature, entry.resourceId().hashCode());
-                contentSignature = mixSignature(contentSignature, storageBufferResource.buffer());
-                contentSignature = mixSignature(contentSignature, storageBufferResource.capacityBytes());
+                contentSignature = mixSignature(contentSignature, storageBufferResource.descriptorBuffer());
+                contentSignature = mixSignature(contentSignature, storageBufferResource.descriptorRange());
             } else {
                 warnUnsupported(entry, descriptorLayout.resourceLayoutKey());
                 complete = false;
@@ -496,6 +561,16 @@ final class VulkanDescriptorArena {
                             .imageView(textureResource.imageView())
                             .sampler(textureResource.sampler());
                     write.pImageInfo(imageInfo);
+                } else if (descriptorBinding.descriptorType() == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
+                    VulkanTextureResource textureResource = resolvedBinding.textureResource();
+                    VkDescriptorImageInfo.Buffer imageInfo = VkDescriptorImageInfo.calloc(1, stack);
+                    imageInfo.get(0)
+                            .imageLayout(textureResource.imageLayout() != 0
+                                    ? textureResource.imageLayout()
+                                    : VK_IMAGE_LAYOUT_GENERAL)
+                            .imageView(textureResource.imageView())
+                            .sampler(VK_NULL_HANDLE);
+                    write.pImageInfo(imageInfo);
                 } else if (descriptorBinding.descriptorType() == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
                     VulkanUniformBufferResource uniformBufferResource = resolvedBinding.uniformBufferResource();
                     VkDescriptorBufferInfo.Buffer bufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
@@ -505,12 +580,12 @@ final class VulkanDescriptorArena {
                             .range(uniformBufferResource.size());
                     write.pBufferInfo(bufferInfo);
                 } else if (descriptorBinding.descriptorType() == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
-                    VulkanStorageBufferResource storageBufferResource = resolvedBinding.storageBufferResource();
+                    VulkanDescriptorBufferResource storageBufferResource = resolvedBinding.storageBufferResource();
                     VkDescriptorBufferInfo.Buffer bufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
                     bufferInfo.get(0)
-                            .buffer(storageBufferResource.buffer())
+                            .buffer(storageBufferResource.descriptorBuffer())
                             .offset(0L)
-                            .range(storageBufferResource.capacityBytes());
+                            .range(storageBufferResource.descriptorRange());
                     write.pBufferInfo(bufferInfo);
                 } else {
                     continue;
@@ -539,6 +614,12 @@ final class VulkanDescriptorArena {
     private record DescriptorBinding(int binding, int descriptorType, KeyId bindingName, KeyId resourceType) {
     }
 
+    private record BindingLookupKey(KeyId resourceType, KeyId bindingName) {
+        private BindingLookupKey {
+            resourceType = ResourceTypes.normalize(resourceType);
+        }
+    }
+
     private record DescriptorLayout(KeyId resourceLayoutKey, long handle, List<DescriptorBinding> bindings) {
     }
 
@@ -549,6 +630,7 @@ final class VulkanDescriptorArena {
             long handle,
             int maxSets,
             int textureDescriptors,
+            int storageImageDescriptors,
             int uniformBufferDescriptors,
             int storageBufferDescriptors
     ) {
@@ -559,7 +641,7 @@ final class VulkanDescriptorArena {
             ResourceBindingPlan.BindingEntry entry,
             VulkanTextureResource textureResource,
             VulkanUniformBufferResource uniformBufferResource,
-            VulkanStorageBufferResource storageBufferResource
+            VulkanDescriptorBufferResource storageBufferResource
     ) {
     }
 

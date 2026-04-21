@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline.kernel;
 
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.RenderPacketKind;
 import rogo.sketch.core.packet.ResourceSetKey;
@@ -26,16 +26,16 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
         List<StageCapture> captures = new ArrayList<>(stagePlans.size());
         for (Map.Entry<KeyId, StageExecutionPlan> stageEntry : stagePlans.entrySet()) {
             StageExecutionPlan stagePlan = stageEntry.getValue();
-            Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> packets =
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets =
                     stagePlan != null ? stagePlan.packets() : Map.of();
             Map<StateCaptureKey, MutableStateCapture> states = new LinkedHashMap<>();
             int packetCount = 0;
             int drawPacketCount = 0;
 
-            for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
+            for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
                 PipelineType pipelineType = pipelineEntry.getKey();
-                for (Map.Entry<PipelineStateKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
-                    PipelineStateKey stateKey = stateEntry.getKey();
+                for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
+                    ExecutionKey stateKey = stateEntry.getKey();
                     for (RenderPacket packet : stateEntry.getValue()) {
                         packetCount++;
                         int drawCount = packet.packetKind() == RenderPacketKind.DRAW ? 1 : 0;
@@ -74,16 +74,16 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
         return new FrameCaptureSnapshot(List.copyOf(captures));
     }
 
-    public static FrameCaptureSnapshot fromPackets(Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> stagePackets) {
+    public static FrameCaptureSnapshot fromPackets(Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> stagePackets) {
         if (stagePackets == null || stagePackets.isEmpty()) {
             return empty();
         }
 
         Map<KeyId, StageCaptureBuilder> builders = new LinkedHashMap<>();
-        for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : stagePackets.entrySet()) {
+        for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : stagePackets.entrySet()) {
             PipelineType pipelineType = pipelineEntry.getKey();
-            for (Map.Entry<PipelineStateKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
-                PipelineStateKey stateKey = stateEntry.getKey();
+            for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
+                ExecutionKey stateKey = stateEntry.getKey();
                 for (RenderPacket packet : stateEntry.getValue()) {
                     StageCaptureBuilder stageBuilder = builders.computeIfAbsent(
                             packet.stageId(),
@@ -106,7 +106,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
     public record StateCapture(
             PipelineType pipelineType,
             KeyId targetKey,
-            PipelineStateKey stateKey,
+            ExecutionKey stateKey,
             ResourceSetKey resourceSetKey,
             int packetCount,
             int drawPacketCount
@@ -125,7 +125,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
 
         private void add(
                 PipelineType pipelineType,
-                PipelineStateKey stateKey,
+                ExecutionKey stateKey,
                 ResourceSetKey resourceSetKey,
                 RenderPacket packet) {
             packetCount++;
@@ -161,7 +161,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
     private record StateCaptureKey(
             PipelineType pipelineType,
             KeyId targetKey,
-            PipelineStateKey stateKey,
+            ExecutionKey stateKey,
             ResourceSetKey resourceSetKey
     ) {
     }

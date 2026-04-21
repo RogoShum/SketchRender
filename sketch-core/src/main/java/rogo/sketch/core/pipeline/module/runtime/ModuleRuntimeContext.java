@@ -2,11 +2,15 @@ package rogo.sketch.core.pipeline.module.runtime;
 
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.ResourceObject;
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.extension.ExtensionHost;
+import rogo.sketch.core.extension.event.HostEventRegistrar;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityAssembler;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityBlueprint;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
+import rogo.sketch.core.graphics.ecs.GraphicsWorld;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
-import rogo.sketch.core.pipeline.PipelineType;
-import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.container.GraphicsContainer;
+import rogo.sketch.core.pipeline.kernel.FrameResourceHandle;
+import rogo.sketch.core.pipeline.kernel.LifecyclePhase;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.indirect.IndirectPlanRequest;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
@@ -14,7 +18,7 @@ import rogo.sketch.core.pipeline.module.macro.ModuleMacroRegistry;
 import rogo.sketch.core.pipeline.module.metric.MetricDescriptor;
 import rogo.sketch.core.pipeline.module.metric.ModuleMetricRegistry;
 import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
-import rogo.sketch.core.pipeline.parmeter.RenderParameter;
+import rogo.sketch.core.pipeline.submit.StageSubmitNode;
 import rogo.sketch.core.shader.uniform.PipelineUniformRegistry;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
@@ -29,6 +33,14 @@ public interface ModuleRuntimeContext {
     KeyId moduleEnabledSettingId();
 
     GraphicsPipeline<?> pipeline();
+
+    ExtensionHost extensionHost();
+
+    HostEventRegistrar hostEvents();
+
+    GraphicsWorld graphicsWorld();
+
+    GraphicsEntityAssembler graphicsEntityAssembler();
 
     @Nullable PipelineKernel<?> kernel();
 
@@ -64,22 +76,17 @@ public interface ModuleRuntimeContext {
 
     void setGlobalMacro(String macroName, String value);
 
-    void registerCompute(KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime);
+    <T> FrameResourceHandle<T> registerFrameResourceHandle(FrameResourceHandle<T> handle);
 
-    void registerFunction(KeyId stageId, Graphics graphics, ModuleGraphicsLifetime lifetime);
+    @Nullable
+    <T> FrameResourceHandle<T> frameResourceHandle(KeyId handleId, Class<T> valueType);
 
-    void registerGraphics(KeyId stageId, Graphics graphics, RenderParameter renderParameter, ModuleGraphicsLifetime lifetime);
+    @Nullable
+    LifecyclePhase phaseForPass(String passId);
 
-    void registerGraphics(KeyId stageId, Graphics graphics, RenderParameter renderParameter, PipelineType pipelineType, ModuleGraphicsLifetime lifetime);
+    void registerStageSubmitNode(StageSubmitNode node);
 
-    void registerGraphics(
-            KeyId stageId,
-            Graphics graphics,
-            RenderParameter renderParameter,
-            PipelineType pipelineType,
-            KeyId containerType,
-            Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier,
-            ModuleGraphicsLifetime lifetime);
+    GraphicsEntityId registerGraphicsEntity(GraphicsEntityBlueprint blueprint, ModuleGraphicsLifetime lifetime);
 
     void unregisterOwnedGraphics();
 
@@ -94,6 +101,8 @@ public interface ModuleRuntimeContext {
     }
 
     void clearOwnedIndirectRequests();
+
+    void clearOwnedHostEvents();
 
     void rebuildGraphs();
 }

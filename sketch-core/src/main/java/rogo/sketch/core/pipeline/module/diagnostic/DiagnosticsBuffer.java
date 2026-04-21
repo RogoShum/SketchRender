@@ -24,9 +24,10 @@ public class DiagnosticsBuffer {
             String message,
             Throwable throwable) {
         String throwableType = throwable != null ? throwable.getClass().getName() : null;
+        String stackPreview = throwable != null ? stackPreview(throwable) : null;
         String stackTrace = throwable != null ? stackTraceToString(throwable) : null;
         DiagnosticEntry previous = entries.peekLast();
-        if (previous != null && canMerge(previous, level, moduleId, message, throwableType, stackTrace)) {
+        if (previous != null && canMerge(previous, level, moduleId, message, throwableType, stackPreview, stackTrace)) {
             entries.removeLast();
             DiagnosticEntry merged = new DiagnosticEntry(
                     previous.alertSequence(),
@@ -36,6 +37,7 @@ public class DiagnosticsBuffer {
                     previous.threadName(),
                     previous.message(),
                     previous.throwableType(),
+                    previous.stackPreview(),
                     previous.stackTrace(),
                     previous.repeatCount() + 1
             );
@@ -50,6 +52,7 @@ public class DiagnosticsBuffer {
                 Thread.currentThread().getName(),
                 message,
                 throwableType,
+                stackPreview,
                 stackTrace,
                 1
         );
@@ -68,13 +71,52 @@ public class DiagnosticsBuffer {
         entries.clear();
     }
 
-    private boolean canMerge(DiagnosticEntry previous, DiagnosticLevel level, String moduleId, String message, String throwableType, String stackTrace) {
+    private boolean canMerge(
+            DiagnosticEntry previous,
+            DiagnosticLevel level,
+            String moduleId,
+            String message,
+            String throwableType,
+            String stackPreview,
+            String stackTrace) {
         return previous.level() == level
                 && previous.moduleId().equals(moduleId)
                 && previous.threadName().equals(Thread.currentThread().getName())
                 && previous.message().equals(message)
                 && java.util.Objects.equals(previous.throwableType(), throwableType)
+                && java.util.Objects.equals(previous.stackPreview(), stackPreview)
                 && java.util.Objects.equals(previous.stackTrace(), stackTrace);
+    }
+
+    private String stackPreview(Throwable throwable) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(throwable.getClass().getSimpleName());
+        String message = throwable.getMessage();
+        if (message != null && !message.isBlank()) {
+            builder.append(": ").append(message);
+        }
+        StackTraceElement[] stack = throwable.getStackTrace();
+        int appended = 0;
+        for (StackTraceElement element : stack) {
+            if (element == null) {
+                continue;
+            }
+            builder.append('\n')
+                    .append("at ")
+                    .append(element.getClassName())
+                    .append('.')
+                    .append(element.getMethodName())
+                    .append('(')
+                    .append(element.getFileName() != null ? element.getFileName() : "Unknown Source")
+                    .append(':')
+                    .append(element.getLineNumber())
+                    .append(')');
+            appended++;
+            if (appended >= 3) {
+                break;
+            }
+        }
+        return builder.toString();
     }
 
     private String stackTraceToString(Throwable throwable) {

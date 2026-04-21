@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline;
 
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.ResourceBindingPlan;
 
 public record CompiledRenderSetting(
@@ -9,6 +9,6 @@ public record CompiledRenderSetting(
         ResourceBindingDescriptor resourceBindingDescriptor,
         TargetBindingDescriptor targetBindingDescriptor,
         ResourceBindingPlan resourceBindingPlan,
-        PipelineStateKey pipelineStateKey
+        ExecutionKey pipelineStateKey
 ) {
 }

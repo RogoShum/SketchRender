@@ -25,12 +25,18 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class GeometryResourceCoordinator {
     private static GeometryResourceCoordinator instance;
 
-    private final Map<VertexBufferKey, BackendGeometryBinding> installedBindings = new ConcurrentHashMap<>();
+    private final MeshResidencyPool meshResidencyPool;
     private final Map<RasterizationParameter.BuilderKey, BuilderFactory> builderCache = new ConcurrentHashMap<>();
     private final Map<RasterizationParameter.BuilderBatchKey, BuilderBlueprint[]> builderBatchCache = new ConcurrentHashMap<>();
-    private final ConcurrentLinkedQueue<PendingGeometryBindingRequest> pendingMaterialization = new ConcurrentLinkedQueue<>();
 
     public GeometryResourceCoordinator() {
+        this(new MeshResidencyPool("geometry-resource-coordinator"));
+    }
+
+    public GeometryResourceCoordinator(MeshResidencyPool meshResidencyPool) {
+        this.meshResidencyPool = meshResidencyPool != null
+                ? meshResidencyPool
+                : new MeshResidencyPool("geometry-resource-coordinator");
     }
 
     public static GeometryResourceCoordinator globalInstance() {
@@ -41,15 +47,7 @@ public class GeometryResourceCoordinator {
     }
 
     public BackendGeometryBinding get(VertexBufferKey key, @Nullable BackendGeometryBinding sourceProvider) {
-        if (key == null) {
-            return null;
-        }
-        BackendGeometryBinding existing = installedBindings.get(key);
-        if (existing != null) {
-            return existing;
-        }
-        planMaterialization(key, sourceProvider);
-        return null;
+        return meshResidencyPool.get(key, sourceProvider);
     }
 
     public BackendGeometryBinding get(VertexBufferKey key) {
@@ -61,49 +59,35 @@ public class GeometryResourceCoordinator {
     }
 
     public BackendGeometryBinding getIfPresent(VertexBufferKey key) {
-        return key == null ? null : installedBindings.get(key);
+        return meshResidencyPool.getIfPresent(key);
     }
 
     public void planMaterialization(VertexBufferKey key, @Nullable BackendGeometryBinding sourceProvider) {
-        if (key == null || installedBindings.containsKey(key)) {
-            return;
-        }
-        pendingMaterialization.offer(new PendingGeometryBindingRequest(key, sourceProvider));
+        meshResidencyPool.planMaterialization(key, sourceProvider);
     }
 
     public List<PendingGeometryBindingRequest> drainPendingMaterializationRequests() {
-        Map<VertexBufferKey, PendingGeometryBindingRequest> deduplicated = new LinkedHashMap<>();
-        PendingGeometryBindingRequest request;
-        while ((request = pendingMaterialization.poll()) != null) {
-            PendingGeometryBindingRequest previous = deduplicated.get(request.key());
-            if (previous == null || (previous.sourceProvider() == null && request.sourceProvider() != null)) {
-                deduplicated.put(request.key(), request);
-            }
+        List<MeshResidencyPool.PendingResidencyRequest> requests = meshResidencyPool.drainPendingMaterializationRequests();
+        if (requests.isEmpty()) {
+            return List.of();
         }
-        return List.copyOf(deduplicated.values());
+        List<PendingGeometryBindingRequest> bridged = new ArrayList<>(requests.size());
+        for (MeshResidencyPool.PendingResidencyRequest request : requests) {
+            bridged.add(new PendingGeometryBindingRequest(request.vertexBufferKey(), request.sourceProvider()));
+        }
+        return List.copyOf(bridged);
     }
 
     public void registerInstalledBinding(VertexBufferKey key, BackendGeometryBinding geometryBinding) {
-        if (key == null || geometryBinding == null) {
-            return;
-        }
-        BackendGeometryBinding previous = installedBindings.put(key, geometryBinding);
-        if (previous != null && previous != geometryBinding) {
-            previous.dispose();
-        }
+        meshResidencyPool.registerInstalledBinding(key, geometryBinding);
     }
 
     public void remove(VertexBufferKey key) {
-        BackendGeometryBinding resource = installedBindings.remove(key);
-        if (resource != null) {
-            resource.dispose();
-        }
+        meshResidencyPool.remove(key);
     }
 
     public void clearAll() {
-        installedBindings.values().forEach(BackendGeometryBinding::dispose);
-        installedBindings.clear();
-        pendingMaterialization.clear();
+        meshResidencyPool.clearAll();
     }
 
     public VertexRecordWriter createBuilder(StructLayout format, PrimitiveType primitiveType, boolean instanced) {
@@ -166,10 +150,11 @@ public class GeometryResourceCoordinator {
     }
 
     public String getCacheStats() {
-        return String.format(
-                "GeometryResourceCoordinator: %d installed bindings, %d pending requests",
-                installedBindings.size(),
-                pendingMaterialization.size());
+        return meshResidencyPool.statsLine();
+    }
+
+    public MeshResidencyPool meshResidencyPool() {
+        return meshResidencyPool;
     }
 
     public record BuilderPair(KeyId key, VertexRecordWriter builder, boolean tickUpdate) {

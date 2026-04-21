@@ -2,7 +2,7 @@ package rogo.sketch.core.pipeline.kernel;
 
 import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
 import rogo.sketch.core.packet.GeometryHandleKey;
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.RenderPacketKind;
 import rogo.sketch.core.packet.ResourceSetKey;
@@ -56,7 +56,7 @@ public record StageResourceFootprint(
     }
 
     public static StageResourceFootprint fromPackets(
-            Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> packets,
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets,
             SnapshotScope snapshotScope) {
         if (packets == null || packets.isEmpty()) {
             return empty();
@@ -72,15 +72,15 @@ public record StageResourceFootprint(
         int packetCount = 0;
         int drawPacketCount = 0;
 
-        for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
+        for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
             PipelineType pipelineType = pipelineEntry.getKey();
             if (pipelineType == null) {
                 continue;
             }
             pipelineTypes.add(pipelineType);
 
-            for (Map.Entry<PipelineStateKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
-                PipelineStateKey stateKey = stateEntry.getKey();
+            for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
+                ExecutionKey stateKey = stateEntry.getKey();
                 if (stateKey != null) {
                     shaderIds.add(stateKey.shaderId());
                     renderTargetKeys.add(stateKey.renderTargetKey());

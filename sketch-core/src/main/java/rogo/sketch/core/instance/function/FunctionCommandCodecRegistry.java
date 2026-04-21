@@ -3,7 +3,7 @@ package rogo.sketch.core.instance.function;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import rogo.sketch.core.instance.StandardFunctionGraphics;
+import rogo.sketch.core.graphics.ecs.FunctionCommands;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ public final class FunctionCommandCodecRegistry {
         return this;
     }
 
-    public StandardFunctionGraphics.Command decode(String operation, JsonObject json) {
+    public FunctionCommands.Command decode(String operation, JsonObject json) {
         if (operation == null || operation.isBlank() || json == null) {
             return null;
         }
@@ -43,7 +43,7 @@ public final class FunctionCommandCodecRegistry {
                 .register("genMipmap", FunctionCommandCodecRegistry::decodeGenMipmap);
     }
 
-    private static StandardFunctionGraphics.Command decodeClear(JsonObject json) {
+    private static FunctionCommands.Command decodeClear(JsonObject json) {
         String rtId = json.has("renderTarget") ? json.get("renderTarget").getAsString() : null;
         if (rtId == null || rtId.isBlank()) {
             return null;
@@ -76,7 +76,7 @@ public final class FunctionCommandCodecRegistry {
         boolean restorePreviousRenderTarget = !json.has("restorePreviousRenderTarget")
                 || json.get("restorePreviousRenderTarget").getAsBoolean();
 
-        return new StandardFunctionGraphics.ClearCommand(
+        return new FunctionCommands.ClearCommand(
                 KeyId.of(rtId),
                 decodeColorAttachments(json),
                 clearColor,
@@ -87,14 +87,14 @@ public final class FunctionCommandCodecRegistry {
                 restorePreviousRenderTarget);
     }
 
-    private static StandardFunctionGraphics.Command decodeGenMipmap(JsonObject json) {
+    private static FunctionCommands.Command decodeGenMipmap(JsonObject json) {
         if (!json.has("texture")) {
             return null;
         }
         String textureId = json.get("texture").getAsString();
         return textureId == null || textureId.isBlank()
                 ? null
-                : new StandardFunctionGraphics.GenMipmapCommand(KeyId.of(textureId));
+                : new FunctionCommands.GenMipmapCommand(KeyId.of(textureId));
     }
 
     private static List<Object> decodeColorAttachments(JsonObject json) {
@@ -122,7 +122,7 @@ public final class FunctionCommandCodecRegistry {
 
     @FunctionalInterface
     public interface FunctionCommandCodec {
-        StandardFunctionGraphics.Command decode(JsonObject json);
+        FunctionCommands.Command decode(JsonObject json);
     }
 }
 

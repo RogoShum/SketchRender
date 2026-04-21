@@ -5,10 +5,17 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import rogo.sketch.core.api.RenderStateComponent;
+import rogo.sketch.core.packet.ExecutionDomain;
+import rogo.sketch.core.pipeline.ComputeRenderSetting;
+import rogo.sketch.core.pipeline.OffscreenGraphicsRenderSetting;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.RasterRenderSetting;
 import rogo.sketch.core.pipeline.TargetBinding;
+import rogo.sketch.core.pipeline.TransferSetting;
 import rogo.sketch.core.resource.ResourceBinding;
+import rogo.sketch.core.resource.ResourceAccess;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.ResourceViewRole;
 import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.shader.variant.ShaderVariantKey;
 import rogo.sketch.core.driver.state.DefaultRenderStates;
@@ -80,12 +87,20 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
             if (json.has("shouldSwitchRenderState")) {
                 shouldSwitchRenderState = json.get("shouldSwitchRenderState").getAsBoolean();
             }
-
-            return PartialRenderSetting.create(renderState, targetBinding, resourceBinding, shouldSwitchRenderState);
+            String aliasPolicy = readOptionalString(json, "aliasPolicy");
+            ExecutionDomain executionDomain = parseExecutionDomain(json);
+            return switch (executionDomain) {
+                case COMPUTE -> new ComputeRenderSetting(renderState, resourceBinding, shouldSwitchRenderState, aliasPolicy);
+                case OFFSCREEN_GRAPHICS ->
+                        new OffscreenGraphicsRenderSetting(renderState, targetBinding, resourceBinding, shouldSwitchRenderState, aliasPolicy);
+                case TRANSFER -> {
+                    validateTransferSetting(renderState);
+                    yield new TransferSetting(resourceBinding, shouldSwitchRenderState, aliasPolicy);
+                }
+                case RASTER -> new RasterRenderSetting(renderState, targetBinding, resourceBinding, shouldSwitchRenderState, aliasPolicy);
+            };
         } catch (Exception e) {
-            System.err.println("Failed to load render setting from JSON: " + e.getMessage());
-            e.printStackTrace();
-            return null;
+            throw new IllegalArgumentException("Failed to load render setting from JSON", e);
         }
     }
     
@@ -233,12 +248,45 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
                         KeyId resourceId = KeyId.of(resourceIdentifierStr);
 
                         resourceBinding.addBinding(resourceType, bindingId, resourceId);
+                    } else if (resourceElement.isJsonObject()) {
+                        JsonObject resourceObject = resourceElement.getAsJsonObject();
+                        KeyId bindingId = KeyId.of(bindingName);
+                        KeyId resourceId = readResourceId(resourceObject, resourceTypeName, bindingName);
+                        ResourceViewRole defaultRole = ResourceViewRole.defaultForResourceType(resourceType);
+                        ResourceViewRole viewRole = ResourceViewRole.parse(
+                                readOptionalString(resourceObject, "view", "role", "viewRole"),
+                                defaultRole);
+                        ResourceAccess access = ResourceAccess.parse(
+                                readOptionalString(resourceObject, "access"),
+                                ResourceViewRole.defaultAccessFor(viewRole));
+                        resourceBinding.addBinding(resourceType, bindingId, resourceId, viewRole, access);
                     }
                 }
             }
         }
 
         return resourceBinding;
+    }
+
+    private KeyId readResourceId(JsonObject resourceObject, String resourceTypeName, String bindingName) {
+        String value = readOptionalString(resourceObject, "resource", "id", "identifier", "texture", "buffer");
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("resourceBinding." + resourceTypeName + "." + bindingName
+                    + " object must declare resource/id/identifier");
+        }
+        return KeyId.of(value);
+    }
+
+    private String readOptionalString(JsonObject object, String... names) {
+        if (object == null || names == null) {
+            return null;
+        }
+        for (String name : names) {
+            if (name != null && object.has(name) && object.get(name).isJsonPrimitive()) {
+                return object.get(name).getAsString();
+            }
+        }
+        return null;
     }
 
     private TargetBinding loadTargetBinding(JsonObject json) {
@@ -261,6 +309,24 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
             return new TargetBinding(renderTargetId, drawBuffers, null, null);
         }
         return null;
+    }
+
+    private ExecutionDomain parseExecutionDomain(JsonObject json) {
+        if (json == null || !json.has("executionDomain")) {
+            return ExecutionDomain.RASTER;
+        }
+        try {
+            return ExecutionDomain.valueOf(json.get("executionDomain").getAsString().trim().toUpperCase(Locale.ROOT));
+        } catch (Exception ignored) {
+            return ExecutionDomain.RASTER;
+        }
+    }
+
+    private void validateTransferSetting(RenderStatePatch renderState) {
+        if (renderState == null || renderState.isEmpty()) {
+            return;
+        }
+        throw new IllegalArgumentException("TransferSetting must not declare renderState");
     }
 }
 

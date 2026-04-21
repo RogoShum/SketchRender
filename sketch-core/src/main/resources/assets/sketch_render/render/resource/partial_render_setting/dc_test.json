@@ -1,4 +1,5 @@
 {
+  "executionDomain": "RASTER",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_render:dc_test"
@@ -11,17 +12,21 @@
     },
     "depth_mask": {
       "writable": false
-    },
-    "render_target": {
-      "identifier" : "sketch_render:example_render_target",
-      "drawBuffers": [
-        "sketch_render:example_rt_normal"
-      ]
     }
+  },
+  "targetBinding": {
+    "renderTargetId": "sketch_render:example_render_target",
+    "drawBuffers": [
+      "sketch_render:example_rt_normal"
+    ]
   },
   "resourceBinding": {
     "texture": {
-      "depth": "minecraft:main_depth"
+      "depth": {
+        "resource": "minecraft:main_depth",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
     }
   },
   "shouldSwitchRenderState": true

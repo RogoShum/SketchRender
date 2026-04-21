@@ -52,8 +52,10 @@ void main() {
         float sizeZ = entityData[dataOffset + 5];
         float halfWidth = sizeX * 0.5 + 0.15;
         float halfHeight = sizeY * 0.5 + 0.15;
+        float halfDepth = sizeZ * 0.5 + 0.15;
 
-        bool visible = isVisible(center, center - vec3(halfWidth, halfHeight, halfWidth), center + vec3(halfWidth, halfHeight, halfWidth));
+        bool validBounds = sizeX > 0.0 && sizeY > 0.0 && sizeZ > 0.0;
+        bool visible = validBounds && isVisible(center, center - vec3(halfWidth, halfHeight, halfDepth), center + vec3(halfWidth, halfHeight, halfDepth));
 
 
         if (visible) {

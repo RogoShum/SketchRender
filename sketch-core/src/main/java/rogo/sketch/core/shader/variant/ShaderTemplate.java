@@ -75,6 +75,10 @@ public final class ShaderTemplate implements ResourceObject {
         return templateId;
     }
 
+    public boolean hasDeclaredResourceBindings() {
+        return !declaredResourceBindings.isEmpty();
+    }
+
     @Override
     public void dispose() {
         if (disposed) {

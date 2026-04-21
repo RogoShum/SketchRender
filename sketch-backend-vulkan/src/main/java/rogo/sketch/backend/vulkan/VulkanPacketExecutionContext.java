@@ -2,16 +2,21 @@ package rogo.sketch.backend.vulkan;
 
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkCommandBuffer;
+import rogo.sketch.core.util.KeyId;
+
+import java.util.Objects;
 
 import static org.lwjgl.vulkan.VK10.vkCmdEndRenderPass;
 
 public final class VulkanPacketExecutionContext {
     private final VkCommandBuffer commandBuffer;
-    private final VulkanRasterPipelineCache rasterPipelineCache;
+    private final VulkanRasterPipelineCache swapchainRasterPipelineCache;
     private final VulkanComputePipelineCache computePipelineCache;
     private final int imageIndex;
     private final MemoryStack stack;
     private final VulkanPacketExecutor executor;
+    private VulkanRasterPipelineCache activeRasterPipelineCache;
+    private KeyId currentRenderTargetId;
     private boolean renderPassOpen;
 
     VulkanPacketExecutionContext(
@@ -22,7 +27,8 @@ public final class VulkanPacketExecutionContext {
             MemoryStack stack,
             VulkanPacketExecutor executor) {
         this.commandBuffer = commandBuffer;
-        this.rasterPipelineCache = rasterPipelineCache;
+        this.swapchainRasterPipelineCache = rasterPipelineCache;
+        this.activeRasterPipelineCache = rasterPipelineCache;
         this.computePipelineCache = computePipelineCache;
         this.imageIndex = imageIndex;
         this.stack = stack;
@@ -41,11 +47,25 @@ public final class VulkanPacketExecutionContext {
         return renderPassOpen;
     }
 
-    public void ensureRenderPassOpen() {
+    public void ensureRenderPassOpen(KeyId renderTargetId) {
+        KeyId normalizedTarget = executor.normalizeRenderTargetId(renderTargetId);
+        if (renderPassOpen && !Objects.equals(currentRenderTargetId, normalizedTarget)) {
+            ensureRenderPassClosed();
+        }
         if (renderPassOpen) {
             return;
         }
-        executor.beginRenderPass(commandBuffer, rasterPipelineCache, imageIndex, stack);
+        activeRasterPipelineCache = executor.resolveRasterPipelineCache(normalizedTarget, swapchainRasterPipelineCache);
+        if (activeRasterPipelineCache == null) {
+            return;
+        }
+        executor.prepareRenderTargetForRendering(commandBuffer, normalizedTarget);
+        executor.beginRenderPass(
+                commandBuffer,
+                activeRasterPipelineCache,
+                executor.framebufferIndexFor(normalizedTarget, imageIndex),
+                stack);
+        currentRenderTargetId = normalizedTarget;
         renderPassOpen = true;
     }
 
@@ -55,6 +75,8 @@ public final class VulkanPacketExecutionContext {
         }
         vkCmdEndRenderPass(commandBuffer);
         renderPassOpen = false;
+        currentRenderTargetId = null;
+        activeRasterPipelineCache = swapchainRasterPipelineCache;
     }
 
     void closeRenderPassIfOpen() {
@@ -62,7 +84,7 @@ public final class VulkanPacketExecutionContext {
     }
 
     VulkanRasterPipelineCache rasterPipelineCache() {
-        return rasterPipelineCache;
+        return activeRasterPipelineCache;
     }
 
     VulkanComputePipelineCache computePipelineCache() {

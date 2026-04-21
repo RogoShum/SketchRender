@@ -1,6 +1,9 @@
 package rogo.sketch.module.transform;
 
-import rogo.sketch.core.api.graphics.*;
+import org.jetbrains.annotations.Nullable;
+import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
+import rogo.sketch.core.graphics.ecs.GraphicsComponentUpdateCoordinator;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.PipelinePass;
@@ -9,19 +12,25 @@ import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
 import rogo.sketch.core.pipeline.graph.pass.PostTickGraphicsPass;
 import rogo.sketch.core.pipeline.graph.pass.SyncPreparePass;
 import rogo.sketch.core.pipeline.kernel.FrameContext;
+import rogo.sketch.core.pipeline.kernel.LifecyclePhase;
+import rogo.sketch.core.pipeline.kernel.ModulePassDefinition;
+import rogo.sketch.core.pipeline.kernel.PassExecutionContext;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
 import rogo.sketch.core.pipeline.kernel.annotation.AsyncOnly;
 import rogo.sketch.core.pipeline.kernel.annotation.SyncOnly;
+import rogo.sketch.core.pipeline.module.runtime.ModuleGraphAssemblyContext;
 import rogo.sketch.core.pipeline.module.metric.MetricDescriptor;
 import rogo.sketch.core.pipeline.module.metric.MetricKind;
+import rogo.sketch.core.pipeline.module.runtime.EntityAttachContext;
+import rogo.sketch.core.pipeline.module.runtime.GraphicsComponentFilter;
+import rogo.sketch.core.pipeline.module.runtime.GraphicsEntitySnapshot;
+import rogo.sketch.core.pipeline.module.runtime.ModuleSubscriptionRegistrar;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntime;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.module.transform.manager.TransformManager;
-import rogo.sketch.module.transform.manager.TransformBinding;
-import rogo.sketch.module.transform.manager.TransformUpdateDomain;
 
 /**
  * Mixed tick/frame transform module.
@@ -44,7 +53,7 @@ public class TransformModule implements ModuleRuntime {
     private static final String PASS_FRAME_COLLECT = "transform_frame_collect";
     private static final String PASS_FRAME_UPLOAD = "transform_frame_upload";
 
-    private TransformManager transformManager;
+    private GraphicsComponentUpdateCoordinator updateCoordinator;
 
     @Override
     public String id() {
@@ -53,7 +62,8 @@ public class TransformModule implements ModuleRuntime {
 
     @Override
     public void onKernelInit(ModuleRuntimeContext context) {
-        this.transformManager = new TransformManager();
+        this.updateCoordinator = new GraphicsComponentUpdateCoordinator();
+        context.registerFrameResourceHandle(TransformManager.TICK_SNAPSHOT_HANDLE);
         context.registerMetric(new MetricDescriptor(
                 TransformModuleDescriptor.ACTIVE_COUNT_METRIC,
                 MODULE_NAME,
@@ -62,13 +72,13 @@ public class TransformModule implements ModuleRuntime {
                 "metric." + MODULE_NAME + ".active_count.detail"), this::getActiveCount);
         context.registerBuiltInResource(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of("sketch_render", "transform_input_async"),
-                () -> transformManager != null ? transformManager.getAsyncPipeline().inputSSBO() : null);
+                () -> matrixManager() != null ? matrixManager().getAsyncPipeline().inputSSBO() : null);
         context.registerBuiltInResource(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of("sketch_render", "transform_input_sync"),
-                () -> transformManager != null ? transformManager.getSyncPipeline().inputSSBO() : null);
+                () -> matrixManager() != null ? matrixManager().getSyncPipeline().inputSSBO() : null);
         context.registerBuiltInResource(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of("sketch_render", "transform_output"),
-                () -> transformManager != null ? transformManager.getOutputSSBO() : null);
+                () -> matrixManager() != null ? matrixManager().getOutputSSBO() : null);
         context.registerUniform(KeyId.of("u_transformCount"), ValueGetter.create((instance) -> {
             RenderContext renderContext = (RenderContext) instance;
             if (renderContext.transformModule() != null && renderContext.transformModule().matrixManager() != null) {
@@ -81,39 +91,53 @@ public class TransformModule implements ModuleRuntime {
     }
 
     @Override
-    public boolean supports(Graphics graphics) {
-        return graphics instanceof SyncTickTransformSource
-                || graphics instanceof AsyncTickTransformSource
-                || graphics instanceof FrameTransformSource
-                || graphics instanceof StaticTransformSource;
+    public void registerEntitySubscriptions(ModuleSubscriptionRegistrar registrar) {
+        registrar.register(
+                "lifecycle_binding",
+                GraphicsComponentFilter.builder()
+                        .require(GraphicsBuiltinComponents.LIFECYCLE)
+                        .require(GraphicsBuiltinComponents.LIFECYCLE_BINDING)
+                        .build());
+        registrar.register(
+                "transform_binding",
+                GraphicsComponentFilter.builder()
+                        .require(GraphicsBuiltinComponents.LIFECYCLE)
+                        .require(GraphicsBuiltinComponents.TRANSFORM_BINDING)
+                        .build());
+        registrar.register(
+                "bounds_binding",
+                GraphicsComponentFilter.builder()
+                        .require(GraphicsBuiltinComponents.LIFECYCLE)
+                        .require(GraphicsBuiltinComponents.BOUNDS_BINDING)
+                        .build());
+        registrar.register(
+                "graphics_tags_binding",
+                GraphicsComponentFilter.builder()
+                        .require(GraphicsBuiltinComponents.LIFECYCLE)
+                        .require(GraphicsBuiltinComponents.GRAPHICS_TAGS_BINDING)
+                        .build());
+        registrar.register(
+                "object_flags_binding",
+                GraphicsComponentFilter.builder()
+                        .require(GraphicsBuiltinComponents.LIFECYCLE)
+                        .require(GraphicsBuiltinComponents.OBJECT_FLAGS_BINDING)
+                        .build());
     }
 
     @Override
-    public void onGraphicsAttached(Graphics graphics, rogo.sketch.core.pipeline.parmeter.RenderParameter renderParameter, KeyId containerType, ModuleRuntimeContext context) {
-        if (transformManager == null || transformManager.isRegistered(graphics)) {
+    public void onEntityAttached(GraphicsEntityId entityId, GraphicsEntitySnapshot snapshot, EntityAttachContext context) {
+        if (updateCoordinator == null || entityId == null || snapshot == null) {
             return;
         }
-
-        TransformUpdateDomain updateDomain = detectUpdateDomain(graphics);
-        TransformBinding binding = transformManager.registerBinding(graphics, updateDomain);
-        if (graphics instanceof TransformIdAware idAware) {
-            idAware.setTransformId(binding.transformId());
-        }
+        updateCoordinator.registerEntity(context.graphicsWorld(), entityId, snapshot);
     }
 
     @Override
-    public void onGraphicsDetached(Graphics graphics, ModuleRuntimeContext context) {
-        if (transformManager == null) {
+    public void onEntityDetached(GraphicsEntityId entityId, EntityAttachContext context) {
+        if (updateCoordinator == null || entityId == null) {
             return;
         }
-
-        TransformBinding binding = transformManager.bindingFor(graphics);
-        if (binding != null) {
-            transformManager.unregisterBinding(binding);
-            if (graphics instanceof TransformIdAware idAware) {
-                idAware.setTransformId(-1);
-            }
-        }
+        updateCoordinator.unregisterEntity(context.graphicsWorld(), entityId);
     }
 
     @Override
@@ -130,51 +154,72 @@ public class TransformModule implements ModuleRuntime {
     }
 
     @Override
+    public void describeFrameResources(ModuleGraphAssemblyContext context) {
+        context.registerFrameResourceHandle(TransformManager.TICK_SNAPSHOT_HANDLE);
+    }
+
+    @Override
+    public void contributeModulePasses(ModuleGraphAssemblyContext context) {
+        context.registerModulePass(new ModulePassDefinition(
+                MODULE_NAME,
+                PASS_TICK_SWAP,
+                LifecyclePhase.SYNC_PREPARE,
+                ThreadDomain.SYNC,
+                java.util.List.of(),
+                java.util.List.of(),
+                ignored -> {}));
+        context.registerModulePass(new ModulePassDefinition(
+                MODULE_NAME,
+                PASS_SYNC_TICK_COLLECT,
+                LifecyclePhase.SYNC_PRE_BUILD,
+                ThreadDomain.SYNC,
+                java.util.List.of(),
+                java.util.List.of(),
+                ignored -> {}));
+        context.registerModulePass(new ModulePassDefinition(
+                MODULE_NAME,
+                PASS_ASYNC_TICK_COLLECT,
+                LifecyclePhase.ASYNC_POST_BUILD,
+                ThreadDomain.ASYNC,
+                java.util.List.of(),
+                java.util.List.of(TransformManager.TICK_SNAPSHOT_HANDLE),
+                ignored -> {}));
+        context.registerModulePass(new ModulePassDefinition(
+                MODULE_NAME,
+                PASS_FRAME_COLLECT,
+                LifecyclePhase.SYNC_PREPARE,
+                ThreadDomain.SYNC,
+                java.util.List.of(TransformManager.TICK_SNAPSHOT_HANDLE),
+                java.util.List.of(),
+                ignored -> {}));
+        context.registerModulePass(new ModulePassDefinition(
+                MODULE_NAME,
+                PASS_FRAME_UPLOAD,
+                LifecyclePhase.SYNC_PRE_BUILD,
+                ThreadDomain.SYNC,
+                java.util.List.of(TransformManager.TICK_SNAPSHOT_HANDLE),
+                java.util.List.of(),
+                ignored -> {}));
+    }
+
+    @Override
     public void onShutdown(ModuleRuntimeContext context) {
-        if (transformManager != null) {
-            transformManager.cleanup();
-            transformManager = null;
+        if (updateCoordinator != null) {
+            updateCoordinator.cleanup();
+            updateCoordinator = null;
         }
     }
 
     public TransformManager matrixManager() {
-        return transformManager;
+        return updateCoordinator != null ? updateCoordinator.transformManager() : null;
+    }
+
+    public @Nullable GraphicsComponentUpdateCoordinator updateCoordinator() {
+        return updateCoordinator;
     }
 
     private int getActiveCount() {
-        return transformManager != null ? transformManager.getActiveCount() : 0;
-    }
-
-    private TransformUpdateDomain detectUpdateDomain(Graphics graphics) {
-        int domainCount = 0;
-        TransformUpdateDomain resolved = null;
-
-        if (graphics instanceof SyncTickTransformSource) {
-            resolved = TransformUpdateDomain.SYNC_TICK;
-            domainCount++;
-        }
-        if (graphics instanceof AsyncTickTransformSource) {
-            resolved = TransformUpdateDomain.ASYNC_TICK;
-            domainCount++;
-        }
-        if (graphics instanceof FrameTransformSource) {
-            resolved = TransformUpdateDomain.SYNC_FRAME;
-            domainCount++;
-        }
-        if (graphics instanceof StaticTransformSource) {
-            resolved = TransformUpdateDomain.STATIC;
-            domainCount++;
-        }
-
-        if (domainCount == 0) {
-            throw new IllegalArgumentException("Graphics does not expose any transform authoring domain: "
-                    + graphics.getClass().getName());
-        }
-        if (domainCount > 1) {
-            throw new IllegalArgumentException("Graphics exposes multiple transform authoring domains: "
-                    + graphics.getClass().getName());
-        }
-        return resolved;
+        return matrixManager() != null ? matrixManager().getActiveCount() : 0;
     }
 
     // ==================== Internal Passes ====================
@@ -193,8 +238,8 @@ public class TransformModule implements ModuleRuntime {
         @Override
         @SyncOnly("Rotate transform tick buffers")
         public void execute(FrameContext<C> ctx) {
-            if (transformManager != null) {
-                transformManager.swapTickBuffers();
+            if (updateCoordinator != null) {
+                updateCoordinator.swapTickBuffers();
             }
         }
     }
@@ -213,8 +258,8 @@ public class TransformModule implements ModuleRuntime {
         @Override
         @SyncOnly("Collect sync transform data on main thread")
         public void execute(FrameContext<C> ctx) {
-            if (transformManager != null) {
-                transformManager.collectSyncTickTransforms();
+            if (updateCoordinator != null) {
+                updateCoordinator.collectSyncTick();
             }
         }
     }
@@ -233,9 +278,11 @@ public class TransformModule implements ModuleRuntime {
         @Override
         @AsyncOnly("Collect async transform data on tick worker")
         public void execute(FrameContext<C> ctx) {
-            if (transformManager != null) {
-                transformManager.collectAsyncTickTransforms();
-                transformManager.prepareAndPublishTickSnapshot(ctx.kernel(), ctx.logicTickEpoch());
+            if (updateCoordinator != null) {
+                updateCoordinator.collectAsyncTick();
+                updateCoordinator.applyConcreteComponents(ctx.pipeline().graphicsWorld());
+                PassExecutionContext passExecutionContext = ctx.passExecutionContext(MODULE_NAME, PASS_ASYNC_TICK_COLLECT);
+                updateCoordinator.prepareAndPublishTickSnapshot(passExecutionContext);
             }
         }
     }
@@ -254,9 +301,11 @@ public class TransformModule implements ModuleRuntime {
         @Override
         @SyncOnly("Collect frame-authored transform data on main thread")
         public void execute(FrameContext<C> ctx) {
-            if (transformManager != null) {
-                transformManager.collectFrameTransforms();
-                transformManager.prepareFrameBuffer(ctx.kernel());
+            if (updateCoordinator != null) {
+                updateCoordinator.collectFrame();
+                updateCoordinator.applyConcreteComponents(ctx.pipeline().graphicsWorld());
+                PassExecutionContext passExecutionContext = ctx.passExecutionContext(MODULE_NAME, PASS_FRAME_COLLECT);
+                updateCoordinator.prepareFrameBuffer(passExecutionContext);
             }
         }
     }
@@ -275,8 +324,9 @@ public class TransformModule implements ModuleRuntime {
         @Override
         @SyncOnly("Upload transform SSBOs after frame collect")
         public void execute(FrameContext<C> ctx) {
-            if (transformManager != null) {
-                transformManager.uploadFrameBuffers();
+            if (updateCoordinator != null) {
+                PassExecutionContext passExecutionContext = ctx.passExecutionContext(MODULE_NAME, PASS_FRAME_UPLOAD);
+                updateCoordinator.uploadFrameBuffers(passExecutionContext);
             }
         }
     }

@@ -2,6 +2,9 @@ package rogo.sketch.core.data.builder;
 
 import org.joml.*;
 import org.lwjgl.system.MemoryUtil;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
 
 import java.nio.ByteBuffer;
 
@@ -19,6 +22,7 @@ class NativeBufferWriterBase implements RawWriteBuffer, RecordWriteOps {
     // 内存管理策略
     private boolean isExternalMemory; // true=显存映射/外部指针(不可直接free), false=内部分配(可free/realloc)
     private ResizeCallback resizeCallback;
+    private MemoryLease memoryLease;
 
     public static boolean DEBUG_MODE = true;
 
@@ -63,6 +67,11 @@ class NativeBufferWriterBase implements RawWriteBuffer, RecordWriteOps {
         this.capacity = capacity;
         this.limitAddr = address + capacity;
         this.isExternalMemory = isExternal;
+        if (!isExternal && memoryLease == null) {
+            memoryLease = UnifiedMemoryFabric.get()
+                    .openLease(MemoryDomain.CPU_NATIVE, "native-buffer-writer")
+                    .bindSuppliers(this::trackedReservedBytes, this::trackedLiveBytes);
+        }
     }
 
     public void setResizeCallback(ResizeCallback callback) {
@@ -878,6 +887,10 @@ class NativeBufferWriterBase implements RawWriteBuffer, RecordWriteOps {
 
     @Override
     public void close() {
+        if (memoryLease != null) {
+            memoryLease.close();
+            memoryLease = null;
+        }
         if (!isExternalMemory && baseAddress != MemoryUtil.NULL) {
             MemoryUtil.nmemFree(baseAddress);
         }
@@ -885,6 +898,17 @@ class NativeBufferWriterBase implements RawWriteBuffer, RecordWriteOps {
         currentAddr = MemoryUtil.NULL;
         limitAddr = MemoryUtil.NULL;
         capacity = 0L;
+    }
+
+    private long trackedReservedBytes() {
+        return isExternalMemory ? 0L : capacity;
+    }
+
+    private long trackedLiveBytes() {
+        if (isExternalMemory || baseAddress == MemoryUtil.NULL || currentAddr == MemoryUtil.NULL) {
+            return 0L;
+        }
+        return java.lang.Math.max(0L, currentAddr - baseAddress);
     }
 
     @FunctionalInterface

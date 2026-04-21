@@ -28,6 +28,7 @@ public final class OpenGLBackendBootstrap implements BackendBootstrap {
     @Override
     public BackendRuntime bootstrap(BackendBootstrapContext context) {
         OpenGLProgramReflectionService.install(api);
+        context.presentationController().applyWindowSettings(context.windowService());
         return new OpenGLBackendRuntime(kind, api, context.mainWindowHandle());
     }
 }

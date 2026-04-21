@@ -41,9 +41,9 @@ public class McRenderContext extends RenderContext {
         this.modelMatrix().identity();
         this.camera = camera;
         this.cameraPosition = camera.getPosition().toVector3f();
-        this.cameraDirection = camera.getLookVector();
-        this.cameraUp = camera.getUpVector();
-        this.cameraLeft = camera.getLeftVector();
+        this.cameraDirection = new org.joml.Vector3f(camera.getLookVector());
+        this.cameraUp = new org.joml.Vector3f(camera.getUpVector());
+        this.cameraLeft = new org.joml.Vector3f(camera.getLeftVector());
         this.frustum = frustum;
         this.cullingFrustum = new Frustum(frustum).offsetToFullyIncludeCameraCube(8);
 
@@ -54,6 +54,19 @@ public class McRenderContext extends RenderContext {
         setPartialTicks(partialTicks);
         this.windowWidth = Minecraft.getInstance().getWindow().getWidth();
         this.windowHeight = Minecraft.getInstance().getWindow().getHeight();
+    }
+
+    private McRenderContext(
+            PoseStack vanillaModelView,
+            Camera camera,
+            Frustum frustum,
+            Frustum cullingFrustum,
+            LevelRenderer levelRenderer) {
+        this.vanillaModelView = vanillaModelView;
+        this.camera = camera;
+        this.frustum = frustum;
+        this.cullingFrustum = cullingFrustum;
+        this.levelRenderer = levelRenderer;
     }
 
     public PoseStack vanillaModelView() {
@@ -105,5 +118,17 @@ public class McRenderContext extends RenderContext {
             RenderSystem.bindTexture(abstracttexture.getId());
             this.set(KeyId.of("rendered"), false);
         }
+    }
+
+    @Override
+    public McRenderContext snapshot() {
+        McRenderContext snapshot = new McRenderContext(
+                this.vanillaModelView,
+                this.camera,
+                this.frustum,
+                this.cullingFrustum,
+                this.levelRenderer);
+        copyInto(snapshot);
+        return snapshot;
     }
 }

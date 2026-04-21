@@ -13,9 +13,11 @@ public final class VulkanBackendBootstrap implements BackendBootstrap {
 
     @Override
     public BackendRuntime bootstrap(BackendBootstrapContext context) {
+        context.presentationController().applyWindowSettings(context.windowService());
         VulkanBootstrapArtifacts artifacts = VulkanDeviceBootstrapper.bootstrap(
                 context.entryPoint(),
-                context.mainWindowHandle());
+                context.mainWindowHandle(),
+                context.windowService().vSyncEnabled());
         return new VulkanBackendRuntime(
                 context.entryPoint(),
                 context.mainWindowHandle(),
@@ -33,6 +35,7 @@ public final class VulkanBackendBootstrap implements BackendBootstrap {
                 artifacts.swapchainExtentWidth,
                 artifacts.swapchainExtentHeight,
                 artifacts.swapchainImages,
+                context.windowService().vSyncEnabled(),
                 artifacts.debugUtilsEnabled);
     }
 }

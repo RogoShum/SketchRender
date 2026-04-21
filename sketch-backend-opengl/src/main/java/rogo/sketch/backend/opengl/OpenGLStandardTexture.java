@@ -6,16 +6,23 @@ import org.lwjgl.opengl.GL42;
 import rogo.sketch.core.backend.BackendInstalledBindableResource;
 import rogo.sketch.core.backend.BackendInstalledTexture;
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
+import rogo.sketch.core.resource.ResourceAccess;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.ResourceViewRole;
 import rogo.sketch.core.resource.descriptor.ResolvedImageResource;
 import rogo.sketch.backend.opengl.resource.descriptor.OpenGLImageFormatMappings;
 import rogo.sketch.backend.opengl.resource.descriptor.OpenGLSamplerMappings;
+import rogo.sketch.core.memory.ImageMemoryEstimator;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
 import rogo.sketch.core.resource.vision.StandardTexture;
 import rogo.sketch.core.util.KeyId;
 
 public final class OpenGLStandardTexture extends StandardTexture
         implements BackendInstalledTexture, BackendInstalledBindableResource, OpenGLTextureHandleResource {
     private final GraphicsAPI api;
+    private final MemoryLease textureLease;
 
     public OpenGLStandardTexture(
             int handle,
@@ -25,23 +32,34 @@ public final class OpenGLStandardTexture extends StandardTexture
             GraphicsAPI api) {
         super(handle, keyId, descriptor, imagePath);
         this.api = api;
+        this.textureLease = UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.GPU_TEXTURE, "gl-texture/" + keyId)
+                .bindSuppliers(this::trackedReservedBytes, this::trackedLiveBytes);
     }
 
     @Override
     public void bind(KeyId resourceType, int textureUnit) {
+        bind(resourceType, textureUnit, ResourceViewRole.defaultForResourceType(resourceType), null);
+    }
+
+    @Override
+    public void bind(KeyId resourceType, int textureUnit, ResourceViewRole viewRole, ResourceAccess access) {
         if (isDisposed()) {
             throw new IllegalStateException("Texture has been disposed");
         }
 
         int handle = this.handle;
-        if (ResourceTypes.normalize(resourceType).equals(ResourceTypes.IMAGE)) {
+        ResourceViewRole resolvedRole = viewRole != null ? viewRole : ResourceViewRole.defaultForResourceType(resourceType);
+        ResourceAccess resolvedAccess = access != null ? access : ResourceViewRole.defaultAccessFor(resolvedRole);
+        if (ResourceTypes.normalize(resourceType).equals(ResourceTypes.IMAGE)
+                || resolvedRole == ResourceViewRole.STORAGE_IMAGE) {
             api.getTextureStrategy().bindImageTexture(
                     textureUnit,
                     handle,
                     0,
                     false,
                     0,
-                    GL42.GL_READ_WRITE,
+                    toGlImageAccess(resolvedAccess),
                     OpenGLImageFormatMappings.resolve(descriptor().format()).imageUnitFormat());
         } else {
             api.getTextureStrategy().bindTextureUnit(textureUnit, handle);
@@ -51,6 +69,17 @@ public final class OpenGLStandardTexture extends StandardTexture
         api.getTextureStrategy().texParameteri(handle, GL11.GL_TEXTURE_MAG_FILTER, OpenGLSamplerMappings.toMagFilter(descriptor()));
         api.getTextureStrategy().texParameteri(handle, GL11.GL_TEXTURE_WRAP_S, OpenGLSamplerMappings.toWrap(descriptor().wrapS()));
         api.getTextureStrategy().texParameteri(handle, GL11.GL_TEXTURE_WRAP_T, OpenGLSamplerMappings.toWrap(descriptor().wrapT()));
+    }
+
+    private static int toGlImageAccess(ResourceAccess access) {
+        if (access == null) {
+            return GL42.GL_READ_WRITE;
+        }
+        return switch (access) {
+            case READ -> GL42.GL_READ_ONLY;
+            case WRITE -> GL42.GL_WRITE_ONLY;
+            case READ_WRITE -> GL42.GL_READ_WRITE;
+        };
     }
 
     @Override
@@ -86,9 +115,25 @@ public final class OpenGLStandardTexture extends StandardTexture
     @Override
     public void dispose() {
         if (!isDisposed()) {
+            textureLease.close();
             api.deleteTextures(handle);
             markDisposed();
         }
+    }
+
+    private long trackedReservedBytes() {
+        return isDisposed() ? 0L : trackedLiveBytes();
+    }
+
+    private long trackedLiveBytes() {
+        if (isDisposed()) {
+            return 0L;
+        }
+        return ImageMemoryEstimator.estimateBytes(
+                Math.max(1, getCurrentWidth()),
+                Math.max(1, getCurrentHeight()),
+                Math.max(1, descriptor().mipLevels()),
+                descriptor().format());
     }
 }
 

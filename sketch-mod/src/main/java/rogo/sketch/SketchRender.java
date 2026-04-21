@@ -36,13 +36,11 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLLoader;
 import org.joml.FrustumIntersection;
 import org.joml.Vector4f;
-import org.joml.primitives.AABBf;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.core.backend.BackendBootstrapContext;
 import rogo.sketch.core.backend.BackendKind;
-import rogo.sketch.core.api.graphics.AABBGraphics;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.backend.opengl.driver.OpenGLAPI;
 import rogo.sketch.core.driver.state.DefaultRenderStates;
@@ -58,7 +56,10 @@ import rogo.sketch.core.util.TimerUtil;
 import rogo.sketch.event.ForgeEventBusImplementation;
 import rogo.sketch.feature.culling.CullingRenderEvent;
 import rogo.sketch.feature.culling.CullingStages;
-import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.feature.culling.MinecraftCullingDebugState;
+import rogo.sketch.feature.culling.MinecraftCullingLifecycleListener;
+import rogo.sketch.feature.culling.MinecraftHiZState;
+import rogo.sketch.feature.culling.MinecraftShaderCapabilityService;
 import rogo.sketch.gui.debugui.AdaptiveDebugDashboardScreen;
 import rogo.sketch.profiler.ProfilerEventHandler;
 import rogo.sketch.util.OcclusionCullerThread;
@@ -66,7 +67,9 @@ import rogo.sketch.vanilla.McPipelineRegister;
 import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.PipelineUtil;
 import rogo.sketch.vanilla.ShaderManager;
-import rogo.sketch.vanilla.backend.opengl.LegacyMinecraftOpenGLBackendBootstrap;
+import rogo.sketch.vanilla.backend.opengl.MinecraftOpenGLBackendBootstrap;
+import rogo.sketch.vanilla.backend.MinecraftPresentationController;
+import rogo.sketch.vanilla.backend.MinecraftWindowService;
 import rogo.sketch.vanilla.event.VanillaPipelineEventHandler;
 import rogo.sketch.vanilla.resource.RenderResourceManager;
 
@@ -75,8 +78,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static java.lang.Thread.MAX_PRIORITY;
-import static rogo.sketch.feature.culling.CullingStateManager.*;
-
 @Mod(SketchRender.MOD_ID)
 public class SketchRender {
     public static final String MOD_ID = "sketch_render";
@@ -93,6 +94,7 @@ public class SketchRender {
             RenderSystem.recordRenderCall(() -> {
                 bootstrapGraphicsBackend();
             });
+            MinecraftRenderStages.addStage(CullingStages.TERRAIN_CULLING_STAGE);
             MinecraftRenderStages.addStage(CullingStages.HIZ_STAGE);
             FMLJavaModLoadingContext.get().getModEventBus().addGenericListener(GraphicsPipelineInitEvent.class,
                     VanillaPipelineEventHandler::onPipelineInit);
@@ -101,12 +103,13 @@ public class SketchRender {
             MinecraftForge.EVENT_BUS.register(new VanillaPipelineEventHandler());
             MinecraftForge.EVENT_BUS.register(this);
             MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
-            MinecraftForge.EVENT_BUS.register(new CullingStateManager());
+            MinecraftForge.EVENT_BUS.register(new MinecraftCullingLifecycleListener());
             MinecraftForge.EVENT_BUS.register(new ProfilerEventHandler());
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::initClient);
-            init();
+            MinecraftShaderCapabilityService.getInstance().init();
+            MinecraftHiZState.getInstance().initialize();
         });
     }
 
@@ -117,7 +120,7 @@ public class SketchRender {
         }
 
         GraphicsDriver.registerBackendBootstrap(
-                new LegacyMinecraftOpenGLBackendBootstrap(BackendKind.MINECRAFT_GL, new OpenGLAPI()));
+                new MinecraftOpenGLBackendBootstrap(BackendKind.MINECRAFT_GL, new OpenGLAPI()));
 
         BackendKind requestedBackend = Config.getGraphicsBackendKind();
         BackendKind resolvedBackend = requestedBackend;
@@ -129,7 +132,11 @@ public class SketchRender {
 
         GraphicsDriver.bootstrap(
                 resolvedBackend,
-                new BackendBootstrapContext("sketch-mod", GLFW.glfwGetCurrentContext()));
+                new BackendBootstrapContext(
+                        "sketch-mod",
+                        Minecraft.getInstance().getWindow().getWindow(),
+                        new MinecraftWindowService(),
+                        new MinecraftPresentationController()));
         LOGGER.info("Graphics backend bootstrapped. requested='{}', active='{}', runtime='{}'",
                 requestedBackend,
                 GraphicsDriver.kind(),
@@ -180,9 +187,7 @@ public class SketchRender {
                 Minecraft.getInstance().setScreen(new AdaptiveDebugDashboardScreen(Component.translatable(MOD_ID + ".config")));
             }
             if (DEBUG_KEY.isDown()) {
-                DEBUG++;
-                if (DEBUG >= 3)
-                    DEBUG = 0;
+                MinecraftCullingDebugState.getInstance().nextDebugMode();
             }
             if (TEST_CULL_KEY.isDown()) {
                 HitResult hitResult = ProjectileUtil.getHitResultOnViewVector(Minecraft.getInstance().player,
@@ -232,7 +237,7 @@ public class SketchRender {
                 }
                 Config.setLoaded();
             } else {
-                cleanup();
+                MinecraftShaderCapabilityService.getInstance().cleanup();
             }
         }
     }
@@ -270,9 +275,6 @@ public class SketchRender {
             return ((BlockEntity) o).getRenderBoundingBox();
         } else if (o instanceof Entity) {
             return ((Entity) o).getBoundingBox();
-        } else if (o instanceof AABBGraphics) {
-            AABBf aabbf = ((AABBGraphics) o).getAABB();
-            return new AABB(aabbf.minX, aabbf.minY, aabbf.minZ, aabbf.maxX, aabbf.maxY, aabbf.maxZ);
         }
 
         return null;
@@ -284,7 +286,10 @@ public class SketchRender {
             int fps = Minecraft.getInstance().getFps();
             Map<String, Object> debugText = new LinkedHashMap<>();
             debugText.put("帧数", fps);
-            long capacityInBytes = MeshResource.CHUNK_COMMAND.getCapacity();
+            MeshResource.ensureInitialized();
+            long capacityInBytes = MeshResource.resourceSet().indirectCommands() != null
+                    ? MeshResource.resourceSet().indirectCommands().getCapacity()
+                    : 0L;
             double capacityInMB = capacityInBytes / (1024.0 * 1024.0);
             debugText.put("IndirectBuffer", String.format("%.2f MB",
                     capacityInMB));
@@ -344,8 +349,9 @@ public class SketchRender {
             long SWITCH_INTERVAL = 1000000000L;
             if (currentTime - lastSwitchTime >= SWITCH_INTERVAL) {
                 lastSwitchTime = currentTime;
-                TimerUtil.COMMAND_TIMER.calculateAverageTimes(CullingStateManager.FPS);
-                RENDER_TIMER.calculateAverageTimes(CullingStateManager.FPS);
+                int fps = MinecraftCullingDebugState.getInstance().fps();
+                TimerUtil.COMMAND_TIMER.calculateAverageTimes(fps);
+                RENDER_TIMER.calculateAverageTimes(fps);
             }
         }
     }

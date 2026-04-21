@@ -66,7 +66,7 @@ public class TaskGraphScheduler {
      */
     public <C extends RenderContext> void execute(CompiledRenderGraph<C> graph, FrameContext<C> ctx,
                                                   boolean waitForAsyncAtEnd) {
-        SimpleProfiler.get().begin("execute", "MainThread");
+        SimpleProfiler.get().begin("ExecuteGraph", "MainThread");
 
         waitForPendingAsync();
         Queue<Runnable> asyncTaskQueue = new ArrayDeque<>();
@@ -76,30 +76,39 @@ public class TaskGraphScheduler {
 
             switch (domain) {
                 case SYNC -> {
+                    String profileName = "SyncPass:" + node.name();
+                    SimpleProfiler.get().begin(profileName, "MainThread");
                     try {
                         node.pass().execute(ctx);
                     } catch (Exception e) {
                         SketchDiagnostics.get().error("task-graph", "Error in SYNC pass '" + node.name() + "'", e);
+                    } finally {
+                        SimpleProfiler.get().end(profileName, "MainThread");
                     }
                 }
                 case ASYNC -> {
                     asyncTaskQueue.add(() -> {
                         pendingAsyncPassName = node.name();
-                        SimpleProfiler.get().begin("AsyncJob:" + node.name(), "WorkerThread");
+                        String profileName = "AsyncPass:" + node.name();
+                        SimpleProfiler.get().begin(profileName, "WorkerThread");
                         try {
                             node.pass().execute(ctx);
                         } catch (Exception e) {
                             SketchDiagnostics.get().error("task-graph", "Error in ASYNC pass '" + node.name() + "'", e);
                         } finally {
-                            SimpleProfiler.get().end("AsyncJob:" + node.name(), "WorkerThread");
+                            SimpleProfiler.get().end(profileName, "WorkerThread");
                         }
                     });
                 }
                 case ANY -> {
+                    String profileName = "AnyPass:" + node.name();
+                    SimpleProfiler.get().begin(profileName, "MainThread");
                     try {
                         node.pass().execute(ctx);
                     } catch (Exception e) {
                         SketchDiagnostics.get().error("task-graph", "Error in ANY pass '" + node.name() + "'", e);
+                    } finally {
+                        SimpleProfiler.get().end(profileName, "MainThread");
                     }
                 }
             }
@@ -112,7 +121,7 @@ public class TaskGraphScheduler {
             }
         }
 
-        SimpleProfiler.get().end("execute", "MainThread");
+        SimpleProfiler.get().end("ExecuteGraph", "MainThread");
     }
 
     /**
@@ -129,14 +138,14 @@ public class TaskGraphScheduler {
         if (!pendingAsyncBatch.isDone()) {
             String waitTimerName = "wait.async_render_pass." + pendingAsyncPassName;
             TimerUtil.COMMAND_TIMER.start(waitTimerName);
-            SimpleProfiler.get().begin("MainWait:" + pendingAsyncPassName, "MainThread");
+            SimpleProfiler.get().begin("AsyncPassWait:" + pendingAsyncPassName, "MainThread");
             try {
                 pendingAsyncBatch.join();
             } catch (CompletionException e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;
                 SketchDiagnostics.get().error("task-graph", "Async pass failed: " + pendingAsyncPassName, cause);
             } finally {
-                SimpleProfiler.get().end("MainWait:" + pendingAsyncPassName, "MainThread");
+                SimpleProfiler.get().end("AsyncPassWait:" + pendingAsyncPassName, "MainThread");
                 TimerUtil.COMMAND_TIMER.end(waitTimerName);
                 pendingAsyncPassName = "none";
             }
@@ -144,7 +153,7 @@ public class TaskGraphScheduler {
     }
 
     private void submitAsyncQueue(Queue<Runnable> asyncTaskQueue) {
-        SimpleProfiler.get().begin("Submit AsyncBatch", "MainThread");
+        SimpleProfiler.get().begin("SubmitAsyncBatch", "MainThread");
 
         pendingAsyncBatch = CompletableFuture.runAsync(() -> {
             ensureWorkerReady();
@@ -155,7 +164,7 @@ public class TaskGraphScheduler {
             }
         }, workerPool);
 
-        SimpleProfiler.get().end("Submit AsyncBatch", "MainThread");
+        SimpleProfiler.get().end("SubmitAsyncBatch", "MainThread");
     }
 
     private void ensureWorkerReady() {

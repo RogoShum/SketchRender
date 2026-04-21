@@ -10,18 +10,16 @@ import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
 import rogo.sketch.core.resource.descriptor.ResolvedImageResource;
 import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
 import rogo.sketch.core.resource.vision.RenderTarget;
-import rogo.sketch.core.resource.vision.StandardRenderTarget;
-import rogo.sketch.core.resource.vision.StandardTexture;
 import rogo.sketch.core.resource.vision.Texture;
 import rogo.sketch.core.util.KeyId;
 
 import java.nio.ByteBuffer;
 
 final class VulkanBackendResourceInstaller implements BackendResourceInstaller {
-    private final VulkanBackendRuntime runtime;
+    private final VulkanResourceAllocator allocator;
 
-    VulkanBackendResourceInstaller(VulkanBackendRuntime runtime) {
-        this.runtime = runtime;
+    VulkanBackendResourceInstaller(VulkanResourceAllocator allocator) {
+        this.allocator = allocator;
     }
 
     @Override
@@ -30,14 +28,12 @@ final class VulkanBackendResourceInstaller implements BackendResourceInstaller {
             ResolvedImageResource descriptor,
             @Nullable String imagePath,
             @Nullable ByteBuffer imageData) {
-        StandardTexture texture = new StandardTexture(0, resourceId, descriptor, imagePath);
-        texture.updateCurrentSize(descriptor.width(), descriptor.height());
-        return texture;
+        return allocator.createTexture(resourceId, descriptor, imagePath, imageData);
     }
 
     @Override
     public RenderTarget createRenderTarget(KeyId resourceId, ResolvedRenderTargetSpec descriptor) {
-        return new StandardRenderTarget(0, resourceId, descriptor, null);
+        return allocator.createRenderTarget(resourceId, descriptor);
     }
 
     @Override
@@ -45,15 +41,7 @@ final class VulkanBackendResourceInstaller implements BackendResourceInstaller {
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
-        VulkanUniformBufferResource resource = new VulkanUniformBufferResource(
-                resourceId,
-                runtime.physicalDevice(),
-                runtime.device(),
-                Math.max(16L, descriptor.capacityBytes()));
-        if (initialData != null) {
-            resource.update(initialData);
-        }
-        return resource;
+        return allocator.createUniformBuffer(resourceId, descriptor, initialData);
     }
 
     @Override
@@ -61,7 +49,7 @@ final class VulkanBackendResourceInstaller implements BackendResourceInstaller {
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
-        return runtime.createStorageBufferResource(resourceId, descriptor, initialData);
+        return allocator.createStorageBuffer(resourceId, descriptor, initialData);
     }
 
     @Override
@@ -69,9 +57,7 @@ final class VulkanBackendResourceInstaller implements BackendResourceInstaller {
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
-        VulkanCounterBufferResource resource = new VulkanCounterBufferResource(resourceId, descriptor);
-        runtime.registerCounterBufferResource(resourceId, resource);
-        return resource;
+        return allocator.createCounterBuffer(resourceId, descriptor, initialData);
     }
 
     @Override
@@ -79,7 +65,6 @@ final class VulkanBackendResourceInstaller implements BackendResourceInstaller {
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             long commandCapacity) {
-        return new VulkanIndirectBufferResource(commandCapacity > 0L ? commandCapacity : Math.max(1L, descriptor.elementCount()));
+        return allocator.createIndirectBuffer(resourceId, descriptor, commandCapacity);
     }
 }
-

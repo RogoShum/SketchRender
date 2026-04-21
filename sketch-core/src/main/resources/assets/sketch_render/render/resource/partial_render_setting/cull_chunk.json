@@ -1,19 +1,44 @@
 {
+  "executionDomain": "COMPUTE",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_render:cull_collect_chunk_batch"
     }
   },
   "resourceBinding": {
-    "shader_storage_buffer": {
-      "SectionMeshBuffer": "sketch_render:chunk_section_mesh",
-      "DrawCommandBuffer": "sketch_render:chunk_draw_command",
-      "CounterBuffer": "sketch_render:mesh_counter",
-      "RegionPosBuffer": "sketch_render:region_pos",
-      "ElementCountBuffer": "sketch_render:max_element_count"
+    "storage_buffer": {
+      "SectionMeshBuffer": {
+        "resource": "sketch_render:chunk_section_mesh",
+        "view": "STORAGE_BUFFER",
+        "access": "READ"
+      },
+      "DrawCommandBuffer": {
+        "resource": "sketch_render:chunk_draw_command",
+        "view": "STORAGE_BUFFER",
+        "access": "WRITE"
+      },
+      "CounterBuffer": {
+        "resource": "sketch_render:mesh_counter",
+        "view": "STORAGE_BUFFER",
+        "access": "WRITE"
+      },
+      "RegionPosBuffer": {
+        "resource": "sketch_render:region_pos",
+        "view": "STORAGE_BUFFER",
+        "access": "READ"
+      },
+      "ElementCountBuffer": {
+        "resource": "sketch_render:max_element_count",
+        "view": "STORAGE_BUFFER",
+        "access": "WRITE"
+      }
     },
     "texture": {
-      "Sampler0": "sketch_render:hiz_texture"
+      "Sampler0": {
+        "resource": "sketch_render:hiz_texture",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
     }
   },
   "shouldSwitchRenderState": true

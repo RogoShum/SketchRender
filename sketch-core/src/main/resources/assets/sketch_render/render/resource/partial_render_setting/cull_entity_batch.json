@@ -1,16 +1,29 @@
 {
+  "executionDomain": "COMPUTE",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_render:cull_entity_batch"
     }
   },
   "resourceBinding": {
-    "shader_storage_buffer": {
-      "EntityDataBuffer": "sketch_render:entity_data",
-      "CullingResultBuffer": "sketch_render:entity_culling_result"
+    "storage_buffer": {
+      "EntityDataBuffer": {
+        "resource": "sketch_render:entity_data",
+        "view": "STORAGE_BUFFER",
+        "access": "READ"
+      },
+      "CullingResultBuffer": {
+        "resource": "sketch_render:entity_culling_result",
+        "view": "STORAGE_BUFFER",
+        "access": "WRITE"
+      }
     },
     "texture": {
-      "Sampler0": "sketch_render:hiz_texture"
+      "Sampler0": {
+        "resource": "sketch_render:hiz_texture",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
     }
   },
   "shouldSwitchRenderState": true

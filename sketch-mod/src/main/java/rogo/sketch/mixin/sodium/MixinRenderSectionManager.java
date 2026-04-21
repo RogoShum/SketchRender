@@ -26,8 +26,12 @@ import rogo.sketch.Config;
 import rogo.sketch.compat.sodium.IndirectDrawChunkRenderer;
 import rogo.sketch.compat.sodium.MeshResource;
 import rogo.sketch.compat.sodium.SodiumSectionAsyncUtil;
+import rogo.sketch.compat.sodium.SodiumTerrainCullCoordinator;
 import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
-import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.feature.culling.MinecraftHiZState;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
+import rogo.sketch.feature.culling.MinecraftShaderCapabilityService;
+import rogo.sketch.core.driver.GraphicsDriver;
 
 import java.lang.reflect.Field;
 import java.util.ArrayDeque;
@@ -54,6 +58,8 @@ public abstract class MixinRenderSectionManager {
 
     @Unique
     private ChunkRenderer sketchlib$indirectDrawChunkRenderer;
+    @Unique
+    private boolean sketchlib$warnedUnsupportedCountedIndirect;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(ClientLevel world, int renderDistance, CommandList commandList, CallbackInfo ci) {
@@ -63,7 +69,21 @@ public abstract class MixinRenderSectionManager {
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
-        if (Config.getCullChunk() && !CullingStateManager.SHADER_LOADER.renderingShadowPass()) {
+        boolean countedIndirectSupported = GraphicsDriver.renderDevice().countedIndirectDraw().isSupported();
+        if (Config.getCullChunk()
+                && !MinecraftShaderCapabilityService.getInstance().renderingShadowPass()
+                && !countedIndirectSupported
+                && !sketchlib$warnedUnsupportedCountedIndirect) {
+            sketchlib$warnedUnsupportedCountedIndirect = true;
+            SketchDiagnostics.get().error(
+                    "terrain_indirect_draw",
+                    "Chunk culling requested counted indirect draw, but GraphicsDriver.renderDevice().countedIndirectDraw() is unsupported in the active Minecraft GL runtime.",
+                    null);
+        }
+        if (Config.getCullChunk()
+                && !MinecraftShaderCapabilityService.getInstance().renderingShadowPass()
+                && countedIndirectSupported
+                && SodiumTerrainCullCoordinator.getInstance().isReadyForFrame(MeshResource.resourceSet().currentFrame())) {
             RenderDevice device = RenderDevice.INSTANCE;
             CommandList commandList = device.createCommandList();
             sketchlib$indirectDrawChunkRenderer.render(matrices, commandList, this.renderLists, pass, new CameraTransform(x, y, z));
@@ -79,14 +99,15 @@ public abstract class MixinRenderSectionManager {
 
     @ModifyArg(method = "destroy", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/ChunkRenderer;delete(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;)V"), remap = false)
     private CommandList onDestroy(CommandList commandList) {
+        SodiumTerrainCullCoordinator.getInstance().clear();
         sketchlib$indirectDrawChunkRenderer.delete(commandList);
         return commandList;
     }
 
     @Inject(method = "update", at = @At(value = "HEAD"), remap = false)
     private void onUpdate(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
-        CullingStateManager.updating();
-        MeshResource.CURRENT_FRAME = frame;
+        MinecraftHiZState.getInstance().updating();
+        MeshResource.resourceSet().setCurrentFrame(frame);
     }
 
     @Inject(method = "isSectionVisible", at = @At(value = "HEAD"), remap = false, cancellable = true)
@@ -99,10 +120,11 @@ public abstract class MixinRenderSectionManager {
     @Inject(method = "createTerrainRenderList", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onCreateTerrainRenderList(Camera camera, Viewport viewport, int frame, boolean spectator, CallbackInfo ci) {
         if (Config.getAsyncChunkRebuild()) {
-            VisibleChunkCollector collector = CullingStateManager.renderingShadowPass() ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
+            boolean shadowPass = MinecraftShaderCapabilityService.getInstance().renderingShadowPass();
+            VisibleChunkCollector collector = shadowPass ? SodiumSectionAsyncUtil.getShadowCollector() : SodiumSectionAsyncUtil.getChunkCollector();
 
             if (collector != null) {
-                if (CullingStateManager.renderingShadowPass()) {
+                if (shadowPass) {
                     setShadowRenderLists(this, collector.createRenderLists());
                     this.rebuildLists = collector.getRebuildLists();
                 } else {

@@ -11,6 +11,8 @@ import org.lwjgl.system.MemoryUtil;
 import java.util.Arrays;
 
 public class RegionMeshDataStorage extends SectionRenderDataStorage {
+    private static final SodiumRegionMeshRegistry REGION_REGISTRY = MeshResource.regionRegistry();
+
     private final RenderRegion region;
     private final int passIndex;
 
@@ -49,27 +51,27 @@ public class RegionMeshDataStorage extends SectionRenderDataStorage {
             sectionFacingCount[sectionIndex] = facingCount;
             totalFacingCount = Arrays.stream(sectionFacingCount).sum();
         }
-        int regionIdx = MeshResource.MESH_MANAGER.indexOf(region);
-        MeshResource.MESH_MANAGER.uploadRegionPassData(regionIdx, passIndex);
+        int regionIdx = REGION_REGISTRY.indexOf(region);
+        REGION_REGISTRY.uploadRegionPassData(regionIdx, passIndex);
     }
 
     @Override
     public long getDataPointer(int sectionIndex) {
-        return MeshResource.MESH_MANAGER.getSectionMemPointer(region, passIndex, sectionIndex);
+        return REGION_REGISTRY.getSectionMemPointer(region, passIndex, sectionIndex);
     }
 
     @Override
     public void delete() {
         super.delete();
-        MemoryUtil.memSet(getDataPointer(0), 0, MeshResource.MESH_MANAGER.getSectionSize());
-        int regionIdx = MeshResource.MESH_MANAGER.indexOf(region);
-        MeshResource.MESH_MANAGER.uploadRegionPassData(regionIdx, passIndex);
+        MemoryUtil.memSet(getDataPointer(0), 0, REGION_REGISTRY.getSectionSize());
+        int regionIdx = REGION_REGISTRY.indexOf(region);
+        REGION_REGISTRY.uploadRegionPassData(regionIdx, passIndex);
         totalFacingCount = 0;
     }
 
     protected void updateSectionMesh(int sectionIndex) {
-        int regionIdx = MeshResource.MESH_MANAGER.indexOf(region);
-        MeshResource.MESH_MANAGER.uploadSectionData(regionIdx, passIndex, sectionIndex);
+        int regionIdx = REGION_REGISTRY.indexOf(region);
+        REGION_REGISTRY.uploadSectionData(regionIdx, passIndex, sectionIndex);
         int sliceMask = SectionRenderDataUnsafe.getSliceMask(getDataPointer(sectionIndex));
         int facingCount = Integer.bitCount(sliceMask);
         sectionFacingCount[sectionIndex] = facingCount;

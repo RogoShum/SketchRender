@@ -271,8 +271,8 @@ public class GraphicsResourceManager {
         registerLoader(ResourceTypes.RENDER_TARGET, new RenderTargetLoader());
         registerLoader(ResourceTypes.PARTIAL_RENDER_SETTING, new RenderSettingLoader());
         registerLoader(ResourceTypes.MESH, new MeshLoader());
-        registerLoader(ResourceTypes.FUNCTION, new FunctionGraphicsLoader());
-        registerLoader(ResourceTypes.DRAW_CALL, new DrawCallGraphicsLoader());
+        registerLoader(ResourceTypes.FUNCTION, new FunctionEntityLoader());
+        registerLoader(ResourceTypes.DRAW_CALL, new DrawCallEntityLoader());
         
         // New loaders for shader template system
         registerLoader(ResourceTypes.MACRO_TEMPLATE, new MacroTemplateLoader());

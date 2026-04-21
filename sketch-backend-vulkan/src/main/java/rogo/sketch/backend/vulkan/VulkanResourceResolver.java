@@ -23,7 +23,7 @@ final class VulkanResourceResolver implements BackendResourceResolver {
     private final GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
     private final Map<KeyId, VulkanTextureResource> textureOverrides = new ConcurrentHashMap<>();
     private final Map<KeyId, VulkanUniformBufferResource> uniformBufferOverrides = new ConcurrentHashMap<>();
-    private final Map<KeyId, VulkanStorageBufferResource> storageBufferOverrides = new ConcurrentHashMap<>();
+    private final Map<KeyId, VulkanDescriptorBufferResource> storageBufferOverrides = new ConcurrentHashMap<>();
     private final Map<KeyId, VulkanCounterBufferResource> counterBufferOverrides = new ConcurrentHashMap<>();
     private final Set<String> warnedIncompatible = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedMissing = ConcurrentHashMap.newKeySet();
@@ -42,7 +42,7 @@ final class VulkanResourceResolver implements BackendResourceResolver {
         uniformBufferOverrides.put(resourceId, resource);
     }
 
-    void registerStorageBuffer(KeyId resourceId, VulkanStorageBufferResource resource) {
+    void registerStorageBuffer(KeyId resourceId, VulkanDescriptorBufferResource resource) {
         if (resourceId == null || resource == null) {
             return;
         }
@@ -78,15 +78,15 @@ final class VulkanResourceResolver implements BackendResourceResolver {
         return resolveFromManager(ResourceTypes.UNIFORM_BUFFER, resourceId, VulkanUniformBufferResource.class);
     }
 
-    VulkanStorageBufferResource resolveStorageBufferResource(KeyId resourceId) {
+    VulkanDescriptorBufferResource resolveStorageBufferResource(KeyId resourceId) {
         if (resourceId == null) {
             return null;
         }
-        VulkanStorageBufferResource override = storageBufferOverrides.get(resourceId);
+        VulkanDescriptorBufferResource override = storageBufferOverrides.get(resourceId);
         if (override != null && !override.isDisposed()) {
             return override;
         }
-        return resolveFromManager(ResourceTypes.STORAGE_BUFFER, resourceId, VulkanStorageBufferResource.class);
+        return resolveFromManager(ResourceTypes.STORAGE_BUFFER, resourceId, VulkanDescriptorBufferResource.class);
     }
 
     VulkanCounterBufferResource resolveCounterBufferResource(KeyId resourceId) {
@@ -107,11 +107,11 @@ final class VulkanResourceResolver implements BackendResourceResolver {
         ResourceObject exact = resourceManager.getResourceExact(ResourceTypes.RENDER_TARGET, renderTargetId);
         ResourceObject target = exact != null ? exact : resourceManager.getResource(ResourceTypes.RENDER_TARGET, renderTargetId);
         if (target == null) {
-            warnMissing(ResourceTypes.RENDER_TARGET, renderTargetId);
+            warnMissing(ResourceTypes.RENDER_TARGET, renderTargetId, exact, null);
             return null;
         }
         if (!(target instanceof AttachmentBackedRenderTarget attachmentBackedRenderTarget)) {
-            warnIncompatible(ResourceTypes.RENDER_TARGET, renderTargetId, target);
+            warnIncompatible(ResourceTypes.RENDER_TARGET, renderTargetId, target, exact, target);
             return null;
         }
 
@@ -144,27 +144,34 @@ final class VulkanResourceResolver implements BackendResourceResolver {
         if (exact == null) {
             ResourceObject inherited = resourceManager.getResource(resourceType, resourceId);
             if (inherited == null) {
-                warnMissing(resourceType, resourceId);
+                warnMissing(resourceType, resourceId, null, null);
                 return null;
             }
-            return castOrWarn(resourceType, resourceId, inherited, expectedType);
+            return castOrWarn(resourceType, resourceId, inherited, exact, inherited, expectedType);
         }
-        return castOrWarn(resourceType, resourceId, exact, expectedType);
+        return castOrWarn(resourceType, resourceId, exact, exact, exact, expectedType);
     }
 
     private <T extends ResourceObject> T castOrWarn(
             KeyId resourceType,
             KeyId resourceId,
             ResourceObject resourceObject,
+            ResourceObject exactResource,
+            ResourceObject inheritedResource,
             Class<T> expectedType) {
         if (expectedType.isInstance(resourceObject)) {
             return expectedType.cast(resourceObject);
         }
-        warnIncompatible(resourceType, resourceId, resourceObject);
+        warnIncompatible(resourceType, resourceId, resourceObject, exactResource, inheritedResource);
         return null;
     }
 
-    private void warnIncompatible(KeyId resourceType, KeyId resourceId, ResourceObject resourceObject) {
+    private void warnIncompatible(
+            KeyId resourceType,
+            KeyId resourceId,
+            ResourceObject resourceObject,
+            ResourceObject exactResource,
+            ResourceObject inheritedResource) {
         String key = resourceType + ":" + resourceId + ":" + resourceObject.getClass().getName();
         if (!warnedIncompatible.add(key)) {
             return;
@@ -173,17 +180,28 @@ final class VulkanResourceResolver implements BackendResourceResolver {
                 DIAG_MODULE,
                 "Resource " + resourceType + ":" + resourceId
                         + " resolved to incompatible object " + resourceObject.getClass().getName()
-                        + " for Vulkan backend-native descriptor write");
+                        + " for Vulkan backend-native descriptor write"
+                        + " [exact=" + describeResource(exactResource)
+                        + ", inherited=" + describeResource(inheritedResource) + "]");
     }
 
-    private void warnMissing(KeyId resourceType, KeyId resourceId) {
+    private void warnMissing(KeyId resourceType, KeyId resourceId, ResourceObject exactResource, ResourceObject inheritedResource) {
         String key = resourceType + ":" + resourceId;
         if (!warnedMissing.add(key)) {
             return;
         }
         SketchDiagnostics.get().warn(
                 DIAG_MODULE,
-                "No Vulkan backend-native resource resolved for " + resourceType + ":" + resourceId);
+                "No Vulkan backend-native resource resolved for " + resourceType + ":" + resourceId
+                        + " [exact=" + describeResource(exactResource)
+                        + ", inherited=" + describeResource(inheritedResource) + "]");
+    }
+
+    private String describeResource(ResourceObject resourceObject) {
+        if (resourceObject == null) {
+            return "null";
+        }
+        return resourceObject.getClass().getName() + (resourceObject.isDisposed() ? "(disposed)" : "");
     }
 
     private void disposeQuietly(ResourceObject resourceObject) {

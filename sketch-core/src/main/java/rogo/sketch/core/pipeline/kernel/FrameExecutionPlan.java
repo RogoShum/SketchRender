@@ -1,7 +1,7 @@
 package rogo.sketch.core.pipeline.kernel;
 
 import rogo.sketch.core.packet.GeometryHandleKey;
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.packet.ResourceSetKey;
@@ -19,46 +19,54 @@ import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 public record FrameExecutionPlan(
         Map<KeyId, StageExecutionPlan> stagePlans,
         List<GeometryUploadPlan> geometryUploadPlans,
         List<ResourceUploadPlan> resourceUploadPlans,
+        Map<GeometryHandleKey, Set<PipelineType>> geometryConsumers,
         FrameCaptureSnapshot frameCaptureSnapshot
 ) {
     public FrameExecutionPlan {
         stagePlans = stagePlans != null ? normalizeStagePlans(stagePlans) : Map.of();
         geometryUploadPlans = geometryUploadPlans != null ? List.copyOf(geometryUploadPlans) : List.of();
         resourceUploadPlans = resourceUploadPlans != null ? List.copyOf(resourceUploadPlans) : List.of();
+        geometryConsumers = geometryConsumers != null
+                ? normalizeGeometryConsumers(geometryConsumers)
+                : deriveGeometryConsumers(stagePlans);
         frameCaptureSnapshot = frameCaptureSnapshot != null
                 ? frameCaptureSnapshot
                 : FrameCaptureSnapshot.fromStagePlans(stagePlans);
     }
 
     public static FrameExecutionPlan empty() {
-        return new FrameExecutionPlan(Map.of(), List.of(), List.of(), FrameCaptureSnapshot.empty());
+        return new FrameExecutionPlan(Map.of(), List.of(), List.of(), Map.of(), FrameCaptureSnapshot.empty());
     }
 
-    public static FrameExecutionPlan fromPackets(Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> packets) {
+    public static FrameExecutionPlan fromPackets(Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets) {
         Map<KeyId, StageExecutionPlan> stagePlans = new LinkedHashMap<>();
         if (packets != null) {
-            for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
+            for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
                 PipelineType pipelineType = pipelineEntry.getKey();
-                for (Map.Entry<PipelineStateKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
-                    PipelineStateKey stateKey = stateEntry.getKey();
+                for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
+                    ExecutionKey stateKey = stateEntry.getKey();
                     for (RenderPacket packet : stateEntry.getValue()) {
                         if (packet == null) {
                             continue;
                         }
                         KeyId stageId = packet.stageId();
                         StageExecutionPlan existing = stagePlans.get(stageId);
-                        Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> stagePackets =
+                        Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> stagePackets =
                                 existing != null ? new LinkedHashMap<>(existing.packets()) : new LinkedHashMap<>();
-                        Map<PipelineStateKey, List<RenderPacket>> states =
+                        Map<ExecutionKey, List<RenderPacket>> states =
                                 new LinkedHashMap<>(stagePackets.getOrDefault(pipelineType, Map.of()));
                         List<RenderPacket> packetList = new java.util.ArrayList<>(states.getOrDefault(stateKey, List.of()));
                         packetList.add(packet);
@@ -73,6 +81,7 @@ public record FrameExecutionPlan(
                 stagePlans,
                 List.of(),
                 List.of(),
+                null,
                 FrameCaptureSnapshot.fromStagePlans(stagePlans));
     }
 
@@ -80,17 +89,18 @@ public record FrameExecutionPlan(
         return stagePlans.isEmpty();
     }
 
-    public Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> stagePackets() {
-        Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> aggregated = new LinkedHashMap<>();
+    public Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> stagePackets() {
+        Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> aggregated = new LinkedHashMap<>();
         for (StageExecutionPlan stagePlan : stagePlans.values()) {
-            for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : stagePlan.packets().entrySet()) {
-                Map<PipelineStateKey, List<RenderPacket>> states = aggregated.computeIfAbsent(
-                        pipelineEntry.getKey(),
+            for (PipelineExecutionSlice pipelineSlice : stagePlan.pipelineSlices()) {
+                Map<ExecutionKey, List<RenderPacket>> states = aggregated.computeIfAbsent(
+                        pipelineSlice.pipelineType(),
                         ignored -> new LinkedHashMap<>());
-                for (Map.Entry<PipelineStateKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
-                    List<RenderPacket> packets = new java.util.ArrayList<>(states.getOrDefault(stateEntry.getKey(), List.of()));
-                    packets.addAll(stateEntry.getValue());
-                    states.put(stateEntry.getKey(), List.copyOf(packets));
+                for (int i = 0; i < pipelineSlice.groupCount(); i++) {
+                    PacketGroup group = pipelineSlice.groupAt(i);
+                    List<RenderPacket> packets = new java.util.ArrayList<>(states.getOrDefault(group.stateKey(), List.of()));
+                    packets.addAll(group.packetView());
+                    states.put(group.stateKey(), List.copyOf(packets));
                 }
             }
         }
@@ -112,6 +122,48 @@ public record FrameExecutionPlan(
         return Collections.unmodifiableMap(normalized);
     }
 
+    private static Map<GeometryHandleKey, Set<PipelineType>> deriveGeometryConsumers(
+            Map<KeyId, StageExecutionPlan> stagePlans) {
+        if (stagePlans == null || stagePlans.isEmpty()) {
+            return Map.of();
+        }
+        Map<GeometryHandleKey, Set<PipelineType>> consumers = new LinkedHashMap<>();
+        for (StageExecutionPlan stagePlan : stagePlans.values()) {
+            if (stagePlan == null || stagePlan.isEmpty()) {
+                continue;
+            }
+            for (PipelineExecutionSlice pipelineSlice : stagePlan.pipelineSlices()) {
+                PipelineType pipelineType = pipelineSlice.pipelineType();
+                if (pipelineType == null) {
+                    continue;
+                }
+                for (int i = 0; i < pipelineSlice.groupCount(); i++) {
+                    RenderPacket[] packets = pipelineSlice.groupAt(i).packets();
+                    for (RenderPacket packet : packets) {
+                        if (packet instanceof rogo.sketch.core.packet.DrawPacket drawPacket
+                                && drawPacket.geometryHandle() != null) {
+                            consumers.computeIfAbsent(drawPacket.geometryHandle(), ignored -> new LinkedHashSet<>())
+                                    .add(pipelineType);
+                        }
+                    }
+                }
+            }
+        }
+        return normalizeGeometryConsumers(consumers);
+    }
+
+    private static Map<GeometryHandleKey, Set<PipelineType>> normalizeGeometryConsumers(
+            Map<GeometryHandleKey, Set<PipelineType>> geometryConsumers) {
+        Map<GeometryHandleKey, Set<PipelineType>> normalized = new LinkedHashMap<>();
+        for (Map.Entry<GeometryHandleKey, Set<PipelineType>> entry : geometryConsumers.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null || entry.getValue().isEmpty()) {
+                continue;
+            }
+            normalized.put(entry.getKey(), Set.copyOf(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(normalized);
+    }
+
     public record GeometryUploadPlan(
             GeometryHandleKey geometryHandle,
             KeyId vertexLayoutKey,
@@ -125,13 +177,23 @@ public record FrameExecutionPlan(
             IndexUploadSnapshot optionalIndexUpload,
             IndirectUploadSnapshot optionalIndirectUpload,
             int vertexCount,
-            int indexCount
+            int indexCount,
+            int installVersion
     ) {
         public GeometryUploadPlan {
             sharedSourceRef = Math.max(sharedSourceRef, 0L);
             builders = builders != null ? builders.clone() : new GeometryResourceCoordinator.BuilderPair[0];
             vertexLayoutKey = vertexLayoutKey != null ? vertexLayoutKey : KeyId.of("sketch:empty_vertex_layout");
             dynamicVertexUploads = dynamicVertexUploads != null ? List.copyOf(dynamicVertexUploads) : List.of();
+            installVersion = installVersion != 0 ? installVersion : deriveInstallVersion(
+                    geometryHandle,
+                    vertexLayoutKey,
+                    sharedSourceRef,
+                    dynamicVertexUploads,
+                    optionalIndexUpload,
+                    optionalIndirectUpload,
+                    vertexCount,
+                    indexCount);
         }
 
         public static GeometryUploadPlan capture(
@@ -158,7 +220,8 @@ public record FrameExecutionPlan(
                     captureIndexUpload(geometryHandle, sharedGeometrySourceSnapshot, vertexCount, indexCount),
                     captureIndirectUpload(indirectBuffer),
                     vertexCount,
-                    indexCount);
+                    indexCount,
+                    0);
         }
 
         public void uploadTo(BackendGeometryBinding geometryBinding) {
@@ -310,6 +373,32 @@ public record FrameExecutionPlan(
             buffer.asIntBuffer().get(indices);
             return indices;
         }
+
+        private static int deriveInstallVersion(
+                GeometryHandleKey geometryHandle,
+                KeyId vertexLayoutKey,
+                long sharedSourceRef,
+                List<VertexUploadSnapshot> dynamicVertexUploads,
+                IndexUploadSnapshot optionalIndexUpload,
+                IndirectUploadSnapshot optionalIndirectUpload,
+                int vertexCount,
+                int indexCount) {
+            int hash = Objects.hash(geometryHandle, vertexLayoutKey, sharedSourceRef, vertexCount, indexCount);
+            if (dynamicVertexUploads != null) {
+                for (VertexUploadSnapshot upload : dynamicVertexUploads) {
+                    if (upload != null) {
+                        hash = 31 * hash + upload.hashCode();
+                    }
+                }
+            }
+            if (optionalIndexUpload != null) {
+                hash = 31 * hash + optionalIndexUpload.hashCode();
+            }
+            if (optionalIndirectUpload != null) {
+                hash = 31 * hash + optionalIndirectUpload.hashCode();
+            }
+            return hash;
+        }
     }
 
     public record VertexUploadSnapshot(
@@ -324,17 +413,32 @@ public record FrameExecutionPlan(
             componentId = componentId != null ? componentId : ResourceTypes.VERTEX_BUFFER;
             data = data != null ? data.clone() : new byte[0];
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(componentId, bindingPoint, stride, instanced, vertexCount, Arrays.hashCode(data));
+        }
     }
 
     public record IndexUploadSnapshot(byte[] data, int indexCount) {
         public IndexUploadSnapshot {
             data = data != null ? data.clone() : new byte[0];
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(indexCount, Arrays.hashCode(data));
+        }
     }
 
     public record IndirectUploadSnapshot(byte[] data, int drawCount, int stride) {
         public IndirectUploadSnapshot {
             data = data != null ? data.clone() : new byte[0];
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(drawCount, stride, Arrays.hashCode(data));
         }
     }
 

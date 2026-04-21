@@ -11,6 +11,9 @@ import org.lwjgl.vulkan.VkPhysicalDeviceMemoryProperties;
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.core.backend.BackendUniformBuffer;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
 import rogo.sketch.core.resource.descriptor.BufferRole;
 import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
 import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
@@ -43,6 +46,7 @@ public final class VulkanUniformBufferResource implements ResourceObject, Backen
     private final long memory;
     private final long mappedAddress;
     private final ResolvedBufferResource descriptor;
+    private final MemoryLease mappedLease;
     private boolean disposed;
 
     public VulkanUniformBufferResource(VkPhysicalDevice physicalDevice, VkDevice device, long size) {
@@ -68,6 +72,9 @@ public final class VulkanUniformBufferResource implements ResourceObject, Backen
                 Math.max(1L, size),
                 1L,
                 size);
+        this.mappedLease = UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.GPU_PERSISTENT_MAPPED, "vk-uniform-buffer/" + this.descriptor.identifier())
+                .bindSuppliers(() -> this.disposed ? 0L : this.size, () -> this.disposed ? 0L : this.size);
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkBufferCreateInfo bufferInfo = VkBufferCreateInfo.calloc(stack)
@@ -164,6 +171,7 @@ public final class VulkanUniformBufferResource implements ResourceObject, Backen
             return;
         }
         disposed = true;
+        mappedLease.close();
         if (mappedAddress != 0L) {
             vkUnmapMemory(device, memory);
         }

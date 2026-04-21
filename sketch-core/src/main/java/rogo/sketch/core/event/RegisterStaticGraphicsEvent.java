@@ -1,14 +1,8 @@
 package rogo.sketch.core.event;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityBlueprint;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
-import rogo.sketch.core.pipeline.PipelineType;
-import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.container.GraphicsContainer;
-import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
-
-import java.util.function.Supplier;
 
 public class RegisterStaticGraphicsEvent {
     private final GraphicsPipeline<?> pipeline;
@@ -17,33 +11,15 @@ public class RegisterStaticGraphicsEvent {
         this.pipeline = pipeline;
     }
 
-    public void registerCompute(KeyId stage, Graphics graphics) {
-        this.pipeline.addCompute(stage, graphics);
+    public void registerCompute(KeyId stage, GraphicsEntityBlueprint blueprint) {
+        pipeline.spawnGraphicsEntity(blueprint);
     }
 
-    public void registerFunction(KeyId stage, Graphics graphics) {
-        this.pipeline.addFunction(stage, graphics);
+    public void registerFunction(KeyId stage, GraphicsEntityBlueprint blueprint) {
+        pipeline.spawnGraphicsEntity(blueprint);
     }
 
-    public void register(KeyId stage, Graphics graphics, RenderParameter renderParameter) {
-        this.pipeline.addGraphInstance(stage, graphics, renderParameter);
-    }
-
-    public void register(KeyId stage, Graphics graphics, RenderParameter renderParameter, PipelineType pipelineType) {
-        this.pipeline.addGraphInstance(stage, graphics, renderParameter, pipelineType);
-    }
-
-    public void register(KeyId stageId, Graphics graph, RenderParameter renderParameter, PipelineType pipelineType, KeyId containerType) {
-        this.pipeline.addGraphInstance(stageId, graph, renderParameter, pipelineType, containerType);
-    }
-
-    public void register(
-            KeyId stageId,
-            Graphics graph,
-            RenderParameter renderParameter,
-            PipelineType pipelineType,
-            KeyId containerType,
-            Supplier<? extends GraphicsContainer<? extends RenderContext>> containerSupplier) {
-        this.pipeline.addGraphInstance(stageId, graph, renderParameter, pipelineType, containerType, containerSupplier);
+    public void register(KeyId stage, GraphicsEntityBlueprint blueprint) {
+        pipeline.spawnGraphicsEntity(blueprint);
     }
 }

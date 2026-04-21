@@ -31,11 +31,11 @@ import rogo.sketch.core.data.type.ValueType;
 import rogo.sketch.core.driver.state.BlendFactor;
 import rogo.sketch.core.driver.state.BlendOp;
 import rogo.sketch.core.driver.state.CompareOp;
-import rogo.sketch.core.driver.state.CompiledRenderState;
+import rogo.sketch.core.driver.state.CompiledRasterState;
 import rogo.sketch.core.driver.state.DepthState;
 import rogo.sketch.core.driver.state.component.BlendState;
 import rogo.sketch.core.driver.state.component.CullState;
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.RasterPipelineKey;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.shader.vertex.ActiveShaderVertexLayout;
 import rogo.sketch.core.shader.vertex.VertexAttributeSpec;
@@ -109,7 +109,7 @@ final class VulkanRasterPipelineCache {
         return framebuffers[imageIndex];
     }
 
-    long pipelineFor(PipelineStateKey stateKey, KeyId resourceLayoutKey, long descriptorSetLayout) {
+    long pipelineFor(RasterPipelineKey stateKey, KeyId resourceLayoutKey, long descriptorSetLayout) {
         PipelineVariantKey key = new PipelineVariantKey(
                 stateKey,
                 resourceLayoutKey != null ? resourceLayoutKey : KeyId.of("sketch:empty_resource_layout"));
@@ -191,7 +191,7 @@ final class VulkanRasterPipelineCache {
     }
 
     private VertexInputDescriptions buildVertexInputDescriptions(
-            PipelineStateKey stateKey,
+            RasterPipelineKey stateKey,
             ActiveShaderVertexLayout activeVertexLayout) {
         if (stateKey == null || stateKey.renderParameter() == null || stateKey.renderParameter().getLayout() == null) {
             return VertexInputDescriptions.empty();
@@ -322,7 +322,7 @@ final class VulkanRasterPipelineCache {
             long pipelineLayout,
             int extentWidth,
             int extentHeight,
-            PipelineStateKey stateKey,
+            RasterPipelineKey stateKey,
             VulkanShaderVariantCache.GraphicsVariantModules graphicsVariant,
             VertexInputDescriptions inputDescriptions) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -392,7 +392,7 @@ final class VulkanRasterPipelineCache {
                     .scissorCount(1)
                     .pScissors(scissor);
 
-            CompiledRenderState renderState = stateKey.compiledRenderState();
+            CompiledRasterState renderState = stateKey.compiledRasterState();
             CullState cullState = renderState != null && renderState.pipelineRasterState() != null
                     ? renderState.pipelineRasterState().cullState()
                     : null;
@@ -629,7 +629,7 @@ final class VulkanRasterPipelineCache {
         }
     }
 
-    private record PipelineVariantKey(PipelineStateKey stateKey, KeyId resourceLayoutKey) {
+    private record PipelineVariantKey(RasterPipelineKey stateKey, KeyId resourceLayoutKey) {
     }
 
     private record PipelineVariant(long pipeline, long pipelineLayout) {

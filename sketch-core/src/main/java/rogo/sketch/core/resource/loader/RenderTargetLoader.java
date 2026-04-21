@@ -3,7 +3,7 @@ package rogo.sketch.core.resource.loader;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import rogo.sketch.core.backend.BackendResourceInstaller;
+import rogo.sketch.core.backend.ResourceAllocator;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.vision.RenderTarget;
@@ -113,9 +113,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                     colorAttachmentIds,
                     depthAttachmentId,
                     stencilAttachmentId);
-            BackendResourceInstaller installer = GraphicsDriver.runtime() != null
-                    ? GraphicsDriver.runtime().resourceInstaller()
-                    : BackendResourceInstaller.NO_OP;
+            ResourceAllocator installer = GraphicsDriver.resourceAllocator();
             return installer.createRenderTarget(keyId, descriptor);
 
         } catch (Exception e) {

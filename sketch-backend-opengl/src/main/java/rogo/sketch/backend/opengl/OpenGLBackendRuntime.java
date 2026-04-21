@@ -7,9 +7,14 @@ import rogo.sketch.core.backend.BackendKind;
 import rogo.sketch.core.backend.BackendResourceResolver;
 import rogo.sketch.core.backend.BackendResourceInstaller;
 import rogo.sketch.core.backend.BackendRuntime;
+import rogo.sketch.core.backend.AsyncGpuCompletion;
+import rogo.sketch.core.backend.RenderDevice;
+import rogo.sketch.core.backend.ResourceAllocator;
+import rogo.sketch.core.backend.SubmissionScheduler;
 import rogo.sketch.core.backend.BackendStateApplier;
 import rogo.sketch.core.backend.BackendShaderProgramCache;
 import rogo.sketch.core.backend.BackendWorkerLane;
+import rogo.sketch.core.backend.CommandRecorderFactory;
 import rogo.sketch.backend.opengl.driver.GLRuntimeFlags;
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
@@ -17,37 +22,46 @@ import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
+import rogo.sketch.core.packet.RenderPacket;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Formal OpenGL backend runtime owner.
  */
 public final class OpenGLBackendRuntime implements BackendRuntime {
-    private final BackendKind kind;
     private final GraphicsAPI api;
-    private final long mainWindowHandle;
-    private final BackendCapabilities capabilities;
-    private final BackendShaderProgramCache shaderProgramCache;
-    private final BackendResourceResolver resourceResolver;
+    private final OpenGLRenderDevice renderDevice;
+    private final OpenGLResourceAllocator resourceAllocator;
     private final BackendResourceInstaller resourceInstaller;
-    private final BackendStateApplier stateApplier;
-    private final BackendFrameExecutor frameExecutor;
+    private final OpenGLSubmissionScheduler submissionScheduler;
 
     public OpenGLBackendRuntime(BackendKind kind, GraphicsAPI api, long mainWindowHandle) {
-        this.kind = Objects.requireNonNull(kind, "kind");
+        BackendKind validatedKind = Objects.requireNonNull(kind, "kind");
         this.api = Objects.requireNonNull(api, "api");
-        this.mainWindowHandle = mainWindowHandle;
-        this.capabilities = new BackendCapabilities(
+        BackendCapabilities capabilities = new BackendCapabilities(
                 GLRuntimeFlags.GL_WORKER_ENABLED,
                 GLRuntimeFlags.allowUploadWorker(),
                 GLRuntimeFlags.allowComputeWorker(),
+                GLRuntimeFlags.GL_WORKER_ENABLED,
                 false);
-        this.resourceResolver = new OpenGLBackendResourceResolver();
-        this.shaderProgramCache = new OpenGLBackendShaderProgramCache(api);
-        this.resourceInstaller = new OpenGLBackendResourceInstaller(api, (OpenGLBackendResourceResolver) resourceResolver);
-        this.stateApplier = new OpenGLStateApplier(api, resourceResolver, new NativeOpenGLStateAccess(api));
-        this.frameExecutor = new OpenGLFrameExecutor(api, resourceResolver);
+        OpenGLBackendResourceResolver resourceResolver = new OpenGLBackendResourceResolver();
+        BackendShaderProgramCache shaderProgramCache = new OpenGLBackendShaderProgramCache(api);
+        this.resourceAllocator = new OpenGLResourceAllocator(api, resourceResolver);
+        this.resourceInstaller = new OpenGLBackendResourceInstaller(resourceAllocator);
+        BackendStateApplier stateApplier = new OpenGLStateApplier(api, resourceResolver, new NativeOpenGLStateAccess(api));
+        BackendFrameExecutor frameExecutor = new OpenGLFrameExecutor(api, resourceResolver);
+        this.submissionScheduler = new OpenGLSubmissionScheduler();
+        this.renderDevice = new OpenGLRenderDevice(
+                validatedKind,
+                api,
+                mainWindowHandle,
+                capabilities,
+                shaderProgramCache,
+                resourceResolver,
+                stateApplier,
+                frameExecutor);
     }
 
     @Override
@@ -57,31 +71,46 @@ public final class OpenGLBackendRuntime implements BackendRuntime {
 
     @Override
     public BackendKind kind() {
-        return kind;
+        return renderDevice.kind();
+    }
+
+    @Override
+    public RenderDevice renderDevice() {
+        return renderDevice;
+    }
+
+    @Override
+    public ResourceAllocator resourceAllocator() {
+        return resourceAllocator;
+    }
+
+    @Override
+    public SubmissionScheduler submissionScheduler() {
+        return submissionScheduler;
     }
 
     @Override
     public BackendCapabilities capabilities() {
-        return capabilities;
+        return renderDevice.capabilities();
     }
 
     @Override
     public BackendFrameExecutor frameExecutor() {
-        return frameExecutor;
+        return renderDevice.frameExecutor();
     }
 
     public BackendPacketHandlerRegistry<OpenGLPacketHandler> packetHandlerRegistry() {
-        return ((OpenGLFrameExecutor) frameExecutor).packetHandlerRegistry();
+        return renderDevice.packetHandlerRegistry();
     }
 
     @Override
     public BackendShaderProgramCache shaderProgramCache() {
-        return shaderProgramCache;
+        return renderDevice.shaderProgramCache();
     }
 
     @Override
     public BackendResourceResolver resourceResolver() {
-        return resourceResolver;
+        return renderDevice.resourceResolver();
     }
 
     @Override
@@ -91,12 +120,17 @@ public final class OpenGLBackendRuntime implements BackendRuntime {
 
     @Override
     public BackendStateApplier stateApplier() {
-        return stateApplier;
+        return renderDevice.stateApplier();
+    }
+
+    @Override
+    public CommandRecorderFactory commandRecorderFactory() {
+        return renderDevice.commandRecorderFactory();
     }
 
     @Override
     public boolean supportsGeometryMaterialization() {
-        return true;
+        return renderDevice.supportsGeometryMaterialization();
     }
 
     @Override
@@ -104,8 +138,12 @@ public final class OpenGLBackendRuntime implements BackendRuntime {
             GraphicsPipeline<C> pipeline,
             FrameExecutionPlan executionPlan,
             boolean uploadGeometryData) {
-        OpenGLGeometryMaterializer.installExecutionGeometryBindings(pipeline, executionPlan, uploadGeometryData);
-        return true;
+        return resourceAllocator.installExecutionPlan(
+                pipeline,
+                executionPlan,
+                0L,
+                submissionScheduler.framesInFlight(),
+                uploadGeometryData);
     }
 
     @Override
@@ -113,71 +151,75 @@ public final class OpenGLBackendRuntime implements BackendRuntime {
             GraphicsPipeline<C> pipeline,
             PipelineType pipelineType,
             RenderPostProcessors postProcessors) {
-        OpenGLGeometryMaterializer.installImmediateGeometryBindings(pipeline, pipelineType, postProcessors);
-        return true;
+        return renderDevice.installImmediateGeometryBindings(pipeline, pipelineType, postProcessors);
     }
 
     @Override
     public <C extends RenderContext> void materializePendingGeometryResources(GraphicsPipeline<C> pipeline) {
-        OpenGLGeometryMaterializer.materializePendingGeometryResources(pipeline);
+        renderDevice.materializePendingGeometryResources(pipeline);
+    }
+
+    @Override
+    public void installExecutionPlan(FrameExecutionPlan executionPlan) {
+        FrameExecutionPlan nextExecutionPlan = executionPlan != null ? executionPlan : FrameExecutionPlan.empty();
+        resourceAllocator.installExecutionPlan(nextExecutionPlan, 0L, submissionScheduler.framesInFlight());
+        submissionScheduler.installExecutionPlan(nextExecutionPlan);
+    }
+
+    @Override
+    public void shutdown() {
+        resourceAllocator.shutdown();
     }
 
     @Override
     public void registerMainThread() {
-        api.registerMainThread();
+        renderDevice.registerMainThread();
     }
 
     @Override
     public boolean isMainThread() {
-        return api.isMainThread();
+        return renderDevice.isMainThread();
     }
 
     @Override
     public void assertMainThread(String caller) {
-        api.assertMainThread(caller);
+        renderDevice.assertMainThread(caller);
     }
 
     @Override
     public void assertRenderContext(String caller) {
-        api.assertGLContext(caller);
+        renderDevice.assertRenderContext(caller);
     }
 
     @Override
     public void initializeWorkerLane(BackendWorkerLane lane) {
-        if (!capabilities.workerLanesSupported()) {
-            return;
-        }
-        switch (lane) {
-            case RENDER_ASYNC -> api.initRenderWorkerContext(mainWindowHandle);
-            case TICK_ASYNC -> api.initTickWorkerContext(mainWindowHandle);
-        }
+        renderDevice.initializeWorkerLane(lane);
     }
 
     @Override
     public void destroyWorkerLane(BackendWorkerLane lane) {
-        if (!capabilities.workerLanesSupported()) {
-            return;
-        }
-        switch (lane) {
-            case RENDER_ASYNC -> api.destroyRenderWorkerContext();
-            case TICK_ASYNC -> api.destroyTickWorkerContext();
-        }
+        renderDevice.destroyWorkerLane(lane);
     }
 
     @Override
     public void onWorkerLaneStart(BackendWorkerLane lane) {
-        switch (lane) {
-            case RENDER_ASYNC -> api.onRenderWorkerThreadStart();
-            case TICK_ASYNC -> api.onTickWorkerThreadStart();
-        }
+        renderDevice.onWorkerLaneStart(lane);
     }
 
     @Override
     public void onWorkerLaneEnd(BackendWorkerLane lane) {
-        switch (lane) {
-            case RENDER_ASYNC -> api.onRenderWorkerThreadEnd();
-            case TICK_ASYNC -> api.onTickWorkerThreadEnd();
-        }
+        renderDevice.onWorkerLaneEnd(lane);
+    }
+
+    @Override
+    public <C extends RenderContext> AsyncGpuCompletion submitAsyncPackets(
+            GraphicsPipeline<C> pipeline,
+            List<RenderPacket> packets,
+            C context) {
+        BackendRuntime.super.submitAsyncPackets(pipeline, packets, context);
+        long fence = api.createFenceSync();
+        api.flush();
+        return new OpenGLAsyncFenceCompletion(api, fence);
     }
 }
 

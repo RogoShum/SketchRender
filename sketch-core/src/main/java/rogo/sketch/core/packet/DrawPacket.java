@@ -1,6 +1,6 @@
 package rogo.sketch.core.packet;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.shader.uniform.UniformGroupSet;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
@@ -11,11 +11,11 @@ import java.util.List;
 public record DrawPacket(
         KeyId stageId,
         PipelineType pipelineType,
-        PipelineStateKey stateKey,
+        RasterPipelineKey stateKey,
         ResourceBindingPlan bindingPlan,
         ResourceSetKey resourceSetKey,
         UniformGroupSet uniformGroups,
-        List<? extends Graphics> completionGraphics,
+        List<GraphicsUniformSubject> completionSubjects,
         GeometryHandleKey geometryHandle,
         DrawPlan drawPlan
 ) implements RenderPacket {

@@ -1,0 +1,25 @@
+{
+  "executionDomain": "COMPUTE",
+  "renderState": {
+    "shader_template": {
+      "identifier": "sketch_render:hiz_depth_snapshot_copy"
+    }
+  },
+  "resourceBinding": {
+    "image": {
+      "output_texture_0": {
+        "resource": "sketch_render:hiz_source_depth_snapshot",
+        "view": "STORAGE_IMAGE",
+        "access": "WRITE"
+      }
+    },
+    "texture": {
+      "sketch_SamplerTexture": {
+        "resource": "minecraft:main_depth",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
+    }
+  },
+  "shouldSwitchRenderState": true
+}

@@ -1,0 +1,24 @@
+#version 450 core
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(r32f) uniform writeonly image2D output_texture_0;
+uniform sampler2D test_depth_texture;
+
+void main() {
+    ivec2 outPos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 outSize = imageSize(output_texture_0);
+    if (outPos.x >= outSize.x || outPos.y >= outSize.y) {
+        return;
+    }
+
+    ivec2 srcSize = textureSize(test_depth_texture, 0) - ivec2(1);
+    ivec2 base = outPos * 2;
+
+    float d0 = texelFetch(test_depth_texture, min(base + ivec2(0, 0), srcSize), 0).r;
+    float d1 = texelFetch(test_depth_texture, min(base + ivec2(1, 0), srcSize), 0).r;
+    float d2 = texelFetch(test_depth_texture, min(base + ivec2(0, 1), srcSize), 0).r;
+    float d3 = texelFetch(test_depth_texture, min(base + ivec2(1, 1), srcSize), 0).r;
+
+    float hizDepth = max(max(d0, d1), max(d2, d3));
+    imageStore(output_texture_0, outPos, vec4(hizDepth, 0.0, 0.0, 1.0));
+}

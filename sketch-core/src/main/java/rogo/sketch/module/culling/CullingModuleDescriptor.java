@@ -57,14 +57,14 @@ public class CullingModuleDescriptor implements ModuleDescriptor {
         settings.bool(CULL_CHUNK, "sketch_render.cull_chunk")
                 .detail("sketch_render.detail.cull_chunk")
                 .parent(GROUP_GENERAL)
-                .impact(ChangeImpact.RECREATE_SESSION_RESOURCES)
+                .impact(ChangeImpact.RUNTIME_ONLY)
                 .defaultValue(true)
                 .register();
 
         settings.bool(ASYNC_CHUNK_REBUILD, "sketch_render.async_chunk_build")
                 .detail("sketch_render.detail.async_chunk_build")
                 .parent(CULL_CHUNK)
-                .impact(ChangeImpact.RECREATE_SESSION_RESOURCES)
+                .impact(ChangeImpact.RUNTIME_ONLY)
                 .dependency(DependencyRule.requiresTrue(CULL_CHUNK))
                 .defaultValue(true)
                 .register();
@@ -72,14 +72,14 @@ public class CullingModuleDescriptor implements ModuleDescriptor {
         settings.bool(CULL_BLOCK_ENTITY, "sketch_render.cull_block_entity")
                 .detail("sketch_render.detail.cull_block_entity")
                 .parent(GROUP_GENERAL)
-                .impact(ChangeImpact.RECREATE_SESSION_RESOURCES)
+                .impact(ChangeImpact.RUNTIME_ONLY)
                 .defaultValue(true)
                 .register();
 
         settings.bool(CULL_ENTITY, "sketch_render.cull_entity")
                 .detail("sketch_render.detail.cull_entity")
                 .parent(GROUP_GENERAL)
-                .impact(ChangeImpact.RECREATE_SESSION_RESOURCES)
+                .impact(ChangeImpact.RUNTIME_ONLY)
                 .defaultValue(true)
                 .register();
 

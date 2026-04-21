@@ -23,6 +23,7 @@ public final class ResolvedImageResource {
     private final SamplerWrap wrapT;
     @Nullable
     private final String sourcePath;
+    private final boolean usagesExplicitlyDeclared;
 
     public ResolvedImageResource(
             KeyId identifier,
@@ -37,6 +38,36 @@ public final class ResolvedImageResource {
             SamplerWrap wrapS,
             SamplerWrap wrapT,
             @Nullable String sourcePath) {
+        this(
+                identifier,
+                width,
+                height,
+                mipLevels,
+                format,
+                usages,
+                minFilter,
+                magFilter,
+                mipmapFilter,
+                wrapS,
+                wrapT,
+                sourcePath,
+                true);
+    }
+
+    public ResolvedImageResource(
+            KeyId identifier,
+            int width,
+            int height,
+            int mipLevels,
+            ImageFormat format,
+            Set<ImageUsage> usages,
+            SamplerFilter minFilter,
+            SamplerFilter magFilter,
+            @Nullable SamplerFilter mipmapFilter,
+            SamplerWrap wrapS,
+            SamplerWrap wrapT,
+            @Nullable String sourcePath,
+            boolean usagesExplicitlyDeclared) {
         this.identifier = Objects.requireNonNull(identifier, "identifier");
         this.width = Math.max(1, width);
         this.height = Math.max(1, height);
@@ -52,6 +83,7 @@ public final class ResolvedImageResource {
         this.wrapS = Objects.requireNonNull(wrapS, "wrapS");
         this.wrapT = Objects.requireNonNull(wrapT, "wrapT");
         this.sourcePath = sourcePath;
+        this.usagesExplicitlyDeclared = usagesExplicitlyDeclared;
         validate();
     }
 
@@ -120,6 +152,10 @@ public final class ResolvedImageResource {
 
     public boolean supports(ImageUsage usage) {
         return usages.contains(usage);
+    }
+
+    public boolean usagesExplicitlyDeclared() {
+        return usagesExplicitlyDeclared;
     }
 
     public boolean isRenderTargetAttachment() {

@@ -1,10 +1,9 @@
 package rogo.sketch.compat.sodium;
 
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
-import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.backend.opengl.OpenGLStorageBuffer;
 import rogo.sketch.compat.sodium.api.ExtraRenderRegion;
+import rogo.sketch.core.backend.BackendStorageBuffer;
 import rogo.sketch.core.data.format.MemoryLayout;
 import rogo.sketch.core.data.layout.Std430StructLayout;
 import rogo.sketch.core.data.layout.StructLayout;
@@ -32,7 +31,7 @@ public class RegionMeshManager {
     public static final long SECTION_DATA_SIZE = SECTION_DATA_FORMAT.getStride();
 
     private final IndexPool<RenderRegion> regionIndex = new IndexPool<>();
-    private OpenGLStorageBuffer meshDataBuffer;
+    private BackendStorageBuffer meshDataBuffer;
     private MemoryLayout memoryLayout;
     private long meshDataPointer;
     private int currentCapacity;
@@ -40,7 +39,6 @@ public class RegionMeshManager {
     public RegionMeshManager() {
         currentCapacity = 1;
         initializeMemoryLayout();
-        initializeBuffer();
     }
 
     private void initializeMemoryLayout() {
@@ -51,9 +49,9 @@ public class RegionMeshManager {
                 .build();
     }
 
-    private void initializeBuffer() {
-        meshDataBuffer = new OpenGLStorageBuffer(1, SECTION_DATA_SIZE * SECTION_COUNT * PASS_COUNT, GL15.GL_DYNAMIC_DRAW);
-        meshDataPointer = meshDataBuffer.getMemoryAddress();
+    public void attachMeshDataBuffer(BackendStorageBuffer meshDataBuffer) {
+        this.meshDataBuffer = meshDataBuffer;
+        syncMeshDataBufferCapacity(false);
     }
 
     public int indexOf(RenderRegion region) {
@@ -83,19 +81,9 @@ public class RegionMeshManager {
     }
 
     private void expandCapacity(int requiredCapacity) {
-        long newPointer = MemoryUtil.nmemCalloc(requiredCapacity, meshDataBuffer.getStride());
-
-        MemoryUtil.memCopy(meshDataPointer, newPointer, meshDataBuffer.getCapacity());
-        MemoryUtil.nmemFree(meshDataPointer);
-
-        meshDataPointer = newPointer;
         currentCapacity = requiredCapacity;
-
-        meshDataBuffer.setBufferPointer(meshDataPointer);
-        meshDataBuffer.setCapacity(requiredCapacity * meshDataBuffer.getStride());
-        meshDataBuffer.resetUpload(GL15.GL_DYNAMIC_DRAW);
-
         initializeMemoryLayout();
+        syncMeshDataBufferCapacity(true);
     }
 
     /**
@@ -103,10 +91,13 @@ public class RegionMeshManager {
      * Use getSectionWriter() for safer access.
      */
     public long getSectionMemPointer(RenderRegion region, int passIndex, int sectionIndex) {
+        if (meshDataBuffer == null || meshDataBuffer.isDisposed()) {
+            throw new IllegalStateException("Terrain mesh data buffer has not been attached");
+        }
         int regionIdx = regionIndex.indexOf(region);
         long byteOffset = memoryLayout.calculateByteOffset(regionIdx, passIndex, sectionIndex);
 
-        if (byteOffset + SECTION_DATA_SIZE > meshDataBuffer.getCapacity()) {
+        if (byteOffset + SECTION_DATA_SIZE > meshDataBuffer.capacityBytes()) {
             throw new RuntimeException("Out of capacity " + byteOffset);
         }
 
@@ -114,11 +105,17 @@ public class RegionMeshManager {
     }
 
     public void uploadSectionData(int regionIndex, int passIndex, int sectionIndex) {
+        if (meshDataBuffer == null || meshDataBuffer.isDisposed()) {
+            return;
+        }
         long elementOffset = memoryLayout.calculateElementOffset(regionIndex, passIndex, sectionIndex);
         meshDataBuffer.upload(elementOffset, (int) SECTION_DATA_SIZE);
     }
 
     public void uploadRegionPassData(int regionIndex, int passIndex) {
+        if (meshDataBuffer == null || meshDataBuffer.isDisposed()) {
+            return;
+        }
         long passElementOffset = ((long) regionIndex * PASS_COUNT + (long) passIndex);
         long passDataSize = memoryLayout.getDataSize("pass");
 
@@ -141,22 +138,31 @@ public class RegionMeshManager {
         return Math.max(currentCapacity, regionIndex.size());
     }
 
+    public int regionCount() {
+        return regionIndex.size();
+    }
+
+    public int currentCapacity() {
+        return currentCapacity;
+    }
+
     public void refresh() {
-        dispose();
+        clearMeshData();
+        regionIndex.forEach((region, index) -> ((ExtraRenderRegion) region).refreshSectionData());
+        regionIndex.clear();
         currentCapacity = 1;
         initializeMemoryLayout();
-        initializeBuffer();
+        syncMeshDataBufferCapacity(false);
     }
 
     public void dispose() {
         regionIndex.forEach((region, index) -> ((ExtraRenderRegion) region).refreshSectionData());
-        if (meshDataBuffer != null) {
-            meshDataBuffer.dispose();
-        }
         regionIndex.clear();
+        meshDataBuffer = null;
+        meshDataPointer = 0L;
     }
 
-    public OpenGLStorageBuffer meshDataBuffer() {
+    public BackendStorageBuffer meshDataBuffer() {
         return meshDataBuffer;
     }
 
@@ -166,6 +172,25 @@ public class RegionMeshManager {
 
     public StructLayout getSectionDataFormat() {
         return SECTION_DATA_FORMAT;
+    }
+
+    private void syncMeshDataBufferCapacity(boolean copy) {
+        if (meshDataBuffer == null || meshDataBuffer.isDisposed()) {
+            meshDataPointer = 0L;
+            return;
+        }
+        int requiredElements = Math.max(1, currentCapacity) * PASS_COUNT * SECTION_COUNT;
+        meshDataBuffer.ensureCapacity(requiredElements, copy);
+        meshDataPointer = meshDataBuffer.memoryAddress();
+    }
+
+    private void clearMeshData() {
+        if (meshDataBuffer == null || meshDataBuffer.isDisposed() || meshDataBuffer.memoryAddress() == 0L) {
+            return;
+        }
+        MemoryUtil.memSet(meshDataBuffer.memoryAddress(), 0, meshDataBuffer.capacityBytes());
+        meshDataBuffer.position(0L);
+        meshDataBuffer.upload();
     }
 }
 

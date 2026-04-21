@@ -1,6 +1,7 @@
 package rogo.sketch.module.transform.manager;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
+import rogo.sketch.core.graphics.ecs.GraphicsUpdateDomain;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,7 +40,7 @@ public class TransformHierarchyGraph {
         }
 
         for (TransformBinding binding : registry.activeBindings()) {
-            if (binding.updateDomain() == TransformUpdateDomain.ASYNC_TICK) {
+            if (binding.updateDomain() == GraphicsUpdateDomain.ASYNC_TICK) {
                 placeBinding(asyncLayers, binding);
                 asyncMaxDepth = Math.max(asyncMaxDepth, binding.depth());
             } else {
@@ -91,15 +92,17 @@ public class TransformHierarchyGraph {
             return 0;
         }
 
-        Graphics parentGraphics = binding.parentSource() != null ? binding.parentSource().getTransformParent() : null;
-        if (parentGraphics == null) {
+        GraphicsEntityId parentEntityId = binding.hierarchyComponent() != null
+                ? binding.hierarchyComponent().parentEntityId()
+                : null;
+        if (parentEntityId == null) {
             detachParent(binding);
             resolvedDepths.put(binding.transformId(), 0);
             visiting.remove(binding.transformId());
             return 0;
         }
 
-        TransformBinding parentBinding = registry.bindingFor(parentGraphics);
+        TransformBinding parentBinding = registry.bindingFor(parentEntityId);
         if (parentBinding == null) {
             detachParent(binding);
             resolvedDepths.put(binding.transformId(), 0);
@@ -120,4 +123,3 @@ public class TransformHierarchyGraph {
         binding.setDepth(0);
     }
 }
-

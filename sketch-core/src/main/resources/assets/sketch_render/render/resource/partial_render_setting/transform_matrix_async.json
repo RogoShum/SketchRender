@@ -1,13 +1,22 @@
 {
+  "executionDomain": "COMPUTE",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_render:transform_matrix"
     }
   },
   "resourceBinding": {
-    "shader_storage_buffer": {
-      "InputBuffer": "sketch_render:transform_input_async",
-      "OutputBuffer": "sketch_render:transform_output"
+    "storage_buffer": {
+      "InputBuffer": {
+        "resource": "sketch_render:transform_input_async",
+        "view": "STORAGE_BUFFER",
+        "access": "READ"
+      },
+      "OutputBuffer": {
+        "resource": "sketch_render:transform_output",
+        "view": "STORAGE_BUFFER",
+        "access": "WRITE"
+      }
     }
   },
   "shouldSwitchRenderState": true

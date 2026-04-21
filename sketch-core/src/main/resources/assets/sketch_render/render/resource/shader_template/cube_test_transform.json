@@ -2,9 +2,12 @@
   "vertex": "sketch_render:cube_test_transform.vsh",
   "fragment": "sketch_render:cube_test.fsh",
   "resourceBindings": {
-    "shader_storage_buffer": [
-      "TransformOutputBuffer"
-    ]
+    "texture": {
+      "Sampler0": 0
+    },
+    "storage_buffer": {
+      "TransformOutputBuffer": 1
+    }
   },
   "attributes": [
     "Position",

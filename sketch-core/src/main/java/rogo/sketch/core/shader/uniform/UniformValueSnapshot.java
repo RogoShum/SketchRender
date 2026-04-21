@@ -1,7 +1,6 @@
 package rogo.sketch.core.shader.uniform;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -12,7 +11,10 @@ public class UniformValueSnapshot {
     private final int hashCode;
 
     public UniformValueSnapshot(Map<String, Object> uniformValues) {
-        this(UniformLayout.from(uniformValues), packValues(UniformLayout.from(uniformValues), uniformValues));
+        UniformLayout resolvedLayout = UniformLayout.from(uniformValues);
+        this.layout = resolvedLayout;
+        this.values = packValues(resolvedLayout, uniformValues);
+        this.hashCode = Objects.hash(this.layout, Arrays.deepHashCode(this.values));
     }
 
     private UniformValueSnapshot(UniformLayout layout, Object[] values) {
@@ -29,23 +31,30 @@ public class UniformValueSnapshot {
      * Capture uniform values from a hook group for the given instance.
      */
     public static UniformValueSnapshot captureFrom(UniformHookGroup hookGroup, Object instance) {
-        Map<String, Object> values = hookGroup.getUniformsDirect(instance);
-        return new UniformValueSnapshot(values);
+        return hookGroup.captureSnapshot(instance, null);
+    }
+
+    public static UniformValueSnapshot captureFrom(
+            UniformHookGroup hookGroup,
+            Object instance,
+            UniformUpdateDomain domain) {
+        return hookGroup.captureSnapshot(instance, domain);
     }
 
     /**
      * Capture uniform values using pre-cached matching hooks for better performance.
      * If cachedHooks is null, falls back to the standard capture method.
      */
-    public static UniformValueSnapshot captureFrom(UniformHookGroup hookGroup, Object instance, List<UniformHook<?>> cachedHooks) {
-        if (cachedHooks == null) {
-            return captureFrom(hookGroup, instance);
-        } else if (cachedHooks.isEmpty()) {
-            return UniformValueSnapshot.empty();
-        }
+    public static UniformValueSnapshot captureFrom(UniformHookGroup hookGroup, Object instance, UniformHook<?>[] cachedHooks) {
+        return captureFrom(hookGroup, instance, cachedHooks, null);
+    }
 
-        Map<String, Object> values = hookGroup.getUniformsDirectWithCachedHooks(instance, cachedHooks);
-        return new UniformValueSnapshot(values);
+    public static UniformValueSnapshot captureFrom(
+            UniformHookGroup hookGroup,
+            Object instance,
+            UniformHook<?>[] cachedHooks,
+            UniformUpdateDomain domain) {
+        return hookGroup.captureSnapshot(instance, cachedHooks, domain);
     }
 
     public void applyTo(UniformHookGroup hookGroup) {
@@ -81,6 +90,13 @@ public class UniformValueSnapshot {
 
     public UniformLayout layout() {
         return layout;
+    }
+
+    static UniformValueSnapshot fromSorted(String[] sortedUniformNames, Object[] sortedValues) {
+        if (sortedUniformNames == null || sortedUniformNames.length == 0) {
+            return EMPTY;
+        }
+        return new UniformValueSnapshot(UniformLayout.fromSorted(sortedUniformNames), sortedValues);
     }
 
     @Override

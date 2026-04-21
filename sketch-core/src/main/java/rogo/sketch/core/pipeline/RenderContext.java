@@ -75,6 +75,22 @@ public class RenderContext {
         return windowWidth;
     }
 
+    public Vector3f cameraPosition() {
+        return cameraPosition;
+    }
+
+    public Vector3f cameraDirection() {
+        return cameraDirection;
+    }
+
+    public Vector3f cameraUp() {
+        return cameraUp;
+    }
+
+    public Vector3f cameraLeft() {
+        return cameraLeft;
+    }
+
     public void setShaderProgramHandle(ShaderProgramHandle shaderProgramHandle) {
         this.shaderProgramHandle = shaderProgramHandle;
     }
@@ -130,6 +146,35 @@ public class RenderContext {
     @SuppressWarnings("unchecked")
     public <T> T get(KeyId key) {
         return (T) contextMap.get(key);
+    }
+
+    public RenderContext snapshot() {
+        RenderContext snapshot = new RenderContext();
+        copyInto(snapshot);
+        return snapshot;
+    }
+
+    protected void copyInto(RenderContext snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        snapshot.contextMap.clear();
+        snapshot.contextMap.putAll(this.contextMap);
+        snapshot.viewMatrix.set(this.viewMatrix);
+        snapshot.modelMatrix.set(this.modelMatrix);
+        snapshot.projectionMatrix.set(this.projectionMatrix);
+        snapshot.transformModule = this.transformModule;
+        snapshot.cameraPosition = new Vector3f(this.cameraPosition);
+        snapshot.cameraDirection = new Vector3f(this.cameraDirection);
+        snapshot.cameraUp = new Vector3f(this.cameraUp);
+        snapshot.cameraLeft = new Vector3f(this.cameraLeft);
+        snapshot.windowWidth = this.windowWidth;
+        snapshot.windowHeight = this.windowHeight;
+        snapshot.renderTick = this.renderTick;
+        snapshot.partialTicks = this.partialTicks;
+        snapshot.nextTick = this.nextTick;
+        snapshot.frustum = this.frustum;
+        snapshot.shaderProgramHandle = this.shaderProgramHandle;
     }
 }
 

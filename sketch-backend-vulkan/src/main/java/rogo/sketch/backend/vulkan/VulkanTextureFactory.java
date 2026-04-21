@@ -14,11 +14,14 @@ import java.nio.LongBuffer;
 
 import static org.lwjgl.vulkan.VK10.VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT;
+import static org.lwjgl.vulkan.VK10.VK_FORMAT_R32_SFLOAT;
 import static org.lwjgl.vulkan.VK10.VK_FILTER_NEAREST;
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_R8G8B8A8_UNORM;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_GENERAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_TILING_OPTIMAL;
@@ -26,6 +29,7 @@ import static org.lwjgl.vulkan.VK10.VK_IMAGE_TYPE_2D;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_SAMPLED_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_STORAGE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -127,6 +131,80 @@ final class VulkanTextureFactory {
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 false);
+    }
+
+    static VulkanTextureResource createSampledDepthTexture(
+            VkPhysicalDevice physicalDevice,
+            VkDevice device,
+            int width,
+            int height) {
+        return createTexture(
+                physicalDevice,
+                device,
+                width,
+                height,
+                1,
+                VK_FORMAT_D32_SFLOAT,
+                VK_IMAGE_ASPECT_DEPTH_BIT,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT
+                        | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+                        | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                true);
+    }
+
+    static VulkanTextureResource createSampledStorageTexture(
+            VkPhysicalDevice physicalDevice,
+            VkDevice device,
+            int width,
+            int height) {
+        return createSampledStorageTexture(physicalDevice, device, width, height, 1, VK_FORMAT_R32_SFLOAT);
+    }
+
+    static VulkanTextureResource createSampledFloatTexture(
+            VkPhysicalDevice physicalDevice,
+            VkDevice device,
+            int width,
+            int height) {
+        return createTexture(
+                physicalDevice,
+                device,
+                width,
+                height,
+                1,
+                VK_FORMAT_R32_SFLOAT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_USAGE_SAMPLED_BIT
+                        | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                true);
+    }
+
+    static VulkanTextureResource createSampledStorageTexture(
+            VkPhysicalDevice physicalDevice,
+            VkDevice device,
+            int width,
+            int height,
+            int mipLevels,
+            int format) {
+        VulkanTextureResource resource = createTexture(
+                physicalDevice,
+                device,
+                width,
+                height,
+                mipLevels,
+                format,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_USAGE_SAMPLED_BIT
+                        | VK_IMAGE_USAGE_STORAGE_BIT
+                        | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                VK_IMAGE_LAYOUT_GENERAL,
+                true);
+        resource.setCurrentImageLayout(VK_IMAGE_LAYOUT_GENERAL);
+        return resource;
     }
 
     private static VulkanTextureResource createTexture(

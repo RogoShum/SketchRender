@@ -1,4 +1,9 @@
 {
   "vertex": "sketch_render:position_tex.vsh",
-  "fragment": "sketch_render:dc_test.fsh"
+  "fragment": "sketch_render:dc_test.fsh",
+  "resourceBindings": {
+    "texture": {
+      "depth": 0
+    }
+  }
 }

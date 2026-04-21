@@ -1,12 +1,15 @@
 {
   "compute": "sketch_render:cull_collect_chunk_batch.comp",
   "resourceBindings": {
-    "shader_storage_buffer": [
-      "SectionMeshBuffer",
-      "DrawCommandBuffer",
-      "CounterBuffer",
-      "RegionPosBuffer",
-      "ElementCountBuffer"
-    ]
+    "storage_buffer": {
+      "SectionMeshBuffer": 0,
+      "DrawCommandBuffer": 1,
+      "CounterBuffer": 2,
+      "RegionPosBuffer": 3,
+      "ElementCountBuffer": 4
+    },
+    "texture": {
+      "Sampler0": 5
+    }
   }
 }

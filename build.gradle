@@ -1,2 +1,8 @@
 // Root build.gradle
 // Most logic is moved to subprojects
+
+tasks.register('vkSmokeAll') {
+    group = 'verification'
+    description = 'Runs all sketch-vk-test smoke tasks.'
+    dependsOn(':sketch-vk-test:allSmokeRuns')
+}

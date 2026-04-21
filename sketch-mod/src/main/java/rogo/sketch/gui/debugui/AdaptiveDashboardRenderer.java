@@ -465,6 +465,10 @@ public class AdaptiveDashboardRenderer {
             renderSummaryMetric(node, canvas, hovered);
             return;
         }
+        if ("memory-domain-row".equals(mode)) {
+            renderMemoryDomainMetric(node, canvas, hovered);
+            return;
+        }
         if ("ratio-row".equals(mode)) {
             renderRatioMetric(node, canvas, hovered);
         }
@@ -542,6 +546,70 @@ public class AdaptiveDashboardRenderer {
         canvas.fillRect(bar, 0xFF243241);
         int fillWidth = Math.max(0, Math.min(bar.width(), (int) Math.round(bar.width() * Mth.clamp((float) ratio, 0.0f, 1.0f))));
         canvas.fillRect(new UiRect(bar.x(), bar.y(), fillWidth, bar.height()), intProp(node, "accent", ACTIVE_DIM));
+        drawDivider(canvas, node.bounds(), DIVIDER);
+    }
+
+    private void renderMemoryDomainMetric(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
+        float scale = scale(node);
+        int pad = Math.max(8, Math.round(10 * scale));
+        int topY = node.bounds().y() + pad;
+        int accent = intProp(node, "accent", ACTIVE_DIM);
+        canvas.fillRect(node.bounds(), hovered ? 0x7A243242 : ROW_ALT);
+        canvas.fillRect(new UiRect(node.bounds().x(), node.bounds().y(), 3, node.bounds().height()), accent);
+
+        String reserved = strProp(node, "reserved");
+        Component reservedComponent = fitText(Component.literal(reserved), Math.max(42, Math.round(node.bounds().width() * 0.30f)));
+        int reservedWidth = canvas.width(reservedComponent);
+        int rightX = node.bounds().right() - pad;
+        int titleWidth = Math.max(20, rightX - node.bounds().x() - pad * 2 - reservedWidth);
+        canvas.drawText(fitText(textOf(strProp(node, "title")), titleWidth), node.bounds().x() + pad, topY, TEXT);
+        canvas.drawText(reservedComponent, rightX - reservedWidth, topY, TEXT);
+
+        String livePeak = I18n.get("debug.dashboard.memory.label.live") + " " + strProp(node, "live")
+                + " / " + I18n.get("debug.dashboard.memory.label.peak") + " " + strProp(node, "peak");
+        String budget = strProp(node, "budget");
+        String fragmentation = strProp(node, "fragmentation");
+        String tailText = I18n.get("debug.dashboard.memory.label.budget") + " " + budget
+                + " | " + I18n.get("debug.dashboard.memory.label.fragmentation") + " " + fragmentation;
+        Component tailComponent = fitText(Component.literal(tailText), Math.max(36, Math.round(node.bounds().width() * 0.42f)));
+        int tailWidth = canvas.width(tailComponent);
+        int bottomY = topY + Math.max(14, Math.round(18 * scale));
+        int secondaryWidth = Math.max(20, rightX - node.bounds().x() - pad * 2 - tailWidth);
+        canvas.drawText(fitText(Component.literal(livePeak), secondaryWidth), node.bounds().x() + pad, bottomY, MUTED);
+        canvas.drawText(tailComponent, rightX - tailWidth, bottomY, SUBTLE);
+
+        int barLabelY = bottomY + Math.max(12, Math.round(15 * scale));
+        canvas.drawText(Component.literal(I18n.get("debug.dashboard.memory.label.usage") + " " + strProp(node, "usagePercent")),
+                node.bounds().x() + pad,
+                barLabelY,
+                SUBTLE);
+        canvas.drawText(Component.literal(I18n.get("debug.dashboard.memory.label.peak") + " " + strProp(node, "peakPercent")),
+                node.bounds().x() + pad,
+                barLabelY + Math.max(14, Math.round(16 * scale)),
+                SUBTLE);
+
+        UiRect usageBar = new UiRect(
+                node.bounds().x() + pad,
+                barLabelY + Math.max(10, Math.round(11 * scale)),
+                Math.max(24, node.bounds().width() - pad * 2),
+                Math.max(4, Math.round(5 * scale)));
+        canvas.fillRect(usageBar, 0xFF243241);
+        double usageRatio = Mth.clamp((float) doubleProp(node, "usageRatio", 0.0D), 0.0f, 1.0f);
+        int fillWidth = Math.max(0, Math.min(usageBar.width(), (int) Math.round(usageBar.width() * usageRatio)));
+        if (fillWidth > 0) {
+            canvas.fillRect(new UiRect(usageBar.x(), usageBar.y(), fillWidth, usageBar.height()), accent);
+        }
+        UiRect peakBar = new UiRect(
+                node.bounds().x() + pad,
+                usageBar.y() + usageBar.height() + Math.max(10, Math.round(11 * scale)),
+                Math.max(24, node.bounds().width() - pad * 2),
+                Math.max(4, Math.round(5 * scale)));
+        canvas.fillRect(peakBar, 0xFF243241);
+        double peakRatio = Mth.clamp((float) doubleProp(node, "peakRatio", 0.0D), 0.0f, 1.0f);
+        int peakFillWidth = Math.max(0, Math.min(peakBar.width(), (int) Math.round(peakBar.width() * peakRatio)));
+        if (peakFillWidth > 0) {
+            canvas.fillRect(new UiRect(peakBar.x(), peakBar.y(), peakFillWidth, peakBar.height()), 0xFF93C5FD);
+        }
         drawDivider(canvas, node.bounds(), DIVIDER);
     }
 

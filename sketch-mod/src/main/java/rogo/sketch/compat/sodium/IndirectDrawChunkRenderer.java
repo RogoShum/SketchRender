@@ -23,22 +23,12 @@ import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkVertexTy
 import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
-import org.lwjgl.opengl.ARBIndirectParameters;
-import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL46C;
-import org.lwjgl.system.MemoryUtil;
-import rogo.sketch.SketchRender;
 import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
 import rogo.sketch.compat.sodium.api.TessellationDevice;
-import rogo.sketch.feature.culling.graphics.ComputeChunkCullingGraphics;
-import rogo.sketch.feature.culling.graphics.CopyCounterGraphics;
-import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
-import rogo.sketch.backend.opengl.util.GLFeatureChecker;
-import rogo.sketch.core.util.KeyId;
-import rogo.sketch.vanilla.PipelineUtil;
+import rogo.sketch.core.backend.BackendCountedIndirectDraw;
+import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.module.culling.TerrainMeshResourceSet;
 
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements ExtraChunkRenderer {
@@ -46,11 +36,7 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
     private boolean isIndexedPass;
     protected Class<?> extraShaderInterface;
     protected boolean checkedShaderInterface = false;
-    private int lastUpdateFrame = 0;
-    private List<RenderRegion> orderedRegions;
     private final ExtraChunkRenderer defaultChunkRenderer;
-    private final ComputeChunkCullingGraphics chunkCullingGraphics = new ComputeChunkCullingGraphics(KeyId.of(SketchRender.MOD_ID, "culling_chunk"));
-    private final CopyCounterGraphics copyCounterGraphics = new CopyCounterGraphics(KeyId.of(SketchRender.MOD_ID, "copy_counter"));
 
     public IndirectDrawChunkRenderer(RenderDevice device, ChunkVertexType vertexType, ExtraChunkRenderer renderer) {
         super(device, vertexType);
@@ -59,48 +45,9 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
     @Override
     public void render(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists, TerrainRenderPass renderPass, CameraTransform camera) {
-        if (lastUpdateFrame != MeshResource.CURRENT_FRAME) {
-            lastUpdateFrame = MeshResource.CURRENT_FRAME;
-
-            List<RenderRegion> allRegions = new ArrayList<>();
-
-            Iterator<ChunkRenderList> iterator = renderLists.iterator(false);
-            while (iterator.hasNext()) {
-                RenderRegion region = iterator.next().getRegion();
-                boolean exists = false;
-
-                for (TerrainRenderPass pass : DefaultTerrainRenderPasses.ALL) {
-                    SectionRenderDataStorage storage = region.getStorage(pass);
-                    if (storage != null && region.getResources() != null) {
-                        exists = true;
-                    }
-                }
-
-                if (exists) {
-                    allRegions.add(region);
-                }
-            }
-
-            orderedRegions = allRegions;
-
-            long ptr = MeshResource.REGION_INDEX_BUFFER.getMemoryAddress();
-
-            List<RenderRegion> regions = orderedRegions;
-            for (int i = 0; i < regions.size(); ++i) {
-                RenderRegion region = regions.get(i);
-                long offset = i * 16L;
-                MemoryUtil.memPutInt(ptr + offset, region.getChunkX());
-                MemoryUtil.memPutInt(ptr + offset + 4, region.getChunkY());
-                MemoryUtil.memPutInt(ptr + offset + 8, region.getChunkZ());
-                MemoryUtil.memPutInt(ptr + offset + 12, MeshResource.MESH_MANAGER.indexOf(region));
-            }
-            MeshResource.REGION_INDEX_BUFFER.position = MeshResource.REGION_INDEX_BUFFER.getCapacity();
-            MeshResource.REGION_INDEX_BUFFER.upload();
-        }
-
-        if (renderPass == DefaultTerrainRenderPasses.SOLID && orderedRegions != null && !orderedRegions.isEmpty()) {
-            preRender();
-        }
+        MeshResource.ensureInitialized();
+        TerrainMeshResourceSet terrainResources = MeshResource.resourceSet();
+        List<RenderRegion> orderedRegions = SodiumTerrainCullCoordinator.getInstance().orderedRegions();
 
         super.begin(renderPass);
         ChunkShaderInterface shaderInterface = null;
@@ -124,7 +71,9 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
         if (shaderInterface != null) {
             this.isIndexedPass = renderPass.isSorted();
-            int maxElement = MeshResource.PERSISTENT_MAX_ELEMENT_BUFFER.getInt(0);
+            int maxElement = terrainResources.maxElementReadbackBuffer() != null
+                    ? terrainResources.maxElementReadbackBuffer().getInt(0)
+                    : 0;
             if (maxElementCount < maxElement && !this.isIndexedPass) {
                 getSharedIndexBuffer().ensureCapacity(commandList, maxElement);
                 maxElementCount = maxElement;
@@ -133,28 +82,24 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             if (orderedRegions != null && !orderedRegions.isEmpty()) {
                 shaderInterface.setProjectionMatrix(matrices.projection());
                 shaderInterface.setModelViewMatrix(matrices.modelView());
-                onRender(defaultChunkRenderer, shaderInterface, commandList, renderPass, camera);
+                onRender(defaultChunkRenderer, shaderInterface, commandList, renderPass, camera, orderedRegions);
             }
         }
         super.end(renderPass);
-    }
-
-    public void preRender() {
-        MeshResource.ELEMENT_COUNTER.updateCount(0);
-        MeshResource.CULLING_COUNTER.updateCount(0);
-        MeshResource.ORDERED_REGION_SIZE = orderedRegions.size();
-
-        PipelineUtil.pipeline().renderImmediate(chunkCullingGraphics, ComputeParameter.COMPUTE_PARAMETER);
-        PipelineUtil.pipeline().renderImmediate(copyCounterGraphics, ComputeParameter.COMPUTE_PARAMETER);
-
-        GL20.glUseProgram(ChunkShaderTracker.lastProgram);
     }
 
     public static final long FACING_COUNT = 7L;
     public static final long REGION_MESH_STRIDE = 256L * 3L * FACING_COUNT * 20L;
     public static final long LAYER_MESH_STRIDE = 256L * FACING_COUNT * 20L;
 
-    public void onRender(ExtraChunkRenderer renderer, ChunkShaderInterface shader, CommandList commandList, TerrainRenderPass pass, CameraTransform camera) {
+    public void onRender(
+            ExtraChunkRenderer renderer,
+            ChunkShaderInterface shader,
+            CommandList commandList,
+            TerrainRenderPass pass,
+            CameraTransform camera,
+            List<RenderRegion> orderedRegions) {
+        TerrainMeshResourceSet terrainResources = MeshResource.resourceSet();
         renderer.setIndexedPass(this.isIndexedPass);
 
         int passIndex = 0;
@@ -166,15 +111,18 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
         long passOffset = LAYER_MESH_STRIDE * passIndex;
 
-        List<RenderRegion> regions = orderedRegions;
-        if (!regions.isEmpty()) {
-            MeshResource.CHUNK_COMMAND.bind();
-            MeshResource.CULLING_COUNTER.bind();
+        if (!orderedRegions.isEmpty()) {
+            if (terrainResources.indirectCommands() != null) {
+                terrainResources.indirectCommands().bind();
+            }
+            if (terrainResources.cullingCounter() != null) {
+                terrainResources.cullingCounter().bind();
+            }
         }
 
-        for (int i = 0; i < regions.size(); ++i) {
-            int index = pass.isReverseOrder() ? (regions.size() - 1 - i) : i;
-            RenderRegion region = regions.get(index);
+        for (int i = 0; i < orderedRegions.size(); ++i) {
+            int index = pass.isReverseOrder() ? (orderedRegions.size() - 1 - i) : i;
+            RenderRegion region = orderedRegions.get(index);
             SectionRenderDataStorage storage = region.getStorage(pass);
             if (!(storage instanceof RegionMeshDataStorage regionMeshDataStorage)) {
                 continue;
@@ -187,10 +135,15 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
 
             try {
                 GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                if (GLFeatureChecker.supportsIndirectDrawCount46()) {
-                    GL46C.nglMultiDrawElementsIndirectCount(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * index + passOffset, (index * 12L) + (passIndex * 4L), meshCount, 20);
-                } else if (GLFeatureChecker.supportsIndirectDrawCountARB()) {
-                    ARBIndirectParameters.nglMultiDrawElementsIndirectCountARB(primitiveType.getId(), GlIndexType.UNSIGNED_INT.getFormatId(), REGION_MESH_STRIDE * index + passOffset, (index * 12L) + (passIndex * 4L), meshCount, 20);
+                BackendCountedIndirectDraw countedIndirectDraw = GraphicsDriver.renderDevice().countedIndirectDraw();
+                if (countedIndirectDraw.isSupported()) {
+                    countedIndirectDraw.multiDrawElementsIndirectCount(
+                            primitiveType.getId(),
+                            GlIndexType.UNSIGNED_INT.getFormatId(),
+                            REGION_MESH_STRIDE * index + passOffset,
+                            (index * 12L) + (passIndex * 4L),
+                            meshCount,
+                            20);
                 }
             } catch (Throwable var7) {
                 if (drawCommandList != null) {

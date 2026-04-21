@@ -4,13 +4,19 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
-import rogo.sketch.core.instance.TransformComputeGraphics;
+import rogo.sketch.core.api.graphics.DescriptorStability;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityBlueprint;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityPresets;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.module.runtime.ModuleGraphicsLifetime;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntime;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
 import rogo.sketch.core.pipeline.module.session.ModuleSession;
 import rogo.sketch.core.pipeline.module.session.ModuleSessionContext;
+import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
+import rogo.sketch.core.resource.GraphicsResourceManager;
+import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.descriptor.ImageFormat;
 import rogo.sketch.core.resource.descriptor.ImageUsage;
@@ -21,6 +27,8 @@ import rogo.sketch.core.resource.descriptor.SamplerWrap;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.module.transform.TransformModule;
+import rogo.sketch.module.transform.manager.TransformManager;
+import rogo.sketch.module.transform.manager.TransformPipeline;
 import rogo.sketch.vanilla.MinecraftRenderStages;
 import rogo.sketch.vanilla.resource.BuildInRTTexture;
 import rogo.sketch.vanilla.resource.BuildInRenderTarget;
@@ -101,24 +109,75 @@ public class VanillaModuleRuntime implements ModuleRuntime {
                 if (transformModule == null || transformModule.matrixManager() == null) {
                     return;
                 }
-                context.registerCompute(
-                        MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(),
-                        new TransformComputeGraphics(
+                context.registerGraphicsEntity(
+                        createTransformComputeBlueprint(
                                 KeyId.of("sketch_render", "transform_matrix_compute_sync"),
                                 KeyId.of("sketch_render", "transform_matrix_sync"),
-                                true,
-                                transformModule.matrixManager()).setPriority(98),
+                                98,
+                                transformModule.matrixManager(),
+                                true),
                         ModuleGraphicsLifetime.SESSION);
-                context.registerCompute(
-                        MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(),
-                        new TransformComputeGraphics(
+                context.registerGraphicsEntity(
+                        createTransformComputeBlueprint(
                                 KeyId.of("sketch_render", "transform_matrix_compute_async"),
                                 KeyId.of("sketch_render", "transform_matrix_async"),
-                                false,
-                                transformModule.matrixManager()).setPriority(99),
+                                99,
+                                transformModule.matrixManager(),
+                                false),
                         ModuleGraphicsLifetime.SESSION);
             }
         };
+    }
+
+    private GraphicsEntityBlueprint createTransformComputeBlueprint(
+            KeyId identifier,
+            KeyId renderSettingId,
+            int priority,
+            TransformManager transformManager,
+            boolean sync) {
+        ResourceReference<PartialRenderSetting> setting = GraphicsResourceManager.getInstance()
+                .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, renderSettingId);
+        return GraphicsEntityPresets.compute(
+                identifier,
+                MinecraftRenderStages.PREPARE_FRUSTUM.getIdentifier(),
+                ComputeParameter.COMPUTE_PARAMETER,
+                priority,
+                () -> transformManager.getActiveCount() > 0,
+                () -> false,
+                DescriptorStability.DYNAMIC,
+                () -> GraphicsEntityPresets.partialDescriptorVersion(resolvePartial(setting)),
+                renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(renderParameter, resolvePartial(setting)),
+                dispatchContext -> {
+                    dispatchPipeline(dispatchContext, sync ? transformManager.getSyncPipeline() : transformManager.getAsyncPipeline());
+                    dispatchContext.shaderStorageBarrier();
+                })
+                .build();
+    }
+
+    private PartialRenderSetting resolvePartial(ResourceReference<PartialRenderSetting> setting) {
+        return setting != null && setting.isAvailable() ? setting.get() : PartialRenderSetting.EMPTY;
+    }
+
+    private void dispatchPipeline(rogo.sketch.core.api.graphics.ComputeDispatchContext dispatchContext, TransformPipeline pipeline) {
+        var ranges = pipeline.getDispatchRanges();
+        if (ranges.isEmpty()) {
+            return;
+        }
+        int maxDepth = pipeline.getMaxDepth();
+        var uniformHookGroup = dispatchContext.uniformHookGroup();
+        for (int d = 0; d <= maxDepth && d < ranges.size(); d++) {
+            var range = ranges.get(d);
+            if (range.count() <= 0) {
+                continue;
+            }
+            uniformHookGroup.getUniform("u_batchOffset").set(range.offset());
+            uniformHookGroup.getUniform("u_batchCount").set(range.count());
+            int groups = (range.count() + 63) / 64;
+            dispatchContext.dispatch(groups, 1, 1);
+            if (d < maxDepth) {
+                dispatchContext.shaderStorageBarrier();
+            }
+        }
     }
 }
 

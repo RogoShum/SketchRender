@@ -5,6 +5,9 @@ import org.lwjgl.opengl.GL32;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.core.api.DataResourceObject;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
 
 import java.nio.ByteBuffer;
 
@@ -26,6 +29,7 @@ public abstract class AbstractPersistentMappedBuffer implements DataResourceObje
     private int currentSlot = 0;
     private long slotSize = 0L;
     private long[] slotFences = null;
+    private final MemoryLease memoryLease;
 
     protected AbstractPersistentMappedBuffer(int target, long dataCount, long stride, int storageFlags, int mapFlags) {
         this.target = target;
@@ -34,6 +38,9 @@ public abstract class AbstractPersistentMappedBuffer implements DataResourceObje
         this.storageFlags = storageFlags;
         this.mapFlags = mapFlags;
         allocate(dataCount);
+        this.memoryLease = UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.GPU_PERSISTENT_MAPPED, "gl-persistent-mapped-buffer")
+                .bindSuppliers(this::trackedCapacityBytes, this::trackedLiveBytes);
         configureRingSlots(1);
     }
 
@@ -196,6 +203,7 @@ public abstract class AbstractPersistentMappedBuffer implements DataResourceObje
         mappedBuffer = null;
         mappedAddress = 0L;
         disposed = true;
+        memoryLease.close();
     }
 
     @Override
@@ -212,6 +220,14 @@ public abstract class AbstractPersistentMappedBuffer implements DataResourceObje
     @Override
     public void close() {
         dispose();
+    }
+
+    private long trackedCapacityBytes() {
+        return disposed ? 0L : capacity;
+    }
+
+    private long trackedLiveBytes() {
+        return disposed ? 0L : capacity;
     }
 }
 

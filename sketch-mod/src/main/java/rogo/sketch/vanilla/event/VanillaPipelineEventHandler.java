@@ -13,6 +13,7 @@ import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.event.ProxyEvent;
 import rogo.sketch.event.ProxyModEvent;
 import rogo.sketch.module.culling.CullingModuleDescriptor;
+import rogo.sketch.module.memory.MemoryTelemetryModuleDescriptor;
 import rogo.sketch.module.transform.TransformModuleDescriptor;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.MinecraftRenderStages;
@@ -44,6 +45,7 @@ public class VanillaPipelineEventHandler {
                 kernel.moduleRegistry().registerDescriptor(new VanillaModuleDescriptor());
                 kernel.moduleRegistry().registerDescriptor(new TransformModuleDescriptor());
                 kernel.moduleRegistry().registerDescriptor(new CullingModuleDescriptor());
+                kernel.moduleRegistry().registerDescriptor(new MemoryTelemetryModuleDescriptor());
                 kernel.moduleRegistry().registerDescriptor(new VanillaCullingBridgeModuleDescriptor());
                 if (SketchRender.hasSodium()) {
                     kernel.moduleRegistry().registerDescriptor(new SodiumCompatModuleDescriptor());

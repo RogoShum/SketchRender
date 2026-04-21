@@ -1,4 +1,5 @@
 {
+  "executionDomain": "RASTER",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_render:culling_test",
@@ -20,7 +21,11 @@
   },
   "resourceBinding": {
     "texture": {
-      "Sampler0": "sketch_render:hiz_texture"
+      "Sampler0": {
+        "resource": "sketch_render:hiz_texture",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
     }
   },
   "shouldSwitchRenderState": true

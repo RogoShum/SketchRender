@@ -13,7 +13,9 @@ import static org.lwjgl.util.shaderc.Shaderc.shaderc_compilation_status_success;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_initialize;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_release;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_initialize;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_set_target_env;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_release;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_env_version_vulkan_1_0;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_compute_shader;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_geometry_shader;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_fragment_shader;
@@ -24,6 +26,7 @@ import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_bytes;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_compilation_status;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_error_message;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_release;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_target_env_vulkan;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.vkCreateShaderModule;
 
@@ -72,6 +75,7 @@ final class VulkanShaderCompiler {
 
         long result = 0L;
         try {
+            shaderc_compile_options_set_target_env(options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_0);
             result = shaderc_compile_into_spv(compiler, source, shaderKind, name, "main", options);
             if (result == 0L) {
                 throw new IllegalStateException("shaderc returned null result for " + name);

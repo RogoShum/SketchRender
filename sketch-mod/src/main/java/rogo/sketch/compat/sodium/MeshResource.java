@@ -1,109 +1,79 @@
 package rogo.sketch.compat.sodium;
 
-import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.opengl.GL15;
-import rogo.sketch.backend.opengl.OpenGLCounterBuffer;
-import rogo.sketch.backend.opengl.OpenGLIndirectBuffer;
-import rogo.sketch.backend.opengl.OpenGLPersistentReadStorageBuffer;
-import rogo.sketch.backend.opengl.OpenGLStorageBuffer;
 import rogo.sketch.Config;
-import rogo.sketch.core.data.type.ValueType;
+import rogo.sketch.module.culling.TerrainMeshResourceSet;
 
-public class MeshResource {
-    private static int RENDER_DISTANCE = -1;
-    private static int SPACE_PARTITION_SIZE = 0;
-    public static int QUEUE_UPDATE_COUNT = 0;
-    public static int LAST_QUEUE_UPDATE_COUNT = 0;
-    public static int THEORETICAL_REGION_QUANTITY = 0;
+/**
+ * Compatibility facade during the MeshResource phase-B migration.
+ * Terrain mesh resource ownership lives in {@link TerrainMeshResourceSet};
+ * this class only bridges Sodium events and registry wiring into that owner.
+ */
+public final class MeshResource {
+    private static final TerrainMeshResourceSet RESOURCE_SET = TerrainMeshResourceSet.getInstance();
+    private static final SodiumRegionMeshRegistry REGION_REGISTRY = SodiumRegionMeshRegistry.getInstance();
 
-    public static int CURRENT_FRAME = 0;
-    public static int ORDERED_REGION_SIZE = 0;
+    private MeshResource() {
+    }
 
-    public static final long REGION_COMMAND_SIZE = 7 * 256 + 1;
-    public static final int PASS_SIZE = 3;
-    public static final long REGION_PASS_COMMAND_SIZE = REGION_COMMAND_SIZE * PASS_SIZE;
+    public static void ensureInitialized() {
+        RESOURCE_SET.ensureCoreResources();
+        REGION_REGISTRY.attachMeshDataBuffer(
+                RESOURCE_SET.ensureMeshDataBuffer(
+                        RegionMeshManager.SECTION_DATA_SIZE,
+                        Math.max(REGION_REGISTRY.regionCapacity(), 1)));
+    }
 
-    public static OpenGLStorageBuffer COMMAND_BUFFER;
-    public static OpenGLStorageBuffer BATCH_COUNTER;
-    public static OpenGLStorageBuffer REGION_INDEX_BUFFER;
-    public static OpenGLStorageBuffer MAX_ELEMENT_BUFFER;
-    public static OpenGLPersistentReadStorageBuffer PERSISTENT_MAX_ELEMENT_BUFFER;
-    public static OpenGLCounterBuffer CULLING_COUNTER;
-    public static OpenGLCounterBuffer ELEMENT_COUNTER;
+    public static TerrainMeshResourceSet resourceSet() {
+        ensureInitialized();
+        return RESOURCE_SET;
+    }
 
-    public static final OpenGLIndirectBuffer CHUNK_COMMAND = new OpenGLIndirectBuffer(REGION_COMMAND_SIZE);
-
-    public static final RegionMeshManager MESH_MANAGER = new RegionMeshManager();
-
-    static {
-        COMMAND_BUFFER = new OpenGLStorageBuffer(CHUNK_COMMAND);
-        CULLING_COUNTER = new OpenGLCounterBuffer(ValueType.INT);
-        BATCH_COUNTER = new OpenGLStorageBuffer(CULLING_COUNTER);
-        ELEMENT_COUNTER = new OpenGLCounterBuffer(ValueType.INT);
-        MAX_ELEMENT_BUFFER = new OpenGLStorageBuffer(ELEMENT_COUNTER);
-        REGION_INDEX_BUFFER = new OpenGLStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);
-
-        PERSISTENT_MAX_ELEMENT_BUFFER = new OpenGLPersistentReadStorageBuffer(1, Integer.BYTES);
+    public static SodiumRegionMeshRegistry regionRegistry() {
+        ensureInitialized();
+        return REGION_REGISTRY;
     }
 
     public static void addIndexedRegion(RenderRegion region) {
-        MESH_MANAGER.addRegion(region);
+        ensureInitialized();
+        REGION_REGISTRY.addRegion(region);
 
         if (Config.getCullChunk()) {
-            int regionSize = MESH_MANAGER.size();
-            int passSize = PASS_SIZE * regionSize;
-
-            if (regionSize * REGION_PASS_COMMAND_SIZE * 20L > CHUNK_COMMAND.getCapacity()) {
-                CHUNK_COMMAND.resize(MESH_MANAGER.size() * REGION_PASS_COMMAND_SIZE);
-                COMMAND_BUFFER.setBufferPointer(CHUNK_COMMAND.getMemoryAddress());
-                COMMAND_BUFFER.setCapacity(CHUNK_COMMAND.getCapacity());
-                COMMAND_BUFFER.resetUpload(GL15.GL_STATIC_DRAW);
-            }
-
-            if (passSize * CULLING_COUNTER.getStride() > CULLING_COUNTER.getCapacity()) {
-                CULLING_COUNTER.resize(passSize);
-                BATCH_COUNTER.setBufferPointer(CULLING_COUNTER.getMemoryAddress());
-                BATCH_COUNTER.setCapacity(CULLING_COUNTER.getCapacity());
-                BATCH_COUNTER.resetUpload(GL15.GL_STATIC_DRAW);
-            }
-
-            REGION_INDEX_BUFFER.ensureCapacity(regionSize, true);
+            RESOURCE_SET.onRegionCapacityChanged(REGION_REGISTRY.regionCapacity());
         }
     }
 
     public static void removeRegion(RenderRegion region) {
-        MESH_MANAGER.removeRegion(region);
+        ensureInitialized();
+        REGION_REGISTRY.removeRegion(region);
     }
 
     public static void clearRegions() {
-        MESH_MANAGER.refresh();
-        CHUNK_COMMAND.resize(REGION_COMMAND_SIZE);
-        CULLING_COUNTER.resize(1);
-        REGION_INDEX_BUFFER.dispose();
-        REGION_INDEX_BUFFER = new OpenGLStorageBuffer(1, 16, GL15.GL_DYNAMIC_DRAW);
+        ensureInitialized();
+        REGION_REGISTRY.clearRegions();
+        RESOURCE_SET.clearRegions();
     }
 
-    //TODO need fix
     public static void updateDistance(int renderDistance) {
-        if (MeshResource.RENDER_DISTANCE != renderDistance) {
-            MeshResource.RENDER_DISTANCE = renderDistance;
-            SPACE_PARTITION_SIZE = 2 * renderDistance + 1;
+        ensureInitialized();
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) {
+            return;
+        }
 
-            if (Minecraft.getInstance().level != null && Config.getCullChunk()) {
-                THEORETICAL_REGION_QUANTITY = (int) (SPACE_PARTITION_SIZE * SPACE_PARTITION_SIZE * Minecraft.getInstance().level.getSectionsCount() * 1.2 / 256);
-                MESH_MANAGER.initCapacity(THEORETICAL_REGION_QUANTITY);
-            }
+        RESOURCE_SET.updateDistance(renderDistance, minecraft.level.getSectionsCount());
+        if (Config.getCullChunk()) {
+            REGION_REGISTRY.initCapacity(RESOURCE_SET.theoreticalRegionQuantity());
+            RESOURCE_SET.onRegionCapacityChanged(REGION_REGISTRY.regionCapacity());
         }
     }
 
     public static int getRenderDistance() {
-        return RENDER_DISTANCE;
+        return RESOURCE_SET.renderDistance();
     }
 
     public static int getSpacePartitionSize() {
-        return SPACE_PARTITION_SIZE;
+        return RESOURCE_SET.spacePartitionSize();
     }
 }
-

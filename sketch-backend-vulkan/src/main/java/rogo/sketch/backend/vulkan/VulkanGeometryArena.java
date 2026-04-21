@@ -9,6 +9,9 @@ import org.lwjgl.vulkan.VkMemoryRequirements;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkPhysicalDeviceMemoryProperties;
 import rogo.sketch.core.api.model.SharedGeometrySourceSnapshot;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
 import rogo.sketch.core.packet.GeometryHandleKey;
 import rogo.sketch.core.pipeline.data.GeometryFrameData;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
@@ -63,11 +66,11 @@ final class VulkanGeometryArena {
     VulkanGeometryArena(VkPhysicalDevice physicalDevice, VkDevice device) {
         this.physicalDevice = physicalDevice;
         this.device = device;
-        this.sharedVertexArena = new BufferArena(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, DEFAULT_VERTEX_CAPACITY);
-        this.sharedIndexArena = new BufferArena(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, DEFAULT_INDEX_CAPACITY);
-        this.vertexArena = new BufferArena(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, DEFAULT_VERTEX_CAPACITY);
-        this.indexArena = new BufferArena(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, DEFAULT_INDEX_CAPACITY);
-        this.indirectArena = new BufferArena(VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, DEFAULT_INDIRECT_CAPACITY);
+        this.sharedVertexArena = new BufferArena("shared-vertex", VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, DEFAULT_VERTEX_CAPACITY);
+        this.sharedIndexArena = new BufferArena("shared-index", VK_BUFFER_USAGE_INDEX_BUFFER_BIT, DEFAULT_INDEX_CAPACITY);
+        this.vertexArena = new BufferArena("dynamic-vertex", VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, DEFAULT_VERTEX_CAPACITY);
+        this.indexArena = new BufferArena("dynamic-index", VK_BUFFER_USAGE_INDEX_BUFFER_BIT, DEFAULT_INDEX_CAPACITY);
+        this.indirectArena = new BufferArena("indirect", VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, DEFAULT_INDIRECT_CAPACITY);
     }
 
     void install(List<FrameExecutionPlan.GeometryUploadPlan> geometryUploadPlans, long frameEpoch, int maxFramesInFlight) {
@@ -261,15 +264,18 @@ final class VulkanGeometryArena {
     }
 
     private final class BufferArena {
+        private final String ownerId;
         private final int usageFlags;
         private final long capacity;
         private final long buffer;
         private final long memory;
         private final long mappedAddress;
         private final Deque<AllocationRange> liveRanges = new ArrayDeque<>();
+        private final MemoryLease memoryLease;
         private long writeHead = 0L;
 
-        private BufferArena(int usageFlags, long capacity) {
+        private BufferArena(String ownerId, int usageFlags, long capacity) {
+            this.ownerId = ownerId;
             this.usageFlags = usageFlags;
             this.capacity = capacity;
             try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -309,6 +315,9 @@ final class VulkanGeometryArena {
                         "vkMapMemory(arena)");
                 this.mappedAddress = mappedPointer.get(0);
             }
+            this.memoryLease = UnifiedMemoryFabric.get()
+                    .openLease(MemoryDomain.GPU_GEOMETRY_ARENA, "vk-geometry-arena/" + ownerId)
+                    .bindSuppliers(this::trackedReservedBytes, this::trackedLiveBytes, this::trackedFragmentationRatio);
         }
 
         private Allocation upload(byte[] data, long frameEpoch, int maxFramesInFlight) {
@@ -375,6 +384,7 @@ final class VulkanGeometryArena {
         }
 
         private void destroy() {
+            memoryLease.close();
             if (mappedAddress != 0L) {
                 vkUnmapMemory(device, memory);
             }
@@ -385,6 +395,46 @@ final class VulkanGeometryArena {
                 vkFreeMemory(device, memory, null);
             }
             liveRanges.clear();
+        }
+
+        private synchronized long trackedReservedBytes() {
+            return capacity;
+        }
+
+        private synchronized long trackedLiveBytes() {
+            long liveBytes = 0L;
+            for (AllocationRange range : liveRanges) {
+                liveBytes += range.size();
+            }
+            return liveBytes;
+        }
+
+        private synchronized double trackedFragmentationRatio() {
+            long liveBytes = trackedLiveBytes();
+            long totalFree = Math.max(0L, capacity - liveBytes);
+            if (totalFree <= 0L) {
+                return 0.0D;
+            }
+            if (liveRanges.isEmpty()) {
+                return 0.0D;
+            }
+
+            List<AllocationRange> sortedRanges = new ArrayList<>(liveRanges);
+            sortedRanges.sort(java.util.Comparator.comparingLong(AllocationRange::offset));
+
+            long firstGap = Math.max(0L, sortedRanges.get(0).offset());
+            long largestGap = 0L;
+            long lastEnd = sortedRanges.get(0).offset() + sortedRanges.get(0).size();
+            for (int i = 1; i < sortedRanges.size(); i++) {
+                AllocationRange range = sortedRanges.get(i);
+                long gap = Math.max(0L, range.offset() - lastEnd);
+                largestGap = Math.max(largestGap, gap);
+                lastEnd = Math.max(lastEnd, range.offset() + range.size());
+            }
+            long tailGap = Math.max(0L, capacity - lastEnd);
+            largestGap = Math.max(largestGap, firstGap + tailGap);
+            double fragmentation = 1.0D - (largestGap / (double) totalFree);
+            return Math.max(0.0D, Math.min(1.0D, fragmentation));
         }
 
         private record Allocation(long buffer, long offset, int size) {

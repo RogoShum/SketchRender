@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline.data;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.indirect.IndirectPlanRequest;
 import rogo.sketch.core.pipeline.indirect.IndirectRewriteResult;
 import rogo.sketch.core.util.KeyId;
@@ -38,15 +38,15 @@ public class IndirectPlanData implements RenderPipelineData {
         return stageRequests != null ? stageRequests.get(graphicsId) : null;
     }
 
-    public IndirectPlanRequest firstRequest(KeyId stageId, Collection<? extends Graphics> graphics) {
-        if (stageId == null || graphics == null || graphics.isEmpty()) {
+    public IndirectPlanRequest firstRequest(KeyId stageId, Collection<GraphicsUniformSubject> subjects) {
+        if (stageId == null || subjects == null || subjects.isEmpty()) {
             return null;
         }
-        for (Graphics graphic : graphics) {
-            if (graphic == null || graphic.getIdentifier() == null) {
+        for (GraphicsUniformSubject subject : subjects) {
+            if (subject == null || subject.identifier() == null) {
                 continue;
             }
-            IndirectPlanRequest request = requestFor(stageId, graphic.getIdentifier());
+            IndirectPlanRequest request = requestFor(stageId, subject.identifier());
             if (request != null) {
                 return request;
             }
@@ -54,8 +54,8 @@ public class IndirectPlanData implements RenderPipelineData {
         return null;
     }
 
-    public boolean hasAnyRequest(KeyId stageId, Collection<? extends Graphics> graphics) {
-        return firstRequest(stageId, graphics) != null;
+    public boolean hasAnyRequest(KeyId stageId, Collection<GraphicsUniformSubject> subjects) {
+        return firstRequest(stageId, subjects) != null;
     }
 
     public void recordResult(IndirectRewriteResult result) {

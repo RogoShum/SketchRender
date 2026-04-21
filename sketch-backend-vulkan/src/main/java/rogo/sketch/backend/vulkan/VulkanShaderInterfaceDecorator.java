@@ -5,7 +5,10 @@ import rogo.sketch.core.shader.ShaderType;
 import rogo.sketch.core.shader.variant.ShaderVariantSpec;
 import rogo.sketch.core.util.KeyId;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -72,19 +75,19 @@ final class VulkanShaderInterfaceDecorator {
             return source;
         }
 
+        Map<BindingKey, Integer> canonicalBindings = buildCanonicalBindings(resourceBindings);
+
         String decorated = injectSamplersAndImages(
                 source,
-                resourceBindings.get(ResourceTypes.TEXTURE),
-                resourceBindings.get(ResourceTypes.IMAGE));
-        decorated = injectUniformBlocks(decorated, resourceBindings.get(ResourceTypes.UNIFORM_BUFFER));
-        decorated = injectStorageBlocks(decorated, resourceBindings.get(ResourceTypes.STORAGE_BUFFER));
+                canonicalBindings);
+        decorated = injectUniformBlocks(decorated, canonicalBindings);
+        decorated = injectStorageBlocks(decorated, canonicalBindings);
         return decorated;
     }
 
     private static String injectSamplersAndImages(
             String source,
-            Map<KeyId, Integer> samplerBindings,
-            Map<KeyId, Integer> imageBindings) {
+            Map<BindingKey, Integer> canonicalBindings) {
         if (source == null || source.isBlank()) {
             return source;
         }
@@ -101,9 +104,8 @@ final class VulkanShaderInterfaceDecorator {
             String arraySuffix = matcher.group(6) != null ? matcher.group(6) : "";
             String suffix = matcher.group(7) != null ? matcher.group(7) : ";";
 
-            Integer binding = resolveBinding(
-                    type != null && type.contains("image") ? imageBindings : samplerBindings,
-                    name);
+            KeyId resourceType = type != null && type.contains("image") ? ResourceTypes.IMAGE : ResourceTypes.TEXTURE;
+            Integer binding = resolveBinding(canonicalBindings, resourceType, name);
             if (binding == null || hasBindingLayout(layout)) {
                 result.append(matcher.group(0));
             } else {
@@ -123,8 +125,8 @@ final class VulkanShaderInterfaceDecorator {
         return result.toString();
     }
 
-    private static String injectUniformBlocks(String source, Map<KeyId, Integer> uniformBindings) {
-        if (source == null || source.isBlank() || uniformBindings == null || uniformBindings.isEmpty()) {
+    private static String injectUniformBlocks(String source, Map<BindingKey, Integer> canonicalBindings) {
+        if (source == null || source.isBlank() || canonicalBindings == null || canonicalBindings.isEmpty()) {
             return source;
         }
         Matcher matcher = UNIFORM_BLOCK_DECL_PATTERN.matcher(source);
@@ -135,7 +137,7 @@ final class VulkanShaderInterfaceDecorator {
             String indent = matcher.group(1) != null ? matcher.group(1) : "";
             String layout = matcher.group(2);
             String blockName = matcher.group(3);
-            Integer binding = resolveBinding(uniformBindings, blockName);
+            Integer binding = resolveBinding(canonicalBindings, ResourceTypes.UNIFORM_BUFFER, blockName);
             if (binding == null || hasBindingLayout(layout)) {
                 result.append(matcher.group(0));
             } else {
@@ -151,8 +153,8 @@ final class VulkanShaderInterfaceDecorator {
         return result.toString();
     }
 
-    private static String injectStorageBlocks(String source, Map<KeyId, Integer> storageBindings) {
-        if (source == null || source.isBlank() || storageBindings == null || storageBindings.isEmpty()) {
+    private static String injectStorageBlocks(String source, Map<BindingKey, Integer> canonicalBindings) {
+        if (source == null || source.isBlank() || canonicalBindings == null || canonicalBindings.isEmpty()) {
             return source;
         }
         Matcher matcher = STORAGE_BLOCK_DECL_PATTERN.matcher(source);
@@ -164,7 +166,7 @@ final class VulkanShaderInterfaceDecorator {
             String layout = matcher.group(2);
             String qualifiers = matcher.group(3) != null ? matcher.group(3) : "";
             String blockName = matcher.group(4);
-            Integer binding = resolveBinding(storageBindings, blockName);
+            Integer binding = resolveBinding(canonicalBindings, ResourceTypes.STORAGE_BUFFER, blockName);
             if (binding == null || hasBindingLayout(layout)) {
                 result.append(matcher.group(0));
             } else {
@@ -182,11 +184,32 @@ final class VulkanShaderInterfaceDecorator {
         return result.toString();
     }
 
-    private static Integer resolveBinding(Map<KeyId, Integer> bindings, String name) {
-        if (bindings == null || bindings.isEmpty() || name == null || name.isBlank()) {
+    private static Integer resolveBinding(
+            Map<BindingKey, Integer> canonicalBindings,
+            KeyId resourceType,
+            String name) {
+        if (canonicalBindings == null || canonicalBindings.isEmpty() || resourceType == null || name == null || name.isBlank()) {
             return null;
         }
-        return bindings.get(KeyId.of(name));
+        return canonicalBindings.get(new BindingKey(ResourceTypes.normalize(resourceType), KeyId.of(name)));
+    }
+
+    private static Map<BindingKey, Integer> buildCanonicalBindings(Map<KeyId, Map<KeyId, Integer>> resourceBindings) {
+        Map<BindingKey, Integer> canonical = new LinkedHashMap<>();
+        for (Map.Entry<KeyId, Map<KeyId, Integer>> typeEntry : resourceBindings.entrySet()) {
+            KeyId resourceType = ResourceTypes.normalize(typeEntry.getKey());
+            Map<KeyId, Integer> bindings = typeEntry.getValue();
+            if (bindings == null || bindings.isEmpty()) {
+                continue;
+            }
+            for (Map.Entry<KeyId, Integer> bindingEntry : bindings.entrySet()) {
+                if (bindingEntry.getKey() == null || bindingEntry.getValue() == null) {
+                    continue;
+                }
+                canonical.put(new BindingKey(resourceType, bindingEntry.getKey()), bindingEntry.getValue());
+            }
+        }
+        return canonical;
     }
 
     private static boolean hasBindingLayout(String layout) {
@@ -195,9 +218,13 @@ final class VulkanShaderInterfaceDecorator {
 
     private static String withBindingLayout(String layout, int binding) {
         if (layout == null || layout.isBlank()) {
-            return "layout(binding = " + binding + ")";
+            return "layout(set = 0, binding = " + binding + ")";
         }
-        return "layout(" + layout.trim() + ", binding = " + binding + ")";
+        String trimmed = layout.trim();
+        if (trimmed.contains("set")) {
+            return "layout(" + trimmed + ", binding = " + binding + ")";
+        }
+        return "layout(" + trimmed + ", set = 0, binding = " + binding + ")";
     }
 
     private static Map<String, Integer> assignLocations(
@@ -272,6 +299,9 @@ final class VulkanShaderInterfaceDecorator {
     }
 
     record DecoratedSources(String vertexSource, String fragmentSource) {
+    }
+
+    private record BindingKey(KeyId resourceType, KeyId bindingName) {
     }
 }
 

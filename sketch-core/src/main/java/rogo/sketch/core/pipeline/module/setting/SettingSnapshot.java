@@ -1,9 +1,11 @@
 package rogo.sketch.core.pipeline.module.setting;
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectMaps;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import it.unimi.dsi.fastutil.objects.ObjectSets;
 import rogo.sketch.core.util.KeyId;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -11,12 +13,18 @@ import java.util.Set;
  * Immutable snapshot of visible setting values and active-state resolution.
  */
 public class SettingSnapshot {
-    private final Map<KeyId, Object> values;
-    private final Set<KeyId> activeSettings;
+    private final Object2ObjectOpenHashMap<KeyId, Object> values;
+    private final ObjectOpenHashSet<KeyId> activeSettings;
+    private final Map<KeyId, Object> valuesView;
+    private final Set<KeyId> activeSettingsView;
 
     public SettingSnapshot(Map<KeyId, Object> values, Set<KeyId> activeSettings) {
-        this.values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
-        this.activeSettings = Collections.unmodifiableSet(activeSettings);
+        this.values = new Object2ObjectOpenHashMap<>(values);
+        this.activeSettings = new ObjectOpenHashSet<>(activeSettings);
+        this.values.trim();
+        this.activeSettings.trim();
+        this.valuesView = Object2ObjectMaps.unmodifiable(this.values);
+        this.activeSettingsView = ObjectSets.unmodifiable(this.activeSettings);
     }
 
     @SuppressWarnings("unchecked")
@@ -29,10 +37,10 @@ public class SettingSnapshot {
     }
 
     public Map<KeyId, Object> values() {
-        return values;
+        return valuesView;
     }
 
     public Set<KeyId> activeSettings() {
-        return activeSettings;
+        return activeSettingsView;
     }
 }

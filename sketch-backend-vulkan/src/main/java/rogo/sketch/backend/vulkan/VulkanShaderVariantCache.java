@@ -11,6 +11,9 @@ import rogo.sketch.core.shader.variant.ShaderVariantSpec;
 import rogo.sketch.core.util.KeyId;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -146,6 +149,7 @@ final class VulkanShaderVariantCache {
         long computeModule = VK_NULL_HANDLE;
         try {
             String decoratedComputeSource = VulkanShaderInterfaceDecorator.decorateComputeVariant(spec);
+            dumpAsyncHiZComputeSource(spec, decoratedComputeSource);
             computeModule = VulkanShaderCompiler.createShaderModule(
                     device,
                     ShaderType.COMPUTE,
@@ -161,6 +165,26 @@ final class VulkanShaderVariantCache {
                     "Failed to compile Vulkan compute shader for " + spec.templateId() + " / " + spec.variantKey(),
                     ex);
             return new ComputeVariantModules(spec, VK_NULL_HANDLE);
+        }
+    }
+
+    private void dumpAsyncHiZComputeSource(ShaderVariantSpec spec, String decoratedComputeSource) {
+        if (spec == null || spec.templateId() == null || decoratedComputeSource == null) {
+            return;
+        }
+        String templateId = spec.templateId().toString();
+        if (!templateId.contains("async_hiz")) {
+            return;
+        }
+        try {
+            Path dumpDir = Path.of("run-vk-test", "shader-dumps");
+            Files.createDirectories(dumpDir);
+            String safeName = templateId.replace(':', '_').replace('/', '_');
+            Files.writeString(
+                    dumpDir.resolve(safeName + ".comp.glsl"),
+                    decoratedComputeSource,
+                    StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
         }
     }
 

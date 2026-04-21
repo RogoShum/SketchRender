@@ -1,8 +1,17 @@
 package rogo.sketch.core.pipeline.module.setting;
 
+import it.unimi.dsi.fastutil.objects.Object2BooleanOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import rogo.sketch.core.util.KeyId;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -10,10 +19,20 @@ import java.util.function.Consumer;
  * Runtime-owned setting registry used by module runtimes and UI adapters.
  */
 public class ModuleSettingRegistry {
-    private final Map<KeyId, SettingNode<?>> settings = new LinkedHashMap<>();
-    private final Map<KeyId, Object> values = new LinkedHashMap<>();
-    private final Map<KeyId, Object> pendingValues = new LinkedHashMap<>();
+    private final Object2ObjectOpenHashMap<KeyId, SettingNode<?>> settings = new Object2ObjectOpenHashMap<>();
+    private final Object2ObjectOpenHashMap<KeyId, Object> values = new Object2ObjectOpenHashMap<>();
+    private final Object2ObjectOpenHashMap<KeyId, Object> pendingValues = new Object2ObjectOpenHashMap<>();
+    private final Object2BooleanOpenHashMap activeSettings = new Object2BooleanOpenHashMap();
+    private final Object2BooleanOpenHashMap previewActiveSettings = new Object2BooleanOpenHashMap();
+    private final ObjectArrayList<SettingNode<?>> orderedSettings = new ObjectArrayList<>();
     private final List<Consumer<SettingChangeEvent>> listeners = new CopyOnWriteArrayList<>();
+    private Collection<SettingNode<?>> allSettingsView = List.of();
+    private SettingSnapshot cachedSnapshot;
+
+    public ModuleSettingRegistry() {
+        activeSettings.defaultReturnValue(false);
+        previewActiveSettings.defaultReturnValue(false);
+    }
 
     public void registerSetting(SettingNode<?> setting) {
         Objects.requireNonNull(setting, "setting");
@@ -24,10 +43,14 @@ public class ModuleSettingRegistry {
         if (!setting.isGroup()) {
             values.put(setting.id(), setting.defaultValue());
         }
+        rebuildSettingOrder();
+        recomputeCommittedActiveMap();
+        recomputePreviewActiveMap();
+        invalidateSnapshot();
     }
 
     public Collection<SettingNode<?>> allSettings() {
-        return Collections.unmodifiableCollection(settings.values());
+        return allSettingsView;
     }
 
     public boolean hasSetting(KeyId settingId) {
@@ -36,7 +59,8 @@ public class ModuleSettingRegistry {
 
     public List<SettingNode<?>> settingsForModule(String moduleId) {
         List<SettingNode<?>> result = new ArrayList<>();
-        for (SettingNode<?> setting : settings.values()) {
+        for (int i = 0; i < orderedSettings.size(); i++) {
+            SettingNode<?> setting = orderedSettings.get(i);
             if (setting.moduleId().equals(moduleId)) {
                 result.add(setting);
             }
@@ -84,6 +108,9 @@ public class ModuleSettingRegistry {
         }
 
         values.put(settingId, newValue);
+        recomputeCommittedActiveMap();
+        recomputePreviewActiveMap();
+        invalidateSnapshot();
         SettingChangeEvent event = new SettingChangeEvent(
                 setting.moduleId(),
                 settingId,
@@ -109,9 +136,11 @@ public class ModuleSettingRegistry {
         Object committedValue = values.get(settingId);
         if (Objects.equals(committedValue, newValue)) {
             pendingValues.remove(settingId);
+            recomputePreviewActiveMap();
             return;
         }
         pendingValues.put(settingId, newValue);
+        recomputePreviewActiveMap();
     }
 
     public List<SettingChangeEvent> flushPendingChanges() {
@@ -120,7 +149,8 @@ public class ModuleSettingRegistry {
         }
 
         List<SettingChangeEvent> events = new ArrayList<>();
-        for (SettingNode<?> setting : settings.values()) {
+        for (int i = 0; i < orderedSettings.size(); i++) {
+            SettingNode<?> setting = orderedSettings.get(i);
             if (setting.isGroup() || !pendingValues.containsKey(setting.id())) {
                 continue;
             }
@@ -140,6 +170,9 @@ public class ModuleSettingRegistry {
                     setting.changeImpact()));
         }
         pendingValues.clear();
+        recomputeCommittedActiveMap();
+        recomputePreviewActiveMap();
+        invalidateSnapshot();
 
         for (SettingChangeEvent event : events) {
             for (Consumer<SettingChangeEvent> listener : listeners) {
@@ -158,22 +191,14 @@ public class ModuleSettingRegistry {
     }
 
     public boolean isActive(KeyId settingId) {
-        SettingNode<?> setting = settings.get(settingId);
-        if (setting == null) {
-            return false;
-        }
-        return isActive(setting, new HashSet<>(), values);
+        return settingId != null && activeSettings.getBoolean(settingId);
     }
 
     public boolean isPreviewActive(KeyId settingId) {
-        SettingNode<?> setting = settings.get(settingId);
-        if (setting == null) {
-            return false;
-        }
-        return isActive(setting, new HashSet<>(), new PreviewValuesMapView());
+        return settingId != null && previewActiveSettings.getBoolean(settingId);
     }
 
-    private boolean isActive(SettingNode<?> setting, Set<KeyId> visited, Map<KeyId, Object> valueView) {
+    private boolean isActive(SettingNode<?> setting, ObjectOpenHashSet<KeyId> visited, Map<KeyId, Object> valueView) {
         if (!visited.add(setting.id())) {
             return true;
         }
@@ -212,29 +237,145 @@ public class ModuleSettingRegistry {
     }
 
     public SettingSnapshot snapshot() {
-        Set<KeyId> active = new LinkedHashSet<>();
-        for (SettingNode<?> setting : settings.values()) {
-            if (isActive(setting.id())) {
-                active.add(setting.id());
+        SettingSnapshot snapshot = cachedSnapshot;
+        if (snapshot != null) {
+            return snapshot;
+        }
+        ObjectOpenHashSet<KeyId> active = new ObjectOpenHashSet<>();
+        for (int i = 0; i < orderedSettings.size(); i++) {
+            KeyId settingId = orderedSettings.get(i).id();
+            if (activeSettings.getBoolean(settingId)) {
+                active.add(settingId);
             }
         }
-        return new SettingSnapshot(values, active);
+        cachedSnapshot = new SettingSnapshot(values, active);
+        return cachedSnapshot;
     }
 
-    private final class PreviewValuesMapView extends AbstractMap<KeyId, Object> {
+    private void rebuildSettingOrder() {
+        orderedSettings.clear();
+        ObjectOpenHashSet<KeyId> visited = new ObjectOpenHashSet<>();
+        ObjectOpenHashSet<KeyId> visiting = new ObjectOpenHashSet<>();
+        for (SettingNode<?> setting : settings.values()) {
+            visitForOrder(setting, visited, visiting);
+        }
+        allSettingsView = Collections.unmodifiableList(new ArrayList<>(orderedSettings));
+    }
+
+    private void visitForOrder(SettingNode<?> setting, ObjectOpenHashSet<KeyId> visited, ObjectOpenHashSet<KeyId> visiting) {
+        if (setting == null || visited.contains(setting.id())) {
+            return;
+        }
+        if (!visiting.add(setting.id())) {
+            return;
+        }
+        if (setting.parentId() != null) {
+            visitForOrder(settings.get(setting.parentId()), visited, visiting);
+        }
+        List<DependencyRule> dependencies = setting.dependencies();
+        for (int i = 0; i < dependencies.size(); i++) {
+            visitForOrder(settings.get(dependencies.get(i).targetSetting()), visited, visiting);
+        }
+        visiting.remove(setting.id());
+        if (visited.add(setting.id())) {
+            orderedSettings.add(setting);
+        }
+    }
+
+    private void recomputeCommittedActiveMap() {
+        recomputeActiveMap(activeSettings, values, false);
+    }
+
+    private void recomputePreviewActiveMap() {
+        recomputeActiveMap(previewActiveSettings, values, true);
+    }
+
+    private void recomputeActiveMap(
+            Object2BooleanOpenHashMap targetMap,
+            Map<KeyId, Object> committedValues,
+            boolean preview) {
+        targetMap.clear();
+        for (int i = 0; i < orderedSettings.size(); i++) {
+            SettingNode<?> setting = orderedSettings.get(i);
+            boolean active = isActive(setting, new ObjectOpenHashSet<>(), new ValueView(committedValues, preview));
+            targetMap.put(setting.id(), active);
+        }
+    }
+
+    private void invalidateSnapshot() {
+        cachedSnapshot = null;
+    }
+
+    private final class ValueView implements Map<KeyId, Object> {
+        private final Map<KeyId, Object> committedValues;
+        private final boolean preview;
+
+        private ValueView(Map<KeyId, Object> committedValues, boolean preview) {
+            this.committedValues = committedValues;
+            this.preview = preview;
+        }
+
+        @Override
+        public int size() {
+            return committedValues.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return committedValues.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return committedValues.containsKey(key) || (preview && pendingValues.containsKey(key));
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
+
         @Override
         public Object get(Object key) {
             if (!(key instanceof KeyId keyId)) {
                 return null;
             }
-            return pendingValues.containsKey(keyId) ? pendingValues.get(keyId) : values.get(keyId);
+            return preview && pendingValues.containsKey(keyId) ? pendingValues.get(keyId) : committedValues.get(keyId);
         }
 
         @Override
-        public Set<Entry<KeyId, Object>> entrySet() {
-            LinkedHashMap<KeyId, Object> merged = new LinkedHashMap<>(values);
-            merged.putAll(pendingValues);
-            return Collections.unmodifiableSet(merged.entrySet());
+        public Object put(KeyId key, Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object remove(Object key) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void putAll(Map<? extends KeyId, ?> m) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public java.util.Set<KeyId> keySet() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public java.util.Collection<Object> values() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public java.util.Set<Entry<KeyId, Object>> entrySet() {
+            throw new UnsupportedOperationException();
         }
     }
 }

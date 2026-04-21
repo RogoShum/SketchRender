@@ -5,6 +5,7 @@ import rogo.sketch.core.debugger.DashboardDataSource;
 import rogo.sketch.core.debugger.DashboardDiagnosticLine;
 import rogo.sketch.core.debugger.DashboardMetricCard;
 import rogo.sketch.core.debugger.DashboardTreeNode;
+import rogo.sketch.core.memory.MemoryDebugSnapshot;
 import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticEntry;
 import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticLevel;
 import rogo.sketch.core.pipeline.module.macro.ModuleMacroDefinition;
@@ -46,6 +47,7 @@ public final class DashboardViewModelFactory {
     private static final KeyId ENTITY_TOTAL_METRIC = KeyId.of("sketch_render", "entity_total_count");
     private static final KeyId BLOCK_ENTITY_HIDDEN_METRIC = KeyId.of("sketch_render", "block_entity_hidden_count");
     private static final KeyId BLOCK_ENTITY_TOTAL_METRIC = KeyId.of("sketch_render", "block_entity_total_count");
+    private final DashboardMemorySectionBuilder memorySectionBuilder = new DashboardMemorySectionBuilder();
 
     public DashboardViewSnapshot build(DashboardDataSource dataSource, MetricSnapshot metricSnapshot, List<DiagnosticEntry> diagnostics) {
         ModuleRuntimeHost runtimeHost = dataSource.runtimeHost();
@@ -61,6 +63,8 @@ public final class DashboardViewModelFactory {
         List<DashboardTreeNode> macroRoots = buildMacroRoots(macroDefinitions, registry, accessor, settingsById);
         List<DashboardSummaryMetric> summaryMetrics = new ArrayList<>(mapExtraMetrics(dataSource.extraMetricCards()));
         summaryMetrics.addAll(buildMetricCards(runtimeHost, metricSnapshot));
+        MemoryDebugSnapshot memorySnapshot = dataSource.memorySnapshot();
+        DashboardMemorySection memorySection = memorySectionBuilder.build(memorySnapshot);
 
         List<DashboardRatioMetric> ratioMetrics = buildRatioMetrics(metricSnapshot);
         List<DashboardDiagnosticLine> diagnosticLines = new ArrayList<>();
@@ -81,6 +85,7 @@ public final class DashboardViewModelFactory {
                     diagnostic.level(),
                     diagnostic.moduleId(),
                     diagnostic.message(),
+                    diagnostic.stackPreview(),
                     repeats));
         }
 
@@ -89,6 +94,7 @@ public final class DashboardViewModelFactory {
                 settingRoots,
                 macroRoots,
                 summaryMetrics,
+                memorySection,
                 ratioMetrics,
                 dataSource.frameTimeHistory(),
                 buildMacroConstants(runtimeHost),
@@ -448,6 +454,15 @@ public final class DashboardViewModelFactory {
         return switch (kind) {
             case BOOLEAN -> Boolean.TRUE.equals(value) ? "On" : "Off";
             case FLOAT, DURATION -> value instanceof Number number ? String.format(Locale.ROOT, "%.2f", number.doubleValue()) : String.valueOf(value);
+            case BYTES -> value instanceof Number number
+                    ? DashboardMemorySectionBuilder.formatBytes(number.longValue())
+                    : String.valueOf(value);
+            case BYTES_PER_SECOND -> value instanceof Number number
+                    ? DashboardMemorySectionBuilder.formatBytesPerSecond(number.doubleValue())
+                    : String.valueOf(value);
+            case PERCENT -> value instanceof Number number
+                    ? DashboardMemorySectionBuilder.formatPercent(number.doubleValue())
+                    : String.valueOf(value);
             default -> String.valueOf(value);
         };
     }
@@ -461,6 +476,9 @@ public final class DashboardViewModelFactory {
             case DURATION -> 0xFF0EA5E9;
             case COUNT -> 0xFF10B981;
             case BOOLEAN -> 0xFFF59E0B;
+            case BYTES -> 0xFF3B82F6;
+            case BYTES_PER_SECOND -> 0xFF14B8A6;
+            case PERCENT -> 0xFFF59E0B;
             default -> 0xFFA78BFA;
         };
     }

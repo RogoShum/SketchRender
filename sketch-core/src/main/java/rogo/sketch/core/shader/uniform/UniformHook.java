@@ -59,6 +59,10 @@ public class UniformHook<T> {
         return valueGetter.getTargetClasses();
     }
 
+    public UniformUpdateDomain domain() {
+        return valueGetter.domain();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

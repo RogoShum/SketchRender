@@ -21,6 +21,7 @@ import java.util.jar.JarFile;
 
 final class VkTestClasspathResourceScanProvider implements ResourceScanProvider {
     private static final String VK_TEST_NAMESPACE = "sketch_vktest";
+    private static final String CORE_NAMESPACE = "sketch_render";
     private static final Map<KeyId, String> TYPE_TO_PATH = Map.of(
             ResourceTypes.MACRO_TEMPLATE, "render/resource/macro_template",
             ResourceTypes.SHADER_TEMPLATE, "render/resource/shader_template",
@@ -90,7 +91,7 @@ final class VkTestClasspathResourceScanProvider implements ResourceScanProvider 
         try (var namespaces = Files.list(assetsRoot)) {
             namespaces.filter(Files::isDirectory).forEach(namespaceDir -> {
                 String namespace = namespaceDir.getFileName().toString();
-                if (!VK_TEST_NAMESPACE.equals(namespace)) {
+                if (!isScannedNamespace(namespace)) {
                     return;
                 }
                 Path resourceDir = namespaceDir.resolve(pathPrefix.replace('/', File.separatorChar));
@@ -127,7 +128,7 @@ final class VkTestClasspathResourceScanProvider implements ResourceScanProvider 
                     continue;
                 }
                 String namespace = name.substring(namespaceStart, namespaceEnd);
-                if (!VK_TEST_NAMESPACE.equals(namespace)) {
+                if (!isScannedNamespace(namespace)) {
                     continue;
                 }
                 String expectedPrefix = normalizedPrefix + namespace + "/" + pathPrefix + "/";
@@ -184,5 +185,9 @@ final class VkTestClasspathResourceScanProvider implements ResourceScanProvider 
     private static String[] classpathEntries() {
         String classpath = System.getProperty("java.class.path", "");
         return classpath.isBlank() ? new String[0] : classpath.split(File.pathSeparator);
+    }
+
+    private static boolean isScannedNamespace(String namespace) {
+        return VK_TEST_NAMESPACE.equals(namespace) || CORE_NAMESPACE.equals(namespace);
     }
 }

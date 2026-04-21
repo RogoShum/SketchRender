@@ -1,7 +1,8 @@
 package rogo.sketch.core.pipeline.kernel;
 
 import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ExecutionKey;
+import rogo.sketch.core.packet.RasterPipelineKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.RenderPacketKind;
 import rogo.sketch.core.packet.ResourceBindingPlan;
@@ -17,50 +18,73 @@ import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.Arrays;
 
 public record StageExecutionPlan(
         KeyId stageId,
-        Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> packets,
+        PipelineExecutionSlice[] pipelineSlices,
+        Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets,
         SnapshotScope stageSnapshotScope,
-        StageResourceFootprint stageResourceFootprint
+        StageResourceFootprint stageResourceFootprint,
+        int planHash,
+        boolean empty
 ) {
     public StageExecutionPlan {
         packets = packets != null ? normalizePackets(packets) : Map.of();
+        pipelineSlices = pipelineSlices != null ? pipelineSlices.clone() : buildPipelineSlices(packets);
         stageSnapshotScope = stageSnapshotScope != null ? stageSnapshotScope : SnapshotScope.empty();
         stageResourceFootprint = stageResourceFootprint != null
                 ? stageResourceFootprint
                 : StageResourceFootprint.fromPackets(packets, stageSnapshotScope);
+        planHash = planHash != 0 ? planHash : derivePlanHash(stageId, pipelineSlices);
+        empty = empty || packets.isEmpty();
     }
 
     public static StageExecutionPlan empty(KeyId stageId) {
-        return new StageExecutionPlan(stageId, Map.of(), SnapshotScope.empty(), StageResourceFootprint.empty());
+        return new StageExecutionPlan(stageId, new PipelineExecutionSlice[0], Map.of(), SnapshotScope.empty(), StageResourceFootprint.empty(), 1, true);
     }
 
     public static StageExecutionPlan fromPackets(
             KeyId stageId,
-            Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> packets) {
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets) {
         SnapshotScope snapshotScope = deriveSnapshotScope(packets);
         return new StageExecutionPlan(
                 stageId,
+                null,
                 packets,
                 snapshotScope,
-                StageResourceFootprint.fromPackets(packets, snapshotScope));
+                StageResourceFootprint.fromPackets(packets, snapshotScope),
+                0,
+                packets == null || packets.isEmpty());
     }
 
     public boolean isEmpty() {
-        return packets.isEmpty();
+        return empty;
     }
 
-    private static Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> normalizePackets(
-            Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> packets) {
-        Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> normalized = new LinkedHashMap<>();
-        for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
+    public PipelineExecutionSlice pipelineSlice(PipelineType pipelineType) {
+        if (pipelineType == null || pipelineSlices.length == 0) {
+            return null;
+        }
+        for (PipelineExecutionSlice pipelineSlice : pipelineSlices) {
+            if (pipelineSlice != null && pipelineType.equals(pipelineSlice.pipelineType())) {
+                return pipelineSlice;
+            }
+        }
+        return null;
+    }
+
+    private static Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> normalizePackets(
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets) {
+        Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> normalized = new LinkedHashMap<>();
+        for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
             if (pipelineEntry.getKey() == null || pipelineEntry.getValue() == null || pipelineEntry.getValue().isEmpty()) {
                 continue;
             }
-            Map<PipelineStateKey, List<RenderPacket>> states = new LinkedHashMap<>();
-            for (Map.Entry<PipelineStateKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
+            Map<ExecutionKey, List<RenderPacket>> states = new LinkedHashMap<>();
+            for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
                 if (stateEntry.getKey() == null || stateEntry.getValue() == null || stateEntry.getValue().isEmpty()) {
                     continue;
                 }
@@ -73,26 +97,61 @@ public record StageExecutionPlan(
         return Collections.unmodifiableMap(normalized);
     }
 
+    private static PipelineExecutionSlice[] buildPipelineSlices(
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets) {
+        if (packets == null || packets.isEmpty()) {
+            return new PipelineExecutionSlice[0];
+        }
+        PipelineExecutionSlice[] slices = new PipelineExecutionSlice[packets.size()];
+        int index = 0;
+        for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
+            PacketGroup[] groups = new PacketGroup[pipelineEntry.getValue().size()];
+            int groupIndex = 0;
+            int pipelineHash = 1;
+            for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
+                PacketGroup group = new PacketGroup(
+                        stateEntry.getKey(),
+                        stateEntry.getValue().toArray(new RenderPacket[0]));
+                groups[groupIndex++] = group;
+                pipelineHash = 31 * pipelineHash + group.groupHash();
+            }
+            slices[index++] = new PipelineExecutionSlice(
+                    pipelineEntry.getKey(),
+                    groups,
+                    pipelineEntry.getValue(),
+                    pipelineHash);
+        }
+        return slices;
+    }
+
+    private static int derivePlanHash(KeyId stageId, PipelineExecutionSlice[] pipelineSlices) {
+        int hash = Objects.hashCode(stageId);
+        for (PipelineExecutionSlice slice : pipelineSlices) {
+            hash = 31 * hash + (slice != null ? slice.pipelineHash() : 0);
+        }
+        return hash;
+    }
+
     private static SnapshotScope deriveSnapshotScope(
-            Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> packets) {
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets) {
         if (packets == null || packets.isEmpty()) {
             return SnapshotScope.empty();
         }
 
         SnapshotScope.Builder builder = SnapshotScope.builder();
-        Map<PipelineStateKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache = new LinkedHashMap<>();
+        Map<ShaderBindingCacheKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache = new LinkedHashMap<>();
         Set<BindingPlanScopeCacheKey> appliedBindingScopes = new LinkedHashSet<>();
         boolean hasPackets = false;
         boolean touchesFramebuffer = false;
         boolean touchesVertexArrays = false;
 
-        for (Map.Entry<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
+        for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
             PipelineType pipelineType = pipelineEntry.getKey();
-            for (Map.Entry<PipelineStateKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
-                PipelineStateKey stateKey = stateEntry.getKey();
+            for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
+                ExecutionKey stateKey = stateEntry.getKey();
                 if (stateKey != null) {
-                    if (stateKey.renderState() != null) {
-                        builder.addStatesFromRenderStatePatch(stateKey.renderState());
+                    if (stateKey instanceof RasterPipelineKey rasterPipelineKey && rasterPipelineKey.renderState() != null) {
+                        builder.addStatesFromRenderStatePatch(rasterPipelineKey.renderState());
                     }
                     if (stateKey.shaderId() != null) {
                         builder.addState(SnapshotScope.StateType.PROGRAM);
@@ -149,9 +208,9 @@ public record StageExecutionPlan(
 
     private static void addBindingPlanScope(
             SnapshotScope.Builder builder,
-            PipelineStateKey stateKey,
+            ExecutionKey stateKey,
             ResourceBindingPlan bindingPlan,
-            Map<PipelineStateKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache,
+            Map<ShaderBindingCacheKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache,
             Set<BindingPlanScopeCacheKey> appliedBindingScopes) {
         builder.addState(SnapshotScope.StateType.PROGRAM);
         builder.addState(SnapshotScope.StateType.PASS_BINDINGS);
@@ -167,7 +226,10 @@ public record StageExecutionPlan(
             return;
         }
 
-        Map<KeyId, Map<KeyId, Integer>> resolvedBindings = resolveShaderBindings(stateKey, resolvedBindingsCache);
+        Map<KeyId, Map<KeyId, Integer>> resolvedBindings = resolveShaderBindings(
+                stateKey.shaderId(),
+                stateKey.shaderVariantKey(),
+                resolvedBindingsCache);
         if (resolvedBindings.isEmpty()) {
             return;
         }
@@ -194,26 +256,31 @@ public record StageExecutionPlan(
     }
 
     private static Map<KeyId, Map<KeyId, Integer>> resolveShaderBindings(
-            PipelineStateKey stateKey,
-            Map<PipelineStateKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache) {
-        if (stateKey == null) {
+            KeyId shaderId,
+            ShaderVariantKey shaderVariantKey,
+            Map<ShaderBindingCacheKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache) {
+        if (shaderId == null) {
             return Map.of();
         }
+        ShaderBindingCacheKey cacheKey = new ShaderBindingCacheKey(
+                shaderId,
+                shaderVariantKey != null ? shaderVariantKey : ShaderVariantKey.EMPTY);
         if (resolvedBindingsCache != null) {
-            Map<KeyId, Map<KeyId, Integer>> cached = resolvedBindingsCache.get(stateKey);
+            Map<KeyId, Map<KeyId, Integer>> cached = resolvedBindingsCache.get(cacheKey);
             if (cached != null) {
                 return cached;
             }
         }
         Object resource = GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.SHADER_TEMPLATE, stateKey.shaderId());
+                .getResource(ResourceTypes.SHADER_TEMPLATE, shaderId);
         if (!(resource instanceof ShaderTemplate shaderTemplate)) {
             return Map.of();
         }
         try {
-            Map<KeyId, Map<KeyId, Integer>> resolved = shaderTemplate.resolveResourceBindings(stateKey.shaderVariantKey());
+            Map<KeyId, Map<KeyId, Integer>> resolved = shaderTemplate.resolveResourceBindings(
+                    shaderVariantKey != null ? shaderVariantKey : ShaderVariantKey.EMPTY);
             if (resolvedBindingsCache != null) {
-                resolvedBindingsCache.put(stateKey, resolved);
+                resolvedBindingsCache.put(cacheKey, resolved);
             }
             return resolved;
         } catch (Exception ignored) {
@@ -242,6 +309,34 @@ public record StageExecutionPlan(
             ShaderVariantKey shaderVariantKey,
             KeyId resourceLayoutKey
     ) {
+    }
+
+    private record ShaderBindingCacheKey(
+            KeyId shaderId,
+            ShaderVariantKey shaderVariantKey
+    ) {
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof StageExecutionPlan other)) {
+            return false;
+        }
+        if (planHash != other.planHash || empty != other.empty) {
+            return false;
+        }
+        if (!Objects.equals(stageId, other.stageId)) {
+            return false;
+        }
+        return Arrays.equals(pipelineSlices, other.pipelineSlices);
+    }
+
+    @Override
+    public int hashCode() {
+        return planHash;
     }
 }
 

@@ -1,17 +1,19 @@
 package rogo.sketch.core.pipeline.flow.plan;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.CompiledRenderSetting;
-import rogo.sketch.core.pipeline.RenderSettingCompiler;
+import rogo.sketch.core.pipeline.flow.v2.PreparedStageGeometryView;
 import rogo.sketch.core.pipeline.flow.v2.ResourceGroupSlice;
+import rogo.sketch.core.pipeline.flow.v2.StageEntityView;
 import rogo.sketch.core.shader.ShaderProgramHandle;
 import rogo.sketch.core.shader.ShaderProgramResolver;
 import rogo.sketch.core.shader.uniform.UniformGroupSet;
-import rogo.sketch.core.shader.uniform.UniformHook;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
+import rogo.sketch.core.shader.uniform.UniformUpdateDomain;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,15 +22,22 @@ public final class ResourceGroupCompiler {
     public List<ResourceGroupSlice> compile(
             CompiledRenderSetting compiledRenderSetting,
             Object sourceSlice,
-            List<? extends Graphics> graphics) {
-        List<ResourceGroupSlice> groups = new ArrayList<>();
-        if (compiledRenderSetting == null || graphics == null || graphics.isEmpty()) {
+            List<StageEntityView.Entry> entries) {
+        return finalizePrepared(prepare(compiledRenderSetting, sourceSlice, entries), entries);
+    }
+
+    public List<PreparedStageGeometryView.PreparedResourceGroupSlice> prepare(
+            CompiledRenderSetting compiledRenderSetting,
+            Object sourceSlice,
+            List<StageEntityView.Entry> entries) {
+        List<PreparedStageGeometryView.PreparedResourceGroupSlice> groups = new ArrayList<>();
+        if (compiledRenderSetting == null || entries == null || entries.isEmpty()) {
             return groups;
         }
 
         ShaderProgramHandle shaderProvider = extractShaderProvider(compiledRenderSetting);
         if (shaderProvider == null || shaderProvider.uniformHooks() == null) {
-            groups.add(new ResourceGroupSlice(
+            groups.add(new PreparedStageGeometryView.PreparedResourceGroupSlice(
                     sourceSlice,
                     compiledRenderSetting.pipelineStateKey(),
                     compiledRenderSetting.resourceBindingPlan(),
@@ -36,24 +45,42 @@ public final class ResourceGroupCompiler {
                             compiledRenderSetting.resourceBindingPlan(),
                             UniformGroupSet.empty().resourceUniforms()),
                     UniformGroupSet.empty(),
-                    graphics));
+                    entries));
             return groups;
         }
 
         UniformHookGroup hookGroup = shaderProvider.uniformHooks();
-        List<UniformHook<?>> cachedMatchingHooks = hookGroup.getAllMatchingHooks(graphics.get(0).getClass());
-        Map<UniformValueSnapshot, List<Graphics>> grouped = new LinkedHashMap<>();
-        for (Graphics graphic : graphics) {
-            if (graphic == null) {
-                continue;
-            }
-            UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(hookGroup, graphic, cachedMatchingHooks);
-            grouped.computeIfAbsent(snapshot, ignored -> new ArrayList<>()).add(graphic);
+        if (entries.stream().noneMatch(entry -> entry != null && entry.uniformSubject() != null)) {
+            groups.add(new PreparedStageGeometryView.PreparedResourceGroupSlice(
+                    sourceSlice,
+                    compiledRenderSetting.pipelineStateKey(),
+                    compiledRenderSetting.resourceBindingPlan(),
+                    rogo.sketch.core.packet.ResourceSetKey.from(
+                            compiledRenderSetting.resourceBindingPlan(),
+                            UniformGroupSet.empty().resourceUniforms()),
+                    UniformGroupSet.empty(),
+                    entries));
+            return groups;
         }
 
-        for (Map.Entry<UniformValueSnapshot, List<Graphics>> entry : grouped.entrySet()) {
-            UniformGroupSet uniformGroups = UniformGroupSet.fromSnapshot(entry.getKey());
-            groups.add(new ResourceGroupSlice(
+        var cachedMatchingHooks = hookGroup.getAllMatchingHooks(GraphicsUniformSubject.class);
+        Map<UniformValueSnapshot, List<StageEntityView.Entry>> grouped = new LinkedHashMap<>();
+        for (StageEntityView.Entry entry : entries) {
+            GraphicsUniformSubject uniformSubject = entry != null ? entry.uniformSubject() : null;
+            if (uniformSubject == null) {
+                continue;
+            }
+            UniformValueSnapshot snapshot = UniformValueSnapshot.captureFrom(
+                    hookGroup,
+                    uniformSubject,
+                    cachedMatchingHooks,
+                    UniformUpdateDomain.BUILD_SNAPSHOT);
+            grouped.computeIfAbsent(snapshot, ignored -> new ArrayList<>()).add(entry);
+        }
+
+        for (Map.Entry<UniformValueSnapshot, List<StageEntityView.Entry>> groupedEntry : grouped.entrySet()) {
+            UniformGroupSet uniformGroups = UniformGroupSet.fromSnapshot(groupedEntry.getKey());
+            groups.add(new PreparedStageGeometryView.PreparedResourceGroupSlice(
                     sourceSlice,
                     compiledRenderSetting.pipelineStateKey(),
                     compiledRenderSetting.resourceBindingPlan(),
@@ -61,7 +88,59 @@ public final class ResourceGroupCompiler {
                             compiledRenderSetting.resourceBindingPlan(),
                             uniformGroups.resourceUniforms()),
                     uniformGroups,
-                    entry.getValue()));
+                    groupedEntry.getValue()));
+        }
+        return groups;
+    }
+
+    public List<ResourceGroupSlice> finalizePrepared(
+            List<PreparedStageGeometryView.PreparedResourceGroupSlice> preparedGroups,
+            List<StageEntityView.Entry> visibleEntries) {
+        List<ResourceGroupSlice> groups = new ArrayList<>();
+        if (preparedGroups == null || preparedGroups.isEmpty() || visibleEntries == null || visibleEntries.isEmpty()) {
+            return groups;
+        }
+        IdentityHashMap<StageEntityView.Entry, Boolean> allowed = new IdentityHashMap<>();
+        for (StageEntityView.Entry entry : visibleEntries) {
+            if (entry != null) {
+                allowed.put(entry, Boolean.TRUE);
+            }
+        }
+        if (allowed.isEmpty()) {
+            return groups;
+        }
+        for (PreparedStageGeometryView.PreparedResourceGroupSlice preparedGroup : preparedGroups) {
+            if (preparedGroup == null || preparedGroup.preparedEntries().isEmpty()) {
+                continue;
+            }
+            boolean allVisible = preparedGroup.preparedEntries().size() == allowed.size();
+            if (allVisible) {
+                for (StageEntityView.Entry entry : preparedGroup.preparedEntries()) {
+                    if (!allowed.containsKey(entry)) {
+                        allVisible = false;
+                        break;
+                    }
+                }
+            }
+            List<StageEntityView.Entry> selected = preparedGroup.preparedEntries();
+            if (!allVisible) {
+                selected = new ArrayList<>();
+                for (StageEntityView.Entry entry : preparedGroup.preparedEntries()) {
+                    if (allowed.containsKey(entry)) {
+                        selected.add(entry);
+                    }
+                }
+            }
+            if (selected.isEmpty()) {
+                continue;
+            }
+            groups.add(new ResourceGroupSlice(
+                    preparedGroup.sourceSlice(),
+                    preparedGroup.stateKey(),
+                    preparedGroup.bindingPlan(),
+                    preparedGroup.resourceSetKey(),
+                    preparedGroup.uniformGroups(),
+                    selected));
         }
         return groups;
     }
@@ -69,5 +148,6 @@ public final class ResourceGroupCompiler {
     private ShaderProgramHandle extractShaderProvider(CompiledRenderSetting compiledRenderSetting) {
         return ShaderProgramResolver.resolveProgramHandleIfAvailable(compiledRenderSetting);
     }
+
 }
 

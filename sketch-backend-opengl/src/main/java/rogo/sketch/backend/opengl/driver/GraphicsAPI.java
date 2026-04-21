@@ -25,8 +25,14 @@ public abstract class GraphicsAPI {
     private volatile Thread mainThread;
     private volatile Thread renderWorkerThread;
     private volatile Thread tickWorkerThread;
+    private volatile Thread uploadWorkerThread;
+    private volatile Thread computeWorkerThread;
+    private volatile Thread offscreenGraphicsWorkerThread;
     private volatile boolean renderWorkerReady = false;
     private volatile boolean tickWorkerReady = false;
+    private volatile boolean uploadWorkerReady = false;
+    private volatile boolean computeWorkerReady = false;
+    private volatile boolean offscreenGraphicsWorkerReady = false;
     private static final boolean GUARD_ENABLED = Boolean.getBoolean("sketch.threadguard.enabled");
 
     // ==================== Render Worker Context Lifecycle ====================
@@ -48,6 +54,22 @@ public abstract class GraphicsAPI {
     public void initTickWorkerContext(long mainWindowHandle) { }
 
     /**
+     * Initialize the async upload worker context from the main thread.
+     */
+    public void initUploadWorkerContext(long mainWindowHandle) { }
+
+    /**
+     * Initialize the async compute worker context from the main thread.
+     */
+    public void initComputeWorkerContext(long mainWindowHandle) { }
+
+    /**
+     * Initialize the offscreen graphics worker context from the main thread.
+     * First phase only scaffolds this lane.
+     */
+    public void initOffscreenGraphicsWorkerContext(long mainWindowHandle) { }
+
+    /**
      * Called once on the render worker thread at startup.
      * OpenGL: glfwMakeContextCurrent(shared) + GL.createCapabilities(). Vulkan: no-op.
      */
@@ -58,6 +80,12 @@ public abstract class GraphicsAPI {
      * OpenGL: glfwMakeContextCurrent(shared) + GL.createCapabilities(). Vulkan: no-op.
      */
     public void onTickWorkerThreadStart() { }
+
+    public void onUploadWorkerThreadStart() { }
+
+    public void onComputeWorkerThreadStart() { }
+
+    public void onOffscreenGraphicsWorkerThreadStart() { }
 
     /**
      * Called once on the render worker thread at shutdown.
@@ -71,6 +99,12 @@ public abstract class GraphicsAPI {
      */
     public void onTickWorkerThreadEnd() { }
 
+    public void onUploadWorkerThreadEnd() { }
+
+    public void onComputeWorkerThreadEnd() { }
+
+    public void onOffscreenGraphicsWorkerThreadEnd() { }
+
     /**
      * Destroy the render worker context. Called from the main thread.
      */
@@ -80,6 +114,12 @@ public abstract class GraphicsAPI {
      * Destroy the dedicated tick worker context. Called from the main thread.
      */
     public void destroyTickWorkerContext() { }
+
+    public void destroyUploadWorkerContext() { }
+
+    public void destroyComputeWorkerContext() { }
+
+    public void destroyOffscreenGraphicsWorkerContext() { }
 
     /**
      * Whether the render worker context has been initialized and is ready.
@@ -98,6 +138,30 @@ public abstract class GraphicsAPI {
 
     protected void setTickWorkerReady(boolean ready) {
         this.tickWorkerReady = ready;
+    }
+
+    public boolean isUploadWorkerReady() {
+        return uploadWorkerReady;
+    }
+
+    protected void setUploadWorkerReady(boolean ready) {
+        this.uploadWorkerReady = ready;
+    }
+
+    public boolean isComputeWorkerReady() {
+        return computeWorkerReady;
+    }
+
+    protected void setComputeWorkerReady(boolean ready) {
+        this.computeWorkerReady = ready;
+    }
+
+    public boolean isOffscreenGraphicsWorkerReady() {
+        return offscreenGraphicsWorkerReady;
+    }
+
+    protected void setOffscreenGraphicsWorkerReady(boolean ready) {
+        this.offscreenGraphicsWorkerReady = ready;
     }
 
     public static int getGLType(ValueType valueType) {
@@ -140,6 +204,18 @@ public abstract class GraphicsAPI {
         this.tickWorkerThread = Thread.currentThread();
     }
 
+    public void registerUploadWorkerThread() {
+        this.uploadWorkerThread = Thread.currentThread();
+    }
+
+    public void registerComputeWorkerThread() {
+        this.computeWorkerThread = Thread.currentThread();
+    }
+
+    public void registerOffscreenGraphicsWorkerThread() {
+        this.offscreenGraphicsWorkerThread = Thread.currentThread();
+    }
+
     /**
      * Whether the current thread is the registered main thread.
      */
@@ -161,6 +237,18 @@ public abstract class GraphicsAPI {
         return tickWorkerThread != null && Thread.currentThread() == tickWorkerThread;
     }
 
+    public boolean isUploadWorkerThread() {
+        return uploadWorkerThread != null && Thread.currentThread() == uploadWorkerThread;
+    }
+
+    public boolean isComputeWorkerThread() {
+        return computeWorkerThread != null && Thread.currentThread() == computeWorkerThread;
+    }
+
+    public boolean isOffscreenGraphicsWorkerThread() {
+        return offscreenGraphicsWorkerThread != null && Thread.currentThread() == offscreenGraphicsWorkerThread;
+    }
+
     /**
      * Whether the current thread has a graphics context available.
      * True for the main thread (always) and the worker thread (if GL_WORKER_ENABLED).
@@ -171,7 +259,10 @@ public abstract class GraphicsAPI {
             return false;
         }
         return (renderWorkerReady && isRenderWorkerThread())
-                || (tickWorkerReady && isTickWorkerThread());
+                || (tickWorkerReady && isTickWorkerThread())
+                || (uploadWorkerReady && isUploadWorkerThread())
+                || (computeWorkerReady && isComputeWorkerThread())
+                || (offscreenGraphicsWorkerReady && isOffscreenGraphicsWorkerThread());
     }
 
     /**
@@ -190,8 +281,14 @@ public abstract class GraphicsAPI {
                     "] has no context. Main=[" + (mainThread != null ? mainThread.getName() : "null") +
                     "], RenderWorker=[" + (renderWorkerThread != null ? renderWorkerThread.getName() : "null") +
                     "], TickWorker=[" + (tickWorkerThread != null ? tickWorkerThread.getName() : "null") +
+                    "], UploadWorker=[" + (uploadWorkerThread != null ? uploadWorkerThread.getName() : "null") +
+                    "], ComputeWorker=[" + (computeWorkerThread != null ? computeWorkerThread.getName() : "null") +
+                    "], OffscreenGraphicsWorker=[" + (offscreenGraphicsWorkerThread != null ? offscreenGraphicsWorkerThread.getName() : "null") +
                     "], renderWorkerReady=" + renderWorkerReady +
-                    ", tickWorkerReady=" + tickWorkerReady);
+                    ", tickWorkerReady=" + tickWorkerReady +
+                    ", uploadWorkerReady=" + uploadWorkerReady +
+                    ", computeWorkerReady=" + computeWorkerReady +
+                    ", offscreenGraphicsWorkerReady=" + offscreenGraphicsWorkerReady);
         }
     }
 
@@ -230,6 +327,18 @@ public abstract class GraphicsAPI {
      * @return true if the fence was signaled within the timeout
      */
     public boolean clientWaitSync(long fence, long timeoutNanos) { return true; }
+
+    /**
+     * Wait for a fence sync to be signaled, optionally requesting a command flush.
+     *
+     * @param fence          fence handle from {@link #createFenceSync()}
+     * @param timeoutNanos   maximum wait time in nanoseconds
+     * @param flushCommands  whether the implementation should flush pending commands first
+     * @return true if the fence was signaled within the timeout
+     */
+    public boolean clientWaitSync(long fence, long timeoutNanos, boolean flushCommands) {
+        return clientWaitSync(fence, timeoutNanos);
+    }
 
     /**
      * Delete a fence sync object.

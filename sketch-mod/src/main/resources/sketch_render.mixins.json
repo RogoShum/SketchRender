@@ -12,6 +12,8 @@
     "AccessorLevelRender",
     "AccessorMinecraft",
     "MixinBlockEntityRender",
+    "MixinBlockEntityLifecycle",
+    "MixinEntityLifecycle",
     "MixinEntityRender",
     "MixinLevelRender",
     "MixinMinecraft",

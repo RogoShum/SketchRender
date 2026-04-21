@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline.kernel;
 
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
@@ -24,9 +24,11 @@ public record BuildResult(
         long frameNumber,
         FrameExecutionPlan executionPlan,
         RenderPostProcessors postProcessors,
-        boolean uploadsCompleted
+        boolean uploadsCompleted,
+        long graphSnapshotVersion,
+        long resourceEpoch
 ) {
-    public Map<PipelineType, Map<PipelineStateKey, List<RenderPacket>>> packets() {
+    public Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets() {
         return executionPlan != null ? executionPlan.stagePackets() : Map.of();
     }
 }

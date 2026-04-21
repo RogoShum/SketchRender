@@ -1,4 +1,5 @@
 {
+  "executionDomain": "RASTER",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_render:cube_test_1"
@@ -17,7 +18,11 @@
   },
   "resourceBinding": {
     "texture": {
-      "Sampler0": "sketch_render:example_image_texture"
+      "Sampler0": {
+        "resource": "sketch_render:example_image_texture",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
     }
   },
   "shouldSwitchRenderState": true

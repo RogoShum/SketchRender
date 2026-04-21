@@ -247,19 +247,19 @@ public final class DashboardViewSceneBuilder {
         int y = viewport.y() - (int) Math.round(controller.metricsScroll());
         int columnGap = metrics.gap;
         int columnWidth = columns <= 1 ? viewport.width() : Math.max(metrics.minMetricColumnWidth, (viewport.width() - columnGap * (columns - 1)) / columns);
-        for (int index = 0; index < snapshot.summaryMetrics().size();) {
-            int rowStartY = y;
-            for (int column = 0; column < columns && index < snapshot.summaryMetrics().size(); column++, index++) {
-                DashboardSummaryMetric metric = snapshot.summaryMetrics().get(index);
-                int itemX = viewport.x() + column * (columnWidth + columnGap);
-                assembly.add(new DashboardPrimitive("metric/" + metric.id(), UiNodeType.METRIC_CARD, contentLayer, assembly.nextOrder(),
-                        new UiRect(itemX, rowStartY, columnWidth, metrics.summaryRowHeight), viewport,
-                        panelProps(DashboardPanelId.METRICS, Map.of("title", metric.labelKey(), "value", metric.valueText(),
-                                "unit", metric.unitText(), "accent", metric.accentColor(), "detail", metric.detailKey(),
-                                "scale", metrics.uiScale, "mode", "summary-row"))));
-            }
-            y += metrics.summaryRowHeight + metrics.smallGap;
-        }
+        y = appendSummaryMetricRows(
+                assembly,
+                DashboardPanelId.METRICS,
+                snapshot.summaryMetrics(),
+                viewport,
+                y,
+                columns,
+                columnWidth,
+                columnGap,
+                metrics.summaryRowHeight,
+                metrics,
+                contentLayer,
+                "metric/");
 
         if (!snapshot.ratioMetrics().isEmpty()) {
             y += metrics.sectionGap;
@@ -274,6 +274,17 @@ public final class DashboardViewSceneBuilder {
             y += metrics.ratioRowHeight + metrics.sectionGap;
         }
 
+        y = appendMemorySection(
+                assembly,
+                snapshot.memorySection(),
+                viewport,
+                y,
+                controller,
+                columns,
+                columnGap,
+                metrics,
+                contentLayer);
+
         assembly.add(new DashboardPrimitive("frame-chart", UiNodeType.BAR_CHART, contentLayer, assembly.nextOrder(),
                 new UiRect(viewport.x(), y, viewport.width(), metrics.chartHeight), viewport,
                 panelProps(DashboardPanelId.METRICS, Map.of("bars", snapshot.frameTimeHistory(),
@@ -284,7 +295,8 @@ public final class DashboardViewSceneBuilder {
         assembly.add(new DashboardPrimitive("macro-constants-header", UiNodeType.MACRO_SECTION_HEADER, contentLayer, assembly.nextOrder(),
                 new UiRect(viewport.x(), y, viewport.width(), metrics.groupHeight), viewport,
                 panelProps(DashboardPanelId.METRICS, Map.of("title", "debug.dashboard.macro_constants",
-                        "expanded", controller.macroConstantsExpanded(), "scale", metrics.uiScale))));
+                        "expanded", controller.macroConstantsExpanded(), "scale", metrics.uiScale,
+                        "sectionId", "macro-constants"))));
         y += metrics.groupHeight + metrics.smallGap;
 
         if (controller.macroConstantsExpanded()) {
@@ -303,6 +315,120 @@ public final class DashboardViewSceneBuilder {
         appendVerticalScrollMetadata(assembly, DashboardPanelId.METRICS, "metrics", viewport, contentHeight, metrics, contentLayer);
         appendVerticalScrollbar(assembly, DashboardPanelId.METRICS, "metrics", viewport, track, panelRect,
                 controller.metricsScroll(), contentHeight, metrics, contentLayer);
+    }
+
+    private int appendSummaryMetricRows(
+            FrameAssembly assembly,
+            DashboardPanelId panelId,
+            List<DashboardSummaryMetric> metricsSnapshot,
+            UiRect viewport,
+            int startY,
+            int columns,
+            int columnWidth,
+            int columnGap,
+            int rowHeight,
+            Metrics metrics,
+            UiLayer contentLayer,
+            String idPrefix) {
+        int y = startY;
+        for (int index = 0; index < metricsSnapshot.size(); ) {
+            int rowStartY = y;
+            for (int column = 0; column < columns && index < metricsSnapshot.size(); column++, index++) {
+                DashboardSummaryMetric metric = metricsSnapshot.get(index);
+                int itemX = viewport.x() + column * (columnWidth + columnGap);
+                assembly.add(new DashboardPrimitive(idPrefix + metric.id(), UiNodeType.METRIC_CARD, contentLayer, assembly.nextOrder(),
+                        new UiRect(itemX, rowStartY, columnWidth, rowHeight), viewport,
+                        panelProps(panelId, Map.of(
+                                "title", metric.labelKey(),
+                                "value", metric.valueText(),
+                                "unit", metric.unitText(),
+                                "accent", metric.accentColor(),
+                                "detail", metric.detailKey(),
+                                "scale", metrics.uiScale,
+                                "mode", "summary-row"))));
+            }
+            y += rowHeight + metrics.smallGap;
+        }
+        return y;
+    }
+
+    private int appendMemorySection(
+            FrameAssembly assembly,
+            DashboardMemorySection memorySection,
+            UiRect viewport,
+            int startY,
+            DashboardController controller,
+            int metricColumns,
+            int columnGap,
+            Metrics metrics,
+            UiLayer contentLayer) {
+        if (memorySection == null || memorySection.isEmpty()) {
+            return startY;
+        }
+
+        int y = startY + metrics.sectionGap;
+        assembly.add(new DashboardPrimitive("memory-section-header", UiNodeType.MACRO_SECTION_HEADER, contentLayer, assembly.nextOrder(),
+                new UiRect(viewport.x(), y, viewport.width(), metrics.groupHeight), viewport,
+                panelProps(DashboardPanelId.METRICS, Map.of(
+                        "title", memorySection.titleKey(),
+                        "expanded", controller.memorySectionExpanded(),
+                        "scale", metrics.uiScale,
+                        "sectionId", "memory"))));
+        y += metrics.groupHeight + metrics.smallGap;
+
+        if (!controller.memorySectionExpanded()) {
+            return y;
+        }
+
+        int summaryColumns = Math.max(1, Math.min(metricColumns, 2));
+        int summaryColumnWidth = summaryColumns <= 1
+                ? viewport.width()
+                : Math.max(metrics.minMetricColumnWidth, (viewport.width() - columnGap * (summaryColumns - 1)) / summaryColumns);
+        y = appendSummaryMetricRows(
+                assembly,
+                DashboardPanelId.METRICS,
+                memorySection.summaryMetrics(),
+                viewport,
+                y,
+                summaryColumns,
+                summaryColumnWidth,
+                columnGap,
+                metrics.summaryRowHeight,
+                metrics,
+                contentLayer,
+                "memory-summary/");
+
+        for (DashboardMemoryDomainMetric domainMetric : memorySection.domainMetrics()) {
+            Map<String, Object> domainProps = new LinkedHashMap<>();
+            domainProps.put("title", domainMetric.labelKey());
+            domainProps.put("live", domainMetric.liveText());
+            domainProps.put("reserved", domainMetric.reservedText());
+            domainProps.put("peak", domainMetric.peakText());
+            domainProps.put("budget", domainMetric.budgetText());
+            domainProps.put("usagePercent", domainMetric.usagePercentText());
+            domainProps.put("peakPercent", domainMetric.peakPercentText());
+            domainProps.put("fragmentation", domainMetric.fragmentationText());
+            domainProps.put("usageRatio", domainMetric.usageRatio());
+            domainProps.put("peakRatio", domainMetric.peakRatio());
+            domainProps.put("accent", domainMetric.accentColor());
+            domainProps.put("detail", domainMetric.detailKey());
+            domainProps.put("scale", metrics.uiScale);
+            domainProps.put("mode", "memory-domain-row");
+            assembly.add(new DashboardPrimitive(domainMetric.id(), UiNodeType.METRIC_CARD, contentLayer, assembly.nextOrder(),
+                    new UiRect(viewport.x(), y, viewport.width(), metrics.ratioRowHeight), viewport,
+                    panelProps(DashboardPanelId.METRICS, domainProps)));
+            y += metrics.ratioRowHeight + metrics.sectionGap;
+        }
+
+        assembly.add(new DashboardPrimitive("memory-chart", UiNodeType.BAR_CHART, contentLayer, assembly.nextOrder(),
+                new UiRect(viewport.x(), y, viewport.width(), metrics.chartHeight), viewport,
+                panelProps(DashboardPanelId.METRICS, Map.of(
+                        "bars", memorySection.timelineValues(),
+                        "title", memorySection.timelineTitleKey(),
+                        "threshold", memorySection.timelineThreshold(),
+                        "scale", metrics.uiScale,
+                        "mode", "memory-chart"))));
+        return y + metrics.chartHeight + metrics.sectionGap;
     }
 
     private void buildDiagnosticsPanel(FrameAssembly assembly, DashboardViewSnapshot snapshot, DashboardController controller,
@@ -380,6 +506,7 @@ public final class DashboardViewSceneBuilder {
                     viewport,
                     panelProps(DashboardPanelId.DIAGNOSTICS, Map.of("time", line.timeText(), "level", line.level().name(),
                             "module", line.moduleId(), "message", line.message(), "repeat", line.repeatCount(),
+                            "detail", Objects.toString(line.stackPreview(), ""),
                             "scale", metrics.uiScale))));
             y += metrics.logLineHeight;
             if (visibleCount < totalVisibleCount) {

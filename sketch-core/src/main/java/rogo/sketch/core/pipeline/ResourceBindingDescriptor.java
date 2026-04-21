@@ -3,16 +3,14 @@ package rogo.sketch.core.pipeline;
 import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.util.KeyId;
 
-import java.util.List;
-
 public record ResourceBindingDescriptor(
         KeyId resourceLayoutKey,
         int resourceBindingHash,
-        List<ResourceBindingPlan.BindingEntry> entries
+        ResourceBindingPlan.BindingEntry[] entries
 ) {
     public ResourceBindingDescriptor {
         resourceLayoutKey = resourceLayoutKey != null ? resourceLayoutKey : KeyId.of("sketch:empty_resource_layout");
-        entries = entries != null ? List.copyOf(entries) : List.of();
+        entries = entries != null ? entries.clone() : new ResourceBindingPlan.BindingEntry[0];
     }
 
     public static ResourceBindingDescriptor from(ResourceBindingPlan bindingPlan) {

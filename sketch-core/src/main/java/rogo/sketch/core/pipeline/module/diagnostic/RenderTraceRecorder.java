@@ -1,12 +1,13 @@
 package rogo.sketch.core.pipeline.module.diagnostic;
 
-import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
+import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Aggregates trace events for selected graphics and writes one compact summary
@@ -41,11 +42,11 @@ public final class RenderTraceRecorder {
 
     public void recordPrepare(
             KeyId stageId,
-            Graphics graphics,
+            GraphicsUniformSubject subject,
             boolean descriptorDirty,
             boolean geometryDirty,
             boolean boundsDirty) {
-        TraceState trace = trace(stageId, graphics);
+        TraceState trace = trace(stageId, subject);
         if (trace == null) {
             return;
         }
@@ -55,15 +56,15 @@ public final class RenderTraceRecorder {
                 + ",bounds=" + dirtyToken(boundsDirty) + ")";
     }
 
-    public void recordVisible(KeyId stageId, Graphics graphics) {
-        TraceState trace = trace(stageId, graphics);
+    public void recordVisible(KeyId stageId, GraphicsUniformSubject subject) {
+        TraceState trace = trace(stageId, subject);
         if (trace != null) {
             trace.visible = true;
         }
     }
 
-    public void recordPacketBuilt(KeyId stageId, Graphics graphics, PipelineStateKey stateKey) {
-        TraceState trace = trace(stageId, graphics);
+    public void recordPacketBuilt(KeyId stageId, GraphicsUniformSubject subject, ExecutionKey stateKey) {
+        TraceState trace = trace(stageId, subject);
         if (trace == null) {
             return;
         }
@@ -73,30 +74,30 @@ public final class RenderTraceRecorder {
         }
     }
 
-    public void recordStagePlanned(KeyId stageId, Graphics graphics) {
-        TraceState trace = trace(stageId, graphics);
+    public void recordStagePlanned(KeyId stageId, GraphicsUniformSubject subject) {
+        TraceState trace = trace(stageId, subject);
         if (trace != null) {
             trace.stagePlanned = true;
         }
     }
 
-    public void recordQueueInstalled(KeyId stageId, Graphics graphics) {
-        TraceState trace = trace(stageId, graphics);
+    public void recordQueueInstalled(KeyId stageId, GraphicsUniformSubject subject) {
+        TraceState trace = trace(stageId, subject);
         if (trace != null) {
             trace.queueInstalled = true;
         }
     }
 
-    public void recordBackendExecuted(KeyId stageId, Graphics graphics) {
-        TraceState trace = trace(stageId, graphics);
+    public void recordBackendExecuted(KeyId stageId, GraphicsUniformSubject subject) {
+        TraceState trace = trace(stageId, subject);
         if (trace != null) {
             trace.backendExecuted = true;
             trace.dropReason = null;
         }
     }
 
-    public void recordDrop(KeyId stageId, Graphics graphics, String reason) {
-        TraceState trace = trace(stageId, graphics);
+    public void recordDrop(KeyId stageId, GraphicsUniformSubject subject, String reason) {
+        TraceState trace = trace(stageId, subject);
         if (trace == null) {
             return;
         }
@@ -135,8 +136,8 @@ public final class RenderTraceRecorder {
                         + " stages=" + formatStageIds(stageIds));
     }
 
-    private synchronized TraceState trace(KeyId stageId, Graphics graphics) {
-        if (!config.matches(graphics)) {
+    private synchronized TraceState trace(KeyId stageId, GraphicsUniformSubject subject) {
+        if (!config.matches(subject)) {
             return null;
         }
         if (activeFrame < 0L) {
@@ -145,8 +146,9 @@ public final class RenderTraceRecorder {
         TraceKey key = new TraceKey(
                 activeFrame,
                 stageId != null ? stageId : KeyId.of("sketch:unknown_stage"),
-                graphics.getIdentifier(),
-                graphics.getClass().getName());
+                subject.identifier(),
+                subject.resourceOrigin() != null ? subject.resourceOrigin().resourceType() : null,
+                subject.tags().tags());
         return traces.computeIfAbsent(key, ignored -> new TraceState());
     }
 
@@ -166,8 +168,13 @@ public final class RenderTraceRecorder {
         StringBuilder builder = new StringBuilder();
         builder.append("frame=").append(key.frameNumber)
                 .append(" stage=").append(key.stageId)
-                .append(" graphics=").append(key.graphicsId)
-                .append(" class=").append(key.graphicsClass);
+                .append(" graphics=").append(key.graphicsId);
+        if (key.resourceOrigin != null) {
+            builder.append(" origin=").append(key.resourceOrigin);
+        }
+        if (!key.tags.isEmpty()) {
+            builder.append(" tags=").append(key.tags);
+        }
         if (state.prepareDetail != null && !state.prepareDetail.isBlank()) {
             builder.append(" ").append(state.prepareDetail);
         }
@@ -227,7 +234,8 @@ public final class RenderTraceRecorder {
             long frameNumber,
             KeyId stageId,
             KeyId graphicsId,
-            String graphicsClass
+            KeyId resourceOrigin,
+            Set<KeyId> tags
     ) {
     }
 

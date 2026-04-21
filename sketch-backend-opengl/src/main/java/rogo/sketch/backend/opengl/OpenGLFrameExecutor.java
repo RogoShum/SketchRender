@@ -14,7 +14,6 @@ import org.lwjgl.opengl.GL42;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.system.MemoryStack;
-import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
 import rogo.sketch.core.backend.BackendInstalledRenderTarget;
 import rogo.sketch.core.backend.BackendIndirectBuffer;
@@ -22,16 +21,18 @@ import rogo.sketch.core.backend.BackendInstalledTexture;
 import rogo.sketch.core.backend.BackendFrameExecutor;
 import rogo.sketch.core.backend.BackendResourceResolver;
 import rogo.sketch.core.backend.BackendStageScope;
+import rogo.sketch.core.debug.RenderDocRuntime;
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
 import rogo.sketch.core.driver.state.component.ColorMaskState;
 import rogo.sketch.backend.opengl.state.snapshot.GLStateSnapshot;
 import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
 import rogo.sketch.core.packet.ClearPacket;
+import rogo.sketch.core.packet.CopyTexturePacket;
 import rogo.sketch.core.packet.DispatchPacket;
 import rogo.sketch.core.packet.DrawPacket;
 import rogo.sketch.core.packet.DrawPlan;
+import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.GenerateMipmapPacket;
-import rogo.sketch.core.packet.PipelineStateKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.RenderPacketQueue;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
@@ -39,6 +40,7 @@ import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderStateManager;
 import rogo.sketch.core.pipeline.data.FrameDataDomain;
 import rogo.sketch.core.pipeline.data.GeometryFrameData;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceRecorder;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceBinding;
@@ -48,6 +50,7 @@ import rogo.sketch.core.resource.vision.StandardRenderTarget;
 import rogo.sketch.core.shader.ComputeDispatchSupport;
 import rogo.sketch.core.shader.ShaderProgramHandle;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
+import rogo.sketch.core.shader.uniform.UniformUpdateDomain;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.core.shader.vertex.ActiveShaderVertexLayout;
 import rogo.sketch.core.util.KeyId;
@@ -101,7 +104,7 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
     @Override
     public <C extends RenderContext> void executePacketGroup(
             GraphicsPipeline<C> pipeline,
-            PipelineStateKey stateKey,
+            ExecutionKey stateKey,
             List<RenderPacket> packets,
             RenderStateManager manager,
             C context) {
@@ -115,7 +118,7 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         manager.accept(stateKey, context);
         ShaderProgramHandle shaderProvider = context.shaderProgramHandle();
         if (shaderProvider != null) {
-            shaderProvider.uniformHooks().updateUniforms(context);
+            shaderProvider.uniformHooks().updateUniforms(context, UniformUpdateDomain.FRAME_LIVE);
         }
 
         for (RenderPacket packet : packets) {
@@ -139,16 +142,21 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         manager.accept(packet.stateKey(), context);
         ShaderProgramHandle shaderProvider = context.shaderProgramHandle();
         if (shaderProvider != null) {
-            shaderProvider.uniformHooks().updateUniforms(context);
+            shaderProvider.uniformHooks().updateUniforms(context, UniformUpdateDomain.FRAME_LIVE);
         }
         executePacket(pipeline, packet, context);
     }
 
     private <C extends RenderContext> void executePacket(GraphicsPipeline<C> pipeline, RenderPacket packet, C context) {
-        pushDebugGroup(debugLabel(packet));
+        boolean renderDocEnabled = RenderDocRuntime.enabled();
+        if (renderDocEnabled) {
+            pushDebugGroup(debugLabel(packet));
+        }
         try {
             applyUniformSnapshot(packet.uniformSnapshot(), context);
-            applyResourceBinding(packet.bindingPlan(), context);
+            if (packet.bindingPlan() != packet.stateKey().bindingPlan()) {
+                applyResourceBinding(packet.bindingPlan(), context);
+            }
             OpenGLPacketHandler handler = packetHandlers.handlerFor(packet);
             if (handler == null) {
                 throw new IllegalArgumentException(
@@ -159,7 +167,9 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
 
             completePacket(packet, context);
         } finally {
-            popDebugGroup();
+            if (renderDocEnabled) {
+                popDebugGroup();
+            }
         }
     }
 
@@ -170,6 +180,8 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
                 executor.executeDispatchPacket((DispatchPacket) packet, context));
         packetHandlers.register(rogo.sketch.core.packet.RenderPacketType.CLEAR, (pipeline, packet, context, executor) ->
                 executor.executeClearPacket((ClearPacket) packet, context));
+        packetHandlers.register(rogo.sketch.core.packet.RenderPacketType.COPY_TEXTURE, (pipeline, packet, context, executor) ->
+                executor.executeCopyTexturePacket((CopyTexturePacket) packet));
         packetHandlers.register(rogo.sketch.core.packet.RenderPacketType.GENERATE_MIPMAP, (pipeline, packet, context, executor) ->
                 executor.executeGenerateMipmapPacket((GenerateMipmapPacket) packet));
     }
@@ -452,24 +464,24 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
 
     private void traceBackendExecuted(GraphicsPipeline<? extends RenderContext> pipeline, DrawPacket packet) {
         RenderTraceRecorder renderTraceRecorder = pipeline.renderTraceRecorder();
-        if (renderTraceRecorder == null || packet.completionGraphics() == null) {
+        if (renderTraceRecorder == null || packet.completionSubjects() == null) {
             return;
         }
-        for (Graphics graphics : packet.completionGraphics()) {
-            if (graphics != null) {
-                renderTraceRecorder.recordBackendExecuted(packet.stageId(), graphics);
+        for (GraphicsUniformSubject subject : packet.completionSubjects()) {
+            if (subject != null) {
+                renderTraceRecorder.recordBackendExecuted(packet.stageId(), subject);
             }
         }
     }
 
     private void traceBackendDrop(GraphicsPipeline<? extends RenderContext> pipeline, DrawPacket packet, String reason) {
         RenderTraceRecorder renderTraceRecorder = pipeline.renderTraceRecorder();
-        if (renderTraceRecorder == null || packet.completionGraphics() == null) {
+        if (renderTraceRecorder == null || packet.completionSubjects() == null) {
             return;
         }
-        for (Graphics graphics : packet.completionGraphics()) {
-            if (graphics != null) {
-                renderTraceRecorder.recordDrop(packet.stageId(), graphics, reason);
+        for (GraphicsUniformSubject subject : packet.completionSubjects()) {
+            if (subject != null) {
+                renderTraceRecorder.recordDrop(packet.stageId(), subject, reason);
             }
         }
     }
@@ -534,6 +546,106 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
             api.bindTexture(GL11.GL_TEXTURE_2D, openGLTextureHandleResource.textureHandle());
             api.generateMipmap(GL11.GL_TEXTURE_2D);
             api.bindTexture(GL11.GL_TEXTURE_2D, 0);
+        }
+    }
+
+    private void executeCopyTexturePacket(CopyTexturePacket packet) {
+        if (packet == null || packet.sourceTextureId() == null || packet.destinationTextureId() == null) {
+            return;
+        }
+        BackendInstalledTexture source = resourceResolver.resolveTexture(packet.sourceTextureId());
+        BackendInstalledTexture destination = resourceResolver.resolveTexture(packet.destinationTextureId());
+        if (!(source instanceof OpenGLTextureHandleResource sourceHandle)
+                || !(destination instanceof OpenGLTextureHandleResource destinationHandle)) {
+            return;
+        }
+
+        int width = packet.width();
+        int height = packet.height();
+        if (width <= 0 || height <= 0) {
+            int sourceWidth = source instanceof rogo.sketch.core.resource.vision.Texture sourceTexture
+                    ? sourceTexture.getCurrentWidth()
+                    : 0;
+            int sourceHeight = source instanceof rogo.sketch.core.resource.vision.Texture sourceTexture
+                    ? sourceTexture.getCurrentHeight()
+                    : 0;
+            int destinationWidth = destination instanceof rogo.sketch.core.resource.vision.Texture destinationTexture
+                    ? destinationTexture.getCurrentWidth()
+                    : 0;
+            int destinationHeight = destination instanceof rogo.sketch.core.resource.vision.Texture destinationTexture
+                    ? destinationTexture.getCurrentHeight()
+                    : 0;
+            width = width > 0 ? width : Math.min(sourceWidth, destinationWidth);
+            height = height > 0 ? height : Math.min(sourceHeight, destinationHeight);
+        }
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        boolean canUseCopyImage = !packet.depthCopy()
+                && (GL.getCapabilities().OpenGL43 || GL.getCapabilities().GL_ARB_copy_image);
+        if (canUseCopyImage) {
+            GL43.glCopyImageSubData(
+                    sourceHandle.textureHandle(),
+                    GL11.GL_TEXTURE_2D,
+                    0,
+                    0,
+                    0,
+                    0,
+                    destinationHandle.textureHandle(),
+                    GL11.GL_TEXTURE_2D,
+                    0,
+                    0,
+                    0,
+                    0,
+                    width,
+                    height,
+                    1);
+        } else {
+            copyTextureWithFramebufferBlit(
+                    sourceHandle.textureHandle(),
+                    destinationHandle.textureHandle(),
+                    width,
+                    height,
+                    packet.depthCopy());
+        }
+        GL42.glMemoryBarrier(
+                GL42.GL_TEXTURE_FETCH_BARRIER_BIT
+                        | GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
+                        | GL42.GL_TEXTURE_UPDATE_BARRIER_BIT);
+    }
+
+    private void copyTextureWithFramebufferBlit(
+            int sourceTextureHandle,
+            int destinationTextureHandle,
+            int width,
+            int height,
+            boolean depthCopy) {
+        int readFramebuffer = api.createFramebuffer();
+        int drawFramebuffer = api.createFramebuffer();
+        int attachment = depthCopy ? GL30.GL_DEPTH_ATTACHMENT : GL30.GL_COLOR_ATTACHMENT0;
+        int mask = depthCopy ? GL11.GL_DEPTH_BUFFER_BIT : GL11.GL_COLOR_BUFFER_BIT;
+        try {
+            api.bindFrameBuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer);
+            api.framebufferTexture2D(readFramebuffer, attachment, GL11.GL_TEXTURE_2D, sourceTextureHandle, 0);
+            api.bindFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer);
+            api.framebufferTexture2D(drawFramebuffer, attachment, GL11.GL_TEXTURE_2D, destinationTextureHandle, 0);
+            GL30.glBlitFramebuffer(
+                    0,
+                    0,
+                    width,
+                    height,
+                    0,
+                    0,
+                    width,
+                    height,
+                    mask,
+                    GL11.GL_NEAREST);
+        } finally {
+            api.bindFrameBuffer(GL30.GL_READ_FRAMEBUFFER, 0);
+            api.bindFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER, 0);
+            api.deleteFramebuffer(readFramebuffer);
+            api.deleteFramebuffer(drawFramebuffer);
         }
     }
 
@@ -602,13 +714,6 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
 
     private void completePacket(RenderPacket packet, RenderContext context) {
         context.set(KeyId.of("rendered"), true);
-        List<? extends Graphics> completionGraphics = packet.completionGraphics();
-        if (completionGraphics == null) {
-            return;
-        }
-        for (Graphics graphics : completionGraphics) {
-            graphics.afterDraw(context);
-        }
     }
 
     private String debugLabel(RenderPacket packet) {
@@ -620,18 +725,18 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         if (packet.stageId() != null) {
             builder.append(" stage=").append(packet.stageId());
         }
-        List<? extends Graphics> completionGraphics = packet.completionGraphics();
-        if (completionGraphics != null && !completionGraphics.isEmpty()) {
-            Graphics graphics = completionGraphics.get(0);
-            if (graphics != null && graphics.getIdentifier() != null) {
-                builder.append(" graphics=").append(graphics.getIdentifier());
+        List<GraphicsUniformSubject> completionSubjects = packet.completionSubjects();
+        if (completionSubjects != null && !completionSubjects.isEmpty()) {
+            GraphicsUniformSubject subject = completionSubjects.get(0);
+            if (subject != null && subject.identifier() != null) {
+                builder.append(" graphics=").append(subject.identifier());
             }
         }
         return builder.toString();
     }
 
     private void pushDebugGroup(String label) {
-        if (label == null || label.isBlank() || GL.getCapabilities() == null) {
+        if (!RenderDocRuntime.enabled() || label == null || label.isBlank() || GL.getCapabilities() == null) {
             return;
         }
         if (GL.getCapabilities().OpenGL43) {
@@ -640,7 +745,7 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
     }
 
     private void popDebugGroup() {
-        if (GL.getCapabilities() == null) {
+        if (!RenderDocRuntime.enabled() || GL.getCapabilities() == null) {
             return;
         }
         if (GL.getCapabilities().OpenGL43) {

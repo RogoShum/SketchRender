@@ -1,8 +1,10 @@
 package rogo.sketch.core.backend;
 
+import rogo.sketch.core.driver.state.AttachmentBindingState;
 import rogo.sketch.core.driver.state.DynamicRenderState;
 import rogo.sketch.core.driver.state.PassBindingState;
 import rogo.sketch.core.driver.state.PipelineRasterState;
+import rogo.sketch.core.driver.state.ShaderBindingState;
 import rogo.sketch.core.pipeline.RenderContext;
 
 /**
@@ -19,6 +21,12 @@ public interface BackendStateApplier {
     }
 
     default void applyPassBindingState(PassBindingState state, RenderContext context) {
+    }
+
+    default void applyAttachmentBindingState(AttachmentBindingState state, RenderContext context) {
+    }
+
+    default void applyShaderBindingState(ShaderBindingState state, RenderContext context) {
     }
 }
 

@@ -1,17 +1,24 @@
 package rogo.sketch.module.transform.manager;
 
 import rogo.sketch.core.api.ResourceObject;
-import rogo.sketch.core.api.graphics.Graphics;
-import rogo.sketch.core.pipeline.kernel.KernelResourceKey;
-import rogo.sketch.core.pipeline.kernel.PipelineKernel;
-import rogo.sketch.core.pipeline.kernel.PublishedKernelResource;
+import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
+import rogo.sketch.core.graphics.ecs.GraphicsWorld;
+import rogo.sketch.core.pipeline.kernel.FrameResourceHandle;
+import rogo.sketch.core.pipeline.kernel.PassExecutionContext;
+import rogo.sketch.core.pipeline.kernel.PublishedFrameResource;
+import rogo.sketch.core.util.KeyId;
 
 /**
  * Transform system facade coordinating registration, CPU state, hierarchy, snapshots, and GPU upload.
  */
 public class TransformManager {
-    public static final KernelResourceKey<TransformPreparedTickSnapshot> TICK_SNAPSHOT_RESOURCE =
-            KernelResourceKey.of("transform.tick_snapshot", TransformPreparedTickSnapshot.class);
+    public static final FrameResourceHandle<TransformPreparedTickSnapshot> TICK_SNAPSHOT_HANDLE =
+            FrameResourceHandle.of(
+                    KeyId.of("sketch_render", "transform_tick_snapshot"),
+                    TransformPreparedTickSnapshot.class,
+                    "transform",
+                    "transform.tick_snapshot");
 
     private final TransformRegistry registry = new TransformRegistry();
     private final TransformStateStore stateStore = new TransformStateStore();
@@ -22,11 +29,22 @@ public class TransformManager {
     private final TransformMatrixOutputBuffer outputBuffer = new TransformMatrixOutputBuffer();
     private TransformPreparedTickSnapshot activeTickSnapshot;
 
-    public TransformBinding registerBinding(Graphics graphics, TransformUpdateDomain updateDomain) {
-        TransformBinding binding = registry.registerBinding(graphics, updateDomain);
+    public TransformBinding registerBinding(
+            GraphicsWorld world,
+            GraphicsEntityId entityId,
+            GraphicsBuiltinComponents.TransformBindingComponent bindingComponent,
+            GraphicsBuiltinComponents.TransformHierarchyComponent hierarchyComponent) {
+        TransformBinding binding = registry.registerBinding(entityId, bindingComponent, hierarchyComponent);
         stateStore.initializeBinding(binding);
         hierarchyGraph.markDirty();
         outputBuffer.ensureCapacityForMaxId(registry.maxAllocatedId());
+        if (world != null && bindingComponent != null) {
+            world.replaceComponent(entityId, GraphicsBuiltinComponents.TRANSFORM_BINDING,
+                    new GraphicsBuiltinComponents.TransformBindingComponent(
+                            bindingComponent.updateDomain(),
+                            bindingComponent.authoring(),
+                            binding.transformId()));
+        }
         return binding;
     }
 
@@ -35,12 +53,12 @@ public class TransformManager {
         hierarchyGraph.markDirty();
     }
 
-    public TransformBinding bindingFor(Graphics graphics) {
-        return registry.bindingFor(graphics);
+    public TransformBinding bindingFor(GraphicsEntityId entityId) {
+        return registry.bindingFor(entityId);
     }
 
-    public boolean isRegistered(Graphics graphics) {
-        return registry.isRegistered(graphics);
+    public boolean isRegistered(GraphicsEntityId entityId) {
+        return registry.isRegistered(entityId);
     }
 
     public TransformBinding bindingById(int id) {
@@ -67,17 +85,20 @@ public class TransformManager {
         stateStore.collectFrameTransforms(registry);
     }
 
-    public void prepareAndPublishTickSnapshot(PipelineKernel<?> kernel, long logicTickEpoch) {
+    public void prepareAndPublishTickSnapshot(PassExecutionContext passExecutionContext) {
         hierarchyGraph.resolveIfNeeded(registry);
         outputBuffer.ensureCapacityForMaxId(registry.maxAllocatedId());
+        long logicTickEpoch = passExecutionContext != null ? passExecutionContext.logicTickEpoch() : -1L;
         TransformPreparedTickSnapshot snapshot =
                 snapshotBuilder.buildTickSnapshot(logicTickEpoch, registry, hierarchyGraph);
-        kernel.publishResource(TICK_SNAPSHOT_RESOURCE, logicTickEpoch, snapshot);
+        if (passExecutionContext != null) {
+            passExecutionContext.publish(TICK_SNAPSHOT_HANDLE, logicTickEpoch, snapshot);
+        }
     }
 
-    public void prepareFrameBuffer(PipelineKernel<?> kernel) {
-        PublishedKernelResource<TransformPreparedTickSnapshot> published =
-                kernel.peekResource(TICK_SNAPSHOT_RESOURCE);
+    public void prepareFrameBuffer(PassExecutionContext passExecutionContext) {
+        PublishedFrameResource<TransformPreparedTickSnapshot> published =
+                passExecutionContext != null ? passExecutionContext.peek(TICK_SNAPSHOT_HANDLE) : null;
 
         if (published != null) {
             activeTickSnapshot = published.payload();
@@ -95,7 +116,10 @@ public class TransformManager {
         syncPipeline.applyFrameOverrides(registry.frameBindings(), activeTickSnapshot.syncSnapshot());
     }
 
-    public void uploadFrameBuffers() {
+    public void uploadFrameBuffers(PassExecutionContext passExecutionContext) {
+        if (passExecutionContext != null) {
+            passExecutionContext.peek(TICK_SNAPSHOT_HANDLE);
+        }
         syncPipeline.upload();
         asyncPipeline.upload();
     }

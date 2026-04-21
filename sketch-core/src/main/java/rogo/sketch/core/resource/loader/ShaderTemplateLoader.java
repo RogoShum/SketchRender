@@ -232,6 +232,8 @@ public class ShaderTemplateLoader implements ResourceLoader<ShaderTemplate> {
 
         JsonObject resourceBindings = json.getAsJsonObject("resourceBindings");
         Map<KeyId, Map<KeyId, Integer>> parsed = new LinkedHashMap<>();
+        Set<Integer> usedGlobalBindings = new HashSet<>();
+        int nextGlobalBinding = 0;
         for (Map.Entry<String, JsonElement> entry : resourceBindings.entrySet()) {
             KeyId resourceType = ResourceTypes.normalize(KeyId.of(entry.getKey()));
             JsonElement bindingSpec = entry.getValue();
@@ -244,7 +246,12 @@ public class ShaderTemplateLoader implements ResourceLoader<ShaderTemplate> {
                     if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
                         throw new IllegalArgumentException("resourceBindings." + entry.getKey() + "[" + i + "] must be a string");
                     }
-                    typeBindings.put(KeyId.of(element.getAsString()), i);
+                    while (usedGlobalBindings.contains(nextGlobalBinding)) {
+                        nextGlobalBinding++;
+                    }
+                    typeBindings.put(KeyId.of(element.getAsString()), nextGlobalBinding);
+                    usedGlobalBindings.add(nextGlobalBinding);
+                    nextGlobalBinding++;
                 }
             } else if (bindingSpec.isJsonObject()) {
                 JsonObject explicitBindings = bindingSpec.getAsJsonObject();
@@ -252,7 +259,15 @@ public class ShaderTemplateLoader implements ResourceLoader<ShaderTemplate> {
                     if (!bindingEntry.getValue().isJsonPrimitive() || !bindingEntry.getValue().getAsJsonPrimitive().isNumber()) {
                         throw new IllegalArgumentException("resourceBindings." + entry.getKey() + "." + bindingEntry.getKey() + " must be a number");
                     }
-                    typeBindings.put(KeyId.of(bindingEntry.getKey()), bindingEntry.getValue().getAsInt());
+                    int bindingSlot = bindingEntry.getValue().getAsInt();
+                    if (bindingSlot < 0) {
+                        throw new IllegalArgumentException("resourceBindings." + entry.getKey() + "." + bindingEntry.getKey() + " must be >= 0");
+                    }
+                    if (!usedGlobalBindings.add(bindingSlot)) {
+                        throw new IllegalArgumentException("resourceBindings slot " + bindingSlot + " is declared more than once in " + json);
+                    }
+                    typeBindings.put(KeyId.of(bindingEntry.getKey()), bindingSlot);
+                    nextGlobalBinding = Math.max(nextGlobalBinding, bindingSlot + 1);
                 }
             } else {
                 throw new IllegalArgumentException("resourceBindings." + entry.getKey() + " must be an array or object");

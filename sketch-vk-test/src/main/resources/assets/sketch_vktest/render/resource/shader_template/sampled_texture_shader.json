@@ -5,8 +5,8 @@
     "position"
   ],
   "resourceBindings": {
-    "texture": [
-      "test_texture"
-    ]
+    "texture": {
+      "test_texture": 0
+    }
   }
 }

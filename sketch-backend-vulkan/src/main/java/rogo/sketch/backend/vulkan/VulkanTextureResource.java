@@ -3,6 +3,11 @@ package rogo.sketch.backend.vulkan;
 import org.lwjgl.vulkan.VkDevice;
 import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.backend.BackendInstalledTexture;
+import rogo.sketch.core.memory.ImageMemoryEstimator;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
+import rogo.sketch.core.resource.descriptor.ImageFormat;
 
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_R8G8B8A8_UNORM;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
@@ -29,6 +34,7 @@ public final class VulkanTextureResource implements ResourceObject, BackendInsta
     private final int aspectMask;
     private final int usageFlags;
     private final boolean ownsHandles;
+    private final MemoryLease textureLease;
     private volatile int currentImageLayout;
     private boolean disposed;
 
@@ -65,6 +71,11 @@ public final class VulkanTextureResource implements ResourceObject, BackendInsta
         this.aspectMask = aspectMask != 0 ? aspectMask : VK_IMAGE_ASPECT_COLOR_BIT;
         this.usageFlags = usageFlags != 0 ? usageFlags : VK_IMAGE_USAGE_SAMPLED_BIT;
         this.ownsHandles = ownsHandles;
+        this.textureLease = ownsHandles
+                ? UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.GPU_TEXTURE, "vk-texture/" + Long.toUnsignedString(image))
+                .bindSuppliers(this::trackedReservedBytes, this::trackedLiveBytes)
+                : null;
     }
 
     public static VulkanTextureResource borrowed(
@@ -151,6 +162,9 @@ public final class VulkanTextureResource implements ResourceObject, BackendInsta
             return;
         }
         disposed = true;
+        if (textureLease != null) {
+            textureLease.close();
+        }
         if (!ownsHandles || device == null) {
             return;
         }
@@ -171,6 +185,32 @@ public final class VulkanTextureResource implements ResourceObject, BackendInsta
     @Override
     public boolean isDisposed() {
         return disposed;
+    }
+
+    private long trackedReservedBytes() {
+        return disposed ? 0L : trackedLiveBytes();
+    }
+
+    private long trackedLiveBytes() {
+        if (disposed || !ownsHandles) {
+            return 0L;
+        }
+        return ImageMemoryEstimator.estimateBytes(width, height, mipLevels, toImageFormat(format));
+    }
+
+    private static ImageFormat toImageFormat(int vulkanFormat) {
+        return switch (vulkanFormat) {
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_R16_SFLOAT -> ImageFormat.R16_FLOAT;
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_R32_SFLOAT -> ImageFormat.R32_FLOAT;
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_R16G16_SFLOAT -> ImageFormat.RG16_FLOAT;
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_R16G16B16A16_SFLOAT -> ImageFormat.RGBA16_FLOAT;
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_R32G32_SFLOAT -> ImageFormat.RG32_FLOAT;
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_R32G32B32A32_SFLOAT -> ImageFormat.RGBA32_FLOAT;
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_D16_UNORM -> ImageFormat.D16_UNORM;
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT -> ImageFormat.D32_FLOAT;
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_D24_UNORM_S8_UINT -> ImageFormat.D24_UNORM_S8_UINT;
+            default -> ImageFormat.RGBA8_UNORM;
+        };
     }
 }
 

@@ -127,3 +127,10 @@ runs/
 /.gradle-home/
 /.codex/
 /docs/
+/sketch-core/bin/
+/sketch-backend-vulkan/bin/
+/sketch-backend-opengl/bin/
+/sketch-vk-test/bin/
+/run-vk-test/
+/.tmp/
+/.tmp-javac-check/

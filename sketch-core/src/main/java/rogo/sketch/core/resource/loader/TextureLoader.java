@@ -1,7 +1,7 @@
 package rogo.sketch.core.resource.loader;
 
 import com.google.gson.JsonObject;
-import rogo.sketch.core.backend.BackendResourceInstaller;
+import rogo.sketch.core.backend.ResourceAllocator;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.descriptor.ResolvedImageResource;
@@ -65,9 +65,7 @@ public class TextureLoader implements ResourceLoader<Texture> {
             }
 
             ResolvedImageResource descriptor = TextureDescriptorParser.parse(keyId, json, width > 0 ? width : 1, height > 0 ? height : 1, imagePath);
-            BackendResourceInstaller installer = GraphicsDriver.runtime() != null
-                    ? GraphicsDriver.runtime().resourceInstaller()
-                    : BackendResourceInstaller.NO_OP;
+            ResourceAllocator installer = GraphicsDriver.resourceAllocator();
             return installer.createTexture(keyId, descriptor, imagePath, imageBuffer);
 
         } catch (Exception e) {

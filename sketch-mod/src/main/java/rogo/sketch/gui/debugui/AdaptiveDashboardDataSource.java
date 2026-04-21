@@ -2,10 +2,12 @@ package rogo.sketch.gui.debugui;
 
 import net.minecraft.client.Minecraft;
 import rogo.sketch.Config;
+import rogo.sketch.core.memory.MemoryDebugSnapshot;
 import rogo.sketch.core.debugger.DashboardControlAccessor;
 import rogo.sketch.core.debugger.DashboardDataSource;
 import rogo.sketch.core.debugger.DashboardMetricCard;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
+import rogo.sketch.vanilla.PipelineUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,5 +46,10 @@ public class AdaptiveDashboardDataSource implements DashboardDataSource {
     @Override
     public List<Double> frameTimeHistory() {
         return frameHistorySupplier.get();
+    }
+
+    @Override
+    public MemoryDebugSnapshot memorySnapshot() {
+        return PipelineUtil.pipeline() != null ? PipelineUtil.pipeline().memoryDebugSnapshot() : MemoryDebugSnapshot.empty();
     }
 }

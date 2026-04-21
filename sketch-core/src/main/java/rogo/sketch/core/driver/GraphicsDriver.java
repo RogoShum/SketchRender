@@ -6,7 +6,11 @@ import rogo.sketch.core.backend.BackendBootstrapContext;
 import rogo.sketch.core.backend.BackendCapabilities;
 import rogo.sketch.core.backend.BackendKind;
 import rogo.sketch.core.backend.BackendRuntime;
+import rogo.sketch.core.backend.CommandRecorderFactory;
 import rogo.sketch.core.backend.NoOpBackendRuntime;
+import rogo.sketch.core.backend.RenderDevice;
+import rogo.sketch.core.backend.ResourceAllocator;
+import rogo.sketch.core.backend.SubmissionScheduler;
 
 import java.util.Set;
 
@@ -67,6 +71,22 @@ public final class GraphicsDriver {
 
     public static BackendCapabilities capabilities() {
         return runtime.capabilities();
+    }
+
+    public static RenderDevice renderDevice() {
+        return runtime.renderDevice();
+    }
+
+    public static ResourceAllocator resourceAllocator() {
+        return runtime.resourceAllocator();
+    }
+
+    public static SubmissionScheduler submissionScheduler() {
+        return runtime.submissionScheduler();
+    }
+
+    public static CommandRecorderFactory commandRecorderFactory() {
+        return runtime.commandRecorderFactory();
     }
 
     public static Set<BackendKind> registeredBackends() {

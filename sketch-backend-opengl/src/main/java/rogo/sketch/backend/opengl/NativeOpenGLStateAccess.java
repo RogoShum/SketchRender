@@ -2,10 +2,10 @@ package rogo.sketch.backend.opengl;
 
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
 
-final class NativeOpenGLStateAccess implements OpenGLStateAccess {
+public final class NativeOpenGLStateAccess implements OpenGLStateAccess {
     private final GraphicsAPI api;
 
-    NativeOpenGLStateAccess(GraphicsAPI api) {
+    public NativeOpenGLStateAccess(GraphicsAPI api) {
         this.api = api;
     }
 

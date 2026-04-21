@@ -4,7 +4,7 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkComputePipelineCreateInfo;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPipelineShaderStageCreateInfo;
-import rogo.sketch.core.packet.PipelineStateKey;
+import rogo.sketch.core.packet.ComputePipelineKey;
 import rogo.sketch.core.util.KeyId;
 
 import java.nio.LongBuffer;
@@ -31,7 +31,7 @@ final class VulkanComputePipelineCache {
         this.shaderVariantCache = new VulkanShaderVariantCache(device);
     }
 
-    long pipelineFor(PipelineStateKey stateKey, KeyId resourceLayoutKey, long descriptorSetLayout) {
+    long pipelineFor(ComputePipelineKey stateKey, KeyId resourceLayoutKey, long descriptorSetLayout) {
         PipelineVariantKey key = new PipelineVariantKey(
                 stateKey,
                 resourceLayoutKey != null ? resourceLayoutKey : KeyId.of("sketch:empty_resource_layout"));
@@ -67,11 +67,21 @@ final class VulkanComputePipelineCache {
         }
 
         long pipelineLayout = layoutCache.layoutFor(key.resourceLayoutKey(), descriptorSetLayout);
-        long pipeline = createComputePipeline(device, pipelineLayout, computeVariant.computeShaderModule());
+        long pipeline = createComputePipeline(
+                device,
+                pipelineLayout,
+                computeVariant.computeShaderModule(),
+                computeVariant.spec().templateId(),
+                key.resourceLayoutKey());
         return new PipelineVariant(pipeline, pipelineLayout);
     }
 
-    private static long createComputePipeline(VkDevice device, long pipelineLayout, long computeShaderModule) {
+    private static long createComputePipeline(
+            VkDevice device,
+            long pipelineLayout,
+            long computeShaderModule,
+            KeyId shaderTemplateId,
+            KeyId resourceLayoutKey) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkPipelineShaderStageCreateInfo shaderStage = VkPipelineShaderStageCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
@@ -88,14 +98,21 @@ final class VulkanComputePipelineCache {
                     .basePipelineIndex(-1);
 
             LongBuffer pipelinePointer = stack.mallocLong(1);
-            VulkanDeviceBootstrapper.checkVkResult(
-                    vkCreateComputePipelines(device, VK_NULL_HANDLE, createInfo, null, pipelinePointer),
-                    "vkCreateComputePipelines");
+            try {
+                VulkanDeviceBootstrapper.checkVkResult(
+                        vkCreateComputePipelines(device, VK_NULL_HANDLE, createInfo, null, pipelinePointer),
+                        "vkCreateComputePipelines(shader=" + shaderTemplateId + ", layout=" + resourceLayoutKey + ")");
+            } catch (RuntimeException ex) {
+                throw new IllegalStateException(
+                        "Failed to create Vulkan compute pipeline for shader=" + shaderTemplateId
+                                + ", resourceLayout=" + resourceLayoutKey,
+                        ex);
+            }
             return pipelinePointer.get(0);
         }
     }
 
-    private record PipelineVariantKey(PipelineStateKey stateKey, KeyId resourceLayoutKey) {
+    private record PipelineVariantKey(ComputePipelineKey stateKey, KeyId resourceLayoutKey) {
     }
 
     private record PipelineVariant(long pipeline, long pipelineLayout) {

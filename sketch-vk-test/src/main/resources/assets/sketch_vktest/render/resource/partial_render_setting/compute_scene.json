@@ -1,4 +1,5 @@
 {
+  "executionDomain": "COMPUTE",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_vktest:compute_shader"

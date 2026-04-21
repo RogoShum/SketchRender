@@ -1,23 +1,24 @@
 package rogo.sketch.module.transform.manager;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
+import rogo.sketch.core.graphics.ecs.GraphicsUpdateDomain;
 import rogo.sketch.core.util.SharedIdRegistry;
-import rogo.sketch.module.transform.TransformParentSource;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Registration and domain grouping for transform-authored graphics.
+ * Registration and domain grouping for transform-authored ECS graphics entities.
  */
 public class TransformRegistry {
     private final SharedIdRegistry idRegistry = new SharedIdRegistry();
     private final Map<Integer, TransformBinding> bindingsById = new HashMap<>();
-    private final IdentityHashMap<Graphics, TransformBinding> bindingsByGraphics = new IdentityHashMap<>();
+    private final Map<GraphicsEntityId, TransformBinding> bindingsByEntity = new LinkedHashMap<>();
     private final List<TransformBinding> activeBindings = new ArrayList<>();
     private final List<TransformBinding> syncPipelineBindings = new ArrayList<>();
     private final List<TransformBinding> asyncPipelineBindings = new ArrayList<>();
@@ -25,35 +26,42 @@ public class TransformRegistry {
     private final List<TransformBinding> asyncTickBindings = new ArrayList<>();
     private final List<TransformBinding> frameBindings = new ArrayList<>();
 
-    public TransformBinding registerBinding(Graphics graphics, TransformUpdateDomain updateDomain) {
-        if (graphics == null) {
-            throw new NullPointerException("graphics");
+    public TransformBinding registerBinding(
+            GraphicsEntityId entityId,
+            GraphicsBuiltinComponents.TransformBindingComponent bindingComponent,
+            GraphicsBuiltinComponents.TransformHierarchyComponent hierarchyComponent) {
+        if (entityId == null) {
+            throw new NullPointerException("entityId");
+        }
+        if (bindingComponent == null || bindingComponent.updateDomain() == null) {
+            throw new IllegalArgumentException("bindingComponent");
         }
 
-        TransformBinding existing = bindingsByGraphics.get(graphics);
+        TransformBinding existing = bindingsByEntity.get(entityId);
         if (existing != null) {
             return existing;
         }
 
         int id = idRegistry.allocate();
         TransformBinding binding = new TransformBinding(
-                graphics,
+                entityId,
                 id,
-                updateDomain,
-                graphics instanceof TransformParentSource parentSource ? parentSource : null);
+                bindingComponent.updateDomain(),
+                bindingComponent,
+                hierarchyComponent);
 
         bindingsById.put(id, binding);
-        bindingsByGraphics.put(graphics, binding);
+        bindingsByEntity.put(entityId, binding);
         activeBindings.add(binding);
 
-        if (updateDomain == TransformUpdateDomain.ASYNC_TICK) {
+        if (binding.updateDomain() == GraphicsUpdateDomain.ASYNC_TICK) {
             asyncPipelineBindings.add(binding);
             asyncTickBindings.add(binding);
         } else {
             syncPipelineBindings.add(binding);
-            if (updateDomain == TransformUpdateDomain.SYNC_TICK) {
+            if (binding.updateDomain() == GraphicsUpdateDomain.SYNC_TICK) {
                 syncTickBindings.add(binding);
-            } else if (updateDomain == TransformUpdateDomain.SYNC_FRAME) {
+            } else if (binding.updateDomain() == GraphicsUpdateDomain.SYNC_FRAME) {
                 frameBindings.add(binding);
             }
         }
@@ -67,7 +75,7 @@ public class TransformRegistry {
         }
 
         bindingsById.remove(binding.transformId());
-        bindingsByGraphics.remove(binding.graphics());
+        bindingsByEntity.remove(binding.entityId());
         activeBindings.remove(binding);
         syncPipelineBindings.remove(binding);
         asyncPipelineBindings.remove(binding);
@@ -77,16 +85,16 @@ public class TransformRegistry {
         idRegistry.recycle(binding.transformId());
     }
 
-    public TransformBinding bindingFor(Graphics graphics) {
-        return bindingsByGraphics.get(graphics);
+    public TransformBinding bindingFor(GraphicsEntityId entityId) {
+        return bindingsByEntity.get(entityId);
     }
 
     public TransformBinding bindingById(int id) {
         return bindingsById.get(id);
     }
 
-    public boolean isRegistered(Graphics graphics) {
-        return bindingsByGraphics.containsKey(graphics);
+    public boolean isRegistered(GraphicsEntityId entityId) {
+        return bindingsByEntity.containsKey(entityId);
     }
 
     public int activeCount() {
@@ -123,7 +131,7 @@ public class TransformRegistry {
 
     public void clear() {
         bindingsById.clear();
-        bindingsByGraphics.clear();
+        bindingsByEntity.clear();
         activeBindings.clear();
         syncPipelineBindings.clear();
         asyncPipelineBindings.clear();
@@ -133,4 +141,3 @@ public class TransformRegistry {
         idRegistry.clear();
     }
 }
-

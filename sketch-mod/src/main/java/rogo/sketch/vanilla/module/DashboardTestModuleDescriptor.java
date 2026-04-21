@@ -17,6 +17,7 @@ public class DashboardTestModuleDescriptor implements ModuleDescriptor {
     public static final KeyId TOGGLE = KeyId.of("sketch_render", "dashboard_test_toggle");
     public static final KeyId SLIDER = KeyId.of("sketch_render", "dashboard_test_slider");
     public static final KeyId NUMBER = KeyId.of("sketch_render", "dashboard_test_number");
+    public static final KeyId DISABLE_GL_ASYNC_GPU_WORKERS = KeyId.of("sketch_render", "dashboard_disable_gl_async_gpu_workers");
     public static final KeyId MODE_TWO = KeyId.of("sketch_render", "dashboard_test_mode_two");
     public static final KeyId MODE_THREE = KeyId.of("sketch_render", "dashboard_test_mode_three");
     public static final KeyId MODE_FOUR = KeyId.of("sketch_render", "dashboard_test_mode_four");
@@ -64,6 +65,13 @@ public class DashboardTestModuleDescriptor implements ModuleDescriptor {
                 .impact(ChangeImpact.RUNTIME_ONLY)
                 .defaultValue(8)
                 .number(0, 32, 1, "%d")
+                .register();
+
+        settings.bool(DISABLE_GL_ASYNC_GPU_WORKERS, "debug.dashboard.test.disable_gl_async_gpu_workers")
+                .detail("debug.dashboard.test.disable_gl_async_gpu_workers.detail")
+                .parent(GROUP)
+                .impact(ChangeImpact.RUNTIME_ONLY)
+                .defaultValue(false)
                 .register();
 
         settings.enumeration(MODE_TWO, "debug.dashboard.test.mode_two", TwoMode.class)

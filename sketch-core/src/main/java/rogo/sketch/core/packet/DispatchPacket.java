@@ -1,7 +1,7 @@
 package rogo.sketch.core.packet;
 
-import rogo.sketch.core.api.graphics.Graphics;
 import rogo.sketch.core.api.graphics.ComputeDispatchCommand;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.information.ComputeInstanceInfo;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
@@ -12,10 +12,11 @@ import java.util.List;
 public record DispatchPacket(
         KeyId stageId,
         PipelineType pipelineType,
-        PipelineStateKey stateKey,
+        ComputePipelineKey stateKey,
         ResourceBindingPlan bindingPlan,
+        ResourceSetKey resourceSetKey,
         UniformValueSnapshot uniformSnapshot,
-        List<? extends Graphics> completionGraphics,
+        List<GraphicsUniformSubject> completionSubjects,
         int workGroupsX,
         int workGroupsY,
         int workGroupsZ,
@@ -23,6 +24,10 @@ public record DispatchPacket(
         ComputeDispatchCommand dispatchCommand
 ) implements RenderPacket {
     private static final RenderPacketType TYPE = RenderPacketType.DISPATCH;
+
+    public DispatchPacket {
+        resourceSetKey = resourceSetKey != null ? resourceSetKey : ResourceSetKey.empty();
+    }
 
     @Override
     public RenderPacketType packetType() {

@@ -18,6 +18,7 @@ public class DashboardController {
     private final java.util.List<DashboardPanelId> floatingOrder = new java.util.ArrayList<>();
     private DashboardTab activeTab = DashboardTab.MOD_SETTINGS;
     private boolean macroConstantsExpanded = true;
+    private boolean memorySectionExpanded = true;
     private MetricsLayoutMode metricsLayoutMode = MetricsLayoutMode.AUTO;
     private long acknowledgedAlertSequence;
     private String openChoiceControlId;
@@ -77,6 +78,14 @@ public class DashboardController {
 
     public void toggleMacroConstantsExpanded() {
         macroConstantsExpanded = !macroConstantsExpanded;
+    }
+
+    public boolean memorySectionExpanded() {
+        return memorySectionExpanded;
+    }
+
+    public void toggleMemorySectionExpanded() {
+        memorySectionExpanded = !memorySectionExpanded;
     }
 
     public MetricsLayoutMode metricsLayoutMode() {

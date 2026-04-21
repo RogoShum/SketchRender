@@ -6,10 +6,17 @@ import rogo.sketch.core.api.DataResourceObject;
 import rogo.sketch.core.backend.BackendCounterBuffer;
 import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.core.data.type.ValueType;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
+import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.util.KeyId;
+import rogo.sketch.module.culling.TerrainMeshCounterBuffer;
 
 import java.nio.ByteBuffer;
 
-public class OpenGLCounterBuffer implements DataResourceObject, BackendInstalledBuffer, BackendCounterBuffer {
+public class OpenGLCounterBuffer implements DataResourceObject, BackendInstalledBuffer, BackendCounterBuffer,
+        TerrainMeshCounterBuffer {
     private final boolean persistent;
     private long bufferPointer;
     private final int bufferId;
@@ -17,6 +24,7 @@ public class OpenGLCounterBuffer implements DataResourceObject, BackendInstalled
     private long counterCount;
     private boolean disposed = false;
     private final ValueType counterType;
+    private final MemoryLease cpuLease;
 
     private ByteBuffer mappedBuffer;
 
@@ -27,24 +35,27 @@ public class OpenGLCounterBuffer implements DataResourceObject, BackendInstalled
         counterCount = 1;
         MemoryUtil.memSet(bufferPointer, 0, type.getStride());
         this.capacity = type.getStride();
+        this.cpuLease = UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.CPU_NATIVE, "gl-counter-buffer/" + System.identityHashCode(this))
+                .bindSuppliers(this::trackedReservedBytes, this::trackedLiveBytes);
 
         bufferId = GL33.glGenBuffers();
 
         if (persistent) {
-            GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);
-            GL45.nglBufferStorage(GL46.GL_PARAMETER_BUFFER, 4, bufferPointer,
+            GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, bufferId);
+            GL45.nglBufferStorage(GL43.GL_SHADER_STORAGE_BUFFER, 4, bufferPointer,
                     GL45.GL_MAP_PERSISTENT_BIT | GL45.GL_MAP_READ_BIT);
 
-            mappedBuffer = GL45.glMapBufferRange(GL46.GL_PARAMETER_BUFFER,
+            mappedBuffer = GL45.glMapBufferRange(GL43.GL_SHADER_STORAGE_BUFFER,
                     0,
                     4,
                     GL45.GL_MAP_PERSISTENT_BIT | GL45.GL_MAP_READ_BIT
             );
-            GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
+            GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
         } else {
-            GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);
-            GL15C.nglBufferData(GL46.GL_PARAMETER_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
-            GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
+            GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, bufferId);
+            GL15C.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
+            GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
         }
     }
 
@@ -66,9 +77,9 @@ public class OpenGLCounterBuffer implements DataResourceObject, BackendInstalled
         MemoryUtil.nmemFree(bufferPointer);
         bufferPointer = MemoryUtil.nmemAlignedAlloc(32L, this.capacity);
         MemoryUtil.memSet(bufferPointer, 0, this.capacity);
-        GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, bufferId);
-        GL15C.nglBufferData(GL46.GL_PARAMETER_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
-        GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
+        GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, bufferId);
+        GL15C.nglBufferData(GL43.GL_SHADER_STORAGE_BUFFER, capacity, bufferPointer, GL15.GL_DYNAMIC_DRAW);
+        GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public int getHandle() {
@@ -107,7 +118,12 @@ public class OpenGLCounterBuffer implements DataResourceObject, BackendInstalled
     }
 
     @Override
-    public void bind(rogo.sketch.core.util.KeyId resourceType, int binding) {
+    public void bind(KeyId resourceType, int binding) {
+        KeyId normalizedType = ResourceTypes.normalize(resourceType);
+        if (ResourceTypes.STORAGE_BUFFER.equals(normalizedType)) {
+            GL43.glBindBufferBase(GL43.GL_SHADER_STORAGE_BUFFER, binding, bufferId);
+            return;
+        }
         bindShaderSlot(binding);
     }
 
@@ -127,18 +143,24 @@ public class OpenGLCounterBuffer implements DataResourceObject, BackendInstalled
         }
 
         MemoryUtil.memSet(bufferPointer, count, this.capacity);
-        bind();
-        GL15C.nglBufferSubData(GL46.GL_PARAMETER_BUFFER, 0, capacity, bufferPointer);
+        GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, bufferId);
+        GL15C.nglBufferSubData(GL43.GL_SHADER_STORAGE_BUFFER, 0, capacity, bufferPointer);
+        GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
     }
 
     public void dispose() {
-        GL33.glDeleteBuffers(bufferId);
-        MemoryUtil.nmemFree(bufferPointer);
-
+        GL33.glBindBuffer(GL46.GL_PARAMETER_BUFFER, 0);
+        GL43.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
+        GL43.glBindBuffer(GL43.GL_ATOMIC_COUNTER_BUFFER, 0);
         if (mappedBuffer != null) {
+            GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, bufferId);
             GL45.glUnmapBuffer(GL43.GL_SHADER_STORAGE_BUFFER);
+            GL33.glBindBuffer(GL43.GL_SHADER_STORAGE_BUFFER, 0);
             mappedBuffer = null;
         }
+        GL33.glDeleteBuffers(bufferId);
+        cpuLease.close();
+        MemoryUtil.nmemFree(bufferPointer);
 
         disposed = true;
     }
@@ -165,6 +187,14 @@ public class OpenGLCounterBuffer implements DataResourceObject, BackendInstalled
             throw new IllegalStateException("Buffer is not mapped");
         }
         return mappedBuffer.asIntBuffer().get(0);
+    }
+
+    private long trackedReservedBytes() {
+        return disposed ? 0L : capacity;
+    }
+
+    private long trackedLiveBytes() {
+        return disposed ? 0L : capacity;
     }
 }
 

@@ -6,6 +6,9 @@ import org.lwjgl.system.MemoryUtil;
 import rogo.sketch.core.backend.BackendUniformBuffer;
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
 import rogo.sketch.backend.opengl.internal.IGLBufferStrategy;
+import rogo.sketch.core.memory.MemoryDomain;
+import rogo.sketch.core.memory.MemoryLease;
+import rogo.sketch.core.memory.UnifiedMemoryFabric;
 import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
 import rogo.sketch.core.util.KeyId;
 
@@ -16,6 +19,8 @@ final class OpenGLUniformBufferResource implements BackendUniformBuffer {
     private final int id;
     private final ResolvedBufferResource descriptor;
     private final long sizeBytes;
+    private final ByteBuffer stagingBuffer;
+    private final MemoryLease stagingLease;
     private boolean disposed;
 
     OpenGLUniformBufferResource(GraphicsAPI api, ResolvedBufferResource descriptor, ByteBuffer initialData) {
@@ -25,6 +30,10 @@ final class OpenGLUniformBufferResource implements BackendUniformBuffer {
         IGLBufferStrategy strategy = api.getBufferStrategy();
         this.id = strategy.createBuffer();
         strategy.bufferData(id, sizeBytes, MemoryUtil.NULL, GL15.GL_DYNAMIC_DRAW);
+        this.stagingBuffer = MemoryUtil.memCalloc(Math.toIntExact(sizeBytes));
+        this.stagingLease = UnifiedMemoryFabric.get()
+                .openLease(MemoryDomain.CPU_NATIVE, "gl-uniform-buffer/" + descriptor.identifier())
+                .bindSuppliers(() -> sizeBytes, () -> sizeBytes);
         if (initialData != null) {
             update(initialData);
         }
@@ -45,24 +54,21 @@ final class OpenGLUniformBufferResource implements BackendUniformBuffer {
         if (disposed) {
             throw new IllegalStateException("Uniform buffer has been disposed");
         }
-        ByteBuffer writeData;
+        ByteBuffer writeData = stagingBuffer.duplicate();
+        writeData.clear();
         if (source == null) {
-            writeData = MemoryUtil.memCalloc(Math.toIntExact(sizeBytes));
         } else {
             ByteBuffer copy = source.slice();
             if (copy.remaining() > sizeBytes) {
                 throw new IllegalArgumentException("Uniform buffer update exceeds capacity " + sizeBytes);
             }
-            writeData = MemoryUtil.memCalloc(Math.toIntExact(sizeBytes));
             writeData.put(copy);
-            writeData.position(0);
-            writeData.limit(Math.toIntExact(sizeBytes));
         }
-        try {
-            api.getBufferStrategy().bufferSubData(id, 0, writeData);
-        } finally {
-            MemoryUtil.memFree(writeData);
+        while (writeData.hasRemaining()) {
+            writeData.put((byte) 0);
         }
+        writeData.flip();
+        api.getBufferStrategy().bufferSubData(id, 0, writeData);
     }
 
     @Override
@@ -79,6 +85,8 @@ final class OpenGLUniformBufferResource implements BackendUniformBuffer {
             return;
         }
         disposed = true;
+        stagingLease.close();
+        MemoryUtil.memFree(stagingBuffer);
         api.getBufferStrategy().deleteBuffer(id);
     }
 

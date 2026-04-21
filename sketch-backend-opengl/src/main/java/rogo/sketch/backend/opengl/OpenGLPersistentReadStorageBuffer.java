@@ -5,9 +5,10 @@ import rogo.sketch.core.backend.BackendInstalledBindableResource;
 import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.backend.opengl.buffer.PersistentReadBuffer;
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.module.culling.TerrainMeshReadbackBuffer;
  
 public class OpenGLPersistentReadStorageBuffer extends PersistentReadBuffer
-        implements BackendInstalledBuffer, BackendInstalledBindableResource {
+        implements BackendInstalledBuffer, BackendInstalledBindableResource, TerrainMeshReadbackBuffer {
     public int position;
 
     public OpenGLPersistentReadStorageBuffer(long dataCount, long stride) {
@@ -36,6 +37,24 @@ public class OpenGLPersistentReadStorageBuffer extends PersistentReadBuffer
             throw new IllegalStateException("Buffer is not mapped");
         }
         return getMappedBuffer().asIntBuffer().get((int) index);
+    }
+
+    @Override
+    public int getUnsignedByte(long index) {
+        checkDisposed();
+        if (getMappedBuffer() == null) {
+            throw new IllegalStateException("Buffer is not mapped");
+        }
+        return Byte.toUnsignedInt(getMappedBuffer().get((int) index));
+    }
+
+    @Override
+    public byte getByte(long index) {
+        checkDisposed();
+        if (getMappedBuffer() == null) {
+            throw new IllegalStateException("Buffer is not mapped");
+        }
+        return getMappedBuffer().get((int) index);
     }
 
     public void sync() {

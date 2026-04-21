@@ -1,20 +1,19 @@
 package rogo.sketch.core.pipeline.geometry;
 
-import rogo.sketch.core.api.graphics.InstanceVertexEncoder;
-import rogo.sketch.core.api.graphics.RasterGraphics;
 import rogo.sketch.core.api.model.PreparedMesh;
 import rogo.sketch.core.data.format.ComponentSpec;
+import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
 import rogo.sketch.core.data.format.VertexBufferKey;
+import rogo.sketch.core.pipeline.flow.v2.StageEntityView;
 import rogo.sketch.core.model.DynamicMesh;
 import rogo.sketch.core.vertex.GeometryResourceCoordinator;
 
-public final class RasterGeometryEncoder implements GeometryEncoder<RasterGraphics> {
-    @Override
-    public GeometryEncodeResult inspect(RasterGraphics graphics) {
-        if (graphics == null) {
+public final class RasterGeometryEncoder {
+    public GeometryEncodeResult inspect(StageEntityView.Entry entry) {
+        if (entry == null) {
             return new GeometryEncodeResult(GeometrySourceKey.empty(), 0, 0, false);
         }
-        GeometrySourceKey sourceKey = GeometrySourceKey.fromPreparedMesh(graphics.getPreparedMesh());
+        GeometrySourceKey sourceKey = GeometrySourceKey.fromPreparedMesh(entry.preparedMesh());
         return new GeometryEncodeResult(
                 sourceKey,
                 sourceKey.vertexCount(),
@@ -22,16 +21,16 @@ public final class RasterGeometryEncoder implements GeometryEncoder<RasterGraphi
                 sourceKey.indexCount() > 0);
     }
 
-    @Override
     public void encodeDynamicComponents(
-            RasterGraphics graphics,
+            StageEntityView.Entry entry,
             VertexBufferKey vertexBufferKey,
             GeometryResourceCoordinator.BuilderPair[] builders) {
-        if (graphics == null || vertexBufferKey == null || builders == null) {
+        if (entry == null || vertexBufferKey == null || builders == null) {
             return;
         }
-        PreparedMesh preparedMesh = graphics.getPreparedMesh();
+        PreparedMesh preparedMesh = entry.preparedMesh();
         DynamicMesh dynamicMesh = preparedMesh instanceof DynamicMesh cast ? cast : null;
+        GraphicsBuiltinComponents.InstanceVertexAuthoringComponent instanceVertexAuthoring = entry.instanceVertexAuthoring();
 
         ComponentSpec[] dynamicComponents = vertexBufferKey.dynamicComponents();
         int count = Math.min(dynamicComponents.length, builders.length);
@@ -41,8 +40,8 @@ public final class RasterGeometryEncoder implements GeometryEncoder<RasterGraphi
             if (componentSpec == null || pair == null || pair.builder() == null) {
                 continue;
             }
-            if (graphics instanceof InstanceVertexEncoder instanceVertexEncoder) {
-                instanceVertexEncoder.writeInstanceVertex(pair.key(), pair.builder());
+            if (instanceVertexAuthoring != null && instanceVertexAuthoring.authoring() != null) {
+                instanceVertexAuthoring.authoring().writeInstanceVertex(pair.key(), pair.builder());
                 continue;
             }
             if (dynamicMesh != null && dynamicMesh.generator() != null) {

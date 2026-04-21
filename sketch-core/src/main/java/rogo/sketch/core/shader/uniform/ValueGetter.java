@@ -11,6 +11,7 @@ import java.util.function.Supplier;
 public class ValueGetter<T> {
     private final Function<Object, T> valueGetter;
     private final Set<Class<?>> targetClasses;
+    private final UniformUpdateDomain domain;
 
     private static final Set<Class<?>> ALLOWED_TYPES = Set.of(
             Integer.class, Vector2i.class, Vector3i.class, Vector4i.class,
@@ -22,31 +23,52 @@ public class ValueGetter<T> {
     );
 
     public ValueGetter(Function<Object, T> valueGetter, Class<T> clazz) {
-        this(valueGetter, clazz, Collections.emptySet());
+        this(valueGetter, clazz, Collections.emptySet(), UniformUpdateDomain.FRAME_LIVE);
     }
 
     public ValueGetter(Function<Object, T> valueGetter, Class<T> clazz, Set<Class<?>> targetClasses) {
+        this(valueGetter, clazz, targetClasses, UniformUpdateDomain.FRAME_LIVE);
+    }
+
+    public ValueGetter(Function<Object, T> valueGetter, Class<T> clazz, Set<Class<?>> targetClasses, UniformUpdateDomain domain) {
         if (!ALLOWED_TYPES.contains(clazz)) {
             throw new IllegalArgumentException("Type not supported: " + clazz);
         }
         this.valueGetter = valueGetter;
         this.targetClasses = targetClasses;
+        this.domain = domain != null ? domain : UniformUpdateDomain.FRAME_LIVE;
     }
 
     public static <T> ValueGetter<T> create(Supplier<T> value, Class<T> clazz) {
         return new ValueGetter<>((graph) -> value.get(), clazz);
     }
 
+    public static <T> ValueGetter<T> create(Supplier<T> value, Class<T> clazz, UniformUpdateDomain domain) {
+        return new ValueGetter<>((graph) -> value.get(), clazz, Collections.emptySet(), domain);
+    }
+
     public static <T> ValueGetter<T> create(Function<Object, T> value, Class<T> clazz) {
         return new ValueGetter<>(value, clazz);
+    }
+
+    public static <T> ValueGetter<T> create(Function<Object, T> value, Class<T> clazz, UniformUpdateDomain domain) {
+        return new ValueGetter<>(value, clazz, Collections.emptySet(), domain);
     }
 
     public static <T> ValueGetter<T> create(Function<Object, T> value, Class<T> clazz, Class<?>... targetClasses) {
         return new ValueGetter<>(value, clazz, Set.of(targetClasses));
     }
 
+    public static <T> ValueGetter<T> create(Function<Object, T> value, Class<T> clazz, UniformUpdateDomain domain, Class<?>... targetClasses) {
+        return new ValueGetter<>(value, clazz, Set.of(targetClasses), domain);
+    }
+
     public static <T> ValueGetter<T> create(Function<Object, T> value, Class<T> clazz, Set<Class<?>> targetClasses) {
         return new ValueGetter<>(value, clazz, targetClasses);
+    }
+
+    public static <T> ValueGetter<T> create(Function<Object, T> value, Class<T> clazz, Set<Class<?>> targetClasses, UniformUpdateDomain domain) {
+        return new ValueGetter<>(value, clazz, targetClasses, domain);
     }
 
     /**
@@ -54,6 +76,10 @@ public class ValueGetter<T> {
      */
     public Set<Class<?>> getTargetClasses() {
         return Collections.unmodifiableSet(targetClasses);
+    }
+
+    public UniformUpdateDomain domain() {
+        return domain;
     }
 
     @Nullable

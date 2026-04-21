@@ -1,5 +1,6 @@
 package rogo.sketch.core.pipeline.kernel;
 
+import rogo.sketch.core.graphics.ecs.GraphicsWorld;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
 
@@ -28,4 +29,9 @@ public class FrameContext<C extends RenderContext> {
     public long frameNumber() { return frameNumber; }
     public long renderFrameEpoch() { return frameNumber; }
     public long logicTickEpoch() { return -1L; }
+    public GraphicsWorld graphicsWorld() { return pipeline.graphicsWorld(); }
+
+    public PassExecutionContext passExecutionContext(String moduleId, String passId) {
+        return kernel.passExecutionContext(moduleId, passId, renderFrameEpoch(), logicTickEpoch());
+    }
 }

@@ -1,6 +1,7 @@
 package rogo.sketch.core.pipeline.kernel;
 
 import rogo.sketch.core.backend.BackendWorkerLane;
+import rogo.sketch.core.backend.AsyncGpuScheduler;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
@@ -11,9 +12,20 @@ import rogo.sketch.core.pipeline.graph.TickGraphBuilder;
 import rogo.sketch.core.pipeline.graph.pass.*;
 import rogo.sketch.core.pipeline.graph.scheduler.TaskGraphScheduler;
 import rogo.sketch.core.pipeline.graph.scheduler.TaskGraphScheduler.WorkerContextMode;
+import rogo.sketch.core.pipeline.kernel.commit.FrameCommitPipeline;
 import rogo.sketch.core.pipeline.module.ModuleRegistry;
+import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
+import rogo.sketch.core.util.KeyId;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Central orchestrator for the RenderGraph + TaskGraph pipeline.
@@ -23,6 +35,9 @@ import java.util.concurrent.Executors;
  *   <li><b>Sketch-TickTask-Worker</b> -- pure CPU, no GL context</li>
  *   <li><b>Sketch-TickTask-Worker</b> -- backend tick async lane</li>
  *   <li><b>Sketch-RenderTask-Worker</b> -- backend render async lane</li>
+ *   <li><b>Sketch-GpuCompute-Worker</b> -- backend compute async lane</li>
+ *   <li><b>Sketch-GpuUpload-Worker</b> -- backend upload async lane</li>
+ *   <li><b>Sketch-GpuGraphics-Worker</b> -- backend offscreen graphics async lane</li>
  * </ul>
  * <p>
  * Pass structure (3 passes):
@@ -36,22 +51,34 @@ import java.util.concurrent.Executors;
  * @param <C> Concrete RenderContext type
  */
 public class PipelineKernel<C extends RenderContext> {
-    public static final KernelResourceKey<BuildResult> BUILD_RESULT_RESOURCE =
-            KernelResourceKey.of("pipeline.build_result", BuildResult.class);
+    public static final FrameResourceHandle<BuildResult> BUILD_RESULT_HANDLE =
+            FrameResourceHandle.of(
+                    KeyId.of("sketch_render", "build_result"),
+                    BuildResult.class,
+                    "pipeline",
+                    "pipeline.build_result");
 
     private final GraphicsPipeline<C> pipeline;
     private final ModuleRegistry moduleRegistry;
     private final ExecutorService tickExecutor;
     private final ExecutorService tickGlExecutor;
     private final ExecutorService frameExecutor;
+    private final ExecutorService gpuComputeExecutor;
+    private final ExecutorService gpuUploadExecutor;
+    private final ExecutorService gpuGraphicsExecutor;
     private final TaskGraphScheduler tickScheduler;
     private final TaskGraphScheduler tickGlScheduler;
     private final TaskGraphScheduler frameScheduler;
-    private final KernelResourceBus resources = new KernelResourceBus();
+    private final AsyncGpuScheduler asyncGpuScheduler;
+    private final ConcurrentHashMap<FrameResourceHandle<?>, FrameResourceSlot<?>> frameResources = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, LifecyclePhase> passPhaseIndex = new ConcurrentHashMap<>();
+    private final AtomicLong graphVersion = new AtomicLong();
+    private final FrameCommitPipeline<C> commitPipeline;
 
     private CompiledTickGraph<C> compiledTickGraph;
     private CompiledRenderGraph<C> compiledFrameGraph;
     private long frameNumber = 0;
+    private volatile GraphSnapshot graphSnapshot = GraphSnapshot.empty();
 
     public PipelineKernel(GraphicsPipeline<C> pipeline) {
         this.pipeline = pipeline;
@@ -71,9 +98,26 @@ public class PipelineKernel<C extends RenderContext> {
             t.setDaemon(true);
             return t;
         });
+        this.gpuComputeExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "Sketch-GpuCompute-Worker");
+            t.setDaemon(true);
+            return t;
+        });
+        this.gpuUploadExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "Sketch-GpuUpload-Worker");
+            t.setDaemon(true);
+            return t;
+        });
+        this.gpuGraphicsExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "Sketch-GpuGraphics-Worker");
+            t.setDaemon(true);
+            return t;
+        });
         this.tickScheduler = new TaskGraphScheduler(tickExecutor, WorkerContextMode.NONE, true);
         this.tickGlScheduler = new TaskGraphScheduler(tickGlExecutor, WorkerContextMode.TICK_ASYNC, true);
         this.frameScheduler = new TaskGraphScheduler(frameExecutor, WorkerContextMode.RENDER_ASYNC, true);
+        this.asyncGpuScheduler = new AsyncGpuScheduler(gpuComputeExecutor, gpuUploadExecutor, gpuGraphicsExecutor, true);
+        this.commitPipeline = new FrameCommitPipeline<>();
     }
 
     /**
@@ -86,6 +130,15 @@ public class PipelineKernel<C extends RenderContext> {
         if (GraphicsDriver.capabilities().workerLanesSupported()) {
             GraphicsDriver.runtime().initializeWorkerLane(BackendWorkerLane.RENDER_ASYNC);
             GraphicsDriver.runtime().initializeWorkerLane(BackendWorkerLane.TICK_ASYNC);
+            if (GraphicsDriver.capabilities().supportsLane(BackendWorkerLane.COMPUTE_ASYNC)) {
+                GraphicsDriver.runtime().initializeWorkerLane(BackendWorkerLane.COMPUTE_ASYNC);
+            }
+            if (GraphicsDriver.capabilities().supportsLane(BackendWorkerLane.UPLOAD_ASYNC)) {
+                GraphicsDriver.runtime().initializeWorkerLane(BackendWorkerLane.UPLOAD_ASYNC);
+            }
+            if (GraphicsDriver.capabilities().supportsLane(BackendWorkerLane.OFFSCREEN_GRAPHICS_ASYNC)) {
+                GraphicsDriver.runtime().initializeWorkerLane(BackendWorkerLane.OFFSCREEN_GRAPHICS_ASYNC);
+            }
         }
 
         moduleRegistry.initializeKernel(this);
@@ -98,12 +151,22 @@ public class PipelineKernel<C extends RenderContext> {
      * frame graph remains a staged sync-front / async-tail render pipeline.
      */
     public void rebuildGraphs() {
+        rebuildGraphSnapshot();
+
         TickGraphBuilder<C> tickBuilder = new TickGraphBuilder<>(pipeline);
         tickBuilder
-                .addPostTickPass(new PostTickGraphicsPass<>())
-                .addPostTickPass(new PostTickAsyncGraphicsPass<>(), PostTickGraphicsPass.NAME);
+                .addPostTickPass(new PostTickGraphicsPass<>());
 
         moduleRegistry.contributeToTickGraph(tickBuilder);
+        List<String> postTickAsyncDependencies = new ArrayList<>();
+        if (tickBuilder.hasPostTickGlAsyncPass("transform_async_tick_collect")) {
+            postTickAsyncDependencies.add("transform_async_tick_collect");
+        }
+        if (tickBuilder.hasPostTickGlAsyncPass("culling_async_prepare_entity_subjects")) {
+            postTickAsyncDependencies.add("culling_async_prepare_entity_subjects");
+        }
+        tickBuilder.addPostTickGlAsyncPass(new PostTickAsyncGraphicsPass<>(),
+                postTickAsyncDependencies.toArray(String[]::new));
         if (tickBuilder.hasPreTickPass("transform_tick_swap")) {
             tickBuilder.addPreTickPass(new PreTickSwapDataPass<>(), "transform_tick_swap");
         } else {
@@ -123,6 +186,54 @@ public class PipelineKernel<C extends RenderContext> {
         frameBuilder.addPass(new AsyncRenderPass<>(), SyncApplyPendingSettingsPass.NAME);
 
         this.compiledFrameGraph = frameBuilder.compile();
+    }
+
+    private void rebuildGraphSnapshot() {
+        ModuleRuntimeHost runtimeHost = moduleRegistry.runtimeHost();
+        Map<String, List<ModulePassDefinition>> modulePasses = Map.of();
+        Map<KeyId, FrameResourceHandle<?>> resourceHandles = new LinkedHashMap<>();
+
+        if (runtimeHost != null) {
+            GraphSnapshot assembled = runtimeHost.assembleGraphSnapshot(
+                    graphVersion.get() + 1L,
+                    frameNumber);
+            modulePasses = assembled.modulePasses();
+            resourceHandles.putAll(assembled.resourceHandles());
+        }
+
+        resourceHandles.put(BUILD_RESULT_HANDLE.id(), BUILD_RESULT_HANDLE);
+
+        GraphSnapshot snapshot = new GraphSnapshot(
+                graphVersion.incrementAndGet(),
+                frameNumber,
+                modulePasses,
+                resourceHandles);
+        graphSnapshot = snapshot;
+        installGraphSnapshot(snapshot);
+    }
+
+    private void installGraphSnapshot(GraphSnapshot snapshot) {
+        passPhaseIndex.clear();
+
+        registerCorePhase(SyncCommitPass.NAME, LifecyclePhase.SYNC_COMMIT);
+        registerCorePhase(SyncPreparePass.NAME, LifecyclePhase.SYNC_PREPARE);
+        registerCorePhase(SyncApplyPendingSettingsPass.NAME, LifecyclePhase.SYNC_PRE_BUILD);
+        registerCorePhase(AsyncRenderPass.NAME, LifecyclePhase.ASYNC_BUILD);
+
+        for (List<ModulePassDefinition> definitions : snapshot.modulePasses().values()) {
+            for (ModulePassDefinition definition : definitions) {
+                registerPhase(definition.moduleId(), definition.passId(), definition.phase());
+            }
+        }
+    }
+
+    private void registerCorePhase(String passId, LifecyclePhase phase) {
+        passPhaseIndex.put(passId, phase);
+    }
+
+    private void registerPhase(String moduleId, String passId, LifecyclePhase phase) {
+        passPhaseIndex.put(moduleId + ":" + passId, phase);
+        passPhaseIndex.putIfAbsent(passId, phase);
     }
 
     // ==================== Tick Lifecycle ====================
@@ -179,10 +290,12 @@ public class PipelineKernel<C extends RenderContext> {
 
     public GraphicsPipeline<C> pipeline() { return pipeline; }
     public ModuleRegistry moduleRegistry() { return moduleRegistry; }
+    public FrameCommitPipeline<C> commitPipeline() { return commitPipeline; }
     public TaskGraphScheduler tickScheduler() { return tickScheduler; }
     public TaskGraphScheduler tickGlScheduler() { return tickGlScheduler; }
     public TaskGraphScheduler frameScheduler() { return frameScheduler; }
-    public KernelResourceBus resources() { return resources; }
+    public AsyncGpuScheduler asyncGpuScheduler() { return asyncGpuScheduler; }
+    public GraphSnapshot graphSnapshot() { return graphSnapshot; }
 
     public boolean isGraphCompiled() {
         return compiledTickGraph != null && compiledFrameGraph != null;
@@ -190,25 +303,59 @@ public class PipelineKernel<C extends RenderContext> {
 
     public void publishBuildResult(BuildResult buildResult) {
         if (buildResult != null) {
-            resources.publish(BUILD_RESULT_RESOURCE, buildResult.frameNumber(), buildResult);
+            publishFrameResource(BUILD_RESULT_HANDLE, buildResult.resourceEpoch(), buildResult);
         }
     }
 
-    public <T> PublishedKernelResource<T> publishResource(KernelResourceKey<T> key, long epoch, T payload) {
-        return resources.publish(key, epoch, payload);
-    }
-
-    public <T> PublishedKernelResource<T> peekResource(KernelResourceKey<T> key) {
-        return resources.peek(key);
-    }
-
-    public <T> PublishedKernelResource<T> consumeResource(KernelResourceKey<T> key) {
-        return resources.consume(key);
-    }
-
     public BuildResult consumeBuildResult() {
-        PublishedKernelResource<BuildResult> resource = resources.consume(BUILD_RESULT_RESOURCE);
-        return resource != null ? resource.payload() : null;
+        PublishedFrameResource<BuildResult> frameResource = consumeFrameResource(BUILD_RESULT_HANDLE);
+        return frameResource != null ? frameResource.payload() : null;
+    }
+
+    public LifecyclePhase phaseForPass(String moduleId, String passId) {
+        if (moduleId != null && passId != null) {
+            LifecyclePhase qualified = passPhaseIndex.get(moduleId + ":" + passId);
+            if (qualified != null) {
+                return qualified;
+            }
+        }
+        return passId != null ? passPhaseIndex.get(passId) : null;
+    }
+
+    public PassExecutionContext passExecutionContext(
+            String moduleId,
+            String passId,
+            long frameEpoch,
+            long logicTickEpoch) {
+        LifecyclePhase phase = phaseForPass(moduleId, passId);
+        if (phase == null) {
+            phase = LifecyclePhase.SYNC_PRE_BUILD;
+        }
+        return new PassExecutionContext(this, moduleId, passId, phase, frameEpoch, logicTickEpoch);
+    }
+
+    public <T> PublishedFrameResource<T> publishFrameResource(FrameResourceHandle<T> handle, long epoch, T payload) {
+        return publishFrameResourceInternal(handle, epoch, payload);
+    }
+
+    public <T> PublishedFrameResource<T> peekFrameResource(FrameResourceHandle<T> handle) {
+        return slot(handle).peek();
+    }
+
+    public <T> PublishedFrameResource<T> consumeFrameResource(FrameResourceHandle<T> handle) {
+        return slot(handle).consume();
+    }
+
+    private <T> PublishedFrameResource<T> publishFrameResourceInternal(
+            FrameResourceHandle<T> handle,
+            long epoch,
+            T payload) {
+        return slot(handle).publish(handle, epoch, payload);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> FrameResourceSlot<T> slot(FrameResourceHandle<T> handle) {
+        return (FrameResourceSlot<T>) frameResources.computeIfAbsent(handle, ignored -> new FrameResourceSlot<>());
     }
 
     public void cleanup() {
@@ -216,10 +363,40 @@ public class PipelineKernel<C extends RenderContext> {
         tickScheduler.shutdown();
         tickGlScheduler.shutdown();
         frameScheduler.shutdown();
+        asyncGpuScheduler.shutdown();
 
         if (GraphicsDriver.capabilities().workerLanesSupported()) {
+            if (GraphicsDriver.capabilities().supportsLane(BackendWorkerLane.OFFSCREEN_GRAPHICS_ASYNC)) {
+                GraphicsDriver.runtime().destroyWorkerLane(BackendWorkerLane.OFFSCREEN_GRAPHICS_ASYNC);
+            }
+            if (GraphicsDriver.capabilities().supportsLane(BackendWorkerLane.UPLOAD_ASYNC)) {
+                GraphicsDriver.runtime().destroyWorkerLane(BackendWorkerLane.UPLOAD_ASYNC);
+            }
+            if (GraphicsDriver.capabilities().supportsLane(BackendWorkerLane.COMPUTE_ASYNC)) {
+                GraphicsDriver.runtime().destroyWorkerLane(BackendWorkerLane.COMPUTE_ASYNC);
+            }
             GraphicsDriver.runtime().destroyWorkerLane(BackendWorkerLane.TICK_ASYNC);
             GraphicsDriver.runtime().destroyWorkerLane(BackendWorkerLane.RENDER_ASYNC);
+        }
+    }
+
+    private static final class FrameResourceSlot<T> {
+        private final AtomicReference<PublishedFrameResource<T>> latest = new AtomicReference<>();
+        private final AtomicLong sequence = new AtomicLong();
+
+        PublishedFrameResource<T> publish(FrameResourceHandle<T> handle, long epoch, T payload) {
+            PublishedFrameResource<T> published =
+                    new PublishedFrameResource<>(handle, payload, epoch, sequence.incrementAndGet());
+            latest.set(published);
+            return published;
+        }
+
+        PublishedFrameResource<T> peek() {
+            return latest.get();
+        }
+
+        PublishedFrameResource<T> consume() {
+            return latest.getAndSet(null);
         }
     }
 }

@@ -20,6 +20,7 @@ import org.lwjgl.vulkan.VkQueueFamilyProperties;
 import org.lwjgl.vulkan.VkSurfaceCapabilitiesKHR;
 import org.lwjgl.vulkan.VkSurfaceFormatKHR;
 import org.lwjgl.vulkan.VkSwapchainCreateInfoKHR;
+import rogo.sketch.core.debug.RenderDocRuntime;
 
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -31,6 +32,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.vulkan.KHRSurface.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_PRESENT_MODE_FIFO_KHR;
+import static org.lwjgl.vulkan.KHRSurface.VK_PRESENT_MODE_IMMEDIATE_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_PRESENT_MODE_MAILBOX_KHR;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
@@ -81,7 +83,7 @@ final class VulkanDeviceBootstrapper {
     private VulkanDeviceBootstrapper() {
     }
 
-    static VulkanBootstrapArtifacts bootstrap(String entryPoint, long windowHandle) {
+    static VulkanBootstrapArtifacts bootstrap(String entryPoint, long windowHandle, boolean vSyncEnabled) {
         if (windowHandle == NULL) {
             throw new IllegalArgumentException("Vulkan backend requires a valid GLFW window handle");
         }
@@ -110,6 +112,7 @@ final class VulkanDeviceBootstrapper {
                     device,
                     surfaceHandle,
                     windowHandle,
+                    vSyncEnabled,
                     stack);
             swapchainHandle = swapchain.handle;
 
@@ -148,8 +151,36 @@ final class VulkanDeviceBootstrapper {
 
     static void checkVkResult(int result, String operation) {
         if (result != VK_SUCCESS) {
-            throw new IllegalStateException(operation + " failed with Vulkan error code " + result);
+            throw new IllegalStateException(
+                    operation + " failed with Vulkan error code " + result + " (" + describeVkResult(result) + ")");
         }
+    }
+
+    static String describeVkResult(int result) {
+        return switch (result) {
+            case 0 -> "VK_SUCCESS";
+            case 1 -> "VK_NOT_READY";
+            case 2 -> "VK_TIMEOUT";
+            case 3 -> "VK_EVENT_SET";
+            case 4 -> "VK_EVENT_RESET";
+            case 5 -> "VK_INCOMPLETE";
+            case -1 -> "VK_ERROR_OUT_OF_HOST_MEMORY";
+            case -2 -> "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+            case -3 -> "VK_ERROR_INITIALIZATION_FAILED";
+            case -4 -> "VK_ERROR_DEVICE_LOST";
+            case -5 -> "VK_ERROR_MEMORY_MAP_FAILED";
+            case -6 -> "VK_ERROR_LAYER_NOT_PRESENT";
+            case -7 -> "VK_ERROR_EXTENSION_NOT_PRESENT";
+            case -8 -> "VK_ERROR_FEATURE_NOT_PRESENT";
+            case -9 -> "VK_ERROR_INCOMPATIBLE_DRIVER";
+            case -10 -> "VK_ERROR_TOO_MANY_OBJECTS";
+            case -11 -> "VK_ERROR_FORMAT_NOT_SUPPORTED";
+            case -12 -> "VK_ERROR_FRAGMENTED_POOL";
+            case -13 -> "VK_ERROR_UNKNOWN";
+            case -1000001004 -> "VK_ERROR_OUT_OF_DATE_KHR";
+            case 1000001003 -> "VK_SUBOPTIMAL_KHR";
+            default -> "UNKNOWN_VK_RESULT";
+        };
     }
 
     private static InstanceBootstrap createInstance(String entryPoint, MemoryStack stack) {
@@ -157,7 +188,8 @@ final class VulkanDeviceBootstrapper {
         if (requiredExtensions == null || requiredExtensions.remaining() == 0) {
             throw new IllegalStateException("GLFW did not provide required Vulkan instance extensions");
         }
-        boolean debugUtilsEnabled = supportsInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, stack);
+        boolean debugUtilsEnabled = RenderDocRuntime.enabled()
+                && supportsInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, stack);
         PointerBuffer enabledExtensions = stack.mallocPointer(requiredExtensions.remaining() + (debugUtilsEnabled ? 1 : 0));
         for (int i = requiredExtensions.position(); i < requiredExtensions.limit(); i++) {
             enabledExtensions.put(requiredExtensions.get(i));
@@ -398,7 +430,8 @@ final class VulkanDeviceBootstrapper {
             int presentQueueFamilyIndex,
             VkDevice device,
             long surfaceHandle,
-            long windowHandle) {
+            long windowHandle,
+            boolean vSyncEnabled) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             return createSwapchain(
                     physicalDevice,
@@ -407,6 +440,7 @@ final class VulkanDeviceBootstrapper {
                     device,
                     surfaceHandle,
                     windowHandle,
+                    vSyncEnabled,
                     stack);
         }
     }
@@ -418,6 +452,7 @@ final class VulkanDeviceBootstrapper {
             VkDevice device,
             long surfaceHandle,
             long windowHandle,
+            boolean vSyncEnabled,
             MemoryStack stack) {
         VkSurfaceCapabilitiesKHR capabilities = VkSurfaceCapabilitiesKHR.calloc(stack);
         checkVkResult(
@@ -425,7 +460,7 @@ final class VulkanDeviceBootstrapper {
                 "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
 
         SurfaceFormatChoice surfaceFormat = chooseSurfaceFormat(physicalDevice, surfaceHandle, stack);
-        int presentMode = choosePresentMode(physicalDevice, surfaceHandle, stack);
+        int presentMode = choosePresentMode(physicalDevice, surfaceHandle, stack, vSyncEnabled);
         SwapchainExtent extent = chooseExtent(capabilities, windowHandle);
 
         int imageCount = capabilities.minImageCount() + 1;
@@ -537,7 +572,11 @@ final class VulkanDeviceBootstrapper {
         return new SurfaceFormatChoice(fallback.format(), fallback.colorSpace());
     }
 
-    private static int choosePresentMode(VkPhysicalDevice physicalDevice, long surfaceHandle, MemoryStack stack) {
+    private static int choosePresentMode(
+            VkPhysicalDevice physicalDevice,
+            long surfaceHandle,
+            MemoryStack stack,
+            boolean vSyncEnabled) {
         IntBuffer presentModeCount = stack.ints(0);
         checkVkResult(
                 vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surfaceHandle, presentModeCount, null),
@@ -551,9 +590,16 @@ final class VulkanDeviceBootstrapper {
                 vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surfaceHandle, presentModeCount, presentModes),
                 "vkGetPhysicalDeviceSurfacePresentModesKHR(list)");
 
-        for (int i = 0; i < presentModes.capacity(); i++) {
-            if (presentModes.get(i) == VK_PRESENT_MODE_MAILBOX_KHR) {
-                return VK_PRESENT_MODE_MAILBOX_KHR;
+        if (!vSyncEnabled) {
+            for (int i = 0; i < presentModes.capacity(); i++) {
+                if (presentModes.get(i) == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+                    return VK_PRESENT_MODE_IMMEDIATE_KHR;
+                }
+            }
+            for (int i = 0; i < presentModes.capacity(); i++) {
+                if (presentModes.get(i) == VK_PRESENT_MODE_MAILBOX_KHR) {
+                    return VK_PRESENT_MODE_MAILBOX_KHR;
+                }
             }
         }
         return VK_PRESENT_MODE_FIFO_KHR;

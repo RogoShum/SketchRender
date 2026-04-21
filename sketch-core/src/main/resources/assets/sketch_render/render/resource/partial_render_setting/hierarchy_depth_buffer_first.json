@@ -1,15 +1,24 @@
 {
+  "executionDomain": "COMPUTE",
   "renderState": {
     "shader_template": {
       "identifier": "sketch_render:hierarchy_depth_buffer"
     }
   },
   "resourceBinding": {
-    "image_buffer": {
-      "output_texture_0": "sketch_render:hiz_texture"
+    "image": {
+      "output_texture_0": {
+        "resource": "sketch_render:hiz_async_texture",
+        "view": "STORAGE_IMAGE",
+        "access": "WRITE"
+      }
     },
     "texture": {
-      "sketch_SamplerTexture": "minecraft:main_depth"
+      "sketch_SamplerTexture": {
+        "resource": "sketch_render:hiz_source_depth_snapshot",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
     }
   },
   "shouldSwitchRenderState": true

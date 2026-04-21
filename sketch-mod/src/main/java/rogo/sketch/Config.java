@@ -1,6 +1,7 @@
 package rogo.sketch;
 
 import com.google.common.collect.ImmutableList;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.fml.loading.FMLPaths;
 import rogo.sketch.config.ConfigLayoutStrategy;
@@ -17,7 +18,7 @@ import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.ui.geometry.UiRect;
 import rogo.sketch.backend.opengl.util.GLFeatureChecker;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.feature.culling.CullingStateManager;
+import rogo.sketch.feature.culling.MinecraftShaderCapabilityService;
 import rogo.sketch.module.culling.CullingModuleDescriptor;
 
 import java.io.IOException;
@@ -56,6 +57,8 @@ public class Config {
     private static final Consumer<SettingChangeEvent> CORE_SETTING_LISTENER = Config::onCoreSettingChanged;
     private static boolean loaded = false;
     private static ModuleSettingRegistry attachedRegistry;
+    private static volatile ObjectOpenHashSet<String> cachedEntitySkipSet;
+    private static volatile ObjectOpenHashSet<String> cachedBlockEntitySkipSet;
 
     public static boolean doEntityCulling() {
         return getCullBlockEntity() || getCullEntity();
@@ -92,7 +95,7 @@ public class Config {
     public static boolean getAsyncChunkRebuild() {
         return isSettingActive(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD)
                 && CORE_SETTINGS.getBoolean(CullingModuleDescriptor.ASYNC_CHUNK_REBUILD, () ->
-                !unload() && getCullChunk() && !(getAutoDisableAsync() && CullingStateManager.enabledShader()) && storedAsyncChunkRebuild());
+                !unload() && getCullChunk() && !(getAutoDisableAsync() && MinecraftShaderCapabilityService.getInstance().enabledShader()) && storedAsyncChunkRebuild());
     }
 
     public static void setAsyncChunkRebuild(boolean value) {
@@ -127,6 +130,34 @@ public class Config {
 
     public static List<? extends String> getBlockEntitiesSkip() {
         return unload() ? ImmutableList.of() : storedBlockEntitiesSkip();
+    }
+
+    public static ObjectOpenHashSet<String> cachedEntitySkipSet() {
+        if (unload()) {
+            return new ObjectOpenHashSet<>();
+        }
+        ObjectOpenHashSet<String> cached = cachedEntitySkipSet;
+        if (cached != null) {
+            return cached;
+        }
+        ObjectOpenHashSet<String> resolved = new ObjectOpenHashSet<>(storedEntitiesSkip());
+        resolved.trim();
+        cachedEntitySkipSet = resolved;
+        return resolved;
+    }
+
+    public static ObjectOpenHashSet<String> cachedBlockEntitySkipSet() {
+        if (unload()) {
+            return new ObjectOpenHashSet<>();
+        }
+        ObjectOpenHashSet<String> cached = cachedBlockEntitySkipSet;
+        if (cached != null) {
+            return cached;
+        }
+        ObjectOpenHashSet<String> resolved = new ObjectOpenHashSet<>(storedBlockEntitiesSkip());
+        resolved.trim();
+        cachedBlockEntitySkipSet = resolved;
+        return resolved;
     }
 
     public static DashboardPanelMode getDashboardPanelMode(String workspaceId, DashboardPanelId panelId) {
@@ -445,8 +476,14 @@ public class Config {
                     case "Cull chunk|enabled" -> setStoredCullChunk(parseBoolean(value, true));
                     case "Async chunk rebuild|enabled" -> setStoredAsyncChunkRebuild(parseBoolean(value, true));
                     case "Auto disable async rebuild|enabled" -> setStoredAutoDisableAsync(parseBoolean(value, true));
-                    case "Entity ResourceLocation|list" -> CONFIG_SERVICE.set(CULLING_SCOPE, PROP_ENTITY_SKIP, PropertyCodecs.STRING_LIST, parseStringList(value));
-                    case "Block Entity ResourceLocation|list" -> CONFIG_SERVICE.set(CULLING_SCOPE, PROP_BLOCK_ENTITY_SKIP, PropertyCodecs.STRING_LIST, parseStringList(value));
+                    case "Entity ResourceLocation|list" -> {
+                        CONFIG_SERVICE.set(CULLING_SCOPE, PROP_ENTITY_SKIP, PropertyCodecs.STRING_LIST, parseStringList(value));
+                        invalidateCullingCaches();
+                    }
+                    case "Block Entity ResourceLocation|list" -> {
+                        CONFIG_SERVICE.set(CULLING_SCOPE, PROP_BLOCK_ENTITY_SKIP, PropertyCodecs.STRING_LIST, parseStringList(value));
+                        invalidateCullingCaches();
+                    }
                     default -> {
                     }
                 }
@@ -495,6 +532,11 @@ public class Config {
             }
         }
         return result;
+    }
+
+    private static void invalidateCullingCaches() {
+        cachedEntitySkipSet = null;
+        cachedBlockEntitySkipSet = null;
     }
 
     static {

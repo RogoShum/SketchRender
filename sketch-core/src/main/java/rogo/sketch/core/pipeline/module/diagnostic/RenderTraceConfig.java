@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline.module.diagnostic;
 
-import rogo.sketch.core.api.graphics.Graphics;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Set;
@@ -17,7 +17,7 @@ public final class RenderTraceConfig {
     private volatile boolean enabled;
     private volatile boolean rangeScopeTracingEnabled;
     private final Set<KeyId> graphicsIds = ConcurrentHashMap.newKeySet();
-    private final Set<String> graphicsClasses = ConcurrentHashMap.newKeySet();
+    private final Set<KeyId> graphicsTags = ConcurrentHashMap.newKeySet();
 
     public boolean enabled() {
         return enabled;
@@ -37,7 +37,7 @@ public final class RenderTraceConfig {
 
     public void clearFilters() {
         graphicsIds.clear();
-        graphicsClasses.clear();
+        graphicsTags.clear();
     }
 
     public void traceGraphicsId(KeyId graphicsId) {
@@ -46,29 +46,28 @@ public final class RenderTraceConfig {
         }
     }
 
-    public void traceGraphicsClass(Class<?> graphicsClass) {
-        if (graphicsClass != null) {
-            traceGraphicsClassName(graphicsClass.getName());
+    public void traceGraphicsTag(KeyId tag) {
+        if (tag != null) {
+            graphicsTags.add(tag);
         }
     }
 
-    public void traceGraphicsClassName(String className) {
-        if (className != null && !className.isBlank()) {
-            graphicsClasses.add(className);
-        }
-    }
-
-    public boolean matches(Graphics graphics) {
-        if (!enabled || graphics == null) {
+    public boolean matches(GraphicsUniformSubject subject) {
+        if (!enabled || subject == null) {
             return false;
         }
-        if (graphicsIds.isEmpty() && graphicsClasses.isEmpty()) {
+        if (graphicsIds.isEmpty() && graphicsTags.isEmpty()) {
             return true;
         }
-        if (graphicsIds.contains(graphics.getIdentifier())) {
+        if (graphicsIds.contains(subject.identifier())) {
             return true;
         }
-        return graphicsClasses.contains(graphics.getClass().getName());
+        for (KeyId tag : graphicsTags) {
+            if (subject.hasTag(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

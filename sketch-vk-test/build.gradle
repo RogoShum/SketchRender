@@ -24,11 +24,14 @@ dependencies {
     implementation "org.lwjgl:lwjgl-opengl"
     implementation "org.lwjgl:lwjgl-vulkan"
     implementation "org.lwjgl:lwjgl-shaderc"
+    implementation "io.github.spair:imgui-java-binding:1.86.11"
+    implementation "io.github.spair:imgui-java-lwjgl3:1.86.11"
 
     runtimeOnly "org.lwjgl:lwjgl::natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-glfw::natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-opengl::natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-shaderc::natives-windows"
+    runtimeOnly "io.github.spair:imgui-java-natives-windows:1.86.11"
 }
 
 java {
@@ -92,15 +95,76 @@ tasks.register('desktopGlSmokeRun', JavaExec) {
 
 tasks.register('resizeSmokeRun', JavaExec) {
     group = 'application'
-    description = 'Runs the Vulkan test backend and forces a few resize events.'
+    description = 'Runs the Vulkan test backend and forces a few resize events as a quick sanity check.'
     javaLauncher = java17Launcher
     classpath = sourceSets.main.runtimeClasspath
     mainClass = application.mainClass
     workingDir = rootProject.file('run-vk-test')
-    args '--smoke=1200', '--resize=960x540@250', '--resize=1440x810@550', '--resize=1280x720@850'
+    jvmArgs '-Dsketch.vulkan.split_submit_diagnostic=true'
+    args '--smoke=6500', '--resize=960x540@250', '--resize=1440x810@550', '--resize=1280x720@850'
     doFirst {
         workingDir.mkdirs()
     }
+}
+
+tasks.register('stressResizeSmokeRun', JavaExec) {
+    group = 'application'
+    description = 'Runs the Vulkan test backend and continuously forces many resize events for swapchain stress for at least 15 seconds.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-vk-test')
+    jvmArgs '-Dsketch.vulkan.split_submit_diagnostic=true'
+    args '--smoke=18000',
+            '--resize=1180x664@300',
+            '--resize=1460x822@1500',
+            '--resize=1280x720@2700',
+            '--resize=1600x900@3900',
+            '--resize=1216x760@5100',
+            '--resize=1712x964@6300',
+            '--resize=1280x720@7500',
+            '--resize=1496x841@8700',
+            '--resize=1374x887@9900',
+            '--resize=1664x996@11100',
+            '--resize=1280x883@12300',
+            '--resize=1280x720@13500',
+            '--resize=1536x864@14700'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('renderDocStressResizeSmokeRun', Exec) {
+    group = 'application'
+    description = 'Launches the Vulkan stress resize smoke through RenderDoc capture, matching the mod RenderDoc launch path.'
+
+    def wrapperJar = rootProject.file('gradle/wrapper/gradle-wrapper.jar')
+    if (!wrapperJar.exists()) {
+        throw new GradleException("can't find gradle-wrapper.jar: ${wrapperJar.absolutePath}")
+    }
+
+    def javaHome = java17Launcher.get().metadata.installationPath.asFile.absolutePath
+    workingDir = rootProject.projectDir
+    commandLine 'C:\\Program Files\\RenderDoc\\renderdoccmd.exe',
+            'capture',
+            '--opt-hook-children',
+            '--opt-api-validation',
+            '--opt-verify-buffer-access',
+            '--wait-for-exit',
+            '--working-dir',
+            rootProject.projectDir.absolutePath,
+            "${javaHome}/bin/java.exe",
+            '-Xmx64m',
+            '-Xms64m',
+            '-Dfile.encoding=UTF-8',
+            '-Dorg.gradle.appname=gradlew',
+            "-Dorg.gradle.java.home=${javaHome}",
+            '-classpath',
+            wrapperJar.absolutePath,
+            'org.gradle.wrapper.GradleWrapperMain',
+            '-PsketchRenderDocCapture=true',
+            '-PsketchVulkanSplitSubmitDiagnostic=true',
+            ':sketch-vk-test:stressResizeSmokeRun'
 }
 
 tasks.register('desktopGlResizeSmokeRun', JavaExec) {
@@ -113,6 +177,57 @@ tasks.register('desktopGlResizeSmokeRun', JavaExec) {
     args '--backend=desktop_gl', '--smoke=1200', '--resize=960x540@250', '--resize=1440x810@550', '--resize=1280x720@850'
     doFirst {
         workingDir.mkdirs()
+    }
+}
+
+tasks.register('terrainMeshSmokeRun', JavaExec) {
+    group = 'application'
+    description = 'Bootstraps the Vulkan backend and validates terrain mesh backend-owned resources.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-vk-test')
+    args '--terrain-mesh-smoke'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('desktopGlTerrainMeshSmokeRun', JavaExec) {
+    group = 'application'
+    description = 'Bootstraps the desktop OpenGL backend and validates terrain mesh backend-owned resources.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-vk-test')
+    args '--backend=desktop_gl', '--terrain-mesh-smoke'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('allSmokeRuns') {
+    group = 'verification'
+    description = 'Runs all vk-test smoke tasks in sequence.'
+    dependsOn(
+            'smokeRun',
+            'desktopGlSmokeRun',
+            'resizeSmokeRun',
+            'stressResizeSmokeRun',
+            'desktopGlResizeSmokeRun',
+            'terrainMeshSmokeRun',
+            'desktopGlTerrainMeshSmokeRun'
+    )
+}
+
+gradle.taskGraph.whenReady {
+    tasks.withType(JavaExec).configureEach {
+        if (project.findProperty('sketchRenderDocCapture')?.toString()?.toBoolean()) {
+            jvmArgs += ['-Dsketch.renderdoc.capture=true']
+        }
+        if (project.findProperty('sketchVulkanSplitSubmitDiagnostic')?.toString()?.toBoolean()) {
+            jvmArgs += ['-Dsketch.vulkan.split_submit_diagnostic=true']
+        }
     }
 }
 
