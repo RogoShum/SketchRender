@@ -18,6 +18,8 @@ plugins {
 group = mod_group_id
 version = mod_version
 
+evaluationDependsOn(':sketch-modules')
+
 base {
     archivesName = mod_id + "-" + mapping_version
 }
@@ -42,6 +44,8 @@ minecraft {
                     source sourceSets.main
                     // Include sketch-core sources in the run config so it can be debugged/viewed
                     source project(':sketch-core').sourceSets.main
+                    // Include built-in Sketch modules after extraction from sketch-core
+                    source project(':sketch-modules').sourceSets.main
                     // Include the extracted OpenGL backend module so dev runs can resolve bootstrap/runtime classes
                     source project(':sketch-backend-opengl').sourceSets.main
                 }
@@ -109,10 +113,14 @@ dependencies {
 
     // Project dependencies
     implementation project(':sketch-core')
+    implementation project(':sketch-modules')
     implementation project(':sketch-backend-opengl')
 
     // JarJar sketch-core so it's included in the final mod jar
     jarJar(project(':sketch-core')) {
+        jarJar.ranged(it, "[${mod_version},)")
+    }
+    jarJar(project(':sketch-modules')) {
         jarJar.ranged(it, "[${mod_version},)")
     }
     jarJar(project(':sketch-backend-opengl')) {

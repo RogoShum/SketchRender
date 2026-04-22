@@ -15,7 +15,6 @@ import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
 import rogo.sketch.core.pipeline.module.session.ModuleSession;
 import rogo.sketch.core.pipeline.module.session.ModuleSessionContext;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
-import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.descriptor.ImageFormat;
@@ -24,6 +23,7 @@ import rogo.sketch.core.resource.descriptor.RenderTargetResolutionMode;
 import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
 import rogo.sketch.core.resource.descriptor.SamplerFilter;
 import rogo.sketch.core.resource.descriptor.SamplerWrap;
+import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.module.transform.TransformModule;
@@ -82,17 +82,17 @@ public class VanillaModuleRuntime implements ModuleRuntime {
         context.registerBuiltInResource(ResourceTypes.TEXTURE, KeyId.of("minecraft", "main_depth"), () -> MAIN_DEPTH);
         context.registerBuiltInResource(ResourceTypes.RENDER_TARGET, KeyId.of("minecraft:main_target"), () -> MAIN_TARGET);
 
-        context.registerUniform(KeyId.of("viewMatrix"), ValueGetter.create((instance) -> ((RenderContext) instance).viewMatrix(), Matrix4f.class, RenderContext.class));
-        context.registerUniform(KeyId.of("modelMatrix"), ValueGetter.create((instance) -> ((RenderContext) instance).modelMatrix(), Matrix4f.class, RenderContext.class));
-        context.registerUniform(KeyId.of("projectionMatrix"), ValueGetter.create((instance) -> ((RenderContext) instance).projectionMatrix(), Matrix4f.class, RenderContext.class));
-        context.registerUniform(KeyId.of("partialTicks"), ValueGetter.create((instance) -> ((RenderContext) instance).partialTicks(), Float.class, RenderContext.class));
-        context.registerUniform(KeyId.of("renderTick"), ValueGetter.create((instance) -> ((RenderContext) instance).renderTick(), Integer.class, RenderContext.class));
-        context.registerUniform(KeyId.of("windowWidth"), ValueGetter.create((instance) -> ((RenderContext) instance).windowWidth(), Integer.class, RenderContext.class));
-        context.registerUniform(KeyId.of("windowHeight"), ValueGetter.create((instance) -> ((RenderContext) instance).windowHeight(), Integer.class, RenderContext.class));
+        context.registerUniform(KeyId.of("viewMatrix"), ValueGetter.create((instance) -> ((RenderContext) instance).viewMatrix(), Matrix4f.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
+        context.registerUniform(KeyId.of("modelMatrix"), ValueGetter.create((instance) -> ((RenderContext) instance).modelMatrix(), Matrix4f.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
+        context.registerUniform(KeyId.of("projectionMatrix"), ValueGetter.create((instance) -> ((RenderContext) instance).projectionMatrix(), Matrix4f.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
+        context.registerUniform(KeyId.of("partialTicks"), ValueGetter.create((instance) -> ((RenderContext) instance).partialTicks(), Float.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
+        context.registerUniform(KeyId.of("renderTick"), ValueGetter.create((instance) -> ((RenderContext) instance).renderTick(), Integer.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
+        context.registerUniform(KeyId.of("windowWidth"), ValueGetter.create((instance) -> ((RenderContext) instance).windowWidth(), Integer.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
+        context.registerUniform(KeyId.of("windowHeight"), ValueGetter.create((instance) -> ((RenderContext) instance).windowHeight(), Integer.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
         context.registerUniform(KeyId.of("windowSize"), ValueGetter.create((instance) -> {
             RenderContext renderContext = (RenderContext) instance;
             return new Vector2f(renderContext.windowWidth(), renderContext.windowHeight());
-        }, Vector2f.class, RenderContext.class));
+        }, Vector2f.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
     }
 
     @Override
@@ -115,7 +115,8 @@ public class VanillaModuleRuntime implements ModuleRuntime {
                                 KeyId.of("sketch_render", "transform_matrix_sync"),
                                 98,
                                 transformModule.matrixManager(),
-                                true),
+                                true,
+                                context.resourceManager()),
                         ModuleGraphicsLifetime.SESSION);
                 context.registerGraphicsEntity(
                         createTransformComputeBlueprint(
@@ -123,7 +124,8 @@ public class VanillaModuleRuntime implements ModuleRuntime {
                                 KeyId.of("sketch_render", "transform_matrix_async"),
                                 99,
                                 transformModule.matrixManager(),
-                                false),
+                                false,
+                                context.resourceManager()),
                         ModuleGraphicsLifetime.SESSION);
             }
         };
@@ -134,8 +136,9 @@ public class VanillaModuleRuntime implements ModuleRuntime {
             KeyId renderSettingId,
             int priority,
             TransformManager transformManager,
-            boolean sync) {
-        ResourceReference<PartialRenderSetting> setting = GraphicsResourceManager.getInstance()
+            boolean sync,
+            rogo.sketch.core.resource.GraphicsResourceManager resourceManager) {
+        ResourceReference<PartialRenderSetting> setting = resourceManager
                 .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, renderSettingId);
         return GraphicsEntityPresets.compute(
                 identifier,
@@ -146,7 +149,10 @@ public class VanillaModuleRuntime implements ModuleRuntime {
                 () -> false,
                 DescriptorStability.DYNAMIC,
                 () -> GraphicsEntityPresets.partialDescriptorVersion(resolvePartial(setting)),
-                renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(renderParameter, resolvePartial(setting)),
+                renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(
+                        resourceManager,
+                        renderParameter,
+                        resolvePartial(setting)),
                 dispatchContext -> {
                     dispatchPipeline(dispatchContext, sync ? transformManager.getSyncPipeline() : transformManager.getAsyncPipeline());
                     dispatchContext.shaderStorageBarrier();

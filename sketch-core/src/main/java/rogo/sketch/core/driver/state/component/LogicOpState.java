@@ -51,7 +51,7 @@ public class LogicOpState implements RenderStateComponent {
     }
 
     @Override
-    public void deserializeFromJson(JsonObject json, Gson gson) {
+    public void deserializeFromJson(JsonObject json, Gson gson, rogo.sketch.core.resource.GraphicsResourceManager resourceManager) {
         if (json.has("enabled")) {
             this.enabled = json.get("enabled").getAsBoolean();
         }

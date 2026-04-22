@@ -32,7 +32,6 @@ public enum NoOpBackendRuntime implements BackendRuntime {
                 List<RenderPacket> packets,
                 RenderStateManager manager,
                 C context) {
-            throw new IllegalStateException("Graphics backend has not been bootstrapped");
         }
 
         @Override
@@ -41,7 +40,6 @@ public enum NoOpBackendRuntime implements BackendRuntime {
                 RenderPacket packet,
                 RenderStateManager manager,
                 C context) {
-            throw new IllegalStateException("Graphics backend has not been bootstrapped");
         }
     };
 
@@ -61,22 +59,37 @@ public enum NoOpBackendRuntime implements BackendRuntime {
     }
 
     @Override
-    public BackendFrameExecutor frameExecutor() {
-        return EXECUTOR;
-    }
+    public RenderDevice renderDevice() {
+        return new RenderDevice() {
+            @Override
+            public BackendCapabilities capabilities() {
+                return BackendCapabilities.NONE;
+            }
 
-    @Override
-    public CommandRecorderFactory commandRecorderFactory() {
-        return CommandRecorderFactory.noOp();
-    }
+            @Override
+            public BackendFrameExecutor frameExecutor() {
+                return EXECUTOR;
+            }
 
-    @Override
-    public void assertMainThread(String caller) {
-        throw new IllegalStateException("Graphics backend has not been bootstrapped: " + caller);
-    }
+            @Override
+            public BackendShaderProgramCache shaderProgramCache() {
+                return BackendShaderProgramCache.NO_OP;
+            }
 
-    @Override
-    public void assertRenderContext(String caller) {
-        throw new IllegalStateException("Graphics backend has not been bootstrapped: " + caller);
+            @Override
+            public BackendResourceRegistry resourceRegistry() {
+                return BackendResourceRegistry.NO_OP;
+            }
+
+            @Override
+            public BackendStateApplier stateApplier() {
+                return BackendStateApplier.NO_OP;
+            }
+
+            @Override
+            public CommandEncoderFactory commandEncoderFactory() {
+                return CommandEncoderFactory.noOp();
+            }
+        };
     }
 }

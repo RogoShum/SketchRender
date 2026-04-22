@@ -173,8 +173,8 @@ public class TaskGraphScheduler {
         }
         if (GraphicsDriver.capabilities().workerLanesSupported() && workerContextInitialized.compareAndSet(false, true)) {
             switch (workerContextMode) {
-                case RENDER_ASYNC -> GraphicsDriver.runtime().onWorkerLaneStart(BackendWorkerLane.RENDER_ASYNC);
-                case TICK_ASYNC -> GraphicsDriver.runtime().onWorkerLaneStart(BackendWorkerLane.TICK_ASYNC);
+                case RENDER_ASYNC -> GraphicsDriver.threadContext().onWorkerLaneStart(BackendWorkerLane.RENDER_ASYNC);
+                case TICK_ASYNC -> GraphicsDriver.threadContext().onWorkerLaneStart(BackendWorkerLane.TICK_ASYNC);
                 case NONE -> {
                 }
             }
@@ -190,8 +190,8 @@ public class TaskGraphScheduler {
             try {
                 workerPool.submit(() -> {
                     switch (workerContextMode) {
-                        case RENDER_ASYNC -> GraphicsDriver.runtime().onWorkerLaneEnd(BackendWorkerLane.RENDER_ASYNC);
-                        case TICK_ASYNC -> GraphicsDriver.runtime().onWorkerLaneEnd(BackendWorkerLane.TICK_ASYNC);
+                        case RENDER_ASYNC -> GraphicsDriver.threadContext().onWorkerLaneEnd(BackendWorkerLane.RENDER_ASYNC);
+                        case TICK_ASYNC -> GraphicsDriver.threadContext().onWorkerLaneEnd(BackendWorkerLane.TICK_ASYNC);
                         case NONE -> {
                         }
                     }

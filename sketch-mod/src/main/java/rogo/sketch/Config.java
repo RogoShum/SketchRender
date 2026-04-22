@@ -170,7 +170,7 @@ public class Config {
     }
 
     public static BackendKind getGraphicsBackendKind() {
-        String raw = CONFIG_SERVICE.get(RENDER_SCOPE, PROP_GRAPHICS_BACKEND, PropertyCodecs.STRING, BackendKind.MINECRAFT_GL.name());
+        String raw = CONFIG_SERVICE.get(RENDER_SCOPE, PROP_GRAPHICS_BACKEND, PropertyCodecs.STRING, BackendKind.OPENGL.name());
         return parseBackendKind(raw);
     }
 
@@ -265,23 +265,26 @@ public class Config {
 
     private static BackendKind parseBackendKind(String raw) {
         if (raw == null || raw.isBlank()) {
-            return BackendKind.MINECRAFT_GL;
+            return BackendKind.OPENGL;
         }
         String normalized = raw.trim()
                 .replace('-', '_')
                 .replace(' ', '_')
                 .toUpperCase(Locale.ROOT);
+        if ("GL".equals(normalized) || "DESKTOP_GL".equals(normalized) || "MINECRAFT_GL".equals(normalized)) {
+            return BackendKind.OPENGL;
+        }
         try {
             BackendKind parsed = BackendKind.valueOf(normalized);
-            return parsed == BackendKind.UNINITIALIZED ? BackendKind.MINECRAFT_GL : parsed;
+            return parsed == BackendKind.UNINITIALIZED ? BackendKind.OPENGL : parsed;
         } catch (IllegalArgumentException ignored) {
-            return BackendKind.MINECRAFT_GL;
+            return BackendKind.OPENGL;
         }
     }
 
     private static void ensureRenderDefaults() {
         if (!CONFIG_SERVICE.contains(RENDER_SCOPE, PROP_GRAPHICS_BACKEND)) {
-            CONFIG_SERVICE.set(RENDER_SCOPE, PROP_GRAPHICS_BACKEND, PropertyCodecs.STRING, BackendKind.MINECRAFT_GL.name());
+            CONFIG_SERVICE.set(RENDER_SCOPE, PROP_GRAPHICS_BACKEND, PropertyCodecs.STRING, BackendKind.OPENGL.name());
         }
     }
 

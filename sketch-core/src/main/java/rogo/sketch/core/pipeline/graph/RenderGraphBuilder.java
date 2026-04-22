@@ -48,6 +48,10 @@ public class RenderGraphBuilder<C extends RenderContext> {
         return passes.containsKey(name);
     }
 
+    public List<String> passNames() {
+        return List.copyOf(passes.keySet());
+    }
+
     public GraphicsPipeline<C> pipeline() {
         return pipeline;
     }

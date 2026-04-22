@@ -8,6 +8,7 @@ import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 
 import java.util.List;
 import java.util.Map;
@@ -15,7 +16,7 @@ import java.util.Map;
 public interface StageFlowScene<C extends RenderContext> {
     PipelineType pipelineType();
 
-    void prepareForFrame(GraphicsWorld world, StageEntityView view, C context);
+    void prepareForFrame(GraphicsWorld world, StageEntityView view, C context, FrameUniformSnapshot frameUniformSnapshot);
 
     void tick(GraphicsWorld world, StageEntityView view, C context);
 
@@ -29,7 +30,8 @@ public interface StageFlowScene<C extends RenderContext> {
             StageEntityView view,
             RenderFlowType flowType,
             RenderPostProcessors postProcessors,
-            C context);
+            C context,
+            FrameUniformSnapshot frameUniformSnapshot);
 
     void clear();
 }

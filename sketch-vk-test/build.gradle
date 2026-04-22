@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     implementation project(':sketch-core')
+    implementation project(':sketch-modules')
     implementation project(':sketch-backend-opengl')
     implementation project(':sketch-backend-vulkan')
 

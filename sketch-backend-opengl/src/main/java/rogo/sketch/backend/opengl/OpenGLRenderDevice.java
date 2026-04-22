@@ -1,34 +1,39 @@
 package rogo.sketch.backend.opengl;
 
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
+import rogo.sketch.core.backend.AsyncGpuCompletion;
 import rogo.sketch.core.backend.BackendCapabilities;
-import rogo.sketch.core.backend.BackendCountedIndirectDraw;
 import rogo.sketch.core.backend.BackendFrameExecutor;
 import rogo.sketch.core.backend.BackendKind;
 import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
-import rogo.sketch.core.backend.BackendResourceResolver;
+import rogo.sketch.core.backend.BackendResourceRegistry;
 import rogo.sketch.core.backend.BackendShaderProgramCache;
 import rogo.sketch.core.backend.BackendStateApplier;
+import rogo.sketch.core.backend.BackendThreadContext;
 import rogo.sketch.core.backend.BackendWorkerLane;
-import rogo.sketch.core.backend.CommandRecorderFactory;
+import rogo.sketch.core.backend.CommandEncoderFactory;
+import rogo.sketch.core.backend.IndirectDrawService;
 import rogo.sketch.core.backend.RenderDevice;
+import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
 
-final class OpenGLRenderDevice implements RenderDevice {
+import java.util.List;
+
+final class OpenGLRenderDevice implements RenderDevice, BackendThreadContext {
     private final BackendKind kind;
     private final GraphicsAPI api;
     private final long mainWindowHandle;
     private final BackendCapabilities capabilities;
     private final BackendShaderProgramCache shaderProgramCache;
-    private final BackendResourceResolver resourceResolver;
+    private final BackendResourceRegistry resourceRegistry;
     private final BackendStateApplier stateApplier;
     private final BackendFrameExecutor frameExecutor;
-    private final CommandRecorderFactory commandRecorderFactory;
-    private final BackendCountedIndirectDraw countedIndirectDraw;
+    private final CommandEncoderFactory commandEncoderFactory;
+    private final IndirectDrawService indirectDrawService;
 
     OpenGLRenderDevice(
             BackendKind kind,
@@ -36,7 +41,7 @@ final class OpenGLRenderDevice implements RenderDevice {
             long mainWindowHandle,
             BackendCapabilities capabilities,
             BackendShaderProgramCache shaderProgramCache,
-            BackendResourceResolver resourceResolver,
+            BackendResourceRegistry resourceRegistry,
             BackendStateApplier stateApplier,
             BackendFrameExecutor frameExecutor) {
         this.kind = kind;
@@ -44,11 +49,11 @@ final class OpenGLRenderDevice implements RenderDevice {
         this.mainWindowHandle = mainWindowHandle;
         this.capabilities = capabilities;
         this.shaderProgramCache = shaderProgramCache;
-        this.resourceResolver = resourceResolver;
+        this.resourceRegistry = resourceRegistry;
         this.stateApplier = stateApplier;
         this.frameExecutor = frameExecutor;
-        this.commandRecorderFactory = new OpenGLCommandRecorderFactory();
-        this.countedIndirectDraw = new OpenGLCountedIndirectDraw();
+        this.commandEncoderFactory = new OpenGLCommandEncoderFactory();
+        this.indirectDrawService = new OpenGLCountedIndirectDraw();
     }
 
     BackendKind kind() {
@@ -66,8 +71,8 @@ final class OpenGLRenderDevice implements RenderDevice {
     }
 
     @Override
-    public BackendCountedIndirectDraw countedIndirectDraw() {
-        return countedIndirectDraw;
+    public IndirectDrawService indirectDrawService() {
+        return indirectDrawService;
     }
 
     @Override
@@ -76,8 +81,8 @@ final class OpenGLRenderDevice implements RenderDevice {
     }
 
     @Override
-    public BackendResourceResolver resourceResolver() {
-        return resourceResolver;
+    public BackendResourceRegistry resourceRegistry() {
+        return resourceRegistry;
     }
 
     @Override
@@ -86,15 +91,16 @@ final class OpenGLRenderDevice implements RenderDevice {
     }
 
     @Override
-    public CommandRecorderFactory commandRecorderFactory() {
-        return commandRecorderFactory;
+    public CommandEncoderFactory commandEncoderFactory() {
+        return commandEncoderFactory;
     }
 
     BackendPacketHandlerRegistry<OpenGLPacketHandler> packetHandlerRegistry() {
         return ((OpenGLFrameExecutor) frameExecutor).packetHandlerRegistry();
     }
 
-    boolean supportsGeometryMaterialization() {
+    @Override
+    public boolean supportsGeometryMaterialization() {
         return true;
     }
 
@@ -106,7 +112,8 @@ final class OpenGLRenderDevice implements RenderDevice {
         return true;
     }
 
-    <C extends RenderContext> boolean installImmediateGeometryBindings(
+    @Override
+    public <C extends RenderContext> boolean installImmediateGeometryBindings(
             GraphicsPipeline<C> pipeline,
             PipelineType pipelineType,
             RenderPostProcessors postProcessors) {
@@ -114,27 +121,33 @@ final class OpenGLRenderDevice implements RenderDevice {
         return true;
     }
 
-    <C extends RenderContext> void materializePendingGeometryResources(GraphicsPipeline<C> pipeline) {
+    @Override
+    public <C extends RenderContext> void materializePendingGeometryResources(GraphicsPipeline<C> pipeline) {
         OpenGLGeometryMaterializer.materializePendingGeometryResources(pipeline);
     }
 
-    void registerMainThread() {
+    @Override
+    public void registerMainThread() {
         api.registerMainThread();
     }
 
-    boolean isMainThread() {
+    @Override
+    public boolean isMainThread() {
         return api.isMainThread();
     }
 
-    void assertMainThread(String caller) {
+    @Override
+    public void assertMainThread(String caller) {
         api.assertMainThread(caller);
     }
 
-    void assertRenderContext(String caller) {
+    @Override
+    public void assertRenderContext(String caller) {
         api.assertGLContext(caller);
     }
 
-    void initializeWorkerLane(BackendWorkerLane lane) {
+    @Override
+    public void initializeWorkerLane(BackendWorkerLane lane) {
         if (!capabilities.workerLanesSupported()) {
             return;
         }
@@ -147,7 +160,8 @@ final class OpenGLRenderDevice implements RenderDevice {
         }
     }
 
-    void destroyWorkerLane(BackendWorkerLane lane) {
+    @Override
+    public void destroyWorkerLane(BackendWorkerLane lane) {
         if (!capabilities.workerLanesSupported()) {
             return;
         }
@@ -160,7 +174,8 @@ final class OpenGLRenderDevice implements RenderDevice {
         }
     }
 
-    void onWorkerLaneStart(BackendWorkerLane lane) {
+    @Override
+    public void onWorkerLaneStart(BackendWorkerLane lane) {
         switch (lane) {
             case RENDER_ASYNC -> api.onRenderWorkerThreadStart();
             case TICK_ASYNC -> api.onTickWorkerThreadStart();
@@ -170,7 +185,8 @@ final class OpenGLRenderDevice implements RenderDevice {
         }
     }
 
-    void onWorkerLaneEnd(BackendWorkerLane lane) {
+    @Override
+    public void onWorkerLaneEnd(BackendWorkerLane lane) {
         switch (lane) {
             case RENDER_ASYNC -> api.onRenderWorkerThreadEnd();
             case TICK_ASYNC -> api.onTickWorkerThreadEnd();
@@ -178,5 +194,16 @@ final class OpenGLRenderDevice implements RenderDevice {
             case COMPUTE_ASYNC -> api.onComputeWorkerThreadEnd();
             case OFFSCREEN_GRAPHICS_ASYNC -> api.onOffscreenGraphicsWorkerThreadEnd();
         }
+    }
+
+    @Override
+    public <C extends RenderContext> AsyncGpuCompletion submitAsyncPackets(
+            GraphicsPipeline<C> pipeline,
+            List<RenderPacket> packets,
+            C context) {
+        RenderDevice.super.submitAsyncPackets(pipeline, packets, context);
+        long fence = api.createFenceSync();
+        api.flush();
+        return new OpenGLAsyncFenceCompletion(api, fence);
     }
 }

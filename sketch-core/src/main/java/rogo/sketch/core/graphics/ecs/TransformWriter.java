@@ -1,4 +1,4 @@
-package rogo.sketch.module.transform;
+package rogo.sketch.core.graphics.ecs;
 
 import org.joml.Vector3fc;
 

@@ -41,14 +41,16 @@ public class VanillaTexture extends Texture
         }
 
         if (ResourceTypes.normalize(resourceType).equals(ResourceTypes.IMAGE)) {
-            GL42.glBindImageTexture(textureUnit, handle, 0, false, 0, GL42.GL_READ_WRITE,
+            int glHandle = handle.asGlName();
+            GL42.glBindImageTexture(textureUnit, glHandle, 0, false, 0, GL42.GL_READ_WRITE,
                     OpenGLImageFormatMappings.resolve(descriptor.format()).imageUnitFormat());
         } else {
-            OpenGLRuntimeSupport.textureStrategy().bindTextureUnit(textureUnit, handle);
-            OpenGLRuntimeSupport.textureStrategy().texParameteri(handle, org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER, OpenGLSamplerMappings.toMinFilter(descriptor));
-            OpenGLRuntimeSupport.textureStrategy().texParameteri(handle, org.lwjgl.opengl.GL11.GL_TEXTURE_MAG_FILTER, OpenGLSamplerMappings.toMagFilter(descriptor));
-            OpenGLRuntimeSupport.textureStrategy().texParameteri(handle, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_S, OpenGLSamplerMappings.toWrap(descriptor.wrapS()));
-            OpenGLRuntimeSupport.textureStrategy().texParameteri(handle, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_T, OpenGLSamplerMappings.toWrap(descriptor.wrapT()));
+            int glHandle = handle.asGlName();
+            OpenGLRuntimeSupport.textureStrategy().bindTextureUnit(textureUnit, glHandle);
+            OpenGLRuntimeSupport.textureStrategy().texParameteri(glHandle, org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER, OpenGLSamplerMappings.toMinFilter(descriptor));
+            OpenGLRuntimeSupport.textureStrategy().texParameteri(glHandle, org.lwjgl.opengl.GL11.GL_TEXTURE_MAG_FILTER, OpenGLSamplerMappings.toMagFilter(descriptor));
+            OpenGLRuntimeSupport.textureStrategy().texParameteri(glHandle, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_S, OpenGLSamplerMappings.toWrap(descriptor.wrapS()));
+            OpenGLRuntimeSupport.textureStrategy().texParameteri(glHandle, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_T, OpenGLSamplerMappings.toWrap(descriptor.wrapT()));
         }
     }
 
@@ -67,7 +69,7 @@ public class VanillaTexture extends Texture
 
     @Override
     public int textureHandle() {
-        return handle;
+        return handle.asGlName();
     }
 }
 

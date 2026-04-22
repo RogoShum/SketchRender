@@ -14,24 +14,30 @@ import rogo.sketch.core.packet.ExecutionDomain;
 import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RasterPipelineKey;
 import rogo.sketch.core.packet.ResourceBindingPlan;
+import rogo.sketch.core.packet.ResourceBindingStamp;
 import rogo.sketch.core.resource.ResourceBinding;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Objects;
 
 public class RenderStateManager {
+    private final GraphicsResourceManager resourceManager;
     private CompiledRenderState defaultState;
     private CompiledRenderState currentState;
     private CompiledRasterState currentRasterState;
     private ShaderBindingState currentShaderBindingState;
     private AttachmentBindingState currentAttachmentBindingState;
     private ResourceBindingPlan currentResourceBindingPlan;
-    private KeyId currentResourceLayoutKey;
-    private int currentResourceBindingHash;
+    private ResourceBindingStamp currentResourceBindingStamp = ResourceBindingStamp.NONE;
     private ExecutionDomain currentDomain;
 
+    public RenderStateManager(GraphicsResourceManager resourceManager) {
+        this.resourceManager = resourceManager;
+    }
+
     public void accept(RenderSetting setting, RenderContext context) {
-        CompiledRenderSetting compiledRenderSetting = RenderSettingCompiler.compile(setting);
+        CompiledRenderSetting compiledRenderSetting = RenderSettingCompiler.compile(setting, resourceManager);
         accept(compiledRenderSetting.pipelineStateKey(), context);
     }
 
@@ -66,8 +72,7 @@ public class RenderStateManager {
             }
         }
         currentResourceBindingPlan = bindingPlan;
-        currentResourceLayoutKey = bindingPlan != null ? bindingPlan.layoutKey() : null;
-        currentResourceBindingHash = bindingPlan != null ? bindingPlan.resourceBindingHash() : 0;
+        currentResourceBindingStamp = bindingPlan != null ? bindingPlan.stamp() : ResourceBindingStamp.NONE;
     }
 
     /**
@@ -79,7 +84,7 @@ public class RenderStateManager {
         } else if (currentState != null) {
             applyCompiledState(currentState, context);
         } else if (currentShaderBindingState != null) {
-            GraphicsDriver.runtime().stateApplier().applyShaderBindingState(currentShaderBindingState, context);
+            GraphicsDriver.renderDevice().stateApplier().applyShaderBindingState(currentShaderBindingState, context);
         }
 
         if (currentResourceBindingPlan != null && currentResourceBindingPlan.binding() != null) {
@@ -110,8 +115,7 @@ public class RenderStateManager {
         currentShaderBindingState = null;
         currentAttachmentBindingState = null;
         currentResourceBindingPlan = null;
-        currentResourceLayoutKey = null;
-        currentResourceBindingHash = 0;
+        currentResourceBindingStamp = ResourceBindingStamp.NONE;
         currentDomain = null;
     }
 
@@ -177,7 +181,7 @@ public class RenderStateManager {
         }
         if (currentShaderBindingState != newState.shaderBindingState()
                 && !Objects.equals(currentShaderBindingState, newState.shaderBindingState())) {
-            GraphicsDriver.runtime().stateApplier().applyShaderBindingState(newState.shaderBindingState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyShaderBindingState(newState.shaderBindingState(), context);
         }
         currentShaderBindingState = newState.shaderBindingState();
         currentAttachmentBindingState = null;
@@ -190,16 +194,16 @@ public class RenderStateManager {
             return;
         }
         if (state.pipelineRasterState() != null) {
-            GraphicsDriver.runtime().stateApplier().applyPipelineRasterState(state.pipelineRasterState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyPipelineRasterState(state.pipelineRasterState(), context);
         }
         if (state.dynamicRenderState() != null) {
-            GraphicsDriver.runtime().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
         }
         if (state.attachmentBindingState() != null) {
-            GraphicsDriver.runtime().stateApplier().applyAttachmentBindingState(state.attachmentBindingState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyAttachmentBindingState(state.attachmentBindingState(), context);
         }
         if (state.shaderBindingState() != null) {
-            GraphicsDriver.runtime().stateApplier().applyShaderBindingState(state.shaderBindingState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyShaderBindingState(state.shaderBindingState(), context);
         }
         currentAttachmentBindingState = state.attachmentBindingState();
         currentShaderBindingState = state.shaderBindingState();
@@ -212,19 +216,19 @@ public class RenderStateManager {
         }
         if (oldState.pipelineRasterState() != newState.pipelineRasterState()
                 && !Objects.equals(oldState.pipelineRasterState(), newState.pipelineRasterState())) {
-            GraphicsDriver.runtime().stateApplier().applyPipelineRasterState(newState.pipelineRasterState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyPipelineRasterState(newState.pipelineRasterState(), context);
         }
         if (oldState.dynamicRenderState() != newState.dynamicRenderState()
                 && !Objects.equals(oldState.dynamicRenderState(), newState.dynamicRenderState())) {
-            GraphicsDriver.runtime().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
         }
         if (oldState.attachmentBindingState() != newState.attachmentBindingState()
                 && !Objects.equals(oldState.attachmentBindingState(), newState.attachmentBindingState())) {
-            GraphicsDriver.runtime().stateApplier().applyAttachmentBindingState(newState.attachmentBindingState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyAttachmentBindingState(newState.attachmentBindingState(), context);
         }
         if (oldState.shaderBindingState() != newState.shaderBindingState()
                 && !Objects.equals(oldState.shaderBindingState(), newState.shaderBindingState())) {
-            GraphicsDriver.runtime().stateApplier().applyShaderBindingState(newState.shaderBindingState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyShaderBindingState(newState.shaderBindingState(), context);
         }
         currentAttachmentBindingState = newState.attachmentBindingState();
         currentShaderBindingState = newState.shaderBindingState();
@@ -235,28 +239,28 @@ public class RenderStateManager {
             return;
         }
         if (state.pipelineRasterState() != null) {
-            GraphicsDriver.runtime().stateApplier().applyPipelineRasterState(state.pipelineRasterState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyPipelineRasterState(state.pipelineRasterState(), context);
         }
         if (state.dynamicRenderState() != null) {
-            GraphicsDriver.runtime().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
         }
         if (state.passBindingState() != null) {
-            GraphicsDriver.runtime().stateApplier().applyPassBindingState(state.passBindingState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyPassBindingState(state.passBindingState(), context);
         }
     }
 
     private void applyDiff(CompiledRenderState oldState, CompiledRenderState newState, RenderContext context) {
         if (oldState.pipelineRasterState() != newState.pipelineRasterState()
                 && !Objects.equals(oldState.pipelineRasterState(), newState.pipelineRasterState())) {
-            GraphicsDriver.runtime().stateApplier().applyPipelineRasterState(newState.pipelineRasterState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyPipelineRasterState(newState.pipelineRasterState(), context);
         }
         if (oldState.dynamicRenderState() != newState.dynamicRenderState()
                 && !Objects.equals(oldState.dynamicRenderState(), newState.dynamicRenderState())) {
-            GraphicsDriver.runtime().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
         }
         if (oldState.passBindingState() != newState.passBindingState()
                 && !Objects.equals(oldState.passBindingState(), newState.passBindingState())) {
-            GraphicsDriver.runtime().stateApplier().applyPassBindingState(newState.passBindingState(), context);
+            GraphicsDriver.renderDevice().stateApplier().applyPassBindingState(newState.passBindingState(), context);
         }
     }
 
@@ -267,8 +271,7 @@ public class RenderStateManager {
         if (bindingPlan == null || currentResourceBindingPlan == null) {
             return false;
         }
-        return currentResourceBindingHash == bindingPlan.resourceBindingHash()
-                && Objects.equals(currentResourceLayoutKey, bindingPlan.layoutKey());
+        return Objects.equals(currentResourceBindingStamp, bindingPlan.stamp());
     }
 }
 

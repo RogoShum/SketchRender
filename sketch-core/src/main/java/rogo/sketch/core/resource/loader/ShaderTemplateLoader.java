@@ -29,10 +29,15 @@ import java.util.stream.Collectors;
  * "fragment": "namespace:shader.fsh",
  * "geometry": "namespace:shader.gsh",           // optional
  * "attributes": ["vec3 Position", "vec2 UV0"],  // optional - explicit type format
- * "resourceBindings": {                         // optional - stable binding order hints
- *   "shader_storage_buffer": ["InputBuffer", "OutputBuffer"],
- *   "texture": ["Sampler0"]
+ * "resourceBindings": {                         // optional - stable set 0 binding interface
+ *   "texture": ["Sampler0"],                    // array shorthand auto-allocates global slots
+ *   "storage_buffer": ["InputBuffer", "OutputBuffer"]
  * },
+ * // Array shorthand is deterministic across all resource types, not per-type:
+ * // texture entries are allocated first, then image, uniform_buffer, storage_buffer, ...
+ * // so the first texture is binding 0 unless an explicit object binding already uses it.
+ * // Object form can pin explicit global slots:
+ * // "resourceBindings": { "texture": { "Sampler0": 0 }, "image": { "OutputImage": 1 } }
  * // OR
  * "attributes": ["Position", "UV0", "Normal : ENABLE_NORMAL"],  // optional - type inferred from vertex shader
  * "templates": ["sketch:shadow_support"],       // optional macro templates
@@ -233,27 +238,29 @@ public class ShaderTemplateLoader implements ResourceLoader<ShaderTemplate> {
         JsonObject resourceBindings = json.getAsJsonObject("resourceBindings");
         Map<KeyId, Map<KeyId, Integer>> parsed = new LinkedHashMap<>();
         Set<Integer> usedGlobalBindings = new HashSet<>();
-        int nextGlobalBinding = 0;
-        for (Map.Entry<String, JsonElement> entry : resourceBindings.entrySet()) {
+
+        List<Map.Entry<String, JsonElement>> entries = new ArrayList<>(resourceBindings.entrySet());
+        entries.sort((left, right) -> {
+            KeyId leftType = ResourceTypes.normalize(KeyId.of(left.getKey()));
+            KeyId rightType = ResourceTypes.normalize(KeyId.of(right.getKey()));
+            int orderCompare = Integer.compare(resourceBindingTypeOrder(leftType), resourceBindingTypeOrder(rightType));
+            if (orderCompare != 0) {
+                return orderCompare;
+            }
+            return leftType.toString().compareTo(rightType.toString());
+        });
+
+        Map<KeyId, JsonArray> arrayBindings = new LinkedHashMap<>();
+        Map<KeyId, String> sourceTypeNames = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : entries) {
             KeyId resourceType = ResourceTypes.normalize(KeyId.of(entry.getKey()));
             JsonElement bindingSpec = entry.getValue();
-            Map<KeyId, Integer> typeBindings = new LinkedHashMap<>();
 
             if (bindingSpec.isJsonArray()) {
-                JsonArray orderedBindings = bindingSpec.getAsJsonArray();
-                for (int i = 0; i < orderedBindings.size(); i++) {
-                    JsonElement element = orderedBindings.get(i);
-                    if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
-                        throw new IllegalArgumentException("resourceBindings." + entry.getKey() + "[" + i + "] must be a string");
-                    }
-                    while (usedGlobalBindings.contains(nextGlobalBinding)) {
-                        nextGlobalBinding++;
-                    }
-                    typeBindings.put(KeyId.of(element.getAsString()), nextGlobalBinding);
-                    usedGlobalBindings.add(nextGlobalBinding);
-                    nextGlobalBinding++;
-                }
+                arrayBindings.put(resourceType, bindingSpec.getAsJsonArray());
+                sourceTypeNames.put(resourceType, entry.getKey());
             } else if (bindingSpec.isJsonObject()) {
+                Map<KeyId, Integer> typeBindings = parsed.computeIfAbsent(resourceType, ignored -> new LinkedHashMap<>());
                 JsonObject explicitBindings = bindingSpec.getAsJsonObject();
                 for (Map.Entry<String, JsonElement> bindingEntry : explicitBindings.entrySet()) {
                     if (!bindingEntry.getValue().isJsonPrimitive() || !bindingEntry.getValue().getAsJsonPrimitive().isNumber()) {
@@ -267,18 +274,53 @@ public class ShaderTemplateLoader implements ResourceLoader<ShaderTemplate> {
                         throw new IllegalArgumentException("resourceBindings slot " + bindingSlot + " is declared more than once in " + json);
                     }
                     typeBindings.put(KeyId.of(bindingEntry.getKey()), bindingSlot);
-                    nextGlobalBinding = Math.max(nextGlobalBinding, bindingSlot + 1);
                 }
             } else {
                 throw new IllegalArgumentException("resourceBindings." + entry.getKey() + " must be an array or object");
             }
+        }
 
-            if (!typeBindings.isEmpty()) {
-                parsed.put(resourceType, typeBindings);
+        int nextGlobalBinding = 0;
+        for (Map.Entry<KeyId, JsonArray> entry : arrayBindings.entrySet()) {
+            KeyId resourceType = entry.getKey();
+            String sourceTypeName = sourceTypeNames.getOrDefault(resourceType, resourceType.toString());
+            JsonArray orderedBindings = entry.getValue();
+            Map<KeyId, Integer> typeBindings = parsed.computeIfAbsent(resourceType, ignored -> new LinkedHashMap<>());
+            for (int i = 0; i < orderedBindings.size(); i++) {
+                JsonElement element = orderedBindings.get(i);
+                if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                    throw new IllegalArgumentException("resourceBindings." + sourceTypeName + "[" + i + "] must be a string");
+                }
+                while (usedGlobalBindings.contains(nextGlobalBinding)) {
+                    nextGlobalBinding++;
+                }
+                typeBindings.put(KeyId.of(element.getAsString()), nextGlobalBinding);
+                usedGlobalBindings.add(nextGlobalBinding);
+                nextGlobalBinding++;
             }
         }
 
         return parsed.isEmpty() ? Collections.emptyMap() : parsed;
+    }
+
+    private int resourceBindingTypeOrder(KeyId resourceType) {
+        KeyId normalized = ResourceTypes.normalize(resourceType);
+        if (ResourceTypes.TEXTURE.equals(normalized)) {
+            return 0;
+        }
+        if (ResourceTypes.IMAGE.equals(normalized)) {
+            return 1;
+        }
+        if (ResourceTypes.UNIFORM_BUFFER.equals(normalized)) {
+            return 2;
+        }
+        if (ResourceTypes.STORAGE_BUFFER.equals(normalized)) {
+            return 3;
+        }
+        if (ResourceTypes.ATOMIC_COUNTER.equals(normalized)) {
+            return 4;
+        }
+        return 100;
     }
 }
 

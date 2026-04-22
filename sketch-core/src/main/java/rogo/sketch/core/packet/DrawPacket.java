@@ -31,7 +31,6 @@ public record DrawPacket(
         return TYPE;
     }
 
-    @Override
     public UniformValueSnapshot uniformSnapshot() {
         if (!uniformGroups.drawUniforms().isEmpty()) {
             return uniformGroups.drawUniforms().snapshot();

@@ -1,8 +1,8 @@
 package rogo.sketch.backend.vulkan;
 
-import rogo.sketch.core.backend.BackendCountedIndirectDraw;
+import rogo.sketch.core.backend.IndirectDrawService;
 
-final class VulkanCountedIndirectDraw implements BackendCountedIndirectDraw {
+final class VulkanCountedIndirectDraw implements IndirectDrawService {
     @Override
     public boolean isSupported() {
         return false;
@@ -10,8 +10,6 @@ final class VulkanCountedIndirectDraw implements BackendCountedIndirectDraw {
 
     @Override
     public void multiDrawElementsIndirectCount(
-            int primitiveType,
-            int indexType,
             long indirectOffsetBytes,
             long countBufferOffsetBytes,
             int maxDrawCount,

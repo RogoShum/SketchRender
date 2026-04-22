@@ -25,6 +25,7 @@ import rogo.sketch.core.pipeline.geometry.RasterGeometryEncoder;
 import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceRecorder;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.GeometryResourceCoordinator;
@@ -101,7 +102,7 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
     }
 
     @Override
-    public void prepareForFrame(GraphicsWorld world, StageEntityView view, C context) {
+    public void prepareForFrame(GraphicsWorld world, StageEntityView view, C context, FrameUniformSnapshot frameUniformSnapshot) {
         List<StageEntityView.Entry> entries = view != null ? view.rasterEntries() : List.of();
         stateCache.retainOnly(view != null ? view.rasterEntityIds() : List.of());
         for (StageEntityView.Entry entry : entries) {
@@ -110,7 +111,7 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
             }
             refreshEntry(entry, false);
         }
-        preparedGeometryView = prepareStageGeometryView(entries);
+        preparedGeometryView = prepareStageGeometryView(entries, frameUniformSnapshot);
     }
 
     @Override
@@ -160,7 +161,8 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
             StageEntityView view,
             RenderFlowType flowType,
             RenderPostProcessors postProcessors,
-            C context) {
+            C context,
+            FrameUniformSnapshot frameUniformSnapshot) {
         if (view == null || view.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -188,7 +190,9 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
         preparedGeometryView = new PreparedStageGeometryView(stageId, pipelineType, List.of());
     }
 
-    private PreparedStageGeometryView prepareStageGeometryView(List<StageEntityView.Entry> entries) {
+    private PreparedStageGeometryView prepareStageGeometryView(
+            List<StageEntityView.Entry> entries,
+            FrameUniformSnapshot frameUniformSnapshot) {
         if (entries == null || entries.isEmpty()) {
             return new PreparedStageGeometryView(stageId, pipelineType, List.of());
         }
@@ -266,7 +270,8 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
                         resourceGroupCompiler.prepare(
                                 compiledBuilder.compiledRenderSetting(),
                                 builder.geometryBatchKey(),
-                                compiledBuilder.entries());
+                                compiledBuilder.entries(),
+                                frameUniformSnapshot);
                 compiledSettingSlices.add(new PreparedStageGeometryView.PreparedCompiledSettingSlice(
                         compiledBuilder.compiledRenderSetting(),
                         compiledBuilder.entries(),

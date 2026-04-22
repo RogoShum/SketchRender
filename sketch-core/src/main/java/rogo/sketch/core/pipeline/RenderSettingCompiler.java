@@ -4,6 +4,7 @@ import rogo.sketch.core.driver.state.component.ShaderState;
 import rogo.sketch.core.driver.state.component.RenderTargetState;
 import rogo.sketch.core.driver.state.CompiledRenderState;
 import rogo.sketch.core.driver.state.RenderStateCompiler;
+import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.packet.ComputePipelineKey;
 import rogo.sketch.core.packet.ExecutionDomain;
 import rogo.sketch.core.packet.ExecutionKey;
@@ -36,6 +37,12 @@ public final class RenderSettingCompiler {
     }
 
     public static CompiledRenderSetting compile(RenderSetting renderSetting) {
+        return compile(renderSetting, null);
+    }
+
+    public static CompiledRenderSetting compile(
+            RenderSetting renderSetting,
+            @Nullable GraphicsResourceManager resourceManager) {
         RenderSetting setting = renderSetting != null
                 ? renderSetting
                 : RenderSetting.fromPartial(null, PartialRenderSetting.EMPTY);
@@ -49,10 +56,10 @@ public final class RenderSettingCompiler {
         }
         ResourceBindingPlan bindingPlan = ResourceBindingPlan.from(
                 setting.resourceBinding(),
-                resolveShaderResourceBindings(shaderState));
-        validateShaderBindingSlots(bindingPlan, shaderState);
+                resolveShaderResourceBindings(shaderState, resourceManager));
+        validateShaderBindingSlots(bindingPlan, shaderState, resourceManager);
         validateResourceAccessConflicts(bindingPlan, setting.aliasPolicy());
-        validateExplicitImageUsage(bindingPlan);
+        validateExplicitImageUsage(bindingPlan, resourceManager);
 
         PipelineStateDescriptor pipelineDescriptor = new PipelineStateDescriptor(
                 setting.renderParameter(),
@@ -86,7 +93,7 @@ public final class RenderSettingCompiler {
                     shaderState != null ? shaderState.getShaderId() : UNBOUND_SHADER,
                     shaderState != null ? shaderState.getVariantKey() : ShaderVariantKey.EMPTY,
                     RasterPipelineKey.deriveVertexLayoutKey(setting.renderParameter()),
-                    targetBindingDescriptor != null ? targetBindingDescriptor.renderTargetId() : ExecutionKey.DEFAULT_RENDER_TARGET,
+                    targetBindingDescriptor != null ? targetBindingDescriptor.renderTargetId() : PipelineConfig.DEFAULT_RENDER_TARGET_ID,
                     bindingPlan.layoutKey());
             case TRANSFER -> targetBindingDescriptor != null && targetBindingDescriptor.passCompatibilityKey() != null
                     ? TransferPlanKey.forRenderTarget(targetBindingDescriptor.passCompatibilityKey())
@@ -113,14 +120,13 @@ public final class RenderSettingCompiler {
                 stateKey);
     }
 
-    private static Map<KeyId, Map<KeyId, Integer>> resolveShaderResourceBindings(ShaderState shaderState) {
+    private static Map<KeyId, Map<KeyId, Integer>> resolveShaderResourceBindings(
+            ShaderState shaderState,
+            @Nullable GraphicsResourceManager resourceManager) {
         if (shaderState == null || shaderState.getShaderId() == null) {
             return Collections.emptyMap();
         }
-        ShaderTemplate template = shaderState.getTemplate() != null
-                ? shaderState.getTemplate().get()
-                : rogo.sketch.core.resource.GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.SHADER_TEMPLATE, shaderState.getShaderId());
+        ShaderTemplate template = resolveShaderTemplate(shaderState, resourceManager);
         if (template == null || template.isDisposed()) {
             return Collections.emptyMap();
         }
@@ -131,13 +137,14 @@ public final class RenderSettingCompiler {
         }
     }
 
-    private static void validateShaderBindingSlots(ResourceBindingPlan bindingPlan, ShaderState shaderState) {
+    private static void validateShaderBindingSlots(
+            ResourceBindingPlan bindingPlan,
+            ShaderState shaderState,
+            @Nullable GraphicsResourceManager resourceManager) {
         if (bindingPlan == null || bindingPlan.isEmpty() || shaderState == null) {
             return;
         }
-        ShaderTemplate template = shaderState.getTemplate() != null
-                ? shaderState.getTemplate().get()
-                : GraphicsResourceManager.getInstance().getResource(ResourceTypes.SHADER_TEMPLATE, shaderState.getShaderId());
+        ShaderTemplate template = resolveShaderTemplate(shaderState, resourceManager);
         if (template == null || !template.hasDeclaredResourceBindings()) {
             return;
         }
@@ -186,11 +193,12 @@ public final class RenderSettingCompiler {
         return "HIZ_ATLAS_READ_WRITE".equals(normalized) || "ALLOW_RESOURCE_ALIASING".equals(normalized);
     }
 
-    private static void validateExplicitImageUsage(ResourceBindingPlan bindingPlan) {
-        if (bindingPlan == null || bindingPlan.isEmpty()) {
+    private static void validateExplicitImageUsage(
+            ResourceBindingPlan bindingPlan,
+            @Nullable GraphicsResourceManager resourceManager) {
+        if (bindingPlan == null || bindingPlan.isEmpty() || resourceManager == null) {
             return;
         }
-        GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
         for (ResourceBindingPlan.BindingEntry entry : bindingPlan.entries()) {
             ImageUsage requiredUsage = requiredImageUsage(entry);
             if (requiredUsage == null) {
@@ -235,6 +243,20 @@ public final class RenderSettingCompiler {
         private boolean storageWrite;
     }
 
+    private static ShaderTemplate resolveShaderTemplate(
+            ShaderState shaderState,
+            @Nullable GraphicsResourceManager resourceManager) {
+        if (shaderState == null || shaderState.getShaderId() == null) {
+            return null;
+        }
+        if (shaderState.getTemplate() != null && shaderState.getTemplate().isAvailable()) {
+            return shaderState.getTemplate().get();
+        }
+        return resourceManager != null
+                ? resourceManager.getResource(ResourceTypes.SHADER_TEMPLATE, shaderState.getShaderId())
+                : null;
+    }
+
     private static rogo.sketch.core.driver.state.RenderStatePatch applyTargetBinding(RenderSetting setting) {
         if (setting == null) {
             return PartialRenderSetting.EMPTY.renderState();
@@ -253,4 +275,3 @@ public final class RenderSettingCompiler {
         };
     }
 }
-

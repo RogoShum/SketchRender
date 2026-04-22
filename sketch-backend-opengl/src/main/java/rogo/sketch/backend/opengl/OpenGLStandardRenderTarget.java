@@ -3,6 +3,7 @@ package rogo.sketch.backend.opengl;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import rogo.sketch.core.backend.BackendInstalledRenderTarget;
+import rogo.sketch.core.backend.BackendResourceRegistry;
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
 import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
 import rogo.sketch.core.resource.vision.StandardRenderTarget;
@@ -11,23 +12,23 @@ import rogo.sketch.core.util.KeyId;
 final class OpenGLStandardRenderTarget extends StandardRenderTarget
         implements BackendInstalledRenderTarget, OpenGLFramebufferHandleResource {
     private final GraphicsAPI api;
-    private final OpenGLBackendResourceResolver resourceResolver;
+    private final BackendResourceRegistry resourceRegistry;
 
     OpenGLStandardRenderTarget(
             int handle,
             KeyId keyId,
             ResolvedRenderTargetSpec descriptor,
             GraphicsAPI api,
-            OpenGLBackendResourceResolver resourceResolver) {
+            BackendResourceRegistry resourceRegistry) {
         super(handle, keyId, descriptor, null);
         this.api = api;
-        this.resourceResolver = resourceResolver;
+        this.resourceRegistry = resourceRegistry;
         attachAllAttachments();
     }
 
     @Override
     public void bind() {
-        api.bindFrameBuffer(handle);
+        api.bindFrameBuffer(handle.asGlName());
     }
 
     @Override
@@ -50,20 +51,20 @@ final class OpenGLStandardRenderTarget extends StandardRenderTarget
         if (textureId == null) {
             return;
         }
-        if (resourceResolver.resolveTexture(textureId) instanceof OpenGLTextureHandleResource texture) {
-            api.framebufferTexture2D(handle, attachment, GL11.GL_TEXTURE_2D, texture.textureHandle(), 0);
+        if (resourceRegistry.resolveTexture(textureId) instanceof OpenGLTextureHandleResource texture) {
+            api.framebufferTexture2D(handle.asGlName(), attachment, GL11.GL_TEXTURE_2D, texture.textureHandle(), 0);
         }
     }
 
     @Override
     public int framebufferHandle() {
-        return handle;
+        return handle.asGlName();
     }
 
     @Override
     public void dispose() {
         if (!isDisposed()) {
-            api.deleteFramebuffer(handle);
+            api.deleteFramebuffer(handle.asGlName());
             markDisposed();
         }
     }

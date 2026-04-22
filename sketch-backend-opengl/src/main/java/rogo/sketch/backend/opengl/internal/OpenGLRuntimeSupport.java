@@ -23,11 +23,11 @@ public final class OpenGLRuntimeSupport {
     }
 
     public static void assertMainThread(String caller) {
-        GraphicsDriver.runtime().assertMainThread(caller);
+        GraphicsDriver.threadContext().assertMainThread(caller);
     }
 
     public static void assertRenderContext(String caller) {
-        GraphicsDriver.runtime().assertRenderContext(caller);
+        GraphicsDriver.threadContext().assertRenderContext(caller);
     }
 
     public static IGLBufferStrategy bufferStrategy() {

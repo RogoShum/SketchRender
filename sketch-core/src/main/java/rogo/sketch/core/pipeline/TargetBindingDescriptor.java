@@ -12,7 +12,7 @@ public record TargetBindingDescriptor(
         KeyId passCompatibilityKey
 ) {
     public TargetBindingDescriptor {
-        renderTargetId = renderTargetId != null ? renderTargetId : TargetBinding.DEFAULT_RENDER_TARGET;
+        renderTargetId = renderTargetId != null ? renderTargetId : PipelineConfig.DEFAULT_RENDER_TARGET_ID;
         drawBuffers = drawBuffers != null ? List.copyOf(drawBuffers) : List.of();
         passCompatibilityKey = passCompatibilityKey != null
                 ? passCompatibilityKey
@@ -20,7 +20,9 @@ public record TargetBindingDescriptor(
     }
 
     public static TargetBindingDescriptor from(TargetBinding binding) {
-        TargetBinding targetBinding = binding != null ? binding : TargetBinding.defaultTarget();
+        TargetBinding targetBinding = binding != null
+                ? binding
+                : new TargetBinding(PipelineConfig.DEFAULT_RENDER_TARGET_ID, List.of(), null, null);
         return new TargetBindingDescriptor(
                 targetBinding.renderTargetId(),
                 targetBinding.drawBuffers(),

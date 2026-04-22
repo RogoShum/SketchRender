@@ -9,6 +9,7 @@ import rogo.sketch.core.packet.ExecutionDomain;
 import rogo.sketch.core.pipeline.ComputeRenderSetting;
 import rogo.sketch.core.pipeline.OffscreenGraphicsRenderSetting;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
+import rogo.sketch.core.pipeline.PipelineConfig;
 import rogo.sketch.core.pipeline.RasterRenderSetting;
 import rogo.sketch.core.pipeline.TargetBinding;
 import rogo.sketch.core.pipeline.TransferSetting;
@@ -78,7 +79,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
                 shaderVariantCache.put(keyId, variantKey);
             }
             
-            RenderStatePatch renderState = loadRenderStatePatch(json, gson);
+            RenderStatePatch renderState = loadRenderStatePatch(json, gson, context.resourceManager());
             TargetBinding targetBinding = loadTargetBinding(json);
             ResourceBinding resourceBinding = loadResourceBinding(json, gson);
 
@@ -186,7 +187,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
     /**
      * Load sparse render-state overrides from JSON
      */
-    private RenderStatePatch loadRenderStatePatch(JsonObject json, Gson gson) {
+    private RenderStatePatch loadRenderStatePatch(JsonObject json, Gson gson, rogo.sketch.core.resource.GraphicsResourceManager resourceManager) {
         if (!json.has("renderState")) {
             return RenderStatePatch.empty();
         }
@@ -204,7 +205,11 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
                 KeyId componentType = KeyId.of(componentTypeName);
 
                 if (DefaultRenderStates.isRegistered(componentType)) {
-                    RenderStateComponent component = DefaultRenderStates.loadComponentFromJson(componentType, componentObj, gson);
+                    RenderStateComponent component = DefaultRenderStates.loadComponentFromJson(
+                            componentType,
+                            componentObj,
+                            gson,
+                            resourceManager);
                     overrideComponents.put(component.getIdentifier(), component);
                 } else {
                     System.err.println("No default component found for render state component: " + componentTypeName);
@@ -294,7 +299,7 @@ public class RenderSettingLoader implements ResourceLoader<PartialRenderSetting>
             JsonObject targetObject = json.getAsJsonObject("targetBinding");
             KeyId renderTargetId = targetObject.has("renderTargetId")
                     ? KeyId.of(targetObject.get("renderTargetId").getAsString())
-                    : TargetBinding.DEFAULT_RENDER_TARGET;
+                    : PipelineConfig.DEFAULT_RENDER_TARGET_ID;
             List<Object> drawBuffers = new ArrayList<>();
             if (targetObject.has("drawBuffers") && targetObject.get("drawBuffers").isJsonArray()) {
                 JsonArray drawBuffersArray = targetObject.getAsJsonArray("drawBuffers");

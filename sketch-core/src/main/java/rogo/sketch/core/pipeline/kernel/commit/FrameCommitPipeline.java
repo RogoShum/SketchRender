@@ -1,6 +1,6 @@
 package rogo.sketch.core.pipeline.kernel.commit;
 
-import rogo.sketch.core.backend.CommandRecorder;
+import rogo.sketch.core.backend.CommandEncoder;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.packet.RenderPacketQueue;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
@@ -47,29 +47,29 @@ public final class FrameCommitPipeline<C extends RenderContext> {
             return;
         }
 
-        try (CommandRecorder recorder = GraphicsDriver.commandRecorderFactory()
+        try (CommandEncoder encoder = GraphicsDriver.commandEncoderFactory()
                 .create("frame_commit:" + frameContext.frameNumber())) {
-            CommitContext<C> commitContext = new CommitContext<>(frameContext, recorder);
+            CommitContext<C> commitContext = new CommitContext<>(frameContext, encoder);
             for (CommitStep<C> step : steps) {
                 if (step == null || !step.execute(commitContext)) {
                     break;
                 }
             }
-            recorder.submit();
+            encoder.submit();
         }
     }
 
     public static final class CommitContext<C extends RenderContext> {
         private final FrameContext<C> frameContext;
-        private final CommandRecorder commandRecorder;
+        private final CommandEncoder commandEncoder;
         private BuildResult buildResult;
         private FrameExecutionPlan executionPlan = FrameExecutionPlan.empty();
         private RenderPostProcessors postProcessors;
         private boolean geometryHandled;
 
-        private CommitContext(FrameContext<C> frameContext, CommandRecorder commandRecorder) {
+        private CommitContext(FrameContext<C> frameContext, CommandEncoder commandEncoder) {
             this.frameContext = frameContext;
-            this.commandRecorder = commandRecorder;
+            this.commandEncoder = commandEncoder;
         }
 
         public FrameContext<C> frameContext() {
@@ -84,8 +84,8 @@ public final class FrameCommitPipeline<C extends RenderContext> {
             return frameContext.pipeline().getRenderPacketQueue();
         }
 
-        public CommandRecorder commandRecorder() {
-            return commandRecorder;
+        public CommandEncoder commandEncoder() {
+            return commandEncoder;
         }
 
         public BuildResult buildResult() {

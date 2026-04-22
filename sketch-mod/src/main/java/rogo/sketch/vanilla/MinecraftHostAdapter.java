@@ -13,6 +13,7 @@ import org.joml.primitives.AABBf;
 import rogo.sketch.SketchRender;
 import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
 import rogo.sketch.core.graphics.ecs.GraphicsUpdateDomain;
+import rogo.sketch.core.graphics.ecs.TransformWriter;
 import rogo.sketch.core.object.ObjectGraphicsRegistry;
 import rogo.sketch.core.object.ObjectGraphicsRootRole;
 import rogo.sketch.core.object.ObjectHostContext;
@@ -20,7 +21,6 @@ import rogo.sketch.core.object.ObjectHostKind;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.module.culling.entity.EntityFeatureSchema;
-import rogo.sketch.module.transform.TransformWriter;
 
 import java.util.ArrayList;
 import java.util.Collections;

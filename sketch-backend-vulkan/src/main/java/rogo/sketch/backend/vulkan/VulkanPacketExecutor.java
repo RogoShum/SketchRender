@@ -26,8 +26,8 @@ import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.packet.ResourceSetKey;
 import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
 import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
+import rogo.sketch.core.pipeline.PipelineConfig;
 import rogo.sketch.core.pipeline.PipelineType;
-import rogo.sketch.core.pipeline.TargetBinding;
 import rogo.sketch.core.pipeline.graph.scheduler.SimpleProfiler;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
@@ -551,11 +551,11 @@ final class VulkanPacketExecutor {
     }
 
     KeyId normalizeRenderTargetId(KeyId renderTargetId) {
-        return renderTargetId != null ? renderTargetId : TargetBinding.DEFAULT_RENDER_TARGET;
+        return renderTargetId != null ? renderTargetId : PipelineConfig.DEFAULT_RENDER_TARGET_ID;
     }
 
     private boolean isDefaultRenderTarget(KeyId renderTargetId) {
-        return TargetBinding.DEFAULT_RENDER_TARGET.equals(normalizeRenderTargetId(renderTargetId));
+        return PipelineConfig.DEFAULT_RENDER_TARGET_ID.equals(normalizeRenderTargetId(renderTargetId));
     }
 
     private boolean targetsRenderPass(KeyId renderTargetId) {
@@ -734,9 +734,10 @@ final class VulkanPacketExecutor {
         } else if (packet instanceof ClearPacket clearPacket && clearPacket.renderTargetId() != null) {
             builder.append(" target=").append(clearPacket.renderTargetId());
         }
-        List<GraphicsUniformSubject> completionSubjects = packet.completionSubjects();
-        if (completionSubjects != null && !completionSubjects.isEmpty()) {
-            GraphicsUniformSubject subject = completionSubjects.get(0);
+        if (packet instanceof DrawPacket drawPacket
+                && drawPacket.completionSubjects() != null
+                && !drawPacket.completionSubjects().isEmpty()) {
+            GraphicsUniformSubject subject = drawPacket.completionSubjects().get(0);
             if (subject != null && subject.identifier() != null) {
                 builder.append(" graphics=").append(subject.identifier());
             }

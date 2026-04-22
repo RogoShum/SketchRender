@@ -4,14 +4,26 @@ import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueue;
 import rogo.sketch.core.backend.BackendCapabilities;
-import rogo.sketch.core.backend.BackendCountedIndirectDraw;
 import rogo.sketch.core.backend.BackendFrameExecutor;
 import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
+import rogo.sketch.core.backend.BackendResourceRegistry;
 import rogo.sketch.core.backend.BackendShaderProgramCache;
 import rogo.sketch.core.backend.BackendStateApplier;
-import rogo.sketch.core.backend.CommandRecorderFactory;
+import rogo.sketch.core.backend.CommandEncoderFactory;
+import rogo.sketch.core.backend.IndirectDrawService;
 import rogo.sketch.core.backend.RenderDevice;
+import rogo.sketch.core.backend.AsyncGpuCompletion;
+import rogo.sketch.core.packet.RenderPacket;
+import rogo.sketch.core.pipeline.GraphicsPipeline;
+import rogo.sketch.core.pipeline.PipelineType;
+import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.flow.RenderFlowType;
+import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
+import rogo.sketch.core.pipeline.flow.impl.RasterizationPostProcessor;
 import rogo.sketch.core.util.KeyId;
+
+import java.util.List;
+import java.util.function.LongSupplier;
 
 final class VulkanRenderDevice implements RenderDevice {
     private final VkPhysicalDevice physicalDevice;
@@ -28,8 +40,11 @@ final class VulkanRenderDevice implements RenderDevice {
     private final VulkanPacketExecutor packetExecutor;
     private final VulkanPipelineLayoutCache pipelineLayoutCache;
     private final VulkanComputePipelineCache computePipelineCache;
-    private final CommandRecorderFactory commandRecorderFactory;
-    private final BackendCountedIndirectDraw countedIndirectDraw;
+    private final CommandEncoderFactory commandEncoderFactory;
+    private final IndirectDrawService indirectDrawService;
+    private final VulkanResourceAllocator resourceAllocator;
+    private final LongSupplier frameEpochSupplier;
+    private final VulkanBackendRuntime runtime;
     private VulkanRasterPipelineCache rasterPipelineCache;
     private final boolean debugUtilsEnabled;
 
@@ -49,6 +64,9 @@ final class VulkanRenderDevice implements RenderDevice {
             VulkanPipelineLayoutCache pipelineLayoutCache,
             VulkanComputePipelineCache computePipelineCache,
             VulkanRasterPipelineCache rasterPipelineCache,
+            VulkanResourceAllocator resourceAllocator,
+            LongSupplier frameEpochSupplier,
+            VulkanBackendRuntime runtime,
             boolean debugUtilsEnabled) {
         this.physicalDevice = physicalDevice;
         this.device = device;
@@ -65,9 +83,12 @@ final class VulkanRenderDevice implements RenderDevice {
         this.pipelineLayoutCache = pipelineLayoutCache;
         this.computePipelineCache = computePipelineCache;
         this.rasterPipelineCache = rasterPipelineCache;
+        this.resourceAllocator = resourceAllocator;
+        this.frameEpochSupplier = frameEpochSupplier;
+        this.runtime = runtime;
         this.debugUtilsEnabled = debugUtilsEnabled;
-        this.commandRecorderFactory = new VulkanCommandRecorderFactory(this);
-        this.countedIndirectDraw = new VulkanCountedIndirectDraw();
+        this.commandEncoderFactory = new VulkanCommandEncoderFactory(this);
+        this.indirectDrawService = new VulkanCountedIndirectDraw();
     }
 
     @Override
@@ -113,13 +134,45 @@ final class VulkanRenderDevice implements RenderDevice {
     }
 
     @Override
-    public BackendCountedIndirectDraw countedIndirectDraw() {
-        return countedIndirectDraw;
+    public boolean supportsGeometryMaterialization() {
+        return true;
     }
 
     @Override
-    public VulkanResourceResolver resourceResolver() {
-        return resourceResolver;
+    public <C extends RenderContext> boolean installImmediateGeometryBindings(
+            GraphicsPipeline<C> pipeline,
+            PipelineType pipelineType,
+            RenderPostProcessors postProcessors) {
+        if (postProcessors == null) {
+            return false;
+        }
+        RasterizationPostProcessor rasterizationPostProcessor = postProcessors.get(RenderFlowType.RASTERIZATION);
+        if (rasterizationPostProcessor == null) {
+            return false;
+        }
+        resourceAllocator.geometryArena().install(
+                rasterizationPostProcessor.geometryUploadPlans(),
+                frameEpochSupplier.getAsLong(),
+                2);
+        return true;
+    }
+
+    @Override
+    public <C extends RenderContext> AsyncGpuCompletion submitAsyncPackets(
+            GraphicsPipeline<C> pipeline,
+            List<RenderPacket> packets,
+            C context) {
+        return runtime.submitAsyncPackets(pipeline, packets, context);
+    }
+
+    @Override
+    public IndirectDrawService indirectDrawService() {
+        return indirectDrawService;
+    }
+
+    @Override
+    public BackendResourceRegistry resourceRegistry() {
+        return resourceAllocator;
     }
 
     @Override
@@ -161,8 +214,8 @@ final class VulkanRenderDevice implements RenderDevice {
     }
 
     @Override
-    public CommandRecorderFactory commandRecorderFactory() {
-        return commandRecorderFactory;
+    public CommandEncoderFactory commandEncoderFactory() {
+        return commandEncoderFactory;
     }
 
     void registerTextureResource(KeyId resourceId, VulkanTextureResource textureResource) {

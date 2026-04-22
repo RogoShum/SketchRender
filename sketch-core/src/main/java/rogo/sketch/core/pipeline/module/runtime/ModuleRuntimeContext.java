@@ -19,6 +19,7 @@ import rogo.sketch.core.pipeline.module.metric.MetricDescriptor;
 import rogo.sketch.core.pipeline.module.metric.ModuleMetricRegistry;
 import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
 import rogo.sketch.core.pipeline.submit.StageSubmitNode;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.shader.uniform.PipelineUniformRegistry;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
@@ -33,6 +34,10 @@ public interface ModuleRuntimeContext {
     KeyId moduleEnabledSettingId();
 
     GraphicsPipeline<?> pipeline();
+
+    default GraphicsResourceManager resourceManager() {
+        return pipeline().resourceManager();
+    }
 
     ExtensionHost extensionHost();
 

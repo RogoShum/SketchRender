@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.RenderStateComponent;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
@@ -30,8 +31,7 @@ public class ShaderState implements RenderStateComponent {
     private KeyId shaderId;
 
     public ShaderState() {
-        this.template = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_TEMPLATE, KeyId.of("empty"));
-        this.shaderId = KeyId.of("empty");
+        this(null, KeyId.of("empty"));
     }
 
     /**
@@ -41,9 +41,12 @@ public class ShaderState implements RenderStateComponent {
      * @param flags Variant flags
      */
     public ShaderState(KeyId keyId, String... flags) {
-        this.shaderId = keyId;
-        this.template = GraphicsResourceManager.getInstance().getReference(ResourceTypes.SHADER_TEMPLATE, keyId);
+        this(null, keyId, flags);
+    }
+
+    public ShaderState(@Nullable GraphicsResourceManager resourceManager, KeyId keyId, String... flags) {
         this.variantKey = ShaderVariantKey.of(flags);
+        setShaderId(keyId, resourceManager);
     }
 
     @Override
@@ -66,17 +69,14 @@ public class ShaderState implements RenderStateComponent {
     }
 
     @Override
-    public void deserializeFromJson(JsonObject json, Gson gson) {
+    public void deserializeFromJson(JsonObject json, Gson gson, @Nullable GraphicsResourceManager resourceManager) {
         if (json.has("identifier")) {
             String shaderIdStr = json.get("identifier").getAsString();
-            this.shaderId = KeyId.of(shaderIdStr);
+            setShaderId(KeyId.of(shaderIdStr), resourceManager);
 
             // Check if this is a template (new system) or legacy shader
             // If "flags" or "template" is present, use template mode
             boolean hasFlags = json.has("flags");
-
-            this.template = GraphicsResourceManager.getInstance()
-                    .getReference(ResourceTypes.SHADER_TEMPLATE, shaderId);
 
             // Parse flags
             if (hasFlags && json.get("flags").isJsonArray()) {
@@ -116,6 +116,13 @@ public class ShaderState implements RenderStateComponent {
      */
     public KeyId getShaderId() {
         return shaderId;
+    }
+
+    private void setShaderId(KeyId shaderId, @Nullable GraphicsResourceManager resourceManager) {
+        this.shaderId = shaderId != null ? shaderId : KeyId.of("empty");
+        this.template = resourceManager != null
+                ? resourceManager.getReference(ResourceTypes.SHADER_TEMPLATE, this.shaderId)
+                : null;
     }
 }
 

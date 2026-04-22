@@ -18,9 +18,11 @@ import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.information.ComputeInstanceInfo;
 import rogo.sketch.core.shader.ShaderProgramHandle;
 import rogo.sketch.core.shader.ShaderProgramResolver;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
+import rogo.sketch.core.shader.uniform.ResourceUniformSet;
+import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
 import rogo.sketch.core.shader.uniform.UniformGroupSet;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
-import rogo.sketch.core.shader.uniform.UniformUpdateDomain;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.core.util.KeyId;
 
@@ -43,7 +45,7 @@ public final class ComputeStageFlowScene<C extends RenderContext> implements Sta
     }
 
     @Override
-    public void prepareForFrame(GraphicsWorld world, StageEntityView view, C context) {
+    public void prepareForFrame(GraphicsWorld world, StageEntityView view, C context, FrameUniformSnapshot frameUniformSnapshot) {
         List<StageEntityView.Entry> entries = view != null ? view.computeEntries() : List.of();
         stateCache.retainOnly(view != null ? view.computeEntityIds() : List.of());
         for (StageEntityView.Entry entry : entries) {
@@ -106,7 +108,8 @@ public final class ComputeStageFlowScene<C extends RenderContext> implements Sta
             StageEntityView view,
             RenderFlowType flowType,
             RenderPostProcessors postProcessors,
-            C context) {
+            C context,
+            FrameUniformSnapshot frameUniformSnapshot) {
         if (view == null || view.isEmpty()) {
             return Map.of();
         }
@@ -140,16 +143,20 @@ public final class ComputeStageFlowScene<C extends RenderContext> implements Sta
             if (compiledRenderSetting == null) {
                 continue;
             }
-            UniformValueSnapshot uniformSnapshot = resolveUniformSnapshot(compiledRenderSetting, entry, hookCache);
+            UniformSnapshots uniformSnapshots = resolveUniformSnapshots(
+                    compiledRenderSetting,
+                    entry,
+                    frameUniformSnapshot,
+                    hookCache);
             ResourceSetKey resourceSetKey = ResourceSetKey.from(
                     compiledRenderSetting.resourceBindingPlan(),
-                    UniformGroupSet.fromSnapshot(uniformSnapshot).resourceUniforms());
+                    new ResourceUniformSet(uniformSnapshots.buildSnapshot()));
             GroupKey groupKey = new GroupKey(
                     (ComputePipelineKey) compiledRenderSetting.pipelineStateKey(),
                     resourceSetKey,
-                    uniformSnapshot);
+                    uniformSnapshots.mergedSnapshot());
             groupedEntries.computeIfAbsent(groupKey, ignored -> new ArrayList<>()).add(entry);
-            metaByGroup.putIfAbsent(groupKey, new GroupMeta(compiledRenderSetting, resourceSetKey, uniformSnapshot));
+            metaByGroup.putIfAbsent(groupKey, new GroupMeta(compiledRenderSetting, resourceSetKey, uniformSnapshots.mergedSnapshot()));
         }
 
         Map<ExecutionKey, List<RenderPacket>> packets = new LinkedHashMap<>();
@@ -188,31 +195,45 @@ public final class ComputeStageFlowScene<C extends RenderContext> implements Sta
     public void clear() {
     }
 
-    private UniformValueSnapshot resolveUniformSnapshot(
+    private UniformSnapshots resolveUniformSnapshots(
             CompiledRenderSetting compiledRenderSetting,
             StageEntityView.Entry entry,
+            FrameUniformSnapshot frameUniformSnapshot,
             Map<HookCacheKey, rogo.sketch.core.shader.uniform.UniformHook<?>[]> hookCache) {
         if (compiledRenderSetting == null) {
-            return UniformValueSnapshot.empty();
+            return new UniformSnapshots(
+                    UniformValueSnapshot.empty(),
+                    UniformValueSnapshot.empty(),
+                    UniformValueSnapshot.empty());
         }
         ShaderProgramHandle programHandle = ShaderProgramResolver.resolveProgramHandleIfAvailable(compiledRenderSetting);
         if (programHandle == null || programHandle.uniformHooks() == null) {
-            return UniformValueSnapshot.empty();
+            return new UniformSnapshots(
+                    UniformValueSnapshot.empty(),
+                    UniformValueSnapshot.empty(),
+                    UniformValueSnapshot.empty());
         }
         UniformHookGroup hookGroup = programHandle.uniformHooks();
+        UniformValueSnapshot frameSnapshot = frameUniformSnapshot != null
+                ? frameUniformSnapshot.snapshotFor(hookGroup)
+                : UniformValueSnapshot.empty();
         GraphicsUniformSubject uniformSubject = entry != null ? entry.uniformSubject() : null;
         if (uniformSubject == null) {
-            return UniformValueSnapshot.empty();
+            return new UniformSnapshots(frameSnapshot, UniformValueSnapshot.empty(), frameSnapshot);
         }
         HookCacheKey cacheKey = new HookCacheKey(programHandle.getHandle(), GraphicsUniformSubject.class);
         rogo.sketch.core.shader.uniform.UniformHook<?>[] cachedHooks = hookCache.computeIfAbsent(
                 cacheKey,
-                ignored -> hookGroup.getAllMatchingHooks(GraphicsUniformSubject.class));
-        return UniformValueSnapshot.captureFrom(
+                ignored -> hookGroup.getAllMatchingHooks(GraphicsUniformSubject.class, UniformCaptureTiming.BUILD_ASYNC_SAFE));
+        UniformValueSnapshot buildSnapshot = UniformValueSnapshot.captureFrom(
                 hookGroup,
                 uniformSubject,
                 cachedHooks,
-                UniformUpdateDomain.BUILD_SNAPSHOT);
+                UniformCaptureTiming.BUILD_ASYNC_SAFE);
+        return new UniformSnapshots(
+                frameSnapshot,
+                buildSnapshot,
+                UniformValueSnapshot.merge(frameSnapshot, buildSnapshot));
     }
 
     private record GroupKey(
@@ -226,6 +247,13 @@ public final class ComputeStageFlowScene<C extends RenderContext> implements Sta
             CompiledRenderSetting compiledRenderSetting,
             ResourceSetKey resourceSetKey,
             UniformValueSnapshot uniformSnapshot
+    ) {
+    }
+
+    private record UniformSnapshots(
+            UniformValueSnapshot frameSnapshot,
+            UniformValueSnapshot buildSnapshot,
+            UniformValueSnapshot mergedSnapshot
     ) {
     }
 

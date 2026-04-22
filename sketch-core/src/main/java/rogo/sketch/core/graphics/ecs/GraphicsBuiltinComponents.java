@@ -12,7 +12,6 @@ import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
-import rogo.sketch.module.transform.TransformWriter;
 
 import java.util.function.Function;
 import java.util.function.LongSupplier;

@@ -5,6 +5,7 @@ import rogo.sketch.core.driver.state.RasterStateCompiler;
 import rogo.sketch.core.driver.state.RenderStatePatch;
 import rogo.sketch.core.driver.state.component.RenderTargetState;
 import rogo.sketch.core.driver.state.component.ShaderState;
+import rogo.sketch.core.pipeline.PipelineConfig;
 import rogo.sketch.core.pipeline.RasterRenderSetting;
 import rogo.sketch.core.pipeline.TargetBinding;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
@@ -14,6 +15,9 @@ import rogo.sketch.core.util.KeyId;
 import java.util.Objects;
 
 public class RasterPipelineKey implements ExecutionKey {
+    private static final KeyId UNBOUND_SHADER = KeyId.of("sketch:unbound_shader");
+    private static final KeyId EMPTY_VERTEX_LAYOUT = KeyId.of("sketch:empty_vertex_layout");
+
     private final ExecutionDomain domain;
     private final RenderParameter renderParameter;
     private final RenderStatePatch renderState;
@@ -74,7 +78,7 @@ public class RasterPipelineKey implements ExecutionKey {
         this.shaderId = shaderId != null ? shaderId : UNBOUND_SHADER;
         this.shaderVariantKey = shaderVariantKey != null ? shaderVariantKey : ShaderVariantKey.EMPTY;
         this.vertexLayoutKey = vertexLayoutKey != null ? vertexLayoutKey : EMPTY_VERTEX_LAYOUT;
-        this.renderTargetKey = renderTargetKey != null ? renderTargetKey : DEFAULT_RENDER_TARGET;
+        this.renderTargetKey = renderTargetKey != null ? renderTargetKey : PipelineConfig.DEFAULT_RENDER_TARGET_ID;
         this.resourceLayoutKey = resourceLayoutKey != null ? resourceLayoutKey : ResourceBindingPlan.empty().layoutKey();
         this.rasterStateSignature = this.compiledRasterState != null && this.compiledRasterState.pipelineRasterState() != null
                 ? this.compiledRasterState.pipelineRasterState().hashCode()
@@ -230,13 +234,13 @@ public class RasterPipelineKey implements ExecutionKey {
             return targetBinding.renderTargetId();
         }
         if (renderState == null || renderState.isEmpty()) {
-            return DEFAULT_RENDER_TARGET;
+            return PipelineConfig.DEFAULT_RENDER_TARGET_ID;
         }
         Object state = renderState.get(RenderTargetState.TYPE);
         if (state instanceof RenderTargetState renderTargetState) {
             return renderTargetState.renderTargetId();
         }
-        return DEFAULT_RENDER_TARGET;
+        return PipelineConfig.DEFAULT_RENDER_TARGET_ID;
     }
 
     public static KeyId deriveRenderTargetKey(RenderStatePatch renderState) {

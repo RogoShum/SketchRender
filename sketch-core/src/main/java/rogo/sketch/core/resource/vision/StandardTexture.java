@@ -2,6 +2,7 @@ package rogo.sketch.core.resource.vision;
 
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.api.Resizable;
+import rogo.sketch.core.backend.GpuHandle;
 import rogo.sketch.core.resource.descriptor.ResolvedImageResource;
 import rogo.sketch.core.util.KeyId;
 
@@ -13,7 +14,16 @@ public class StandardTexture extends Texture implements Resizable {
     protected int currentWidth = 0;
     protected int currentHeight = 0;
 
+    /**
+     * @deprecated Use {@link #StandardTexture(GpuHandle, KeyId, ResolvedImageResource, String)} so GL names do not leak into shared resource code.
+     */
+    @Deprecated
     public StandardTexture(int handle, KeyId keyId, ResolvedImageResource descriptor, @Nullable String imagePath) {
+        super(handle, keyId, descriptor);
+        this.imagePath = imagePath;
+    }
+
+    public StandardTexture(GpuHandle handle, KeyId keyId, ResolvedImageResource descriptor, @Nullable String imagePath) {
         super(handle, keyId, descriptor);
         this.imagePath = imagePath;
     }

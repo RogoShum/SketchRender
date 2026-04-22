@@ -6,7 +6,7 @@ import rogo.sketch.core.pipeline.module.metric.MetricKind;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntime;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
 import rogo.sketch.core.resource.ResourceTypes;
-import rogo.sketch.core.shader.uniform.UniformUpdateDomain;
+import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.module.culling.TerrainMeshResourceSet;
@@ -43,10 +43,10 @@ public class SodiumCompatModuleRuntime implements ModuleRuntime {
                 KeyId.of(SketchRender.MOD_ID, "persistent_max_element_count"),
                 terrainResources::maxElementReadbackBuffer);
 
-        context.registerUniform(KeyId.of("sketch_cullFacing"), ValueGetter.create(() -> SodiumImplOptions.useBlockFaceCulling() ? 1 : 0, Integer.class, UniformUpdateDomain.BUILD_SNAPSHOT));
-        context.registerUniform(KeyId.of("sketch_translucentSort"), ValueGetter.create(() -> SodiumImplOptions.canApplyTranslucencySorting() ? 1 : 0, Integer.class, UniformUpdateDomain.BUILD_SNAPSHOT));
-        context.registerUniform(KeyId.of("sketch_renderDistance"), ValueGetter.create(terrainResources::renderDistance, Integer.class, UniformUpdateDomain.BUILD_SNAPSHOT));
-        context.registerUniform(KeyId.of("sketch_spacePartitionSize"), ValueGetter.create(terrainResources::spacePartitionSize, Integer.class, UniformUpdateDomain.BUILD_SNAPSHOT));
+        context.registerUniform(KeyId.of("sketch_cullFacing"), ValueGetter.create(() -> SodiumImplOptions.useBlockFaceCulling() ? 1 : 0, Integer.class, UniformCaptureTiming.FRAME_SYNC));
+        context.registerUniform(KeyId.of("sketch_translucentSort"), ValueGetter.create(() -> SodiumImplOptions.canApplyTranslucencySorting() ? 1 : 0, Integer.class, UniformCaptureTiming.FRAME_SYNC));
+        context.registerUniform(KeyId.of("sketch_renderDistance"), ValueGetter.create(terrainResources::renderDistance, Integer.class, UniformCaptureTiming.FRAME_SYNC));
+        context.registerUniform(KeyId.of("sketch_spacePartitionSize"), ValueGetter.create(terrainResources::spacePartitionSize, Integer.class, UniformCaptureTiming.FRAME_SYNC));
 
         context.registerMetric(new MetricDescriptor(
                 REGION_COUNT_METRIC,

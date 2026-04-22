@@ -11,6 +11,7 @@ import java.util.Set;
  * Configuration settings for the GraphicsPipeline.
  */
 public class PipelineConfig {
+    public static final KeyId DEFAULT_RENDER_TARGET_ID = KeyId.of("minecraft:main_target");
 
     public enum TranslucencyStrategy {
         /**
@@ -44,6 +45,7 @@ public class PipelineConfig {
     }
 
     private TranslucencyStrategy translucencyStrategy = TranslucencyStrategy.INTERLEAVED;
+    private KeyId defaultRenderTargetId = DEFAULT_RENDER_TARGET_ID;
     private boolean throwOnSortFail = false;
     private boolean cpuSortingEnabled = true; // Enable CPU sorting for translucent batches within a VBO
 
@@ -64,6 +66,16 @@ public class PipelineConfig {
 
     public void setTranslucencyStrategy(TranslucencyStrategy translucencyStrategy) {
         this.translucencyStrategy = translucencyStrategy;
+    }
+
+    public KeyId defaultRenderTargetId() {
+        return defaultRenderTargetId;
+    }
+
+    public void setDefaultRenderTargetId(KeyId defaultRenderTargetId) {
+        if (defaultRenderTargetId != null) {
+            this.defaultRenderTargetId = defaultRenderTargetId;
+        }
     }
 
     public boolean isThrowOnSortFail() {

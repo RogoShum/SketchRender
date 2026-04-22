@@ -134,3 +134,4 @@ runs/
 /run-vk-test/
 /.tmp/
 /.tmp-javac-check/
+/.cursor/

@@ -203,8 +203,8 @@ public class ResourceBinding {
             ResourceViewRole viewRole,
             ResourceAccess access) {
         KeyId normalizedType = ResourceTypes.normalize(resourceType);
-        BackendInstalledBindableResource installedResource = GraphicsDriver.runtime()
-                .resourceResolver()
+        BackendInstalledBindableResource installedResource = GraphicsDriver.renderDevice()
+                .resourceRegistry()
                 .resolveBindableResource(normalizedType, resourceKeyId);
         if (installedResource != null && !installedResource.isDisposed()) {
             installedResource.bind(normalizedType, binding, viewRole, access);

@@ -5,7 +5,7 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
-import rogo.sketch.core.backend.BackendResourceResolver;
+import rogo.sketch.core.backend.BackendResourceRegistry;
 import rogo.sketch.core.backend.BackendInstalledRenderTarget;
 import rogo.sketch.core.backend.BackendStateApplier;
 import rogo.sketch.core.driver.state.AttachmentBindingState;
@@ -32,11 +32,10 @@ import rogo.sketch.core.driver.state.component.ScissorState;
 import rogo.sketch.core.driver.state.component.ShaderState;
 import rogo.sketch.core.driver.state.component.StencilState;
 import rogo.sketch.core.driver.state.component.ViewportState;
+import rogo.sketch.core.pipeline.PipelineConfig;
 import rogo.sketch.core.pipeline.RenderContext;
-import rogo.sketch.core.pipeline.TargetBinding;
-import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
-import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.resource.vision.AttachmentBackedRenderTarget;
 import rogo.sketch.core.resource.vision.RenderTarget;
 import rogo.sketch.core.shader.ShaderProgramHandle;
@@ -50,12 +49,12 @@ import java.util.List;
 
 public final class OpenGLStateApplier implements BackendStateApplier {
     private final GraphicsAPI api;
-    private final BackendResourceResolver resourceResolver;
+    private final BackendResourceRegistry resourceRegistry;
     private final OpenGLStateAccess stateAccess;
 
-    public OpenGLStateApplier(GraphicsAPI api, BackendResourceResolver resourceResolver, OpenGLStateAccess stateAccess) {
+    public OpenGLStateApplier(GraphicsAPI api, BackendResourceRegistry resourceRegistry, OpenGLStateAccess stateAccess) {
         this.api = api;
-        this.resourceResolver = resourceResolver;
+        this.resourceRegistry = resourceRegistry;
         this.stateAccess = stateAccess;
     }
 
@@ -189,15 +188,16 @@ public final class OpenGLStateApplier implements BackendStateApplier {
 
     private void applyRenderTarget(RenderTargetState state) {
         KeyId renderTargetId = state.renderTargetId();
-        BackendInstalledRenderTarget installedRenderTarget = resourceResolver.resolveRenderTarget(renderTargetId);
+        BackendInstalledRenderTarget installedRenderTarget = resourceRegistry.resolveRenderTarget(renderTargetId);
         if (installedRenderTarget != null && !installedRenderTarget.isDisposed()) {
             installedRenderTarget.bind();
-        } else if (TargetBinding.DEFAULT_RENDER_TARGET.equals(renderTargetId)) {
+        } else if (PipelineConfig.DEFAULT_RENDER_TARGET_ID.equals(renderTargetId)) {
             stateAccess.bindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
         }
 
-        RenderTarget logicalTarget = GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.RENDER_TARGET, renderTargetId);
+        RenderTarget logicalTarget = resourceRegistry.resolveLogicalResource(ResourceTypes.RENDER_TARGET, renderTargetId) instanceof RenderTarget target
+                ? target
+                : null;
         applyDrawBuffers(logicalTarget, state.drawBuffers());
     }
 

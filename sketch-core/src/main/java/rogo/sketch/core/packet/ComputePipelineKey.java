@@ -11,6 +11,8 @@ import rogo.sketch.core.util.KeyId;
 import java.util.Objects;
 
 public final class ComputePipelineKey implements ExecutionKey {
+    private static final KeyId UNBOUND_SHADER = KeyId.of("sketch:unbound_shader");
+
     private final RenderStatePatch renderState;
     private final CompiledComputeState compiledComputeState;
     private final ResourceBindingPlan bindingPlan;

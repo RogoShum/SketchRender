@@ -72,10 +72,11 @@ public final class ModuleRegistry {
         }
     }
 
-    public <C extends RenderContext> void contributeToTickGraph(TickGraphBuilder<C> builder) {
+    public <C extends RenderContext> TickGraphBuilder.TickGraphContribution contributeToTickGraph(TickGraphBuilder<C> builder) {
         if (runtimeHost != null) {
             runtimeHost.contributeToTickGraph(builder);
         }
+        return builder.contribution();
     }
 
     public <C extends RenderContext> void contributeToFrameGraph(RenderGraphBuilder<C> builder) {

@@ -5,9 +5,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import rogo.sketch.core.api.RenderStateComponent;
+import rogo.sketch.core.pipeline.PipelineConfig;
 import rogo.sketch.core.pipeline.TargetBinding;
-import rogo.sketch.core.resource.*;
-import rogo.sketch.core.resource.vision.RenderTarget;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -16,12 +15,11 @@ import java.util.Objects;
 
 public class RenderTargetState implements RenderStateComponent {
     public static final KeyId TYPE = KeyId.of("render_target");
-    private ResourceReference<RenderTarget> renderTarget;
     private KeyId rtId;
     private List<Object> drawBuffers;
 
     public RenderTargetState() {
-        this(KeyId.of("minecraft:main_target"));
+        this(PipelineConfig.DEFAULT_RENDER_TARGET_ID);
     }
 
     public RenderTargetState(KeyId keyId) {
@@ -29,13 +27,12 @@ public class RenderTargetState implements RenderStateComponent {
     }
 
     public RenderTargetState(KeyId keyId, List<Object> drawBuffers) {
-        this.renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, keyId);
         this.rtId = keyId;
         this.drawBuffers = drawBuffers;
     }
 
     public static RenderTargetState defaultFramebuffer() {
-        return new RenderTargetState(KeyId.of("minecraft:main_target"));
+        return new RenderTargetState(PipelineConfig.DEFAULT_RENDER_TARGET_ID);
     }
 
     public KeyId renderTargetId() {
@@ -56,9 +53,8 @@ public class RenderTargetState implements RenderStateComponent {
     }
 
     @Override
-    public void deserializeFromJson(JsonObject json, Gson gson) {
+    public void deserializeFromJson(JsonObject json, Gson gson, rogo.sketch.core.resource.GraphicsResourceManager resourceManager) {
         String id = json.get("identifier").getAsString();
-        renderTarget = GraphicsResourceManager.getInstance().getReference(ResourceTypes.RENDER_TARGET, KeyId.of(id));
         this.rtId = KeyId.of(id);
 
         if (json.has("drawBuffers")) {

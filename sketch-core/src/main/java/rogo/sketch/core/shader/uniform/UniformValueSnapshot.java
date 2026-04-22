@@ -1,6 +1,7 @@
 package rogo.sketch.core.shader.uniform;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -31,14 +32,14 @@ public class UniformValueSnapshot {
      * Capture uniform values from a hook group for the given instance.
      */
     public static UniformValueSnapshot captureFrom(UniformHookGroup hookGroup, Object instance) {
-        return hookGroup.captureSnapshot(instance, null);
+        return hookGroup.captureSnapshot(instance, (UniformCaptureTiming) null);
     }
 
     public static UniformValueSnapshot captureFrom(
             UniformHookGroup hookGroup,
             Object instance,
-            UniformUpdateDomain domain) {
-        return hookGroup.captureSnapshot(instance, domain);
+            UniformCaptureTiming timing) {
+        return hookGroup.captureSnapshot(instance, timing);
     }
 
     /**
@@ -46,15 +47,49 @@ public class UniformValueSnapshot {
      * If cachedHooks is null, falls back to the standard capture method.
      */
     public static UniformValueSnapshot captureFrom(UniformHookGroup hookGroup, Object instance, UniformHook<?>[] cachedHooks) {
-        return captureFrom(hookGroup, instance, cachedHooks, null);
+        return captureFrom(hookGroup, instance, cachedHooks, (UniformCaptureTiming) null);
     }
 
     public static UniformValueSnapshot captureFrom(
             UniformHookGroup hookGroup,
             Object instance,
             UniformHook<?>[] cachedHooks,
+            UniformCaptureTiming timing) {
+        return hookGroup.captureSnapshot(instance, cachedHooks, timing);
+    }
+
+    @Deprecated
+    public static UniformValueSnapshot captureFrom(
+            UniformHookGroup hookGroup,
+            Object instance,
+            UniformUpdateDomain domain) {
+        return hookGroup.captureSnapshot(instance, domain);
+    }
+
+    @Deprecated
+    public static UniformValueSnapshot captureFrom(
+            UniformHookGroup hookGroup,
+            Object instance,
+            UniformHook<?>[] cachedHooks,
             UniformUpdateDomain domain) {
         return hookGroup.captureSnapshot(instance, cachedHooks, domain);
+    }
+
+    public static UniformValueSnapshot merge(UniformValueSnapshot first, UniformValueSnapshot second) {
+        if (first == null || first.isEmpty()) {
+            return second != null ? second : empty();
+        }
+        if (second == null || second.isEmpty()) {
+            return first;
+        }
+        Map<String, Object> merged = new LinkedHashMap<>();
+        for (String uniformName : first.getUniformNames()) {
+            merged.put(uniformName, first.getUniformValue(uniformName));
+        }
+        for (String uniformName : second.getUniformNames()) {
+            merged.put(uniformName, second.getUniformValue(uniformName));
+        }
+        return new UniformValueSnapshot(merged);
     }
 
     public void applyTo(UniformHookGroup hookGroup) {

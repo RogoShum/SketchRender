@@ -3,8 +3,7 @@ package rogo.sketch.core.resource.vision;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2i;
 import rogo.sketch.core.api.Resizable;
-import rogo.sketch.core.resource.GraphicsResourceManager;
-import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.backend.GpuHandle;
 import rogo.sketch.core.resource.descriptor.RenderTargetResolutionMode;
 import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
 import rogo.sketch.core.util.KeyId;
@@ -22,7 +21,32 @@ public class StandardRenderTarget extends RenderTarget implements Resizable, Att
     private final int baseWidth, baseHeight;
     private final float scaleX, scaleY;
 
+    /**
+     * @deprecated Use {@link #StandardRenderTarget(GpuHandle, KeyId, ResolvedRenderTargetSpec, KeyId)} so GL names do not leak into shared resource code.
+     */
+    @Deprecated
     public StandardRenderTarget(int handle, KeyId keyId, ResolvedRenderTargetSpec descriptor, @Nullable KeyId linkedTexture) {
+        super(handle, keyId, descriptor);
+        RenderTargetResolutionMode mode = descriptor.resolutionMode();
+        this.resolutionMode = mode;
+        this.scaleX = descriptor.scaleX();
+        this.scaleY = descriptor.scaleY();
+
+        Vector2i dimension = updateDimensions(descriptor.baseWidth(), descriptor.baseHeight(), linkedTexture);
+        this.baseWidth = dimension.x;
+        this.baseHeight = dimension.y;
+        for (int i = 0; i < descriptor.colorAttachments().size(); i++) {
+            setColorAttachment(i, descriptor.colorAttachments().get(i));
+        }
+        if (descriptor.depthAttachment() != null) {
+            setDepthAttachment(descriptor.depthAttachment());
+        }
+        if (descriptor.stencilAttachment() != null) {
+            setStencilAttachment(descriptor.stencilAttachment());
+        }
+    }
+
+    public StandardRenderTarget(GpuHandle handle, KeyId keyId, ResolvedRenderTargetSpec descriptor, @Nullable KeyId linkedTexture) {
         super(handle, keyId, descriptor);
         RenderTargetResolutionMode mode = descriptor.resolutionMode();
         this.resolutionMode = mode;
@@ -45,7 +69,10 @@ public class StandardRenderTarget extends RenderTarget implements Resizable, Att
 
     /**
      * Convenience constructor for fixed resolution
+     *
+     * @deprecated Use {@link #StandardRenderTarget(GpuHandle, KeyId, ResolvedRenderTargetSpec, KeyId)} with an explicit fixed descriptor.
      */
+    @Deprecated
     public StandardRenderTarget(int handle, KeyId keyId, int width, int height) {
         this(handle, keyId, new ResolvedRenderTargetSpec(
                 keyId,
@@ -63,15 +90,16 @@ public class StandardRenderTarget extends RenderTarget implements Resizable, Att
         Vector2i dimensions = new Vector2i(baseWidth, baseHeight);
 
         if (linkedTexture != null) {
-            GraphicsResourceManager.getInstance().getReference(ResourceTypes.TEXTURE, linkedTexture).ifPresent(tex -> {
-                int w = ((Texture) tex).getCurrentWidth();
-                int h = ((Texture) tex).getCurrentHeight();
+            Texture texture = resolveLinkedTexture(linkedTexture);
+            if (texture != null && !texture.isDisposed()) {
+                int w = texture.getCurrentWidth();
+                int h = texture.getCurrentHeight();
                 if (w > 0 && h > 0) {
                     dimensions.x = w;
                     dimensions.y = h;
                     resize(w, h);
                 }
-            });
+            }
         }
 
         if (dimensions.x != currentWidth || dimensions.y != currentHeight) {
@@ -79,6 +107,10 @@ public class StandardRenderTarget extends RenderTarget implements Resizable, Att
         }
 
         return dimensions;
+    }
+
+    protected @Nullable Texture resolveLinkedTexture(KeyId linkedTexture) {
+        return null;
     }
 
     /**

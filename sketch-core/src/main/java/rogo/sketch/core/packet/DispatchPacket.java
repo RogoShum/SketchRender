@@ -15,6 +15,8 @@ public record DispatchPacket(
         ComputePipelineKey stateKey,
         ResourceBindingPlan bindingPlan,
         ResourceSetKey resourceSetKey,
+        // Compute dispatch retains a packet-local snapshot because its build-time
+        // uniforms are not recoverable from the narrowed RenderPacket interface.
         UniformValueSnapshot uniformSnapshot,
         List<GraphicsUniformSubject> completionSubjects,
         int workGroupsX,

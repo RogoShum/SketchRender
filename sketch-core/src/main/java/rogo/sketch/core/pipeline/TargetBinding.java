@@ -12,31 +12,24 @@ public record TargetBinding(
         Boolean clearColor,
         Boolean clearDepth
 ) {
-    public static final KeyId DEFAULT_RENDER_TARGET = KeyId.of("minecraft:main_target");
-    private static final TargetBinding DEFAULT = new TargetBinding(DEFAULT_RENDER_TARGET, List.of(), null, null);
-
     public TargetBinding {
-        renderTargetId = renderTargetId != null ? renderTargetId : DEFAULT_RENDER_TARGET;
+        renderTargetId = renderTargetId != null ? renderTargetId : PipelineConfig.DEFAULT_RENDER_TARGET_ID;
         drawBuffers = drawBuffers != null ? List.copyOf(drawBuffers) : List.of();
-    }
-
-    public static TargetBinding defaultTarget() {
-        return DEFAULT;
     }
 
     public static TargetBinding fromRenderState(RenderStatePatch renderState) {
         if (renderState == null || renderState.isEmpty()) {
-            return defaultTarget();
+            return new TargetBinding(PipelineConfig.DEFAULT_RENDER_TARGET_ID, List.of(), null, null);
         }
         Object state = renderState.get(RenderTargetState.TYPE);
         if (state instanceof RenderTargetState renderTargetState) {
             return renderTargetState.toTargetBinding();
         }
-        return defaultTarget();
+        return new TargetBinding(PipelineConfig.DEFAULT_RENDER_TARGET_ID, List.of(), null, null);
     }
 
     public boolean isDefaultTarget() {
-        return DEFAULT_RENDER_TARGET.equals(renderTargetId) && drawBuffers.isEmpty();
+        return PipelineConfig.DEFAULT_RENDER_TARGET_ID.equals(renderTargetId) && drawBuffers.isEmpty();
     }
 }
 

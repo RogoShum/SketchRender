@@ -1,6 +1,7 @@
 package rogo.sketch.core.event;
 
 import rogo.sketch.core.event.bridge.RegistryEvent;
+import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 
@@ -15,5 +16,9 @@ public class UniformHookRegisterEvent implements RegistryEvent {
 
     public <T> void register(KeyId id, ValueGetter<T> operator) {
         register.accept(id, operator);
+    }
+
+    public <T> void register(KeyId id, ValueGetter<T> operator, UniformCaptureTiming timing) {
+        register.accept(id, operator != null ? operator.withTiming(timing) : null);
     }
 }

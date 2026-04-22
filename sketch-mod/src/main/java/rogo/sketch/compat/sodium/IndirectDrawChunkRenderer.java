@@ -3,11 +3,8 @@ package rogo.sketch.compat.sodium;
 import me.jellysquid.mods.sodium.client.gl.attribute.GlVertexAttributeBinding;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.gl.device.DrawCommandList;
-import me.jellysquid.mods.sodium.client.gl.device.GLRenderDevice;
 import me.jellysquid.mods.sodium.client.gl.device.RenderDevice;
 import me.jellysquid.mods.sodium.client.gl.shader.GlProgram;
-import me.jellysquid.mods.sodium.client.gl.tessellation.GlIndexType;
-import me.jellysquid.mods.sodium.client.gl.tessellation.GlPrimitiveType;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import me.jellysquid.mods.sodium.client.render.chunk.ShaderChunkRenderer;
@@ -24,8 +21,7 @@ import me.jellysquid.mods.sodium.client.render.viewport.CameraTransform;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.IrisChunkShaderInterface;
 import net.irisshaders.iris.compat.sodium.impl.shader_overrides.ShaderChunkRendererExt;
 import rogo.sketch.compat.sodium.api.ExtraChunkRenderer;
-import rogo.sketch.compat.sodium.api.TessellationDevice;
-import rogo.sketch.core.backend.BackendCountedIndirectDraw;
+import rogo.sketch.core.backend.IndirectDrawService;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.module.culling.TerrainMeshResourceSet;
 
@@ -134,12 +130,9 @@ public class IndirectDrawChunkRenderer extends ShaderChunkRenderer implements Ex
             DrawCommandList drawCommandList = commandList.beginTessellating(tessellation);
 
             try {
-                GlPrimitiveType primitiveType = ((TessellationDevice) GLRenderDevice.INSTANCE).getTessellation().getPrimitiveType();
-                BackendCountedIndirectDraw countedIndirectDraw = GraphicsDriver.renderDevice().countedIndirectDraw();
-                if (countedIndirectDraw.isSupported()) {
-                    countedIndirectDraw.multiDrawElementsIndirectCount(
-                            primitiveType.getId(),
-                            GlIndexType.UNSIGNED_INT.getFormatId(),
+                IndirectDrawService indirectDrawService = GraphicsDriver.renderDevice().indirectDrawService();
+                if (indirectDrawService.isSupported()) {
+                    indirectDrawService.multiDrawElementsIndirectCount(
                             REGION_MESH_STRIDE * index + passOffset,
                             (index * 12L) + (passIndex * 4L),
                             meshCount,

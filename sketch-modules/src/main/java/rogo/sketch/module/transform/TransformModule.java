@@ -2,7 +2,6 @@ package rogo.sketch.module.transform;
 
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
-import rogo.sketch.core.graphics.ecs.GraphicsComponentUpdateCoordinator;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
@@ -79,13 +78,7 @@ public class TransformModule implements ModuleRuntime {
         context.registerBuiltInResource(ResourceTypes.SHADER_STORAGE_BUFFER,
                 KeyId.of("sketch_render", "transform_output"),
                 () -> matrixManager() != null ? matrixManager().getOutputSSBO() : null);
-        context.registerUniform(KeyId.of("u_transformCount"), ValueGetter.create((instance) -> {
-            RenderContext renderContext = (RenderContext) instance;
-            if (renderContext.transformModule() != null && renderContext.transformModule().matrixManager() != null) {
-                return renderContext.transformModule().matrixManager().getActiveCount();
-            }
-            return 0;
-        }, Integer.class, RenderContext.class));
+        context.registerUniform(KeyId.of("u_transformCount"), ValueGetter.create(this::getActiveCount, Integer.class));
         context.registerUniform(KeyId.of("u_batchOffset"), ValueGetter.create(() -> 0, Integer.class));
         context.registerUniform(KeyId.of("u_batchCount"), ValueGetter.create(() -> 0, Integer.class));
     }

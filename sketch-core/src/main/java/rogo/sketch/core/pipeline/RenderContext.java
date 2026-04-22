@@ -6,19 +6,19 @@ import org.joml.Vector3f;
 import rogo.sketch.core.api.ShaderProvider;
 import rogo.sketch.core.shader.ShaderProgramHandle;
 import rogo.sketch.core.shader.ShaderProgramResolver;
-import rogo.sketch.module.transform.TransformModule;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class RenderContext {
-    private final Map<KeyId, Object> contextMap = new HashMap<>();
+    public static final ContextKey<Boolean> RENDERED = ContextKey.of("sketch:rendered", Boolean.class);
+
+    private final Map<ContextKey<?>, Object> contextMap = new HashMap<>();
     private final Matrix4f viewMatrix = new Matrix4f();
     private final Matrix4f modelMatrix = new Matrix4f();
     private final Matrix4f projectionMatrix = new Matrix4f();
     protected RenderStateManager renderStateManager;
-    protected TransformModule transformModule;
     protected Vector3f cameraPosition = new Vector3f();
     protected Vector3f cameraDirection = new Vector3f();
     protected Vector3f cameraUp = new Vector3f();
@@ -115,14 +115,6 @@ public class RenderContext {
         return renderStateManager;
     }
 
-    public void setTransformStateManager(TransformModule transformModule) {
-        this.transformModule = transformModule;
-    }
-
-    public TransformModule transformModule() {
-        return transformModule;
-    }
-
     public FrustumIntersection getFrustum() {
         return frustum;
     }
@@ -136,16 +128,18 @@ public class RenderContext {
     }
 
     public void postStage(KeyId stage) {
-        this.set(KeyId.of("rendered"), false);
+        this.set(RENDERED, false);
     }
 
-    public void set(KeyId key, Object value) {
+    public <T> void set(ContextKey<T> key, T value) {
+        if (key == null) {
+            return;
+        }
         contextMap.put(key, value);
     }
 
-    @SuppressWarnings("unchecked")
-    public <T> T get(KeyId key) {
-        return (T) contextMap.get(key);
+    public <T> T get(ContextKey<T> key) {
+        return key != null ? key.cast(contextMap.get(key)) : null;
     }
 
     public RenderContext snapshot() {
@@ -163,7 +157,6 @@ public class RenderContext {
         snapshot.viewMatrix.set(this.viewMatrix);
         snapshot.modelMatrix.set(this.modelMatrix);
         snapshot.projectionMatrix.set(this.projectionMatrix);
-        snapshot.transformModule = this.transformModule;
         snapshot.cameraPosition = new Vector3f(this.cameraPosition);
         snapshot.cameraDirection = new Vector3f(this.cameraDirection);
         snapshot.cameraUp = new Vector3f(this.cameraUp);

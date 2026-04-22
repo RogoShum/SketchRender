@@ -6,7 +6,7 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkCommandBufferAllocateInfo;
 import org.lwjgl.vulkan.VkCommandBufferBeginInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
-import rogo.sketch.core.backend.CommandRecorder;
+import rogo.sketch.core.backend.CommandEncoder;
 
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -24,7 +24,7 @@ import static org.lwjgl.vulkan.VK10.vkFreeCommandBuffers;
 import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
 import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
 
-final class VulkanCommandRecorder implements CommandRecorder {
+final class VulkanCommandEncoder implements CommandEncoder {
     private final VulkanRenderDevice renderDevice;
     @SuppressWarnings("unused")
     private final String label;
@@ -32,7 +32,7 @@ final class VulkanCommandRecorder implements CommandRecorder {
     private boolean recording;
     private boolean submitted;
 
-    VulkanCommandRecorder(VulkanRenderDevice renderDevice, String label) {
+    VulkanCommandEncoder(VulkanRenderDevice renderDevice, String label) {
         this.renderDevice = renderDevice;
         this.label = label != null ? label : "unnamed";
     }

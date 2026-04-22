@@ -5,7 +5,6 @@ import rogo.sketch.core.backend.BackendInstalledBindableResource;
 import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.core.backend.BackendInstalledRenderTarget;
 import rogo.sketch.core.backend.BackendInstalledTexture;
-import rogo.sketch.core.backend.BackendResourceResolver;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceTypes;
@@ -17,16 +16,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-final class VulkanResourceResolver implements BackendResourceResolver {
+final class VulkanResourceResolver {
     private static final String DIAG_MODULE = "vulkan-resource-resolver";
 
-    private final GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
+    private volatile GraphicsResourceManager resourceManager;
     private final Map<KeyId, VulkanTextureResource> textureOverrides = new ConcurrentHashMap<>();
     private final Map<KeyId, VulkanUniformBufferResource> uniformBufferOverrides = new ConcurrentHashMap<>();
     private final Map<KeyId, VulkanDescriptorBufferResource> storageBufferOverrides = new ConcurrentHashMap<>();
     private final Map<KeyId, VulkanCounterBufferResource> counterBufferOverrides = new ConcurrentHashMap<>();
     private final Set<String> warnedIncompatible = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedMissing = ConcurrentHashMap.newKeySet();
+
+    void bindLogicalResourceManager(GraphicsResourceManager resourceManager) {
+        this.resourceManager = resourceManager;
+    }
 
     void registerTexture(KeyId resourceId, VulkanTextureResource resource) {
         if (resourceId == null || resource == null) {
@@ -104,8 +107,12 @@ final class VulkanResourceResolver implements BackendResourceResolver {
         if (renderTargetId == null) {
             return null;
         }
-        ResourceObject exact = resourceManager.getResourceExact(ResourceTypes.RENDER_TARGET, renderTargetId);
-        ResourceObject target = exact != null ? exact : resourceManager.getResource(ResourceTypes.RENDER_TARGET, renderTargetId);
+        GraphicsResourceManager manager = resourceManager;
+        if (manager == null) {
+            return null;
+        }
+        ResourceObject exact = manager.getResourceExact(ResourceTypes.RENDER_TARGET, renderTargetId);
+        ResourceObject target = exact != null ? exact : manager.getResource(ResourceTypes.RENDER_TARGET, renderTargetId);
         if (target == null) {
             warnMissing(ResourceTypes.RENDER_TARGET, renderTargetId, exact, null);
             return null;
@@ -140,9 +147,13 @@ final class VulkanResourceResolver implements BackendResourceResolver {
     }
 
     private <T extends ResourceObject> T resolveFromManager(KeyId resourceType, KeyId resourceId, Class<T> expectedType) {
-        ResourceObject exact = resourceManager.getResourceExact(resourceType, resourceId);
+        GraphicsResourceManager manager = resourceManager;
+        if (manager == null) {
+            return null;
+        }
+        ResourceObject exact = manager.getResourceExact(resourceType, resourceId);
         if (exact == null) {
-            ResourceObject inherited = resourceManager.getResource(resourceType, resourceId);
+            ResourceObject inherited = manager.getResource(resourceType, resourceId);
             if (inherited == null) {
                 warnMissing(resourceType, resourceId, null, null);
                 return null;
@@ -220,7 +231,6 @@ final class VulkanResourceResolver implements BackendResourceResolver {
             VulkanTextureResource depthAttachment) {
     }
 
-    @Override
     public BackendInstalledBindableResource resolveBindableResource(KeyId resourceType, KeyId resourceId) {
         KeyId normalizedType = ResourceTypes.normalize(resourceType);
         if (ResourceTypes.TEXTURE.equals(normalizedType) || ResourceTypes.IMAGE.equals(normalizedType)) {
@@ -231,17 +241,14 @@ final class VulkanResourceResolver implements BackendResourceResolver {
         return buffer instanceof BackendInstalledBindableResource bindable ? bindable : null;
     }
 
-    @Override
     public BackendInstalledTexture resolveTexture(KeyId resourceId) {
         return resolveTextureResource(resourceId);
     }
 
-    @Override
     public BackendInstalledRenderTarget resolveRenderTarget(KeyId renderTargetId) {
         return null;
     }
 
-    @Override
     public BackendInstalledBuffer resolveBuffer(KeyId resourceType, KeyId resourceId) {
         KeyId normalizedType = ResourceTypes.normalize(resourceType);
         if (ResourceTypes.UNIFORM_BUFFER.equals(normalizedType)) {
@@ -254,6 +261,16 @@ final class VulkanResourceResolver implements BackendResourceResolver {
             return resolveCounterBufferResource(resourceId);
         }
         return null;
+    }
+
+    ResourceObject resolveLogicalResource(KeyId resourceType, KeyId resourceId) {
+        GraphicsResourceManager manager = resourceManager;
+        return manager != null && resourceId != null ? manager.getResource(resourceType, resourceId) : null;
+    }
+
+    ResourceObject resolveLogicalResourceExact(KeyId resourceType, KeyId resourceId) {
+        GraphicsResourceManager manager = resourceManager;
+        return manager != null && resourceId != null ? manager.getResourceExact(resourceType, resourceId) : null;
     }
 }
 

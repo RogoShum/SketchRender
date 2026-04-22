@@ -13,8 +13,12 @@ final class VulkanBootstrapArtifacts {
     final VkDevice device;
     final int graphicsQueueFamilyIndex;
     final int presentQueueFamilyIndex;
+    final int computeQueueFamilyIndex;
+    final int transferQueueFamilyIndex;
     final VkQueue graphicsQueue;
     final VkQueue presentQueue;
+    final VkQueue computeQueue;
+    final VkQueue transferQueue;
     final long swapchainHandle;
     final int swapchainImageFormat;
     final int swapchainExtentWidth;
@@ -30,8 +34,12 @@ final class VulkanBootstrapArtifacts {
             VkDevice device,
             int graphicsQueueFamilyIndex,
             int presentQueueFamilyIndex,
+            int computeQueueFamilyIndex,
+            int transferQueueFamilyIndex,
             VkQueue graphicsQueue,
             VkQueue presentQueue,
+            VkQueue computeQueue,
+            VkQueue transferQueue,
             long swapchainHandle,
             int swapchainImageFormat,
             int swapchainExtentWidth,
@@ -45,8 +53,12 @@ final class VulkanBootstrapArtifacts {
         this.device = device;
         this.graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
         this.presentQueueFamilyIndex = presentQueueFamilyIndex;
+        this.computeQueueFamilyIndex = computeQueueFamilyIndex;
+        this.transferQueueFamilyIndex = transferQueueFamilyIndex;
         this.graphicsQueue = graphicsQueue;
         this.presentQueue = presentQueue;
+        this.computeQueue = computeQueue;
+        this.transferQueue = transferQueue;
         this.swapchainHandle = swapchainHandle;
         this.swapchainImageFormat = swapchainImageFormat;
         this.swapchainExtentWidth = swapchainExtentWidth;

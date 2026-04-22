@@ -12,6 +12,7 @@ import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.variant.ShaderTemplate;
 import rogo.sketch.core.shader.variant.ShaderVariantKey;
 import rogo.sketch.core.util.KeyId;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -49,7 +50,14 @@ public record StageExecutionPlan(
     public static StageExecutionPlan fromPackets(
             KeyId stageId,
             Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets) {
-        SnapshotScope snapshotScope = deriveSnapshotScope(packets);
+        return fromPackets(stageId, packets, null);
+    }
+
+    public static StageExecutionPlan fromPackets(
+            KeyId stageId,
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets,
+            @Nullable GraphicsResourceManager resourceManager) {
+        SnapshotScope snapshotScope = deriveSnapshotScope(packets, resourceManager);
         return new StageExecutionPlan(
                 stageId,
                 null,
@@ -133,7 +141,8 @@ public record StageExecutionPlan(
     }
 
     private static SnapshotScope deriveSnapshotScope(
-            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets) {
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets,
+            @Nullable GraphicsResourceManager resourceManager) {
         if (packets == null || packets.isEmpty()) {
             return SnapshotScope.empty();
         }
@@ -157,7 +166,13 @@ public record StageExecutionPlan(
                         builder.addState(SnapshotScope.StateType.PROGRAM);
                     }
                     if (stateKey.bindingPlan() != null && !stateKey.bindingPlan().isEmpty()) {
-                        addBindingPlanScope(builder, stateKey, stateKey.bindingPlan(), resolvedBindingsCache, appliedBindingScopes);
+                        addBindingPlanScope(
+                                builder,
+                                stateKey,
+                                stateKey.bindingPlan(),
+                                resolvedBindingsCache,
+                                appliedBindingScopes,
+                                resourceManager);
                     }
                 }
 
@@ -169,7 +184,13 @@ public record StageExecutionPlan(
                     if (packet.bindingPlan() != null
                             && !packet.bindingPlan().isEmpty()
                             && !packet.bindingPlan().equals(stateKey != null ? stateKey.bindingPlan() : null)) {
-                        addBindingPlanScope(builder, packet.stateKey(), packet.bindingPlan(), resolvedBindingsCache, appliedBindingScopes);
+                        addBindingPlanScope(
+                                builder,
+                                packet.stateKey(),
+                                packet.bindingPlan(),
+                                resolvedBindingsCache,
+                                appliedBindingScopes,
+                                resourceManager);
                     }
                     if (packet.packetKind() == RenderPacketKind.DRAW) {
                         touchesFramebuffer = true;
@@ -211,7 +232,8 @@ public record StageExecutionPlan(
             ExecutionKey stateKey,
             ResourceBindingPlan bindingPlan,
             Map<ShaderBindingCacheKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache,
-            Set<BindingPlanScopeCacheKey> appliedBindingScopes) {
+            Set<BindingPlanScopeCacheKey> appliedBindingScopes,
+            @Nullable GraphicsResourceManager resourceManager) {
         builder.addState(SnapshotScope.StateType.PROGRAM);
         builder.addState(SnapshotScope.StateType.PASS_BINDINGS);
         if (bindingPlan == null || bindingPlan.isEmpty() || stateKey == null || stateKey.shaderId() == null) {
@@ -229,7 +251,8 @@ public record StageExecutionPlan(
         Map<KeyId, Map<KeyId, Integer>> resolvedBindings = resolveShaderBindings(
                 stateKey.shaderId(),
                 stateKey.shaderVariantKey(),
-                resolvedBindingsCache);
+                resolvedBindingsCache,
+                resourceManager);
         if (resolvedBindings.isEmpty()) {
             return;
         }
@@ -258,7 +281,8 @@ public record StageExecutionPlan(
     private static Map<KeyId, Map<KeyId, Integer>> resolveShaderBindings(
             KeyId shaderId,
             ShaderVariantKey shaderVariantKey,
-            Map<ShaderBindingCacheKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache) {
+            Map<ShaderBindingCacheKey, Map<KeyId, Map<KeyId, Integer>>> resolvedBindingsCache,
+            @Nullable GraphicsResourceManager resourceManager) {
         if (shaderId == null) {
             return Map.of();
         }
@@ -271,8 +295,10 @@ public record StageExecutionPlan(
                 return cached;
             }
         }
-        Object resource = GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.SHADER_TEMPLATE, shaderId);
+        if (resourceManager == null) {
+            return Map.of();
+        }
+        Object resource = resourceManager.getResource(ResourceTypes.SHADER_TEMPLATE, shaderId);
         if (!(resource instanceof ShaderTemplate shaderTemplate)) {
             return Map.of();
         }

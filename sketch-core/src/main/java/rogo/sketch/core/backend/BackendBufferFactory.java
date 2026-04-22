@@ -19,7 +19,7 @@ public final class BackendBufferFactory {
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
         BackendUniformBuffer buffer = GraphicsDriver.resourceAllocator()
-                .createUniformBuffer(resourceId, descriptor, initialData);
+                .installUniformBuffer(resourceId, descriptor, initialData);
         if (buffer == null) {
             throw new IllegalStateException("Current backend did not install a uniform buffer for " + resourceId);
         }
@@ -31,7 +31,7 @@ public final class BackendBufferFactory {
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
         BackendStorageBuffer buffer = GraphicsDriver.resourceAllocator()
-                .createStorageBuffer(resourceId, descriptor, initialData);
+                .installStorageBuffer(resourceId, descriptor, initialData);
         if (buffer == null) {
             throw new IllegalStateException("Current backend did not install a storage buffer for " + resourceId);
         }
@@ -43,7 +43,7 @@ public final class BackendBufferFactory {
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
         BackendCounterBuffer buffer = GraphicsDriver.resourceAllocator()
-                .createCounterBuffer(resourceId, descriptor, initialData);
+                .installCounterBuffer(resourceId, descriptor, initialData);
         if (buffer == null) {
             throw new IllegalStateException("Current backend did not install a counter buffer for " + resourceId);
         }
@@ -55,7 +55,7 @@ public final class BackendBufferFactory {
             ResolvedBufferResource descriptor,
             long commandCapacity) {
         BackendIndirectBuffer buffer = GraphicsDriver.resourceAllocator()
-                .createIndirectBuffer(resourceId, descriptor, commandCapacity);
+                .installIndirectBuffer(resourceId, descriptor, commandCapacity);
         if (buffer == null) {
             throw new IllegalStateException("Current backend did not install an indirect buffer for " + resourceId);
         }
@@ -67,7 +67,7 @@ public final class BackendBufferFactory {
             ResolvedBufferResource descriptor,
             int initialElementCapacity) {
         BackendReadbackBuffer buffer = GraphicsDriver.resourceAllocator()
-                .createReadbackBuffer(resourceId, descriptor, initialElementCapacity);
+                .installReadbackBuffer(resourceId, descriptor, initialElementCapacity);
         if (buffer == null) {
             throw new IllegalStateException("Current backend did not install a readback buffer for " + resourceId);
         }

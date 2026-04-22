@@ -12,14 +12,21 @@ import rogo.sketch.backend.opengl.resource.descriptor.OpenGLSamplerMappings;
 import rogo.sketch.backend.opengl.util.GLFeatureChecker;
 import rogo.sketch.core.backend.BackendCounterBuffer;
 import rogo.sketch.core.backend.BackendIndirectBuffer;
+import rogo.sketch.core.backend.BackendInstalledBindableResource;
+import rogo.sketch.core.backend.BackendInstalledBuffer;
+import rogo.sketch.core.backend.BackendInstalledRenderTarget;
+import rogo.sketch.core.backend.BackendInstalledTexture;
 import rogo.sketch.core.backend.BackendReadbackBuffer;
 import rogo.sketch.core.backend.BackendStorageBuffer;
 import rogo.sketch.core.backend.BackendUniformBuffer;
+import rogo.sketch.core.backend.LogicalResourceRegistryBinder;
 import rogo.sketch.core.backend.ResourceAllocator;
+import rogo.sketch.core.api.ResourceObject;
 import rogo.sketch.core.memory.TrackedTransientAllocation;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.descriptor.BufferRole;
 import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
 import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
@@ -31,7 +38,7 @@ import rogo.sketch.core.util.KeyId;
 
 import java.nio.ByteBuffer;
 
-final class OpenGLResourceAllocator implements ResourceAllocator {
+final class OpenGLResourceAllocator implements ResourceAllocator, LogicalResourceRegistryBinder {
     private final GraphicsAPI api;
     private final OpenGLBackendResourceResolver resourceResolver;
 
@@ -41,7 +48,7 @@ final class OpenGLResourceAllocator implements ResourceAllocator {
     }
 
     @Override
-    public Texture createTexture(
+    public Texture installTexture(
             KeyId resourceId,
             ResolvedImageResource descriptor,
             @Nullable String imagePath,
@@ -77,9 +84,9 @@ final class OpenGLResourceAllocator implements ResourceAllocator {
     }
 
     @Override
-    public RenderTarget createRenderTarget(KeyId resourceId, ResolvedRenderTargetSpec descriptor) {
+    public RenderTarget installRenderTarget(KeyId resourceId, ResolvedRenderTargetSpec descriptor) {
         int handle = api.createFramebuffer();
-        OpenGLStandardRenderTarget renderTarget = new OpenGLStandardRenderTarget(handle, resourceId, descriptor, api, resourceResolver);
+        OpenGLStandardRenderTarget renderTarget = new OpenGLStandardRenderTarget(handle, resourceId, descriptor, api, this);
         api.bindFrameBuffer(handle);
         int status = GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
         if (status != GL30.GL_FRAMEBUFFER_COMPLETE) {
@@ -90,7 +97,7 @@ final class OpenGLResourceAllocator implements ResourceAllocator {
     }
 
     @Override
-    public BackendUniformBuffer createUniformBuffer(
+    public BackendUniformBuffer installUniformBuffer(
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
@@ -98,7 +105,7 @@ final class OpenGLResourceAllocator implements ResourceAllocator {
     }
 
     @Override
-    public BackendStorageBuffer createStorageBuffer(
+    public BackendStorageBuffer installStorageBuffer(
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
@@ -118,7 +125,7 @@ final class OpenGLResourceAllocator implements ResourceAllocator {
     }
 
     @Override
-    public BackendCounterBuffer createCounterBuffer(
+    public BackendCounterBuffer installCounterBuffer(
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             @Nullable ByteBuffer initialData) {
@@ -130,7 +137,7 @@ final class OpenGLResourceAllocator implements ResourceAllocator {
     }
 
     @Override
-    public BackendIndirectBuffer createIndirectBuffer(
+    public BackendIndirectBuffer installIndirectBuffer(
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             long commandCapacity) {
@@ -141,7 +148,7 @@ final class OpenGLResourceAllocator implements ResourceAllocator {
     }
 
     @Override
-    public BackendReadbackBuffer createReadbackBuffer(
+    public BackendReadbackBuffer installReadbackBuffer(
             KeyId resourceId,
             ResolvedBufferResource descriptor,
             int initialElementCapacity) {
@@ -174,6 +181,41 @@ final class OpenGLResourceAllocator implements ResourceAllocator {
             boolean uploadGeometryData) {
         OpenGLGeometryMaterializer.installExecutionGeometryBindings(pipeline, plan, uploadGeometryData);
         return true;
+    }
+
+    @Override
+    public BackendInstalledBindableResource resolveBindableResource(KeyId resourceType, KeyId resourceId) {
+        return resourceResolver.resolveBindableResource(resourceType, resourceId);
+    }
+
+    @Override
+    public BackendInstalledTexture resolveTexture(KeyId resourceId) {
+        return resourceResolver.resolveTexture(resourceId);
+    }
+
+    @Override
+    public BackendInstalledRenderTarget resolveRenderTarget(KeyId renderTargetId) {
+        return resourceResolver.resolveRenderTarget(renderTargetId);
+    }
+
+    @Override
+    public BackendInstalledBuffer resolveBuffer(KeyId resourceType, KeyId resourceId) {
+        return resourceResolver.resolveBuffer(resourceType, resourceId);
+    }
+
+    @Override
+    public ResourceObject resolveLogicalResource(KeyId resourceType, KeyId resourceId) {
+        return resourceResolver.resolveLogicalResource(resourceType, resourceId);
+    }
+
+    @Override
+    public ResourceObject resolveLogicalResourceExact(KeyId resourceType, KeyId resourceId) {
+        return resourceResolver.resolveLogicalResourceExact(resourceType, resourceId);
+    }
+
+    @Override
+    public void bindLogicalResourceRegistry(GraphicsResourceManager resourceManager) {
+        resourceResolver.bindLogicalResourceManager(resourceManager);
     }
 
     private static int toGLUsage(BufferUpdatePolicy updatePolicy) {

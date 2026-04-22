@@ -1,5 +1,6 @@
 package rogo.sketch.core.pipeline.flow.plan;
 
+import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.pipeline.flow.v2.PreparedStageGeometryView;
@@ -7,9 +8,14 @@ import rogo.sketch.core.pipeline.flow.v2.ResourceGroupSlice;
 import rogo.sketch.core.pipeline.flow.v2.StageEntityView;
 import rogo.sketch.core.shader.ShaderProgramHandle;
 import rogo.sketch.core.shader.ShaderProgramResolver;
+import rogo.sketch.core.shader.uniform.DrawUniformSet;
+import rogo.sketch.core.shader.uniform.FrameUniformSet;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
+import rogo.sketch.core.shader.uniform.PassUniformSet;
+import rogo.sketch.core.shader.uniform.ResourceUniformSet;
+import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
 import rogo.sketch.core.shader.uniform.UniformGroupSet;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
-import rogo.sketch.core.shader.uniform.UniformUpdateDomain;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 
 import java.util.ArrayList;
@@ -23,13 +29,29 @@ public final class ResourceGroupCompiler {
             CompiledRenderSetting compiledRenderSetting,
             Object sourceSlice,
             List<StageEntityView.Entry> entries) {
-        return finalizePrepared(prepare(compiledRenderSetting, sourceSlice, entries), entries);
+        return compile(compiledRenderSetting, sourceSlice, entries, FrameUniformSnapshot.empty());
+    }
+
+    public List<ResourceGroupSlice> compile(
+            CompiledRenderSetting compiledRenderSetting,
+            Object sourceSlice,
+            List<StageEntityView.Entry> entries,
+            @Nullable FrameUniformSnapshot frameUniformSnapshot) {
+        return finalizePrepared(prepare(compiledRenderSetting, sourceSlice, entries, frameUniformSnapshot), entries);
     }
 
     public List<PreparedStageGeometryView.PreparedResourceGroupSlice> prepare(
             CompiledRenderSetting compiledRenderSetting,
             Object sourceSlice,
             List<StageEntityView.Entry> entries) {
+        return prepare(compiledRenderSetting, sourceSlice, entries, FrameUniformSnapshot.empty());
+    }
+
+    public List<PreparedStageGeometryView.PreparedResourceGroupSlice> prepare(
+            CompiledRenderSetting compiledRenderSetting,
+            Object sourceSlice,
+            List<StageEntityView.Entry> entries,
+            @Nullable FrameUniformSnapshot frameUniformSnapshot) {
         List<PreparedStageGeometryView.PreparedResourceGroupSlice> groups = new ArrayList<>();
         if (compiledRenderSetting == null || entries == null || entries.isEmpty()) {
             return groups;
@@ -50,6 +72,10 @@ public final class ResourceGroupCompiler {
         }
 
         UniformHookGroup hookGroup = shaderProvider.uniformHooks();
+        UniformValueSnapshot frameSnapshot = frameUniformSnapshot != null
+                ? frameUniformSnapshot.snapshotFor(hookGroup)
+                : UniformValueSnapshot.empty();
+        UniformGroupSet staticUniformGroups = uniformGroups(frameSnapshot, UniformValueSnapshot.empty());
         if (entries.stream().noneMatch(entry -> entry != null && entry.uniformSubject() != null)) {
             groups.add(new PreparedStageGeometryView.PreparedResourceGroupSlice(
                     sourceSlice,
@@ -57,13 +83,15 @@ public final class ResourceGroupCompiler {
                     compiledRenderSetting.resourceBindingPlan(),
                     rogo.sketch.core.packet.ResourceSetKey.from(
                             compiledRenderSetting.resourceBindingPlan(),
-                            UniformGroupSet.empty().resourceUniforms()),
-                    UniformGroupSet.empty(),
+                            staticUniformGroups.resourceUniforms()),
+                    staticUniformGroups,
                     entries));
             return groups;
         }
 
-        var cachedMatchingHooks = hookGroup.getAllMatchingHooks(GraphicsUniformSubject.class);
+        var cachedMatchingHooks = hookGroup.getAllMatchingHooks(
+                GraphicsUniformSubject.class,
+                UniformCaptureTiming.BUILD_ASYNC_SAFE);
         Map<UniformValueSnapshot, List<StageEntityView.Entry>> grouped = new LinkedHashMap<>();
         for (StageEntityView.Entry entry : entries) {
             GraphicsUniformSubject uniformSubject = entry != null ? entry.uniformSubject() : null;
@@ -74,12 +102,12 @@ public final class ResourceGroupCompiler {
                     hookGroup,
                     uniformSubject,
                     cachedMatchingHooks,
-                    UniformUpdateDomain.BUILD_SNAPSHOT);
+                    UniformCaptureTiming.BUILD_ASYNC_SAFE);
             grouped.computeIfAbsent(snapshot, ignored -> new ArrayList<>()).add(entry);
         }
 
         for (Map.Entry<UniformValueSnapshot, List<StageEntityView.Entry>> groupedEntry : grouped.entrySet()) {
-            UniformGroupSet uniformGroups = UniformGroupSet.fromSnapshot(groupedEntry.getKey());
+            UniformGroupSet uniformGroups = uniformGroups(frameSnapshot, groupedEntry.getKey());
             groups.add(new PreparedStageGeometryView.PreparedResourceGroupSlice(
                     sourceSlice,
                     compiledRenderSetting.pipelineStateKey(),
@@ -91,6 +119,20 @@ public final class ResourceGroupCompiler {
                     groupedEntry.getValue()));
         }
         return groups;
+    }
+
+    private UniformGroupSet uniformGroups(
+            UniformValueSnapshot frameSnapshot,
+            UniformValueSnapshot resourceSnapshot) {
+        if ((frameSnapshot == null || frameSnapshot.isEmpty())
+                && (resourceSnapshot == null || resourceSnapshot.isEmpty())) {
+            return UniformGroupSet.empty();
+        }
+        return new UniformGroupSet(
+                frameSnapshot != null && !frameSnapshot.isEmpty() ? new FrameUniformSet(frameSnapshot) : FrameUniformSet.empty(),
+                PassUniformSet.empty(),
+                resourceSnapshot != null && !resourceSnapshot.isEmpty() ? new ResourceUniformSet(resourceSnapshot) : ResourceUniformSet.empty(),
+                DrawUniformSet.empty());
     }
 
     public List<ResourceGroupSlice> finalizePrepared(

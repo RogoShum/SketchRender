@@ -8,6 +8,7 @@ import rogo.sketch.core.pipeline.data.FrameDataStore;
 import rogo.sketch.core.pipeline.graph.PipelinePass;
 import rogo.sketch.core.pipeline.kernel.FrameContext;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 
 /**
  * Merged synchronous preparation pass:
@@ -42,6 +43,8 @@ public class SyncPreparePass<C extends RenderContext> implements PipelinePass<C>
         if (pipeline.runtimeHost() != null) {
             pipeline.runtimeHost().installIndirectRequests(pipeline);
         }
+
+        ctx.setFrameUniformSnapshot(FrameUniformSnapshot.capture(ctx.renderContext()));
 
         // 2. Materialize pending geometry bindings on the sync thread.
         // Stage-local entity views and scene caches are prepared in AsyncRenderPass

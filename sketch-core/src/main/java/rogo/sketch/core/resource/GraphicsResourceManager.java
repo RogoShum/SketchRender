@@ -26,8 +26,6 @@ import java.util.function.Supplier;
  * - Platform-independent core with ResourceScanProvider for platform-specific loading
  */
 public class GraphicsResourceManager {
-    private static GraphicsResourceManager instance;
-
     // ===== Core Storage Layer =====
     private final ResourceStorage storage = new ResourceStorage();
     
@@ -40,15 +38,8 @@ public class GraphicsResourceManager {
     // ===== Resource Scan Provider =====
     private ResourceScanProvider scanProvider;
 
-    protected GraphicsResourceManager() {
+    public GraphicsResourceManager() {
         registerDefaultLoaders();
-    }
-
-    public static GraphicsResourceManager getInstance() {
-        if (instance == null) {
-            instance = new GraphicsResourceManager();
-        }
-        return instance;
     }
 
     // ========== Public API ==========
@@ -319,7 +310,7 @@ public class GraphicsResourceManager {
 
     private void loadAndRegister(KeyId type, KeyId name, InputStream stream,
                                  Function<KeyId, Optional<InputStream>> resourceProvider) {
-        ResourceObject resource = loaders.load(type, name, stream, resourceProvider);
+        ResourceObject resource = loaders.load(type, name, stream, resourceProvider, this);
         if (resource != null) {
             storage.registerLoaded(type, name, resource, ResourceScope.PERSISTENT, null, true);
             references.incrementVersion(type, name);
@@ -626,15 +617,19 @@ public class GraphicsResourceManager {
             return loaders != null && !loaders.isEmpty();
         }
 
-        ResourceObject load(KeyId type, KeyId id, InputStream stream,
-                           Function<KeyId, Optional<InputStream>> subProvider) {
+        ResourceObject load(
+                KeyId type,
+                KeyId id,
+                InputStream stream,
+                Function<KeyId, Optional<InputStream>> subProvider,
+                GraphicsResourceManager resourceManager) {
             Set<ResourceLoader<?>> loaders = loaderMap.get(type);
             if (loaders == null || loaders.isEmpty()) {
                 SketchDiagnostics.get().warn("resource-manager", "No loader found for resource type: " + type);
                 return null;
             }
 
-            ResourceLoadContext context = new ResourceLoadContext(id, stream, gson, subProvider);
+            ResourceLoadContext context = new ResourceLoadContext(id, stream, gson, subProvider, resourceManager);
 
             for (ResourceLoader<?> loader : loaders) {
                 try {

@@ -14,14 +14,22 @@ public record ResourceBindingPlan(
         BindingEntry[] entries,
         int layoutHash,
         int resourceBindingHash,
+        ResourceBindingStamp stamp,
         ResourceBinding bindingReference
 ) {
     private static final KeyId EMPTY_LAYOUT = KeyId.of("sketch:empty_resource_layout");
-    private static final ResourceBindingPlan EMPTY = new ResourceBindingPlan(EMPTY_LAYOUT, new BindingEntry[0], 0, 0, null);
+    private static final ResourceBindingPlan EMPTY = new ResourceBindingPlan(
+            EMPTY_LAYOUT,
+            new BindingEntry[0],
+            0,
+            0,
+            ResourceBindingStamp.NONE,
+            null);
 
     public ResourceBindingPlan {
         layoutKey = layoutKey != null ? layoutKey : EMPTY_LAYOUT;
         entries = entries != null ? entries.clone() : new BindingEntry[0];
+        stamp = stamp != null ? stamp : (entries.length == 0 ? ResourceBindingStamp.NONE : ResourceBindingStamp.next());
     }
 
     public static ResourceBindingPlan empty() {
@@ -57,6 +65,7 @@ public record ResourceBindingPlan(
                 compiledEntries,
                 layoutHash,
                 binding.resourceBindingHash(),
+                ResourceBindingStamp.next(),
                 binding);
     }
 

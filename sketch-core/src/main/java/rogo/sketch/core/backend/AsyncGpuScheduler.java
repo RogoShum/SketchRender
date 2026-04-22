@@ -10,7 +10,7 @@ import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.graph.scheduler.SimpleProfiler;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
-import rogo.sketch.core.pipeline.TargetBinding;
+import rogo.sketch.core.pipeline.PipelineConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +47,11 @@ public final class AsyncGpuScheduler {
 
     public <C extends RenderContext> AsyncGpuJobHandle submitCompute(AsyncComputeRequest<C> request) {
         Objects.requireNonNull(request, "request");
-        LaneScheduler lane = selectLane(computeLane, uploadLane);
+        LaneScheduler lane = selectLaneForAffinity(
+                new QueueAffinity(ExecutionDomain.COMPUTE, true),
+                computeLane,
+                graphicsLane,
+                uploadLane);
         return submit(
                 GpuJobType.COMPUTE,
                 request.pipeline(),
@@ -61,7 +65,11 @@ public final class AsyncGpuScheduler {
 
     public <C extends RenderContext> AsyncGpuJobHandle submitUpload(AsyncUploadRequest<C> request) {
         Objects.requireNonNull(request, "request");
-        LaneScheduler lane = selectLane(uploadLane, computeLane);
+        LaneScheduler lane = selectLaneForAffinity(
+                new QueueAffinity(ExecutionDomain.TRANSFER, true),
+                uploadLane,
+                graphicsLane,
+                computeLane);
         return submit(
                 GpuJobType.UPLOAD,
                 request.pipeline(),
@@ -146,7 +154,7 @@ public final class AsyncGpuScheduler {
             completion = laneScheduler.submit(() -> {
                 SimpleProfiler.get().begin(jobLabel, Thread.currentThread().getName());
                 try {
-                    AsyncGpuCompletion gpuCompletion = GraphicsDriver.runtime().submitAsyncPackets(pipeline, packetSnapshot, snapshot);
+                    AsyncGpuCompletion gpuCompletion = GraphicsDriver.renderDevice().submitAsyncPackets(pipeline, packetSnapshot, snapshot);
                     if (completionCallback != null) {
                         completionCallback.run();
                     }
@@ -177,7 +185,7 @@ public final class AsyncGpuScheduler {
         try {
             SimpleProfiler.get().begin(jobLabel, Thread.currentThread().getName());
             try {
-                AsyncGpuCompletion gpuCompletion = GraphicsDriver.runtime().submitAsyncPackets(pipeline, packets, renderContext);
+                AsyncGpuCompletion gpuCompletion = GraphicsDriver.renderDevice().submitAsyncPackets(pipeline, packets, renderContext);
                 if (completionCallback != null) {
                     completionCallback.run();
                 }
@@ -197,7 +205,7 @@ public final class AsyncGpuScheduler {
 
     private boolean shouldExecuteInlineOnCallerThread(GpuJobType jobType) {
         BackendKind kind = GraphicsDriver.kind();
-        boolean glBackend = kind == BackendKind.MINECRAFT_GL || kind == BackendKind.DESKTOP_GL;
+        boolean glBackend = kind == BackendKind.OPENGL;
         if (!glBackend) {
             return false;
         }
@@ -222,6 +230,23 @@ public final class AsyncGpuScheduler {
         return preferred;
     }
 
+    private LaneScheduler selectLaneForAffinity(
+            QueueAffinity affinity,
+            LaneScheduler preferred,
+            LaneScheduler sharedFallback,
+            LaneScheduler compatibilityFallback) {
+        QueueRouter queueRouter = GraphicsDriver.queueRouter();
+        if (queueRouter != null && affinity != null && queueRouter.resolveQueue(affinity).isValid()) {
+            if (queueRouter.isDedicatedQueue(affinity.domain()) && preferred.supported()) {
+                return preferred;
+            }
+            if (sharedFallback != null && sharedFallback.supported()) {
+                return sharedFallback;
+            }
+        }
+        return selectLane(preferred, compatibilityFallback);
+    }
+
     private static void validateOffscreenGraphicsPackets(List<RenderPacket> packets) {
         if (packets == null || packets.isEmpty()) {
             throw new IllegalArgumentException("Async graphics packets must not be empty");
@@ -236,14 +261,14 @@ public final class AsyncGpuScheduler {
                             "Async graphics draw packets must use OFFSCREEN_GRAPHICS domain, got "
                                     + drawPacket.stateKey().domain());
                 }
-                if (TargetBinding.DEFAULT_RENDER_TARGET.equals(drawPacket.stateKey().renderTargetKey())) {
+                if (PipelineConfig.DEFAULT_RENDER_TARGET_ID.equals(drawPacket.stateKey().renderTargetKey())) {
                     throw new IllegalArgumentException("Async graphics draw packets must not target the default framebuffer");
                 }
                 continue;
             }
             if (packet instanceof ClearPacket clearPacket) {
                 if (clearPacket.renderTargetId() == null
-                        || TargetBinding.DEFAULT_RENDER_TARGET.equals(clearPacket.renderTargetId())) {
+                        || PipelineConfig.DEFAULT_RENDER_TARGET_ID.equals(clearPacket.renderTargetId())) {
                     throw new IllegalArgumentException("Async graphics clear packets must target backend-owned offscreen render targets");
                 }
                 continue;
@@ -284,7 +309,7 @@ public final class AsyncGpuScheduler {
         void shutdown() {
             if (workerStarted.get()) {
                 try {
-                    executor.submit(() -> GraphicsDriver.runtime().onWorkerLaneEnd(lane)).get(2, TimeUnit.SECONDS);
+                    executor.submit(() -> GraphicsDriver.threadContext().onWorkerLaneEnd(lane)).get(2, TimeUnit.SECONDS);
                 } catch (Exception e) {
                     SketchDiagnostics.get().warn("async-gpu", "Failed to cleanup async GPU worker lane '" + lane + "'", e);
                 }
@@ -307,7 +332,7 @@ public final class AsyncGpuScheduler {
                 return;
             }
             if (workerStarted.compareAndSet(false, true)) {
-                GraphicsDriver.runtime().onWorkerLaneStart(lane);
+                GraphicsDriver.threadContext().onWorkerLaneStart(lane);
             }
         }
     }

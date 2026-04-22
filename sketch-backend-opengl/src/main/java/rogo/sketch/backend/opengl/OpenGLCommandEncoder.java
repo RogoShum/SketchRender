@@ -5,12 +5,12 @@ import org.lwjgl.opengl.GL43;
 import rogo.sketch.core.backend.BackendCounterBuffer;
 import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.core.backend.BackendStorageBuffer;
-import rogo.sketch.core.backend.CommandRecorder;
+import rogo.sketch.core.backend.CommandEncoder;
 
-final class OpenGLCommandRecorder implements CommandRecorder {
+final class OpenGLCommandEncoder implements CommandEncoder {
     @Override
     public void uploadBuffer(BackendStorageBuffer target, long sourceAddress, long byteCount) {
-        CommandRecorder.super.uploadBuffer(target, sourceAddress, byteCount);
+        CommandEncoder.super.uploadBuffer(target, sourceAddress, byteCount);
     }
 
     @Override

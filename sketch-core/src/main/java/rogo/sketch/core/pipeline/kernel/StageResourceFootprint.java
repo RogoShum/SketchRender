@@ -82,10 +82,10 @@ public record StageResourceFootprint(
             for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
                 ExecutionKey stateKey = stateEntry.getKey();
                 if (stateKey != null) {
-                    shaderIds.add(stateKey.shaderId());
-                    renderTargetKeys.add(stateKey.renderTargetKey());
-                    vertexLayoutKeys.add(stateKey.vertexLayoutKey());
-                    resourceLayoutKeys.add(stateKey.resourceLayoutKey());
+                    addIfPresent(shaderIds, stateKey.shaderId());
+                    addIfPresent(renderTargetKeys, stateKey.renderTargetKey());
+                    addIfPresent(vertexLayoutKeys, stateKey.vertexLayoutKey());
+                    addIfPresent(resourceLayoutKeys, stateKey.resourceLayoutKey());
                 }
 
                 for (RenderPacket packet : stateEntry.getValue()) {
@@ -93,10 +93,10 @@ public record StageResourceFootprint(
                         continue;
                     }
                     packetCount++;
-                    resourceSetKeys.add(packet.resourceSetKey());
+                    addIfPresent(resourceSetKeys, packet.resourceSetKey());
                     if (packet.packetKind() == RenderPacketKind.DRAW && packet instanceof rogo.sketch.core.packet.DrawPacket drawPacket) {
                         drawPacketCount++;
-                        geometryHandles.add(drawPacket.geometryHandle());
+                        addIfPresent(geometryHandles, drawPacket.geometryHandle());
                     }
                 }
             }
@@ -116,6 +116,12 @@ public record StageResourceFootprint(
                 stateTypes,
                 packetCount,
                 drawPacketCount);
+    }
+
+    private static <T> void addIfPresent(Set<T> target, T value) {
+        if (target != null && value != null) {
+            target.add(value);
+        }
     }
 
     public List<KeyId> resourceKeysForDiagnostics() {

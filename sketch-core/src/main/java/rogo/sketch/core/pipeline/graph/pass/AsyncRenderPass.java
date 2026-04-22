@@ -13,6 +13,7 @@ import rogo.sketch.core.pipeline.kernel.StageExecutionPlan;
 import rogo.sketch.core.pipeline.kernel.ThreadDomain;
 import rogo.sketch.core.pipeline.data.FrameDataDomain;
 import rogo.sketch.core.pipeline.data.IndirectBufferData;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.LinkedHashMap;
@@ -44,6 +45,7 @@ public class AsyncRenderPass<C extends RenderContext> implements PipelinePass<C>
     public void execute(FrameContext<C> ctx) {
         GraphicsPipeline<C> pipeline = ctx.pipeline();
         C renderContext = ctx.renderContext();
+        FrameUniformSnapshot frameUniformSnapshot = ctx.frameUniformSnapshot();
         pipeline.renderTraceRecorder().beginFrame(ctx.frameNumber());
 
         // Create post-processors
@@ -55,8 +57,8 @@ public class AsyncRenderPass<C extends RenderContext> implements PipelinePass<C>
         for (GraphicsStage stage : pipeline.getOrderedStages()) {
             GraphicsBatchGroup<C> batchGroup = pipeline.getBatchGroup(stage);
             if (batchGroup != null) {
-                batchGroup.prepareForFrame(renderContext);
-                StageExecutionPlan stagePlan = batchGroup.createStageExecutionPlan(renderContext, postProcessors);
+                batchGroup.prepareForFrame(renderContext, frameUniformSnapshot);
+                StageExecutionPlan stagePlan = batchGroup.createStageExecutionPlan(renderContext, postProcessors, frameUniformSnapshot);
                 if (!stagePlan.isEmpty()) {
                     stagePlans.put(stage.getIdentifier(), stagePlan);
                 }
@@ -74,7 +76,7 @@ public class AsyncRenderPass<C extends RenderContext> implements PipelinePass<C>
 
         boolean uploadsCompleted = false;
         if (GraphicsDriver.capabilities().uploadWorkerSupported()) {
-            if (GraphicsDriver.runtime().supportsGeometryMaterialization()) {
+            if (GraphicsDriver.renderDevice().supportsGeometryMaterialization()) {
                 // Keep OpenGL raster geometry materialization/upload in the sync/runtime seam.
                 postProcessors.executeAllExcept(RenderFlowType.RASTERIZATION);
             } else {

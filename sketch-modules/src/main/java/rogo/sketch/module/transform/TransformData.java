@@ -4,6 +4,7 @@ import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import rogo.sketch.core.util.GraphicsData;
 import rogo.sketch.core.data.builder.UnsafeHelper;
+import rogo.sketch.core.graphics.ecs.TransformWriter;
 import sun.misc.Unsafe;
 
 /**

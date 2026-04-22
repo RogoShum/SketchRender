@@ -1,8 +1,8 @@
 package rogo.sketch.backend.vulkan;
 
 import org.lwjgl.vulkan.VkDevice;
+import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
-import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.ShaderType;
 import rogo.sketch.core.shader.variant.ShaderTemplate;
@@ -192,7 +192,7 @@ final class VulkanShaderVariantCache {
         if (shaderTemplateId == null) {
             return null;
         }
-        Object resource = GraphicsResourceManager.getInstance().getResource(ResourceTypes.SHADER_TEMPLATE, shaderTemplateId);
+        Object resource = GraphicsDriver.resourceAllocator().resolveLogicalResource(ResourceTypes.SHADER_TEMPLATE, shaderTemplateId);
         if (!(resource instanceof ShaderTemplate shaderTemplate)) {
             SketchDiagnostics.get().warn(
                     DIAG_MODULE,

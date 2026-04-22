@@ -48,7 +48,7 @@ public final class OpenGLStandardTexture extends StandardTexture
             throw new IllegalStateException("Texture has been disposed");
         }
 
-        int handle = this.handle;
+        int handle = this.handle.asGlName();
         ResourceViewRole resolvedRole = viewRole != null ? viewRole : ResourceViewRole.defaultForResourceType(resourceType);
         ResourceAccess resolvedAccess = access != null ? access : ResourceViewRole.defaultAccessFor(resolvedRole);
         if (ResourceTypes.normalize(resourceType).equals(ResourceTypes.IMAGE)
@@ -84,7 +84,7 @@ public final class OpenGLStandardTexture extends StandardTexture
 
     @Override
     public int textureHandle() {
-        return handle;
+        return handle.asGlName();
     }
 
     @Override
@@ -97,7 +97,8 @@ public final class OpenGLStandardTexture extends StandardTexture
         }
 
         var formatMapping = OpenGLImageFormatMappings.resolve(descriptor().format());
-        api.bindTexture(GL11.GL_TEXTURE_2D, handle);
+        int glHandle = handle.asGlName();
+        api.bindTexture(GL11.GL_TEXTURE_2D, glHandle);
         api.texImage2D(
                 GL11.GL_TEXTURE_2D,
                 0,
@@ -116,7 +117,7 @@ public final class OpenGLStandardTexture extends StandardTexture
     public void dispose() {
         if (!isDisposed()) {
             textureLease.close();
-            api.deleteTextures(handle);
+            api.deleteTextures(handle.asGlName());
             markDisposed();
         }
     }

@@ -2,14 +2,8 @@ package rogo.sketch.core.packet;
 
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.shader.variant.ShaderVariantKey;
-import rogo.sketch.core.util.KeyId;
 
 public interface ExecutionKey {
-    KeyId DEFAULT_RENDER_TARGET = KeyId.of("sketch:default_render_target");
-    KeyId EMPTY_VERTEX_LAYOUT = KeyId.of("sketch:empty_vertex_layout");
-    KeyId EMPTY_RESOURCE_LAYOUT = KeyId.of("sketch:empty_resource_layout");
-    KeyId UNBOUND_SHADER = KeyId.of("sketch:unbound_shader");
-
     ExecutionDomain domain();
 
     default RenderParameter renderParameter() {
@@ -20,24 +14,24 @@ public interface ExecutionKey {
         return false;
     }
 
-    default KeyId shaderId() {
-        return UNBOUND_SHADER;
+    default rogo.sketch.core.util.KeyId shaderId() {
+        return null;
     }
 
     default ShaderVariantKey shaderVariantKey() {
         return ShaderVariantKey.EMPTY;
     }
 
-    default KeyId vertexLayoutKey() {
-        return EMPTY_VERTEX_LAYOUT;
+    default rogo.sketch.core.util.KeyId vertexLayoutKey() {
+        return null;
     }
 
-    default KeyId renderTargetKey() {
-        return DEFAULT_RENDER_TARGET;
+    default rogo.sketch.core.util.KeyId renderTargetKey() {
+        return null;
     }
 
-    default KeyId resourceLayoutKey() {
-        return EMPTY_RESOURCE_LAYOUT;
+    default rogo.sketch.core.util.KeyId resourceLayoutKey() {
+        return ResourceBindingPlan.empty().layoutKey();
     }
 
     default int rasterStateSignature() {

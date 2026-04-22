@@ -1,6 +1,7 @@
 package rogo.sketch.module.culling;
 
 import org.joml.primitives.AABBf;
+import rogo.sketch.core.scene.SceneDatabase;
 
 /**
  * Host-provided terrain region candidate consumed by the core culling path.
@@ -13,7 +14,7 @@ public record TerrainRegionSource(
         int chunkY,
         int chunkZ,
         int registryIndex,
-        AABBf bounds) {
+        AABBf bounds) implements SceneDatabase.TerrainRegionProxySource {
     public static final int REGION_SECTIONS_X = 8;
     public static final int REGION_SECTIONS_Y = 4;
     public static final int REGION_SECTIONS_Z = 8;

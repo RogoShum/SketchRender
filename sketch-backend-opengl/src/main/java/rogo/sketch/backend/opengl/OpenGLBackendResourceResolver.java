@@ -5,15 +5,17 @@ import rogo.sketch.core.backend.BackendInstalledBindableResource;
 import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.core.backend.BackendInstalledRenderTarget;
 import rogo.sketch.core.backend.BackendInstalledTexture;
-import rogo.sketch.core.backend.BackendResourceResolver;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 
-final class OpenGLBackendResourceResolver implements BackendResourceResolver {
-    private final GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
+final class OpenGLBackendResourceResolver {
+    private volatile GraphicsResourceManager resourceManager;
 
-    @Override
+    void bindLogicalResourceManager(GraphicsResourceManager resourceManager) {
+        this.resourceManager = resourceManager;
+    }
+
     public BackendInstalledBindableResource resolveBindableResource(KeyId resourceType, KeyId resourceId) {
         KeyId normalizedType = ResourceTypes.normalize(resourceType);
         if (ResourceTypes.TEXTURE.equals(normalizedType) || ResourceTypes.IMAGE.equals(normalizedType)) {
@@ -24,34 +26,42 @@ final class OpenGLBackendResourceResolver implements BackendResourceResolver {
         return buffer instanceof BackendInstalledBindableResource bindable ? bindable : null;
     }
 
-    @Override
     public BackendInstalledTexture resolveTexture(KeyId resourceId) {
         return resolve(ResourceTypes.TEXTURE, resourceId, BackendInstalledTexture.class);
     }
 
-    @Override
     public BackendInstalledRenderTarget resolveRenderTarget(KeyId renderTargetId) {
         return resolve(ResourceTypes.RENDER_TARGET, renderTargetId, BackendInstalledRenderTarget.class);
     }
 
-    @Override
     public BackendInstalledBuffer resolveBuffer(KeyId resourceType, KeyId resourceId) {
         return resolve(resourceType, resourceId, BackendInstalledBuffer.class);
     }
 
     private <T> T resolve(KeyId resourceType, KeyId resourceId, Class<T> expectedType) {
-        if (resourceId == null) {
+        GraphicsResourceManager manager = resourceManager;
+        if (manager == null || resourceId == null) {
             return null;
         }
-        ResourceObject exact = resourceManager.getResourceExact(resourceType, resourceId);
+        ResourceObject exact = manager.getResourceExact(resourceType, resourceId);
         if (expectedType.isInstance(exact)) {
             return expectedType.cast(exact);
         }
-        ResourceObject inherited = resourceManager.getResource(resourceType, resourceId);
+        ResourceObject inherited = manager.getResource(resourceType, resourceId);
         if (expectedType.isInstance(inherited)) {
             return expectedType.cast(inherited);
         }
         return null;
+    }
+
+    ResourceObject resolveLogicalResource(KeyId resourceType, KeyId resourceId) {
+        GraphicsResourceManager manager = resourceManager;
+        return manager != null && resourceId != null ? manager.getResource(resourceType, resourceId) : null;
+    }
+
+    ResourceObject resolveLogicalResourceExact(KeyId resourceType, KeyId resourceId) {
+        GraphicsResourceManager manager = resourceManager;
+        return manager != null && resourceId != null ? manager.getResourceExact(resourceType, resourceId) : null;
     }
 }
 

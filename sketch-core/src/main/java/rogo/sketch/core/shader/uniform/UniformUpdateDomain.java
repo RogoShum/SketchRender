@@ -1,15 +1,27 @@
 package rogo.sketch.core.shader.uniform;
 
 /**
- * Controls when a uniform getter is evaluated.
- *
- * BUILD_SNAPSHOT values are captured during async build and replayed from the
- * packet snapshot during sync execution.
- *
- * FRAME_LIVE values are evaluated against the current render context during
- * execution.
+ * Legacy compatibility shim for the pre-Phase-2.9 two-state uniform model.
  */
+@Deprecated
 public enum UniformUpdateDomain {
-    BUILD_SNAPSHOT,
-    FRAME_LIVE
+    BUILD_SNAPSHOT(UniformCaptureTiming.BUILD_ASYNC_SAFE),
+    FRAME_LIVE(UniformCaptureTiming.PER_DRAW_DEFERRED);
+
+    private final UniformCaptureTiming timing;
+
+    UniformUpdateDomain(UniformCaptureTiming timing) {
+        this.timing = timing;
+    }
+
+    public UniformCaptureTiming timing() {
+        return timing;
+    }
+
+    public static UniformUpdateDomain fromTiming(UniformCaptureTiming timing) {
+        if (timing == UniformCaptureTiming.BUILD_ASYNC_SAFE) {
+            return BUILD_SNAPSHOT;
+        }
+        return FRAME_LIVE;
+    }
 }

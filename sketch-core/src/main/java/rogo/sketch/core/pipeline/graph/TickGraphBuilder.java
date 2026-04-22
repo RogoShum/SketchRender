@@ -9,6 +9,17 @@ import rogo.sketch.core.pipeline.RenderContext;
  * @param <C> concrete render context type
  */
 public final class TickGraphBuilder<C extends RenderContext> {
+    public record TickGraphContribution(
+            java.util.List<String> preTickPassNames,
+            java.util.List<String> postTickPassNames,
+            java.util.List<String> postTickGlAsyncPassNames) {
+        public TickGraphContribution {
+            preTickPassNames = preTickPassNames != null ? java.util.List.copyOf(preTickPassNames) : java.util.List.of();
+            postTickPassNames = postTickPassNames != null ? java.util.List.copyOf(postTickPassNames) : java.util.List.of();
+            postTickGlAsyncPassNames = postTickGlAsyncPassNames != null ? java.util.List.copyOf(postTickGlAsyncPassNames) : java.util.List.of();
+        }
+    }
+
     private final GraphicsPipeline<C> pipeline;
     private final RenderGraphBuilder<C> preTickBuilder;
     private final RenderGraphBuilder<C> postTickBuilder;
@@ -46,6 +57,13 @@ public final class TickGraphBuilder<C extends RenderContext> {
 
     public boolean hasPostTickGlAsyncPass(String name) {
         return postTickGlAsyncBuilder.hasPass(name);
+    }
+
+    public TickGraphContribution contribution() {
+        return new TickGraphContribution(
+                preTickBuilder.passNames(),
+                postTickBuilder.passNames(),
+                postTickGlAsyncBuilder.passNames());
     }
 
     public GraphicsPipeline<C> pipeline() {

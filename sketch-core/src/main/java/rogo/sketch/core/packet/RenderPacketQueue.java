@@ -107,7 +107,7 @@ public class RenderPacketQueue<C extends RenderContext> {
         traceRangeScopeBegin(scopeLabel, orderedStageIds, hasPackets, rangeSnapshotScope != null && !rangeSnapshotScope.isEmpty());
 
         try (BackendStageScope ignored = hasPackets
-                ? GraphicsDriver.runtime().frameExecutor().beginExecutionScope(
+                ? GraphicsDriver.renderDevice().frameExecutor().beginExecutionScope(
                 graphicsPipeline,
                 this,
                 orderedStageIds,
@@ -129,7 +129,7 @@ public class RenderPacketQueue<C extends RenderContext> {
         }
 
         SnapshotScope snapshotScope = buildDeferredTranslucentSnapshotScope();
-        try (BackendStageScope ignored = GraphicsDriver.runtime().frameExecutor().beginExecutionScope(
+        try (BackendStageScope ignored = GraphicsDriver.renderDevice().frameExecutor().beginExecutionScope(
                 graphicsPipeline,
                 this,
                 List.of(),
@@ -141,7 +141,7 @@ public class RenderPacketQueue<C extends RenderContext> {
     }
 
     public void executeImmediate(RenderPacket packet, RenderStateManager manager, C context) {
-        GraphicsDriver.runtime().frameExecutor().executeImmediate(graphicsPipeline, packet, manager, context);
+        GraphicsDriver.renderDevice().frameExecutor().executeImmediate(graphicsPipeline, packet, manager, context);
     }
 
     public Map<ExecutionKey, List<RenderPacket>> packetsForStage(PipelineType pipelineType, KeyId stageId) {
@@ -215,7 +215,7 @@ public class RenderPacketQueue<C extends RenderContext> {
         try {
             for (StageWindow window : StageWindow.executionOrder()) {
                 executeStageSubmitNodes(stageId, window, manager, context);
-                GraphicsDriver.runtime().frameExecutor().executeStageWindow(
+                GraphicsDriver.renderDevice().frameExecutor().executeStageWindow(
                         graphicsPipeline,
                         this,
                         stage,
@@ -301,7 +301,7 @@ public class RenderPacketQueue<C extends RenderContext> {
     private void executePacketGroups(PipelineExecutionSlice executionSlice, RenderStateManager manager, C context) {
         for (int i = 0; i < executionSlice.groupCount(); i++) {
             PacketGroup group = executionSlice.groupAt(i);
-            GraphicsDriver.runtime().frameExecutor().executePacketGroup(
+            GraphicsDriver.renderDevice().frameExecutor().executePacketGroup(
                     graphicsPipeline,
                     group.stateKey(),
                     group.packetView(),
@@ -338,7 +338,7 @@ public class RenderPacketQueue<C extends RenderContext> {
             }
             for (int i = 0; i < groups.size(); i++) {
                 PacketGroup group = groups.get(i);
-                GraphicsDriver.runtime().frameExecutor().executePacketGroup(
+                GraphicsDriver.renderDevice().frameExecutor().executePacketGroup(
                         graphicsPipeline,
                         group.stateKey(),
                         group.packetView(),
@@ -362,7 +362,10 @@ public class RenderPacketQueue<C extends RenderContext> {
             }
             deferredPackets.put(entry.getKey(), Map.copyOf(statePackets));
         }
-        return StageExecutionPlan.fromPackets(DEFERRED_TRANSLUCENT_SCOPE, deferredPackets).stageSnapshotScope();
+        return StageExecutionPlan.fromPackets(
+                DEFERRED_TRANSLUCENT_SCOPE,
+                deferredPackets,
+                graphicsPipeline.resourceManager()).stageSnapshotScope();
     }
 
     private boolean shouldTranslucentFollowSolid(GraphicsStage stage, KeyId stageId, PipelineConfig config) {
@@ -401,7 +404,7 @@ public class RenderPacketQueue<C extends RenderContext> {
         packets.add(packet);
         statePackets.put(packet.stateKey(), List.copyOf(packets));
         stagePackets.put(pipelineType, Map.copyOf(statePackets));
-        return StageExecutionPlan.fromPackets(packet.stageId(), stagePackets);
+        return StageExecutionPlan.fromPackets(packet.stageId(), stagePackets, graphicsPipeline.resourceManager());
     }
 
     private boolean hasPacketsInStages(List<KeyId> stageIds) {
@@ -428,10 +431,10 @@ public class RenderPacketQueue<C extends RenderContext> {
             return;
         }
         for (RenderPacket packet : packets) {
-            if (packet == null || packet.completionSubjects() == null) {
+            if (!(packet instanceof DrawPacket drawPacket) || drawPacket.completionSubjects() == null) {
                 continue;
             }
-            for (var subject : packet.completionSubjects()) {
+            for (var subject : drawPacket.completionSubjects()) {
                 if (subject != null) {
                     renderTraceRecorder.recordQueueInstalled(stageId, subject);
                 }
@@ -465,4 +468,3 @@ public class RenderPacketQueue<C extends RenderContext> {
         }
     }
 }
-

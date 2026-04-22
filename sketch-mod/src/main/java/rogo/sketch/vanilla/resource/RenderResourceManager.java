@@ -19,6 +19,7 @@ import rogo.sketch.core.ui.control.ControlSpec;
 import rogo.sketch.core.ui.control.NumericSpec;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.vanilla.McPipelineRegister;
+import rogo.sketch.vanilla.PipelineUtil;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -51,10 +52,12 @@ public class RenderResourceManager implements ResourceManagerReloadListener, Res
     @Override
     public void onResourceManagerReload(ResourceManager resourceManager) {
         this.resourceManager = resourceManager;
-        
-        // Set this as the scan provider and trigger reload
-        GraphicsResourceManager.getInstance().setScanProvider(this);
-        GraphicsResourceManager.getInstance().reload();
+
+        if (PipelineUtil.pipeline() != null) {
+            GraphicsResourceManager graphicsResourceManager = PipelineUtil.pipeline().resourceManager();
+            graphicsResourceManager.setScanProvider(this);
+            graphicsResourceManager.reload();
+        }
         McPipelineRegister.onResourceReload();
     }
     

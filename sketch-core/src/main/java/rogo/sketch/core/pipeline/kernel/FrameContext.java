@@ -3,6 +3,7 @@ package rogo.sketch.core.pipeline.kernel;
 import rogo.sketch.core.graphics.ecs.GraphicsWorld;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 
 /**
  * Immutable snapshot of per-frame state, passed to every pass during execution.
@@ -14,6 +15,7 @@ public class FrameContext<C extends RenderContext> {
     private final PipelineKernel<C> kernel;
     private final C renderContext;
     private final long frameNumber;
+    private FrameUniformSnapshot frameUniformSnapshot = FrameUniformSnapshot.empty();
 
     public FrameContext(GraphicsPipeline<C> pipeline, PipelineKernel<C> kernel, C renderContext,
                         long frameNumber) {
@@ -30,6 +32,10 @@ public class FrameContext<C extends RenderContext> {
     public long renderFrameEpoch() { return frameNumber; }
     public long logicTickEpoch() { return -1L; }
     public GraphicsWorld graphicsWorld() { return pipeline.graphicsWorld(); }
+    public FrameUniformSnapshot frameUniformSnapshot() { return frameUniformSnapshot; }
+    public void setFrameUniformSnapshot(FrameUniformSnapshot frameUniformSnapshot) {
+        this.frameUniformSnapshot = frameUniformSnapshot != null ? frameUniformSnapshot : FrameUniformSnapshot.empty();
+    }
 
     public PassExecutionContext passExecutionContext(String moduleId, String passId) {
         return kernel.passExecutionContext(moduleId, passId, renderFrameEpoch(), logicTickEpoch());

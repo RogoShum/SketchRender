@@ -3,7 +3,6 @@ package rogo.sketch.core.scene;
 import org.jetbrains.annotations.Nullable;
 import org.joml.primitives.AABBf;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
-import rogo.sketch.module.culling.TerrainRegionSource;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -33,12 +32,12 @@ public final class SceneDatabase {
         touchProxy(hostKey, SceneProxy.Kind.BLOCK_ENTITY, bounds, flags, transformEntityId);
     }
 
-    public synchronized void replaceTerrainRegionProxies(Iterable<TerrainRegionSource> regionSources) {
+    public synchronized void replaceTerrainRegionProxies(Iterable<? extends TerrainRegionProxySource> regionSources) {
         clear(SceneProxy.Kind.TERRAIN_REGION);
         if (regionSources == null) {
             return;
         }
-        for (TerrainRegionSource source : regionSources) {
+        for (TerrainRegionProxySource source : regionSources) {
             if (source == null || source.bounds() == null) {
                 continue;
             }
@@ -49,6 +48,12 @@ public final class SceneDatabase {
                     0,
                     null);
         }
+    }
+
+    public interface TerrainRegionProxySource {
+        Object hostKey();
+
+        AABBf bounds();
     }
 
     public synchronized void touchProxy(

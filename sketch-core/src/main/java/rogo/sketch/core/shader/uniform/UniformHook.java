@@ -59,6 +59,11 @@ public class UniformHook<T> {
         return valueGetter.getTargetClasses();
     }
 
+    public UniformCaptureTiming timing() {
+        return valueGetter.timing();
+    }
+
+    @Deprecated
     public UniformUpdateDomain domain() {
         return valueGetter.domain();
     }

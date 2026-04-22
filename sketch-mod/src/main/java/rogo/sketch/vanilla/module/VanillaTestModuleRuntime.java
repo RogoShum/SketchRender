@@ -26,13 +26,12 @@ import rogo.sketch.core.pipeline.module.session.ModuleSession;
 import rogo.sketch.core.pipeline.module.session.ModuleSessionContext;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
-import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.DefaultDataFormats;
-import rogo.sketch.module.transform.TransformWriter;
+import rogo.sketch.core.graphics.ecs.TransformWriter;
 import rogo.sketch.vanilla.MinecraftRenderStages;
 
 import java.util.List;
@@ -130,7 +129,7 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
             KeyId stage,
             boolean translucent,
             PlayerRegistration playerGraphics) {
-        ResourceReference<PartialRenderSetting> renderSetting = GraphicsResourceManager.getInstance()
+        ResourceReference<PartialRenderSetting> renderSetting = context.resourceManager()
                 .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, renderSettingKey);
         KeyId cubeId = KeyId.of(SketchRender.MOD_ID, "cube_test_" + UUID.randomUUID());
 
@@ -138,7 +137,7 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
                 .addStatic(BakedTypeMesh.BAKED_MESH, DefaultDataFormats.POSITION_UV_NORMAL)
                 .addDynamicInstanced(CUBE_TRANSFORM_ID, DefaultDataFormats.INT)
                 .build();
-        MeshGroup meshGroup = GraphicsResourceManager.getInstance()
+        MeshGroup meshGroup = context.resourceManager()
                 .getResource(ResourceTypes.MESH, KeyId.of(SketchRender.MOD_ID, "cube"));
         PreparedMesh preparedMesh = meshGroup != null ? meshGroup.getMesh(meshName) : null;
         PrimitiveType primitiveType = preparedMesh != null ? preparedMesh.getPrimitiveType() : PrimitiveType.TRIANGLES;
@@ -164,9 +163,12 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
                         SubmissionCapability.DIRECT_BATCHABLE,
                         DescriptorStability.DYNAMIC,
                         () -> GraphicsEntityPresets.partialDescriptorVersion(resolvePartialRenderSetting(renderSetting)),
-                        parameter -> GraphicsEntityPresets.compilePartialDescriptor(parameter, resolvePartialRenderSetting(renderSetting)))
+                        parameter -> GraphicsEntityPresets.compilePartialDescriptor(
+                                context.resourceManager(),
+                                parameter,
+                                resolvePartialRenderSetting(renderSetting)))
                 .put(GraphicsBuiltinComponents.PREPARED_MESH, new GraphicsBuiltinComponents.PreparedMeshComponent(() ->
-                        resolvePreparedMesh(meshName)))
+                        resolvePreparedMesh(context.resourceManager(), meshName)))
                 .put(GraphicsBuiltinComponents.GEOMETRY_VERSION, new GraphicsBuiltinComponents.GeometryVersionComponent(() ->
                         Objects.hash(meshName, primitiveType, indexMode)))
                 .put(
@@ -194,8 +196,10 @@ public class VanillaTestModuleRuntime implements ModuleRuntime {
         entityHolder[0] = context.registerGraphicsEntity(blueprint, ModuleGraphicsLifetime.SESSION);
     }
 
-    private static PreparedMesh resolvePreparedMesh(KeyId meshName) {
-        MeshGroup meshGroup = GraphicsResourceManager.getInstance()
+    private static PreparedMesh resolvePreparedMesh(
+            rogo.sketch.core.resource.GraphicsResourceManager resourceManager,
+            KeyId meshName) {
+        MeshGroup meshGroup = resourceManager
                 .getResource(ResourceTypes.MESH, KeyId.of(SketchRender.MOD_ID, "cube"));
         return meshGroup != null ? meshGroup.getMesh(meshName) : null;
     }

@@ -8,7 +8,6 @@ import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.RegisterStaticGraphicsEvent;
 import rogo.sketch.core.event.UniformHookRegisterEvent;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
-import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.event.ProxyEvent;
 import rogo.sketch.event.ProxyModEvent;
@@ -57,7 +56,7 @@ public class VanillaPipelineEventHandler {
             }
             case NORMAL -> MinecraftRenderStages.registerExtraStages(mcPipeline);
             case LATE -> {
-                GraphicsResourceManager.getInstance().registerLoader(ResourceTypes.TEXTURE, new VanillaTextureLoader());
+                mcPipeline.resourceManager().registerLoader(ResourceTypes.TEXTURE, new VanillaTextureLoader());
                 if (!mcPipeline.getPendingStages().isEmpty()) {
                     SketchRender.LOGGER.warn("Warning: {} stages are still pending", mcPipeline.getPendingStages().size());
                 }

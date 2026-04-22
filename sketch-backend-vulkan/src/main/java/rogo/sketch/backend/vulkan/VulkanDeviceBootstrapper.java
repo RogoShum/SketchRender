@@ -59,7 +59,9 @@ import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 import static org.lwjgl.vulkan.VK10.VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
 import static org.lwjgl.vulkan.VK10.VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU;
+import static org.lwjgl.vulkan.VK10.VK_QUEUE_COMPUTE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_QUEUE_GRAPHICS_BIT;
+import static org.lwjgl.vulkan.VK10.VK_QUEUE_TRANSFER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_SHARING_MODE_CONCURRENT;
 import static org.lwjgl.vulkan.VK10.VK_SHARING_MODE_EXCLUSIVE;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -105,6 +107,8 @@ final class VulkanDeviceBootstrapper {
             device = createLogicalDevice(selection, stack);
             VkQueue graphicsQueue = getQueue(device, selection.graphicsQueueFamilyIndex);
             VkQueue presentQueue = getQueue(device, selection.presentQueueFamilyIndex);
+            VkQueue computeQueue = getQueue(device, selection.computeQueueFamilyIndex);
+            VkQueue transferQueue = getQueue(device, selection.transferQueueFamilyIndex);
             VulkanSwapchainBundle swapchain = createSwapchain(
                     selection.physicalDevice,
                     selection.graphicsQueueFamilyIndex,
@@ -124,8 +128,12 @@ final class VulkanDeviceBootstrapper {
                     device,
                     selection.graphicsQueueFamilyIndex,
                     selection.presentQueueFamilyIndex,
+                    selection.computeQueueFamilyIndex,
+                    selection.transferQueueFamilyIndex,
                     graphicsQueue,
                     presentQueue,
+                    computeQueue,
+                    transferQueue,
                     swapchain.handle,
                     swapchain.imageFormat,
                     swapchain.extentWidth,
@@ -297,6 +305,8 @@ final class VulkanDeviceBootstrapper {
                     properties.deviceNameString(),
                     queueFamilies.graphicsFamilyIndex,
                     queueFamilies.presentFamilyIndex,
+                    queueFamilies.computeFamilyIndex,
+                    queueFamilies.transferFamilyIndex,
                     scorePhysicalDevice(properties));
         }
     }
@@ -322,12 +332,38 @@ final class VulkanDeviceBootstrapper {
 
         Integer graphicsIndex = null;
         Integer presentIndex = null;
+        Integer computeIndex = null;
+        Integer fallbackComputeIndex = null;
+        Integer transferIndex = null;
+        Integer fallbackTransferIndex = null;
         IntBuffer presentSupport = stack.ints(VK_FALSE);
 
         for (int i = 0; i < queueFamilies.capacity(); i++) {
             VkQueueFamilyProperties queueFamily = queueFamilies.get(i);
-            if ((queueFamily.queueFlags() & VK_QUEUE_GRAPHICS_BIT) != 0) {
+            int queueFlags = queueFamily.queueFlags();
+            boolean supportsGraphics = (queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
+            boolean supportsCompute = (queueFlags & VK_QUEUE_COMPUTE_BIT) != 0;
+            boolean supportsTransfer = (queueFlags & VK_QUEUE_TRANSFER_BIT) != 0;
+            if (supportsGraphics) {
                 graphicsIndex = i;
+            }
+            if (supportsCompute) {
+                if (!supportsGraphics && computeIndex == null) {
+                    computeIndex = i;
+                }
+                if (fallbackComputeIndex == null) {
+                    fallbackComputeIndex = i;
+                }
+            }
+            if (supportsTransfer) {
+                if (!supportsGraphics && !supportsCompute && transferIndex == null) {
+                    transferIndex = i;
+                } else if (!supportsGraphics && transferIndex == null) {
+                    transferIndex = i;
+                }
+                if (fallbackTransferIndex == null) {
+                    fallbackTransferIndex = i;
+                }
             }
 
             presentSupport.put(0, VK_FALSE);
@@ -346,7 +382,17 @@ final class VulkanDeviceBootstrapper {
         if (graphicsIndex == null || presentIndex == null) {
             return VulkanQueueFamilies.INCOMPLETE;
         }
-        return new VulkanQueueFamilies(graphicsIndex, presentIndex);
+        int resolvedComputeIndex = computeIndex != null
+                ? computeIndex
+                : (fallbackComputeIndex != null ? fallbackComputeIndex : graphicsIndex);
+        int resolvedTransferIndex = transferIndex != null
+                ? transferIndex
+                : (fallbackTransferIndex != null ? fallbackTransferIndex : graphicsIndex);
+        return new VulkanQueueFamilies(
+                graphicsIndex,
+                presentIndex,
+                resolvedComputeIndex,
+                resolvedTransferIndex);
     }
 
     private static boolean supportsSwapchainExtension(VkPhysicalDevice physicalDevice, MemoryStack stack) {
@@ -391,6 +437,8 @@ final class VulkanDeviceBootstrapper {
         Set<Integer> uniqueFamilies = new LinkedHashSet<>();
         uniqueFamilies.add(selection.graphicsQueueFamilyIndex);
         uniqueFamilies.add(selection.presentQueueFamilyIndex);
+        uniqueFamilies.add(selection.computeQueueFamilyIndex);
+        uniqueFamilies.add(selection.transferQueueFamilyIndex);
 
         VkDeviceQueueCreateInfo.Buffer queueInfos = VkDeviceQueueCreateInfo.calloc(uniqueFamilies.size(), stack);
         FloatBuffer queuePriority = stack.floats(1.0f);

@@ -36,7 +36,7 @@ public class DepthMaskState implements RenderStateComponent {
     }
 
     @Override
-    public void deserializeFromJson(JsonObject json, Gson gson) {
+    public void deserializeFromJson(JsonObject json, Gson gson, rogo.sketch.core.resource.GraphicsResourceManager resourceManager) {
         this.writable = !json.has("writable") || json.get("writable").getAsBoolean();
     }
 

@@ -40,7 +40,7 @@ public class ScissorState implements RenderStateComponent {
     }
 
     @Override
-    public void deserializeFromJson(JsonObject json, Gson gson) {
+    public void deserializeFromJson(JsonObject json, Gson gson, rogo.sketch.core.resource.GraphicsResourceManager resourceManager) {
         this.enabled = json.has("enabled") ? json.get("enabled").getAsBoolean() : false;
         this.x = json.has("x") ? json.get("x").getAsInt() : 0;
         this.y = json.has("y") ? json.get("y").getAsInt() : 0;

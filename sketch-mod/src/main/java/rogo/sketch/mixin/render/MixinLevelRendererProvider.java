@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rogo.sketch.core.api.LevelPipelineProvider;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.PipelineConfig;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.profiler.Profiler;
 import rogo.sketch.vanilla.McGraphicsPipeline;
 import rogo.sketch.vanilla.McRenderContext;
@@ -42,7 +43,7 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                         RenderBuffers p_234248_, CallbackInfo ci) {
         PipelineConfig pipelineConfig = new PipelineConfig();
         pipelineConfig.setThrowOnSortFail(true);
-        sketchlib$graphPipeline = new McGraphicsPipeline(pipelineConfig);
+        sketchlib$graphPipeline = new McGraphicsPipeline(pipelineConfig, new GraphicsResourceManager());
     }
 
     @Inject(method = "renderLevel", at = @At(value = "HEAD"))
@@ -61,7 +62,6 @@ public abstract class MixinLevelRendererProvider implements LevelPipelineProvide
                 camera, frustum, this.getTicks(), partialTicks);
         sketchlib$graphPipeline.tickFrame();
         context.setRenderStateManager(sketchlib$graphPipeline.renderStateManager());
-        context.setTransformStateManager(sketchlib$graphPipeline.getModuleByName("transform"));
         context.setNextTick(sketchlib$graphPipeline.anyNextTick());
         sketchlib$graphPipeline.resetRenderContext(context);
         sketchlib$graphPipeline.kernel().executeFrame(context);

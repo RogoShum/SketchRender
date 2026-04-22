@@ -10,6 +10,7 @@ import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.RenderSettingCompiler;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.pipeline.flow.ecs.GraphicsContainerHints;
 import rogo.sketch.core.pipeline.parmeter.FunctionParameter;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
@@ -148,6 +149,13 @@ public final class GraphicsEntityPresets {
     public static CompiledRenderSetting compilePartialDescriptor(
             RenderParameter renderParameter,
             PartialRenderSetting partialRenderSetting) {
+        return compilePartialDescriptor(null, renderParameter, partialRenderSetting);
+    }
+
+    public static CompiledRenderSetting compilePartialDescriptor(
+            GraphicsResourceManager resourceManager,
+            RenderParameter renderParameter,
+            PartialRenderSetting partialRenderSetting) {
         PartialRenderSetting effectiveSetting = partialRenderSetting != null ? partialRenderSetting : PartialRenderSetting.EMPTY;
         if (renderParameter != null && RenderFlowType.COMPUTE.equals(renderParameter.getFlowType())
                 && effectiveSetting.executionDomain() != ExecutionDomain.COMPUTE) {
@@ -155,9 +163,9 @@ public final class GraphicsEntityPresets {
                     "Compute graphics preset requires COMPUTE partial setting, found: "
                             + effectiveSetting.executionDomain());
         }
-        return RenderSettingCompiler.compile(RenderSetting.fromPartial(
-                renderParameter,
-                effectiveSetting));
+        return RenderSettingCompiler.compile(
+                RenderSetting.fromPartial(renderParameter, effectiveSetting),
+                resourceManager);
     }
 
     private static GraphicsEntityBlueprint.Builder base(

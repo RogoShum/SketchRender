@@ -2,6 +2,7 @@ package rogo.sketch.core.resource.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.util.KeyId;
 
 import java.io.BufferedReader;
@@ -22,6 +23,7 @@ public class ResourceLoadContext {
     private final InputStream inputStream;
     private final Gson gson;
     private final Function<KeyId, Optional<InputStream>> subResourceProvider;
+    private final GraphicsResourceManager resourceManager;
     
     // Lazy-loaded cached values
     private String cachedString;
@@ -40,11 +42,13 @@ public class ResourceLoadContext {
     public ResourceLoadContext(KeyId resourceId, 
                                InputStream inputStream, 
                                Gson gson,
-                               Function<KeyId, Optional<InputStream>> subResourceProvider) {
+                               Function<KeyId, Optional<InputStream>> subResourceProvider,
+                               GraphicsResourceManager resourceManager) {
         this.resourceId = resourceId;
         this.inputStream = inputStream;
         this.gson = gson;
         this.subResourceProvider = subResourceProvider != null ? subResourceProvider : id -> Optional.empty();
+        this.resourceManager = resourceManager;
     }
     
     /**
@@ -73,6 +77,10 @@ public class ResourceLoadContext {
      */
     public Gson getGson() {
         return gson;
+    }
+
+    public GraphicsResourceManager resourceManager() {
+        return resourceManager;
     }
     
     /**

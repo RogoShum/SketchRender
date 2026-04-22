@@ -14,21 +14,21 @@ public final class TransferPlanKey implements ExecutionKey {
 
     public TransferPlanKey(KeyId transferKey, KeyId renderTargetKey, KeyId resourceLayoutKey) {
         this.transferKey = transferKey != null ? transferKey : DEFAULT_TRANSFER_KEY;
-        this.renderTargetKey = renderTargetKey != null ? renderTargetKey : DEFAULT_RENDER_TARGET;
-        this.resourceLayoutKey = resourceLayoutKey != null ? resourceLayoutKey : EMPTY_RESOURCE_LAYOUT;
+        this.renderTargetKey = renderTargetKey;
+        this.resourceLayoutKey = resourceLayoutKey != null ? resourceLayoutKey : ResourceBindingPlan.empty().layoutKey();
         this.hashCode = Objects.hash(this.transferKey, this.renderTargetKey, this.resourceLayoutKey);
     }
 
     public static TransferPlanKey of(KeyId transferKey) {
-        return new TransferPlanKey(transferKey, DEFAULT_RENDER_TARGET, EMPTY_RESOURCE_LAYOUT);
+        return new TransferPlanKey(transferKey, null, ResourceBindingPlan.empty().layoutKey());
     }
 
     public static TransferPlanKey forRenderTarget(KeyId renderTargetKey) {
-        return new TransferPlanKey(KeyId.of("sketch:transfer_target_" + String.valueOf(renderTargetKey)), renderTargetKey, EMPTY_RESOURCE_LAYOUT);
+        return new TransferPlanKey(KeyId.of("sketch:transfer_target_" + String.valueOf(renderTargetKey)), renderTargetKey, ResourceBindingPlan.empty().layoutKey());
     }
 
     public static TransferPlanKey forTexture(KeyId textureId) {
-        return new TransferPlanKey(KeyId.of("sketch:transfer_texture_" + String.valueOf(textureId)), DEFAULT_RENDER_TARGET, EMPTY_RESOURCE_LAYOUT);
+        return new TransferPlanKey(KeyId.of("sketch:transfer_texture_" + String.valueOf(textureId)), null, ResourceBindingPlan.empty().layoutKey());
     }
 
     @Override

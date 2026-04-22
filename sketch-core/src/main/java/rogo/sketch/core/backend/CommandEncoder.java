@@ -9,7 +9,7 @@ package rogo.sketch.core.backend;
  * encode while the rest remain harmless no-ops.
  * </p>
  */
-public interface CommandRecorder extends AutoCloseable {
+public interface CommandEncoder extends AutoCloseable {
     default void uploadBuffer(BackendStorageBuffer target, long sourceAddress, long byteCount) {
         if (target == null) {
             return;
@@ -45,7 +45,30 @@ public interface CommandRecorder extends AutoCloseable {
     default void imageBarrier() {
     }
 
+    default boolean isInRenderPass() {
+        return false;
+    }
+
+    default void writeToTexture(
+            BackendInstalledTexture destination,
+            long sourceAddress,
+            int width,
+            int height,
+            int mipLevel) {
+    }
+
+    default void copyTextureToBuffer(
+            BackendInstalledTexture source,
+            BackendInstalledBuffer destination,
+            long offsetBytes,
+            int mipLevel) {
+    }
+
     default void dispatch(int groupCountX, int groupCountY, int groupCountZ) {
+    }
+
+    default GpuFence createFence() {
+        return GpuFence.NO_OP;
     }
 
     default void submit() {

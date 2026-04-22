@@ -1,68 +1,111 @@
 package rogo.sketch.core.pipeline;
 
+import rogo.sketch.core.pipeline.data.FrameDataDomain;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
+import rogo.sketch.core.pipeline.flow.v2.ComputeStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.FunctionStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.RasterStageFlowScene;
+import rogo.sketch.core.pipeline.flow.v2.StageFlowScene;
+import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceRecorder;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.Objects;
 
-/**
- * Represents a type of rendering pipeline with identity and priority.
- * Different pipeline types can have different resource managers and execution
- * priorities.
- * <p>
- * Common pipeline types include compute shaders, opaque rasterization, and
- * translucent rendering.
- * Pipeline types are executed in order of their priority (lower values execute
- * first).
- * </p>
- */
-public abstract class PipelineType implements Comparable<PipelineType> {
+public final class PipelineType implements Comparable<PipelineType> {
     private final KeyId identifier;
+    private final int priority;
+    private final RenderFlowType defaultFlowType;
+    private final PipelineFlowSceneFactory sceneFactory;
 
-    protected PipelineType(KeyId identifier) {
-        this.identifier = identifier;
+    public static final PipelineType COMPUTE = new PipelineType(
+            "compute",
+            100,
+            RenderFlowType.COMPUTE,
+            (stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new ComputeStageFlowScene<>(pipelineType));
+
+    public static final PipelineType FUNCTION = new PipelineType(
+            "function",
+            200,
+            RenderFlowType.FUNCTION,
+            (stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new FunctionStageFlowScene<>(
+                    pipelineType,
+                    pipeline.resourceManager()));
+
+    public static final PipelineType RASTERIZATION = new PipelineType(
+            "rasterization",
+            300,
+            RenderFlowType.RASTERIZATION,
+            (stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new RasterStageFlowScene<>(
+                    stageId,
+                    pipelineType,
+                    pipeline.getGeometryResourceCoordinator(pipelineType),
+                    () -> pipeline.getPipelineDataStore(pipelineType, dataDomain),
+                    renderTraceRecorder));
+
+    public static final PipelineType TRANSLUCENT = new PipelineType(
+            "translucent",
+            400,
+            RenderFlowType.RASTERIZATION,
+            (stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new RasterStageFlowScene<>(
+                    stageId,
+                    pipelineType,
+                    pipeline.getGeometryResourceCoordinator(pipelineType),
+                    () -> pipeline.getPipelineDataStore(pipelineType, dataDomain),
+                    renderTraceRecorder));
+
+    public PipelineType(
+            KeyId identifier,
+            int priority,
+            RenderFlowType defaultFlowType,
+            PipelineFlowSceneFactory sceneFactory) {
+        this.identifier = Objects.requireNonNull(identifier, "identifier");
+        this.priority = priority;
+        this.defaultFlowType = Objects.requireNonNull(defaultFlowType, "defaultFlowType");
+        this.sceneFactory = Objects.requireNonNull(sceneFactory, "sceneFactory");
     }
 
-    protected PipelineType(String identifier) {
-        this(KeyId.valueOf(identifier));
+    public PipelineType(
+            String identifier,
+            int priority,
+            RenderFlowType defaultFlowType,
+            PipelineFlowSceneFactory sceneFactory) {
+        this(KeyId.valueOf(identifier), priority, defaultFlowType, sceneFactory);
     }
 
-    /**
-     * Get the priority of this pipeline type.
-     * Lower values execute first.
-     *
-     * @return Priority value
-     */
-    public abstract int getPriority();
-    
-    /**
-     * Get the default render flow type for this pipeline type.
-     *
-     * @return The default RenderFlowType
-     */
-    public abstract RenderFlowType getDefaultFlowType();
+    public int getPriority() {
+        return priority;
+    }
 
-    /**
-     * Get the unique identifier for this pipeline type.
-     *
-     * @return Pipeline type identifier
-     */
+    public RenderFlowType getDefaultFlowType() {
+        return defaultFlowType;
+    }
+
     public KeyId getIdentifier() {
         return identifier;
     }
 
+    @SuppressWarnings("unchecked")
+    public <C extends RenderContext> StageFlowScene<C> createStageScene(
+            KeyId stageId,
+            GraphicsPipeline<C> pipeline,
+            FrameDataDomain dataDomain,
+            RenderTraceRecorder renderTraceRecorder) {
+        return (StageFlowScene<C>) sceneFactory.create(stageId, this, pipeline, dataDomain, renderTraceRecorder);
+    }
+
     @Override
     public int compareTo(PipelineType other) {
-        return Integer.compare(this.getPriority(), other.getPriority());
+        return Integer.compare(priority, other.priority);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null || getClass() != obj.getClass())
+        }
+        if (!(obj instanceof PipelineType that)) {
             return false;
-        PipelineType that = (PipelineType) obj;
+        }
         return identifier.equals(that.identifier);
     }
 
@@ -75,73 +118,7 @@ public abstract class PipelineType implements Comparable<PipelineType> {
     public String toString() {
         return "PipelineType{" +
                 "id=" + identifier +
-                ", priority=" + getPriority() +
+                ", priority=" + priority +
                 '}';
     }
-
-    // ===== Predefined Pipeline Types =====
-
-    /**
-     * Compute shader pipeline - executed first for compute operations.
-     * Priority: 100
-     */
-    public static final PipelineType COMPUTE = new PipelineType("compute") {
-        @Override
-        public int getPriority() {
-            return 100;
-        }
-        
-        @Override
-        public RenderFlowType getDefaultFlowType() {
-            return RenderFlowType.COMPUTE;
-        }
-    };
-
-    /**
-     * Function pipeline
-     * Priority: 200
-     */
-    public static final PipelineType FUNCTION = new PipelineType("function") {
-        @Override
-        public int getPriority() {
-            return 200;
-        }
-        
-        @Override
-        public RenderFlowType getDefaultFlowType() {
-            return RenderFlowType.FUNCTION;
-        }
-    };
-
-    /**
-     * Standard rasterization pipeline for opaque geometry.
-     * Priority: 300
-     */
-    public static final PipelineType RASTERIZATION = new PipelineType("rasterization") {
-        @Override
-        public int getPriority() {
-            return 300;
-        }
-        
-        @Override
-        public RenderFlowType getDefaultFlowType() {
-            return RenderFlowType.RASTERIZATION;
-        }
-    };
-
-    /**
-     * Translucent rasterization pipeline for transparent/translucent geometry.
-     * Priority: 400 (executed after opaque geometry)
-     */
-    public static final PipelineType TRANSLUCENT = new PipelineType("translucent") {
-        @Override
-        public int getPriority() {
-            return 400;
-        }
-        
-        @Override
-        public RenderFlowType getDefaultFlowType() {
-            return RenderFlowType.RASTERIZATION;
-        }
-    };
 }

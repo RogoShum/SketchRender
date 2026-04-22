@@ -69,7 +69,7 @@ public abstract class MixinRenderSectionManager {
 
     @Inject(method = "renderLayer", at = @At(value = "HEAD"), remap = false, cancellable = true)
     private void onRenderStart(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
-        boolean countedIndirectSupported = GraphicsDriver.renderDevice().countedIndirectDraw().isSupported();
+        boolean countedIndirectSupported = GraphicsDriver.renderDevice().indirectDrawService().isSupported();
         if (Config.getCullChunk()
                 && !MinecraftShaderCapabilityService.getInstance().renderingShadowPass()
                 && !countedIndirectSupported
@@ -77,7 +77,7 @@ public abstract class MixinRenderSectionManager {
             sketchlib$warnedUnsupportedCountedIndirect = true;
             SketchDiagnostics.get().error(
                     "terrain_indirect_draw",
-                    "Chunk culling requested counted indirect draw, but GraphicsDriver.renderDevice().countedIndirectDraw() is unsupported in the active Minecraft GL runtime.",
+                    "Chunk culling requested counted indirect draw, but GraphicsDriver.renderDevice().indirectDrawService() is unsupported in the active Minecraft GL runtime.",
                     null);
         }
         if (Config.getCullChunk()

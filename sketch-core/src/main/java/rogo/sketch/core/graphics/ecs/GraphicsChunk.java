@@ -64,6 +64,24 @@ final class GraphicsChunk {
         column.set(row, value);
     }
 
+    Map<GraphicsComponentType<?>, Object> snapshotRow(int row) {
+        if (row < 0 || row >= entities.size()) {
+            return Map.of();
+        }
+        Map<GraphicsComponentType<?>, Object> snapshot = new LinkedHashMap<>();
+        for (Map.Entry<GraphicsComponentType<?>, List<Object>> entry : columns.entrySet()) {
+            List<Object> column = entry.getValue();
+            if (column == null || row >= column.size()) {
+                continue;
+            }
+            Object value = column.get(row);
+            if (value != null) {
+                snapshot.put(entry.getKey(), value);
+            }
+        }
+        return snapshot.isEmpty() ? Map.of() : Collections.unmodifiableMap(snapshot);
+    }
+
     List<GraphicsEntityId> entities() {
         return List.copyOf(entities);
     }

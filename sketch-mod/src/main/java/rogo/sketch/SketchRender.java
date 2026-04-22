@@ -120,14 +120,14 @@ public class SketchRender {
         }
 
         GraphicsDriver.registerBackendBootstrap(
-                new MinecraftOpenGLBackendBootstrap(BackendKind.MINECRAFT_GL, new OpenGLAPI()));
+                new MinecraftOpenGLBackendBootstrap(BackendKind.OPENGL, new OpenGLAPI()));
 
         BackendKind requestedBackend = Config.getGraphicsBackendKind();
         BackendKind resolvedBackend = requestedBackend;
         if (!GraphicsDriver.hasBackendBootstrap(resolvedBackend)) {
             LOGGER.warn("Configured graphics backend '{}' is not registered yet. Falling back to '{}'.",
-                    requestedBackend, BackendKind.MINECRAFT_GL);
-            resolvedBackend = BackendKind.MINECRAFT_GL;
+                    requestedBackend, BackendKind.OPENGL);
+            resolvedBackend = BackendKind.OPENGL;
         }
 
         GraphicsDriver.bootstrap(

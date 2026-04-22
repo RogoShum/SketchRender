@@ -156,7 +156,7 @@ final class PipelineTestScene implements AutoCloseable {
     private static final KeyId UBO_A = KeyId.of("sketch_vktest:ubo_a");
     private static final KeyId UBO_B = KeyId.of("sketch_vktest:ubo_b");
     private static final KeyId UBO_C = KeyId.of("sketch_vktest:ubo_c");
-    private static final KeyId MAIN_TARGET = TargetBinding.DEFAULT_RENDER_TARGET;
+    private static final KeyId MAIN_TARGET = PipelineConfig.DEFAULT_RENDER_TARGET_ID;
     private static final KeyId SHARED_SOURCE_ID = KeyId.of("sketch_vktest:shared_source_asset");
     private static final KeyId INDIRECT_GRAPHICS_ID = KeyId.of("sketch_vktest:indirect_triangle");
     private static final String BUNNY_MODEL_PATH = "models/bunny/bunny.obj";
@@ -769,6 +769,7 @@ final class PipelineTestScene implements AutoCloseable {
 
     private final BackendKind backendKind;
     private final HarnessRenderContext context;
+    private final GraphicsResourceManager resourceManager;
     private final GraphicsPipeline<HarnessRenderContext> pipeline;
     private final List<AutoCloseable> ownedCloseables = new ArrayList<>();
     private CompiledRenderSetting resourceSetA;
@@ -811,11 +812,16 @@ final class PipelineTestScene implements AutoCloseable {
     private VulkanTextureResource asyncHiZSourceSnapshotInspectNative;
     private List<BakedMesh> teapotMeshes = List.of();
 
-    private PipelineTestScene(BackendKind backendKind, int framebufferWidth, int framebufferHeight) {
+    private PipelineTestScene(
+            BackendKind backendKind,
+            int framebufferWidth,
+            int framebufferHeight,
+            GraphicsResourceManager resourceManager) {
         this.backendKind = backendKind;
+        this.resourceManager = resourceManager;
         this.context = new HarnessRenderContext(framebufferWidth, framebufferHeight);
         PipelineConfig config = new PipelineConfig();
-        this.pipeline = new GraphicsPipeline<>(config, context);
+        this.pipeline = new GraphicsPipeline<>(config, resourceManager, context);
         this.context.setRenderStateManager(pipeline.renderStateManager());
         initializeResources();
         initializePipeline();
@@ -826,8 +832,8 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private void installDesktopGlMainTarget() {
-        var installer = GraphicsDriver.runtime().resourceInstaller();
-        Texture colorTexture = installer.createTexture(
+        var installer = GraphicsDriver.resourceAllocator();
+        Texture colorTexture = installer.installTexture(
                 MAIN_TARGET_COLOR,
                 new ResolvedImageResource(
                         MAIN_TARGET_COLOR,
@@ -844,7 +850,7 @@ final class PipelineTestScene implements AutoCloseable {
                         null),
                 null,
                 null);
-        Texture depthTexture = installer.createTexture(
+        Texture depthTexture = installer.installTexture(
                 MAIN_TARGET_DEPTH,
                 new ResolvedImageResource(
                         MAIN_TARGET_DEPTH,
@@ -861,19 +867,19 @@ final class PipelineTestScene implements AutoCloseable {
                         null),
                 null,
                 null);
-        GraphicsResourceManager.getInstance().registerDirect(
+        resourceManager.registerDirect(
                 "sketch-vk-test",
                 ResourceScope.EPHEMERAL_TEST,
                 ResourceTypes.TEXTURE,
                 MAIN_TARGET_COLOR,
                 colorTexture);
-        GraphicsResourceManager.getInstance().registerDirect(
+        resourceManager.registerDirect(
                 "sketch-vk-test",
                 ResourceScope.EPHEMERAL_TEST,
                 ResourceTypes.TEXTURE,
                 MAIN_TARGET_DEPTH,
                 depthTexture);
-        RenderTarget mainTarget = installer.createRenderTarget(
+        RenderTarget mainTarget = installer.installRenderTarget(
                 MAIN_TARGET,
                 new ResolvedRenderTargetSpec(
                         MAIN_TARGET,
@@ -885,13 +891,13 @@ final class PipelineTestScene implements AutoCloseable {
                         List.of(MAIN_TARGET_COLOR),
                         MAIN_TARGET_DEPTH,
                         null));
-        GraphicsResourceManager.getInstance().registerDirect(
+        resourceManager.registerDirect(
                 "sketch-vk-test",
                 ResourceScope.EPHEMERAL_TEST,
                 ResourceTypes.RENDER_TARGET,
                 MAIN_TARGET,
                 mainTarget);
-        RenderTargetUtil.resizeRT(context.windowWidth(), context.windowHeight());
+        RenderTargetUtil.resizeRT(resourceManager, context.windowWidth(), context.windowHeight());
     }
 
     private void initializePipeline() {
@@ -926,7 +932,6 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private void configureResourceManager() {
-        GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
         resourceManager.setScanProvider(null);
         resourceManager.setScanProvider(new VkTestClasspathResourceScanProvider());
         resourceManager.reload();
@@ -1124,7 +1129,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private void installBackendSpecificResources() {
-        if (backendKind == BackendKind.DESKTOP_GL) {
+        if (backendKind == BackendKind.OPENGL) {
             installDesktopGlMainTarget();
         }
 
@@ -1133,13 +1138,13 @@ final class PipelineTestScene implements AutoCloseable {
             runtime.registerTextureResource(TEXTURE_A, runtime.createPlaceholderTextureResource(1, 1));
             runtime.registerTextureResource(TEXTURE_B, runtime.createPlaceholderTextureResource(1, 1));
             runtime.registerTextureResource(TEXTURE_C, runtime.createPlaceholderTextureResource(1, 1));
-            GraphicsResourceManager.getInstance().registerDirect(
+            resourceManager.registerDirect(
                     "sketch-vk-test",
                     ResourceScope.EPHEMERAL_TEST,
                     ResourceTypes.TEXTURE,
                     VULKAN_CLEAR_COLOR,
                     runtime.createRenderTargetColorTextureResource(4, 4, 4));
-            GraphicsResourceManager.getInstance().registerDirect(
+            resourceManager.registerDirect(
                     "sketch-vk-test",
                     ResourceScope.EPHEMERAL_TEST,
                     ResourceTypes.TEXTURE,
@@ -1153,7 +1158,6 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private void installVulkanMainTarget(VulkanBackendRuntime runtime) {
-        GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
         replaceBuiltInResource(
                 resourceManager,
                 ResourceTypes.TEXTURE,
@@ -1165,14 +1169,13 @@ final class PipelineTestScene implements AutoCloseable {
                 MAIN_TARGET_DEPTH,
                 runtime::currentPresentedDepthAttachment);
 
-        var installer = GraphicsDriver.runtime().resourceInstaller();
+        var installer = GraphicsDriver.resourceAllocator();
         installLogicalMainRenderTarget(resourceManager, installer, MAIN_TARGET);
-        installLogicalMainRenderTarget(resourceManager, installer, ExecutionKey.DEFAULT_RENDER_TARGET);
     }
 
     private void installLogicalMainRenderTarget(
             GraphicsResourceManager resourceManager,
-            rogo.sketch.core.backend.BackendResourceInstaller installer,
+            rogo.sketch.core.backend.ResourceAllocator installer,
             KeyId renderTargetId) {
         if (renderTargetId == null) {
             return;
@@ -1181,7 +1184,7 @@ final class PipelineTestScene implements AutoCloseable {
                 resourceManager,
                 ResourceTypes.RENDER_TARGET,
                 renderTargetId,
-                installer.createRenderTarget(
+                installer.installRenderTarget(
                         renderTargetId,
                         new ResolvedRenderTargetSpec(
                                 renderTargetId,
@@ -1206,9 +1209,7 @@ final class PipelineTestScene implements AutoCloseable {
         int hizDispatchHeight = computeFirstLevelHeight(framebufferHeight);
         int hizPackedHeight = computePackedHiZHeight(framebufferWidth, framebufferHeight);
 
-        var installer = GraphicsDriver.runtime().resourceInstaller();
-        GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
-
+        var installer = GraphicsDriver.resourceAllocator();
         if (backendKind == BackendKind.VULKAN && resourceManager.hasResource(ResourceTypes.TEXTURE, ASYNC_HIZ_SOURCE_DEPTH)) {
             resourceManager.removeResource(ResourceTypes.TEXTURE, ASYNC_HIZ_SOURCE_DEPTH);
         }
@@ -1216,7 +1217,7 @@ final class PipelineTestScene implements AutoCloseable {
                 resourceManager,
                 ResourceTypes.TEXTURE,
                 ASYNC_HIZ_SOURCE_SNAPSHOT,
-                installer.createTexture(
+                installer.installTexture(
                         ASYNC_HIZ_SOURCE_SNAPSHOT,
                         new ResolvedImageResource(
                                 ASYNC_HIZ_SOURCE_SNAPSHOT,
@@ -1237,7 +1238,7 @@ final class PipelineTestScene implements AutoCloseable {
                 resourceManager,
                 ResourceTypes.TEXTURE,
                 ASYNC_HIZ_SOURCE_SNAPSHOT_INSPECT,
-                installer.createTexture(
+                installer.installTexture(
                         ASYNC_HIZ_SOURCE_SNAPSHOT_INSPECT,
                         new ResolvedImageResource(
                                 ASYNC_HIZ_SOURCE_SNAPSHOT_INSPECT,
@@ -1335,11 +1336,11 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private Texture createAsyncHiZTexture(
-            rogo.sketch.core.backend.BackendResourceInstaller installer,
+            rogo.sketch.core.backend.ResourceAllocator installer,
             KeyId resourceId,
             int width,
             int height) {
-        return installer.createTexture(
+        return installer.installTexture(
                 resourceId,
                 new ResolvedImageResource(
                     resourceId,
@@ -1699,9 +1700,11 @@ final class PipelineTestScene implements AutoCloseable {
             ResourceBinding binding,
             TargetBinding targetOverride) {
         PartialRenderSetting partialRenderSetting = requireResource(ResourceTypes.PARTIAL_RENDER_SETTING, partialSettingId, PartialRenderSetting.class);
-        return RenderSettingCompiler.compile(RenderSetting.fromPartial(
-                renderParameter,
-                mergePartialSetting(partialRenderSetting, binding, targetOverride)));
+        return RenderSettingCompiler.compile(
+                RenderSetting.fromPartial(
+                        renderParameter,
+                        mergePartialSetting(partialRenderSetting, binding, targetOverride)),
+                resourceManager);
     }
 
     private CompiledRenderSetting compileDerivedRenderSetting(
@@ -1715,7 +1718,7 @@ final class PipelineTestScene implements AutoCloseable {
         RenderStatePatch renderState = partialRenderSetting.renderState();
         if (shaderOverride != null) {
             renderState = (renderState != null ? renderState : RenderStatePatch.empty())
-                    .with(new ShaderState(shaderOverride));
+                    .with(new ShaderState(resourceManager, shaderOverride));
         }
         PartialRenderSetting derived = PartialRenderSetting.create(
                 executionDomain,
@@ -1724,7 +1727,7 @@ final class PipelineTestScene implements AutoCloseable {
                 mergeResourceBinding(partialRenderSetting.resourceBinding(), binding),
                 partialRenderSetting.shouldSwitchRenderState(),
                 partialRenderSetting.aliasPolicy());
-        return RenderSettingCompiler.compile(RenderSetting.fromPartial(renderParameter, derived));
+        return RenderSettingCompiler.compile(RenderSetting.fromPartial(renderParameter, derived), resourceManager);
     }
 
     private CompiledRenderSetting compileComputeSetting(KeyId partialSettingId) {
@@ -1733,9 +1736,11 @@ final class PipelineTestScene implements AutoCloseable {
 
     private CompiledRenderSetting compileComputeSetting(KeyId partialSettingId, ResourceBinding binding) {
         PartialRenderSetting partialRenderSetting = requireResource(ResourceTypes.PARTIAL_RENDER_SETTING, partialSettingId, PartialRenderSetting.class);
-        return RenderSettingCompiler.compile(RenderSetting.fromPartial(
-                ComputeParameter.COMPUTE_PARAMETER,
-                mergePartialSetting(partialRenderSetting, binding, null)));
+        return RenderSettingCompiler.compile(
+                RenderSetting.fromPartial(
+                        ComputeParameter.COMPUTE_PARAMETER,
+                        mergePartialSetting(partialRenderSetting, binding, null)),
+                resourceManager);
     }
 
     private CompiledRenderSetting compileInspectionSetting(KeyId textureId) {
@@ -1828,7 +1833,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private KeyId resolveHiZSourceDepthTextureId() {
-        return backendKind == BackendKind.DESKTOP_GL ? MAIN_TARGET_DEPTH : ASYNC_HIZ_SOURCE_DEPTH;
+        return backendKind == BackendKind.OPENGL ? MAIN_TARGET_DEPTH : ASYNC_HIZ_SOURCE_DEPTH;
     }
 
     private void runStaticSpecValidations() {
@@ -1907,7 +1912,12 @@ final class PipelineTestScene implements AutoCloseable {
             if (stream == null) {
                 throw new IllegalStateException("Bundled OBJ model resource is missing from classpath: " + classpathPath);
             }
-            ResourceLoadContext context = new ResourceLoadContext(resourceId, stream, TEST_GSON, id -> Optional.empty());
+            ResourceLoadContext context = new ResourceLoadContext(
+                    resourceId,
+                    stream,
+                    TEST_GSON,
+                    id -> Optional.empty(),
+                    resourceManager);
             if (meshLoader.load(context) == null) {
                 throw new IllegalStateException("Bundled OBJ model failed to load: " + classpathPath);
             }
@@ -1922,7 +1932,12 @@ final class PipelineTestScene implements AutoCloseable {
             if (stream == null) {
                 throw new IllegalStateException("Bundled OBJ model resource is missing from classpath: " + classpathPath);
             }
-            ResourceLoadContext context = new ResourceLoadContext(resourceId, stream, TEST_GSON, id -> Optional.empty());
+            ResourceLoadContext context = new ResourceLoadContext(
+                    resourceId,
+                    stream,
+                    TEST_GSON,
+                    id -> Optional.empty(),
+                    resourceManager);
             MeshGroup meshGroup = meshLoader.load(context);
             if (meshGroup == null) {
                 throw new IllegalStateException("Bundled OBJ model failed to load: " + classpathPath);
@@ -2102,7 +2117,7 @@ final class PipelineTestScene implements AutoCloseable {
                     sources,
                     vertexLayout,
                     new SketchShaderPreprocessor(),
-                    GraphicsResourceManager.getInstance().getSubResourceProvider(),
+                    resourceManager.getSubResourceProvider(),
                     resourceBindings);
             return template.resolveVariantSpec(ShaderVariantKey.EMPTY);
         } catch (Exception e) {
@@ -2115,7 +2130,8 @@ final class PipelineTestScene implements AutoCloseable {
                 resourceId,
                 new ByteArrayInputStream(json.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
                 TEST_GSON,
-                GraphicsResourceManager.getInstance().getSubResourceProvider());
+                resourceManager.getSubResourceProvider(),
+                resourceManager);
     }
 
     private void expectFailure(String label, Runnable runnable) {
@@ -2161,7 +2177,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private <T> T requireResource(KeyId resourceType, KeyId resourceId, Class<T> type) {
-        Object resource = GraphicsResourceManager.getInstance().getResource(resourceType, resourceId);
+        Object resource = resourceManager.getResource(resourceType, resourceId);
         if (!type.isInstance(resource)) {
             throw new IllegalStateException("Missing required resource " + resourceType + " -> " + resourceId);
         }
@@ -2179,7 +2195,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     static PipelineTestScene create(BackendKind backendKind, int framebufferWidth, int framebufferHeight) {
-        return new PipelineTestScene(backendKind, framebufferWidth, framebufferHeight);
+        return new PipelineTestScene(backendKind, framebufferWidth, framebufferHeight, new GraphicsResourceManager());
     }
 
     void resize(int framebufferWidth, int framebufferHeight) {
@@ -2218,8 +2234,8 @@ final class PipelineTestScene implements AutoCloseable {
         context.projectionMatrix().identity();
         context.viewMatrix().identity();
         context.modelMatrix().identity();
-        if (backendKind == BackendKind.DESKTOP_GL) {
-            RenderTargetUtil.resizeRT(context.windowWidth(), context.windowHeight());
+        if (backendKind == BackendKind.OPENGL) {
+            RenderTargetUtil.resizeRT(resourceManager, context.windowWidth(), context.windowHeight());
         }
         installAsyncHiZResources();
         pipeline.resetRenderContext(context);
@@ -2289,7 +2305,7 @@ final class PipelineTestScene implements AutoCloseable {
         context.setNextTick(true);
         pipeline.kernel().executeFrame(context);
 
-        if (backendKind == BackendKind.DESKTOP_GL) {
+        if (backendKind == BackendKind.OPENGL) {
             pipeline.renderStagesAfter(MAIN_STAGE_ID);
             presentDesktopGlMainTarget();
         }
@@ -2339,7 +2355,7 @@ final class PipelineTestScene implements AutoCloseable {
         if (asyncHiZState.hasPendingJob()) {
             return;
         }
-        if (backendKind == BackendKind.DESKTOP_GL) {
+        if (backendKind == BackendKind.OPENGL) {
             GL11.glFlush();
         }
         List<RenderPacket> packets = new ArrayList<>();
@@ -2381,7 +2397,7 @@ final class PipelineTestScene implements AutoCloseable {
                 Math.max(1, context.windowWidth()),
                 Math.max(1, context.windowHeight()),
                 false);
-        GraphicsDriver.runtime().frameExecutor().executeImmediate(
+        GraphicsDriver.renderDevice().frameExecutor().executeImmediate(
                 pipeline,
                 packet,
                 pipeline.renderStateManager(),
@@ -2424,9 +2440,9 @@ final class PipelineTestScene implements AutoCloseable {
             return;
         }
         long epoch = asyncOffscreenState.nextEpoch();
-        if (backendKind == BackendKind.DESKTOP_GL || (backendKind == BackendKind.VULKAN && vulkanOffscreenForceSync)) {
+        if (backendKind == BackendKind.OPENGL || (backendKind == BackendKind.VULKAN && vulkanOffscreenForceSync)) {
             for (RenderPacket packet : packets) {
-                GraphicsDriver.runtime().frameExecutor().executeImmediate(
+                GraphicsDriver.renderDevice().frameExecutor().executeImmediate(
                         pipeline,
                         packet,
                         pipeline.renderStateManager(),
@@ -2541,7 +2557,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private void presentDesktopGlMainTarget() {
-        RenderTarget logicalTarget = GraphicsResourceManager.getInstance().getResource(ResourceTypes.RENDER_TARGET, MAIN_TARGET);
+        RenderTarget logicalTarget = resourceManager.getResource(ResourceTypes.RENDER_TARGET, MAIN_TARGET);
         if (!(logicalTarget instanceof OpenGLFramebufferHandleResource framebufferHandleResource)) {
             return;
         }
@@ -2592,8 +2608,8 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private void validateShaderLayouts() {
-        ShaderTemplate flexTemplate = GraphicsResourceManager.getInstance().getResource(ResourceTypes.SHADER_TEMPLATE, COLOR_SHADER_ID);
-        ShaderTemplate subsetTemplate = GraphicsResourceManager.getInstance().getResource(ResourceTypes.SHADER_TEMPLATE, SUBSET_SHADER_ID);
+        ShaderTemplate flexTemplate = resourceManager.getResource(ResourceTypes.SHADER_TEMPLATE, COLOR_SHADER_ID);
+        ShaderTemplate subsetTemplate = resourceManager.getResource(ResourceTypes.SHADER_TEMPLATE, SUBSET_SHADER_ID);
         if (flexTemplate == null || subsetTemplate == null) {
             throw new IllegalStateException("Shader layout validation failed: missing test shader templates");
         }
@@ -2784,7 +2800,6 @@ final class PipelineTestScene implements AutoCloseable {
         asyncHiZState.close();
         asyncOffscreenState.close();
         disposeAsyncHiZSourceNativeResources();
-        GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
         resourceManager.removeResource(ResourceTypes.RENDER_TARGET, ASYNC_HIZ_SOURCE_TARGET);
         resourceManager.removeResource(ResourceTypes.TEXTURE, ASYNC_HIZ_SOURCE_COLOR);
         resourceManager.removeResource(ResourceTypes.TEXTURE, ASYNC_HIZ_SOURCE_DEPTH);
@@ -2952,7 +2967,7 @@ final class PipelineTestScene implements AutoCloseable {
         }
 
         private void recreate(
-                rogo.sketch.core.backend.BackendResourceInstaller installer,
+                rogo.sketch.core.backend.ResourceAllocator installer,
                 int dispatchWidth,
                 int dispatchHeight,
                 int textureWidth,
@@ -2961,7 +2976,7 @@ final class PipelineTestScene implements AutoCloseable {
         }
 
         private void recreate(
-                rogo.sketch.core.backend.BackendResourceInstaller installer,
+                rogo.sketch.core.backend.ResourceAllocator installer,
                 VulkanBackendRuntime runtime,
                 int dispatchWidth,
                 int dispatchHeight,
@@ -3086,14 +3101,14 @@ final class PipelineTestScene implements AutoCloseable {
         }
 
         private void recreate(
-                rogo.sketch.core.backend.BackendResourceInstaller installer,
+                rogo.sketch.core.backend.ResourceAllocator installer,
                 int width,
                 int height) {
             recreate(installer, vulkanRuntime(), width, height);
         }
 
         private void recreate(
-                rogo.sketch.core.backend.BackendResourceInstaller installer,
+                rogo.sketch.core.backend.ResourceAllocator installer,
                 VulkanBackendRuntime runtime,
                 int width,
                 int height) {
@@ -3174,7 +3189,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private int textureWidth(KeyId textureId) {
-        Object texture = GraphicsResourceManager.getInstance().getResource(ResourceTypes.TEXTURE, textureId);
+        Object texture = resourceManager.getResource(ResourceTypes.TEXTURE, textureId);
         if (texture instanceof Texture logicalTexture) {
             return logicalTexture.getCurrentWidth();
         }
@@ -3185,7 +3200,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private int textureHeight(KeyId textureId) {
-        Object texture = GraphicsResourceManager.getInstance().getResource(ResourceTypes.TEXTURE, textureId);
+        Object texture = resourceManager.getResource(ResourceTypes.TEXTURE, textureId);
         if (texture instanceof Texture logicalTexture) {
             return logicalTexture.getCurrentHeight();
         }
@@ -3196,7 +3211,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private AsyncOffscreenBundle createAsyncOffscreenBundle(
-            rogo.sketch.core.backend.BackendResourceInstaller installer,
+            rogo.sketch.core.backend.ResourceAllocator installer,
             VulkanBackendRuntime runtime,
             int slot,
             int width,
@@ -3205,7 +3220,7 @@ final class PipelineTestScene implements AutoCloseable {
         KeyId depthId = KeyId.of("sketch_vktest:async_offscreen_depth_" + slot);
         KeyId targetId = KeyId.of("sketch_vktest:async_offscreen_target_" + slot);
 
-        Texture colorTexture = installer.createTexture(
+        Texture colorTexture = installer.installTexture(
                 colorId,
                 new ResolvedImageResource(
                         colorId,
@@ -3222,7 +3237,7 @@ final class PipelineTestScene implements AutoCloseable {
                         null),
                 null,
                 null);
-        Texture depthTexture = installer.createTexture(
+        Texture depthTexture = installer.installTexture(
                 depthId,
                 new ResolvedImageResource(
                         depthId,
@@ -3239,8 +3254,8 @@ final class PipelineTestScene implements AutoCloseable {
                         null),
                 null,
                 null);
-        replaceDirectResource(GraphicsResourceManager.getInstance(), ResourceTypes.TEXTURE, colorId, colorTexture);
-        replaceDirectResource(GraphicsResourceManager.getInstance(), ResourceTypes.TEXTURE, depthId, depthTexture);
+        replaceDirectResource(resourceManager, ResourceTypes.TEXTURE, colorId, colorTexture);
+        replaceDirectResource(resourceManager, ResourceTypes.TEXTURE, depthId, depthTexture);
 
         VulkanTextureResource nativeColor = null;
         VulkanTextureResource nativeDepth = null;
@@ -3251,7 +3266,7 @@ final class PipelineTestScene implements AutoCloseable {
             runtime.registerTextureResource(depthId, nativeDepth);
         }
 
-        RenderTarget renderTarget = installer.createRenderTarget(
+        RenderTarget renderTarget = installer.installRenderTarget(
                 targetId,
                 new ResolvedRenderTargetSpec(
                         targetId,
@@ -3263,7 +3278,7 @@ final class PipelineTestScene implements AutoCloseable {
                         List.of(colorId),
                         depthId,
                         null));
-        return new AsyncOffscreenBundle(colorId, depthId, targetId, colorTexture, depthTexture, renderTarget, nativeColor, nativeDepth);
+        return new AsyncOffscreenBundle(resourceManager, colorId, depthId, targetId, colorTexture, depthTexture, renderTarget, nativeColor, nativeDepth);
     }
 
     private ResourceBinding mergeResourceBinding(ResourceBinding base, ResourceBinding override) {
@@ -3521,7 +3536,10 @@ final class PipelineTestScene implements AutoCloseable {
                         () -> false,
                         DescriptorStability.DYNAMIC,
                         () -> GraphicsEntityPresets.partialDescriptorVersion(partialRenderSetting),
-                        renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(renderParameter, partialRenderSetting),
+                        renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(
+                                resourceManager,
+                                renderParameter,
+                                partialRenderSetting),
                         dispatchContext -> dispatchContext.dispatch(
                                 Math.max(1, workGroupsX.getAsInt()),
                                 Math.max(1, workGroupsY.getAsInt()),
@@ -3660,6 +3678,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private record AsyncOffscreenBundle(
+            GraphicsResourceManager resourceManager,
             KeyId colorId,
             KeyId depthId,
             KeyId targetId,
@@ -3686,7 +3705,6 @@ final class PipelineTestScene implements AutoCloseable {
             if (nativeDepthTexture != null && !nativeDepthTexture.isDisposed()) {
                 nativeDepthTexture.dispose();
             }
-            GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
             resourceManager.removeResource(ResourceTypes.TEXTURE, colorId);
             resourceManager.removeResource(ResourceTypes.TEXTURE, depthId);
         }

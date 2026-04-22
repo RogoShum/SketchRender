@@ -11,6 +11,7 @@ import rogo.sketch.core.backend.BackendGeometryBinding;
 import rogo.sketch.core.backend.BackendMutableGeometryBinding;
 import rogo.sketch.core.backend.BackendInstalledBuffer;
 import rogo.sketch.core.pipeline.PipelineType;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.uniform.UniformGroupSet;
 import rogo.sketch.core.util.KeyId;
@@ -52,6 +53,12 @@ public record FrameExecutionPlan(
     }
 
     public static FrameExecutionPlan fromPackets(Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets) {
+        return fromPackets(packets, null);
+    }
+
+    public static FrameExecutionPlan fromPackets(
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets,
+            GraphicsResourceManager resourceManager) {
         Map<KeyId, StageExecutionPlan> stagePlans = new LinkedHashMap<>();
         if (packets != null) {
             for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
@@ -72,7 +79,7 @@ public record FrameExecutionPlan(
                         packetList.add(packet);
                         states.put(stateKey, List.copyOf(packetList));
                         stagePackets.put(pipelineType, Collections.unmodifiableMap(states));
-                        stagePlans.put(stageId, StageExecutionPlan.fromPackets(stageId, stagePackets));
+                        stagePlans.put(stageId, StageExecutionPlan.fromPackets(stageId, stagePackets, resourceManager));
                     }
                 }
             }

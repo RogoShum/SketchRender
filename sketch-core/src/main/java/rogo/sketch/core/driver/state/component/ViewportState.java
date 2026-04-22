@@ -40,7 +40,7 @@ public class ViewportState implements RenderStateComponent {
     }
 
     @Override
-    public void deserializeFromJson(JsonObject json, Gson gson) {
+    public void deserializeFromJson(JsonObject json, Gson gson, rogo.sketch.core.resource.GraphicsResourceManager resourceManager) {
         if (json.has("x") && json.has("y") && json.has("width") && json.has("height")) {
             x = json.get("x").getAsInt();
             y = json.get("y").getAsInt();

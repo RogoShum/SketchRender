@@ -11,8 +11,10 @@ import java.util.*;
 
 public class RenderTargetUtil {
 
-    public static void resizeRT(int windowWidth, int windowHeight) {
-        GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
+    public static void resizeRT(GraphicsResourceManager resourceManager, int windowWidth, int windowHeight) {
+        if (resourceManager == null) {
+            return;
+        }
         Map<KeyId, RenderTarget> renderTargets = resourceManager.getResourcesOfType(ResourceTypes.RENDER_TARGET);
 
         // Maps to track data for validation

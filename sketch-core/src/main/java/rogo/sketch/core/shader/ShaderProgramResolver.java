@@ -76,7 +76,7 @@ public final class ShaderProgramResolver {
 
         ShaderVariantKey variantKey = shaderState.getVariantKey();
         BackendShaderProgramCache shaderProgramCache = GraphicsDriver.runtime() != null
-                ? GraphicsDriver.runtime().shaderProgramCache()
+                ? GraphicsDriver.renderDevice().shaderProgramCache()
                 : BackendShaderProgramCache.NO_OP;
         return shaderProgramCache.resolveProgram(shaderTemplate, variantKey);
     }

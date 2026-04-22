@@ -19,11 +19,13 @@ public class UniformHookGroup {
     private final ObjectArrayList<UniformHook<?>> universalHookList = new ObjectArrayList<>();
     private final Reference2ObjectOpenHashMap<UniformHook<?>, String> hookToNameMap = new Reference2ObjectOpenHashMap<>();
     private final Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> allMatchingHooksCache = new Reference2ObjectOpenHashMap<>();
-    private final Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> buildSnapshotHooksCache = new Reference2ObjectOpenHashMap<>();
-    private final Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> frameLiveHooksCache = new Reference2ObjectOpenHashMap<>();
+    private final Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> frameSyncHooksCache = new Reference2ObjectOpenHashMap<>();
+    private final Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> buildAsyncSafeHooksCache = new Reference2ObjectOpenHashMap<>();
+    private final Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> perDrawDeferredHooksCache = new Reference2ObjectOpenHashMap<>();
     private UniformHook<?>[] universalHooks = EMPTY_HOOKS;
-    private UniformHook<?>[] buildSnapshotUniversalHooks = EMPTY_HOOKS;
-    private UniformHook<?>[] frameLiveUniversalHooks = EMPTY_HOOKS;
+    private UniformHook<?>[] frameSyncUniversalHooks = EMPTY_HOOKS;
+    private UniformHook<?>[] buildAsyncSafeUniversalHooks = EMPTY_HOOKS;
+    private UniformHook<?>[] perDrawDeferredUniversalHooks = EMPTY_HOOKS;
 
     public UniformHookGroup() {
     }
@@ -43,8 +45,9 @@ public class UniformHookGroup {
 
         refreshUniversalCaches();
         allMatchingHooksCache.clear();
-        buildSnapshotHooksCache.clear();
-        frameLiveHooksCache.clear();
+        frameSyncHooksCache.clear();
+        buildAsyncSafeHooksCache.clear();
+        perDrawDeferredHooksCache.clear();
     }
 
     public UniformHook<?> getUniformHook(final String uniformName) {
@@ -62,27 +65,37 @@ public class UniformHookGroup {
     }
 
     public void updateUniforms(Object c) {
-        updateUniforms(c, null);
+        updateUniforms(c, (UniformCaptureTiming) null);
     }
 
-    public void updateUniforms(Object c, UniformUpdateDomain domain) {
-        UniformHook<?>[] hooks = selectUniversalHooks(domain);
+    public void updateUniforms(Object c, UniformCaptureTiming timing) {
+        UniformHook<?>[] hooks = selectUniversalHooks(timing);
         for (int i = 0; i < hooks.length; i++) {
             hooks[i].checkUpdate(c);
         }
 
-        UniformHook<?>[] matchingHooks = getMatchingHooks(c.getClass(), domain);
+        UniformHook<?>[] matchingHooks = getMatchingHooks(c.getClass(), timing);
         for (int i = 0; i < matchingHooks.length; i++) {
             matchingHooks[i].checkUpdate(c);
         }
     }
 
-    public Map<String, Object> getUniformsDirect(Object c) {
-        return getUniformsDirect(c, null);
+    @Deprecated
+    public void updateUniforms(Object c, UniformUpdateDomain domain) {
+        updateUniforms(c, domain != null ? domain.timing() : null);
     }
 
+    public Map<String, Object> getUniformsDirect(Object c) {
+        return getUniformsDirect(c, (UniformCaptureTiming) null);
+    }
+
+    public Map<String, Object> getUniformsDirect(Object c, UniformCaptureTiming timing) {
+        return captureValues(c, getMatchingHooks(c.getClass(), timing), timing).toMap();
+    }
+
+    @Deprecated
     public Map<String, Object> getUniformsDirect(Object c, UniformUpdateDomain domain) {
-        return captureValues(c, getMatchingHooks(c.getClass(), domain), domain).toMap();
+        return getUniformsDirect(c, domain != null ? domain.timing() : null);
     }
 
     /**
@@ -94,31 +107,49 @@ public class UniformHookGroup {
      * @return Map of uniform name to value
      */
     public Map<String, Object> getUniformsDirectWithCachedHooks(Object c, UniformHook<?>[] cachedMatchingHooks) {
-        return getUniformsDirectWithCachedHooks(c, cachedMatchingHooks, null);
+        return getUniformsDirectWithCachedHooks(c, cachedMatchingHooks, (UniformCaptureTiming) null);
     }
 
+    public Map<String, Object> getUniformsDirectWithCachedHooks(Object c, UniformHook<?>[] cachedMatchingHooks, UniformCaptureTiming timing) {
+        return captureValues(c, cachedMatchingHooks, timing).toMap();
+    }
+
+    @Deprecated
     public Map<String, Object> getUniformsDirectWithCachedHooks(Object c, UniformHook<?>[] cachedMatchingHooks, UniformUpdateDomain domain) {
-        return captureValues(c, cachedMatchingHooks, domain).toMap();
+        return getUniformsDirectWithCachedHooks(c, cachedMatchingHooks, domain != null ? domain.timing() : null);
     }
 
-    UniformValueSnapshot captureSnapshot(Object source, UniformUpdateDomain domain) {
+    UniformValueSnapshot captureSnapshot(Object source, UniformCaptureTiming timing) {
         if (source == null) {
             return UniformValueSnapshot.empty();
         }
-        return captureValues(source, getMatchingHooks(source.getClass(), domain), domain).snapshot();
+        return captureValues(source, getMatchingHooks(source.getClass(), timing), timing).snapshot();
     }
 
     UniformValueSnapshot captureSnapshot(
             Object source,
             UniformHook<?>[] cachedMatchingHooks,
-            UniformUpdateDomain domain) {
+            UniformCaptureTiming timing) {
         if (source == null) {
             return UniformValueSnapshot.empty();
         }
         UniformHook<?>[] hooks = cachedMatchingHooks != null
                 ? cachedMatchingHooks
-                : getMatchingHooks(source.getClass(), domain);
-        return captureValues(source, hooks, domain).snapshot();
+                : getMatchingHooks(source.getClass(), timing);
+        return captureValues(source, hooks, timing).snapshot();
+    }
+
+    @Deprecated
+    UniformValueSnapshot captureSnapshot(Object source, UniformUpdateDomain domain) {
+        return captureSnapshot(source, domain != null ? domain.timing() : null);
+    }
+
+    @Deprecated
+    UniformValueSnapshot captureSnapshot(
+            Object source,
+            UniformHook<?>[] cachedMatchingHooks,
+            UniformUpdateDomain domain) {
+        return captureSnapshot(source, cachedMatchingHooks, domain != null ? domain.timing() : null);
     }
 
     /**
@@ -130,6 +161,15 @@ public class UniformHookGroup {
      */
     public UniformHook<?>[] getAllMatchingHooks(Class<?> objectClass) {
         return getMatchingHooks(objectClass, null);
+    }
+
+    public UniformHook<?>[] getAllMatchingHooks(Class<?> objectClass, UniformCaptureTiming timing) {
+        return getMatchingHooks(objectClass, timing);
+    }
+
+    @Deprecated
+    public UniformHook<?>[] getAllMatchingHooks(Class<?> objectClass, UniformUpdateDomain domain) {
+        return getMatchingHooks(objectClass, domain != null ? domain.timing() : null);
     }
 
     /**
@@ -150,8 +190,8 @@ public class UniformHookGroup {
      * Get all UniformHooks that can handle the given object class
      * This includes exact matches and superclass/interface matches
      */
-    private UniformHook<?>[] getMatchingHooks(Class<?> objectClass, UniformUpdateDomain domain) {
-        Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> cache = selectMatchingHooksCache(domain);
+    private UniformHook<?>[] getMatchingHooks(Class<?> objectClass, UniformCaptureTiming timing) {
+        Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> cache = selectMatchingHooksCache(timing);
         UniformHook<?>[] cachedResult = cache.get(objectClass);
         if (cachedResult != null) {
             return cachedResult;
@@ -164,7 +204,7 @@ public class UniformHookGroup {
                 ObjectArrayList<UniformHook<?>> hooks = entry.getValue();
                 for (int i = 0; i < hooks.size(); i++) {
                     UniformHook<?> hook = hooks.get(i);
-                    if (matchesDomain(hook, domain)) {
+                    if (matchesTiming(hook, timing)) {
                         result.add(hook);
                     }
                 }
@@ -184,43 +224,50 @@ public class UniformHookGroup {
         return uniforms.containsKey(uniformName);
     }
 
-    private boolean matchesDomain(UniformHook<?> hook, UniformUpdateDomain domain) {
-        return domain == null || hook.domain() == domain;
+    private boolean matchesTiming(UniformHook<?> hook, UniformCaptureTiming timing) {
+        return timing == null || hook.timing() == timing;
     }
 
     private void refreshUniversalCaches() {
         universalHooks = universalHookList.isEmpty() ? EMPTY_HOOKS : universalHookList.toArray(new UniformHook<?>[0]);
-        buildSnapshotUniversalHooks = filterByDomain(universalHooks, UniformUpdateDomain.BUILD_SNAPSHOT);
-        frameLiveUniversalHooks = filterByDomain(universalHooks, UniformUpdateDomain.FRAME_LIVE);
+        frameSyncUniversalHooks = filterByTiming(universalHooks, UniformCaptureTiming.FRAME_SYNC);
+        buildAsyncSafeUniversalHooks = filterByTiming(universalHooks, UniformCaptureTiming.BUILD_ASYNC_SAFE);
+        perDrawDeferredUniversalHooks = filterByTiming(universalHooks, UniformCaptureTiming.PER_DRAW_DEFERRED);
     }
 
-    private UniformHook<?>[] selectUniversalHooks(UniformUpdateDomain domain) {
-        if (domain == UniformUpdateDomain.BUILD_SNAPSHOT) {
-            return buildSnapshotUniversalHooks;
+    private UniformHook<?>[] selectUniversalHooks(UniformCaptureTiming timing) {
+        if (timing == UniformCaptureTiming.FRAME_SYNC) {
+            return frameSyncUniversalHooks;
         }
-        if (domain == UniformUpdateDomain.FRAME_LIVE) {
-            return frameLiveUniversalHooks;
+        if (timing == UniformCaptureTiming.BUILD_ASYNC_SAFE) {
+            return buildAsyncSafeUniversalHooks;
+        }
+        if (timing == UniformCaptureTiming.PER_DRAW_DEFERRED) {
+            return perDrawDeferredUniversalHooks;
         }
         return universalHooks;
     }
 
-    private Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> selectMatchingHooksCache(UniformUpdateDomain domain) {
-        if (domain == UniformUpdateDomain.BUILD_SNAPSHOT) {
-            return buildSnapshotHooksCache;
+    private Reference2ObjectOpenHashMap<Class<?>, UniformHook<?>[]> selectMatchingHooksCache(UniformCaptureTiming timing) {
+        if (timing == UniformCaptureTiming.FRAME_SYNC) {
+            return frameSyncHooksCache;
         }
-        if (domain == UniformUpdateDomain.FRAME_LIVE) {
-            return frameLiveHooksCache;
+        if (timing == UniformCaptureTiming.BUILD_ASYNC_SAFE) {
+            return buildAsyncSafeHooksCache;
+        }
+        if (timing == UniformCaptureTiming.PER_DRAW_DEFERRED) {
+            return perDrawDeferredHooksCache;
         }
         return allMatchingHooksCache;
     }
 
-    private UniformHook<?>[] filterByDomain(UniformHook<?>[] hooks, UniformUpdateDomain domain) {
+    private UniformHook<?>[] filterByTiming(UniformHook<?>[] hooks, UniformCaptureTiming timing) {
         if (hooks.length == 0) {
             return EMPTY_HOOKS;
         }
         ObjectArrayList<UniformHook<?>> filtered = new ObjectArrayList<>(hooks.length);
         for (UniformHook<?> hook : hooks) {
-            if (matchesDomain(hook, domain)) {
+            if (matchesTiming(hook, timing)) {
                 filtered.add(hook);
             }
         }
@@ -230,18 +277,18 @@ public class UniformHookGroup {
     private UniformCaptureBuffer captureValues(
             Object source,
             UniformHook<?>[] matchingHooks,
-            UniformUpdateDomain domain) {
+            UniformCaptureTiming timing) {
         UniformCaptureBuffer buffer = UniformCaptureBuffer.acquire();
-        appendDirectValues(source, domain, matchingHooks, buffer);
+        appendDirectValues(source, timing, matchingHooks, buffer);
         return buffer;
     }
 
     private void appendDirectValues(
             Object source,
-            UniformUpdateDomain domain,
+            UniformCaptureTiming timing,
             UniformHook<?>[] matchingHooks,
             UniformCaptureBuffer sink) {
-        UniformHook<?>[] universal = selectUniversalHooks(domain);
+        UniformHook<?>[] universal = selectUniversalHooks(timing);
         for (int i = 0; i < universal.length; i++) {
             appendValue(source, universal[i], sink);
         }

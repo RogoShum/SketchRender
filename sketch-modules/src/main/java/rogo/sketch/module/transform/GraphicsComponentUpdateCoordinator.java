@@ -1,7 +1,11 @@
-package rogo.sketch.core.graphics.ecs;
+package rogo.sketch.module.transform;
 
 import org.jetbrains.annotations.Nullable;
 import org.joml.primitives.AABBf;
+import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
+import rogo.sketch.core.graphics.ecs.GraphicsUpdateDomain;
+import rogo.sketch.core.graphics.ecs.GraphicsWorld;
 import rogo.sketch.core.pipeline.module.runtime.GraphicsEntitySnapshot;
 import rogo.sketch.core.pipeline.kernel.PassExecutionContext;
 import rogo.sketch.core.util.KeyId;

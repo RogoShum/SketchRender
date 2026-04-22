@@ -70,7 +70,8 @@ public class DrawCallEntityLoader implements ResourceLoader<GraphicsEntityBluepr
             KeyId modelId = KeyId.of(modelName);
             KeyId meshId = KeyId.of(meshName);
 
-            ResourceReference<MeshGroup> meshGroupRef = GraphicsResourceManager.getInstance()
+            GraphicsResourceManager resourceManager = context.resourceManager();
+            ResourceReference<MeshGroup> meshGroupRef = resourceManager
                     .getReference(ResourceTypes.MESH, modelId);
 
             if (!meshGroupRef.isAvailable()) {
@@ -98,7 +99,7 @@ public class DrawCallEntityLoader implements ResourceLoader<GraphicsEntityBluepr
                     .build();
             RenderParameter renderParameter = new RasterizationParameter(vertexLayoutSpec, primitiveType, indexMode,
                     BufferUpdatePolicy.IMMUTABLE, false);
-            PartialRenderSetting partialRenderSetting = (PartialRenderSetting) GraphicsResourceManager.getInstance()
+            PartialRenderSetting partialRenderSetting = (PartialRenderSetting) resourceManager
                     .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, partialRenderSettingId)
                     .get();
             long descriptorVersion = Objects.hash(partialRenderSetting != null ? partialRenderSetting : PartialRenderSetting.EMPTY);
@@ -124,7 +125,8 @@ public class DrawCallEntityLoader implements ResourceLoader<GraphicsEntityBluepr
                             () -> descriptorVersion,
                             parameter -> RenderSettingCompiler.compile(RenderSetting.fromPartial(
                                     parameter,
-                                    partialRenderSetting != null ? partialRenderSetting : PartialRenderSetting.EMPTY))))
+                                    partialRenderSetting != null ? partialRenderSetting : PartialRenderSetting.EMPTY),
+                                    resourceManager)))
                     .put(GraphicsBuiltinComponents.DESCRIPTOR_VERSION, new GraphicsBuiltinComponents.DescriptorVersionComponent(() -> descriptorVersion))
                     .put(GraphicsBuiltinComponents.GEOMETRY_VERSION, new GraphicsBuiltinComponents.GeometryVersionComponent(() ->
                             Objects.hash(GeometrySourceKey.fromPreparedMesh(preparedMesh), SubmissionCapability.DIRECT_BATCHABLE)))

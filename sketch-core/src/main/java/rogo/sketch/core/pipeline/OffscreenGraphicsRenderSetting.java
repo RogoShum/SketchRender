@@ -20,7 +20,7 @@ public class OffscreenGraphicsRenderSetting extends PartialRenderSetting {
             boolean shouldSwitchRenderState,
             String aliasPolicy) {
         super(ExecutionDomain.OFFSCREEN_GRAPHICS, renderState, targetBinding, resourceBinding, shouldSwitchRenderState, aliasPolicy);
-        if (targetBinding == null || TargetBinding.DEFAULT_RENDER_TARGET.equals(targetBinding.renderTargetId())) {
+        if (targetBinding == null || PipelineConfig.DEFAULT_RENDER_TARGET_ID.equals(targetBinding.renderTargetId())) {
             throw new IllegalArgumentException("OffscreenGraphicsRenderSetting requires a backend-owned offscreen target");
         }
     }

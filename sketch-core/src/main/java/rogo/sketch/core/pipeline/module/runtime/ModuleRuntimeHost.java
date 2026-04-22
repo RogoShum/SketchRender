@@ -597,7 +597,7 @@ public class ModuleRuntimeHost {
         unregisterOwnedGraphics(ownerId);
         clearOwnedIndirectRequests(ownerId);
         pipeline.extensionHost().hostEvents().clearOwner(ownerId);
-        GraphicsResourceManager.getInstance().unregisterOwnedResources(ownerId);
+        pipeline.resourceManager().unregisterOwnedResources(ownerId);
         uniformRegistry.unregisterOwner(ownerId);
         metricRegistry.unregisterOwner(ownerId);
         macroRegistry.clearOwner(ownerId);
@@ -826,12 +826,12 @@ public class ModuleRuntimeHost {
 
         @Override
         public void registerBuiltInResource(KeyId type, KeyId name, Supplier<? extends ResourceObject> supplier) {
-            GraphicsResourceManager.getInstance().registerBuiltIn(ownerId, resourceScope, type, name, (Supplier<ResourceObject>) supplier);
+            pipeline.resourceManager().registerBuiltIn(ownerId, resourceScope, type, name, (Supplier<ResourceObject>) supplier);
         }
 
         @Override
         public void unregisterOwnedResources() {
-            GraphicsResourceManager.getInstance().unregisterOwnedResources(ownerId);
+            pipeline.resourceManager().unregisterOwnedResources(ownerId);
         }
 
         @Override

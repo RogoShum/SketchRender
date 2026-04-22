@@ -41,7 +41,6 @@ import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
 import rogo.sketch.core.pipeline.submit.StageSubmitNode;
 import rogo.sketch.core.pipeline.submit.StageWindow;
-import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.resource.vision.Texture;
@@ -94,18 +93,12 @@ public class CullingModuleRuntime implements ModuleRuntime {
             .projectFlag(CullingModuleDescriptor.CULL_CHUNK, "SKETCH_CULL_CHUNK")
             .projectFlag(CullingModuleDescriptor.CULL_ENTITY, "SKETCH_CULL_ENTITY")
             .projectFlag(CullingModuleDescriptor.CULL_BLOCK_ENTITY, "SKETCH_CULL_BLOCK_ENTITY");
-    private final ResourceReference<PartialRenderSetting> firstHiZSetting = GraphicsResourceManager.getInstance()
-            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of("sketch_render", "hierarchy_depth_buffer_first"));
-    private final ResourceReference<PartialRenderSetting> secondHiZSetting = GraphicsResourceManager.getInstance()
-            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of("sketch_render", "hierarchy_depth_buffer_second"));
-    private final ResourceReference<PartialRenderSetting> depthSnapshotCopySetting = GraphicsResourceManager.getInstance()
-            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of("sketch_render", "hiz_depth_snapshot_copy"));
-    private final ResourceReference<PartialRenderSetting> terrainCullSetting = GraphicsResourceManager.getInstance()
-            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of("sketch_render", "cull_chunk"));
-    private final ResourceReference<PartialRenderSetting> copyCounterSetting = GraphicsResourceManager.getInstance()
-            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of("sketch_render", "copy_counter"));
-    private final ResourceReference<PartialRenderSetting> entityCullSetting = GraphicsResourceManager.getInstance()
-            .getReference(ResourceTypes.PARTIAL_RENDER_SETTING, KeyId.of("sketch_render", "cull_entity_batch"));
+    private ResourceReference<PartialRenderSetting> firstHiZSetting;
+    private ResourceReference<PartialRenderSetting> secondHiZSetting;
+    private ResourceReference<PartialRenderSetting> depthSnapshotCopySetting;
+    private ResourceReference<PartialRenderSetting> terrainCullSetting;
+    private ResourceReference<PartialRenderSetting> copyCounterSetting;
+    private ResourceReference<PartialRenderSetting> entityCullSetting;
     private final SceneDatabase sceneDatabase = new SceneDatabase();
     private final HiZResourceProducer hiZResourceProducer = new HiZResourceProducer();
     private final VisibilitySystem visibilitySystem = new VisibilitySystem();
@@ -138,6 +131,24 @@ public class CullingModuleRuntime implements ModuleRuntime {
     @Override
     public void onProcessInit(ModuleRuntimeContext context) {
         pipeline = context.pipeline();
+        firstHiZSetting = context.resourceManager().getReference(
+                ResourceTypes.PARTIAL_RENDER_SETTING,
+                KeyId.of("sketch_render", "hierarchy_depth_buffer_first"));
+        secondHiZSetting = context.resourceManager().getReference(
+                ResourceTypes.PARTIAL_RENDER_SETTING,
+                KeyId.of("sketch_render", "hierarchy_depth_buffer_second"));
+        depthSnapshotCopySetting = context.resourceManager().getReference(
+                ResourceTypes.PARTIAL_RENDER_SETTING,
+                KeyId.of("sketch_render", "hiz_depth_snapshot_copy"));
+        terrainCullSetting = context.resourceManager().getReference(
+                ResourceTypes.PARTIAL_RENDER_SETTING,
+                KeyId.of("sketch_render", "cull_chunk"));
+        copyCounterSetting = context.resourceManager().getReference(
+                ResourceTypes.PARTIAL_RENDER_SETTING,
+                KeyId.of("sketch_render", "copy_counter"));
+        entityCullSetting = context.resourceManager().getReference(
+                ResourceTypes.PARTIAL_RENDER_SETTING,
+                KeyId.of("sketch_render", "cull_entity_batch"));
         settingListener = event -> {
             if (id().equals(event.moduleId())) {
                 macroProjector.apply(context.ownerId(), context.settings().snapshot(), context.macros());
@@ -677,7 +688,10 @@ public class CullingModuleRuntime implements ModuleRuntime {
                 () -> false,
                 DescriptorStability.DYNAMIC,
                 () -> GraphicsEntityPresets.partialDescriptorVersion(resolvePartial(entityCullSetting)),
-                renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(renderParameter, resolvePartial(entityCullSetting)),
+                renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(
+                        pipeline != null ? pipeline.resourceManager() : null,
+                        renderParameter,
+                        resolvePartial(entityCullSetting)),
                 dispatchContext -> {
                     int dispatchGroups = entityMaskLifecycleController.dispatchGroupCount();
                     if (dispatchGroups <= 0) {
@@ -814,7 +828,10 @@ public class CullingModuleRuntime implements ModuleRuntime {
                 () -> false,
                 DescriptorStability.DYNAMIC,
                 () -> GraphicsEntityPresets.partialDescriptorVersion(partialSupplier.get()),
-                renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(renderParameter, partialSupplier.get()),
+                renderParameter -> GraphicsEntityPresets.compilePartialDescriptor(
+                        pipeline != null ? pipeline.resourceManager() : null,
+                        renderParameter,
+                        partialSupplier.get()),
                 dispatchCommand);
         return GraphicsEntityPresets.withTags(builder, tag).build();
     }

@@ -3,6 +3,7 @@ package rogo.sketch.core.driver.state;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import rogo.sketch.core.api.RenderStateComponent;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.driver.state.component.*;
 import rogo.sketch.core.util.KeyId;
 
@@ -82,7 +83,11 @@ public class DefaultRenderStates {
      * Load a render state component from JSON using the default component as
      * prototype
      */
-    public static RenderStateComponent loadComponentFromJson(KeyId componentType, JsonObject json, Gson gson) {
+    public static RenderStateComponent loadComponentFromJson(
+            KeyId componentType,
+            JsonObject json,
+            Gson gson,
+            GraphicsResourceManager resourceManager) {
         RenderStateComponent defaultComponent = defaultStateArray[getIndex(componentType)];
         if (defaultComponent == null) {
             throw new IllegalArgumentException("No default component found for render state component type: " + componentType);
@@ -90,7 +95,7 @@ public class DefaultRenderStates {
 
         // Create new instance and deserialize
         RenderStateComponent instance = defaultComponent.createInstance();
-        instance.deserializeFromJson(json, gson);
+        instance.deserializeFromJson(json, gson, resourceManager);
         return instance;
     }
 

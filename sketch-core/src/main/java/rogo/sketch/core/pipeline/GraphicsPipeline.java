@@ -1,8 +1,6 @@
 package rogo.sketch.core.pipeline;
 
 import org.jetbrains.annotations.Nullable;
-import rogo.sketch.core.packet.GeometryHandleKey;
-import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.extension.ExtensionHost;
 import rogo.sketch.core.extension.PluginApiFacade;
@@ -10,8 +8,6 @@ import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityAssembler;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityBlueprint;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
-import rogo.sketch.core.graphics.ecs.GraphicsEntitySchema;
-import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.graphics.ecs.GraphicsWorld;
 import rogo.sketch.core.memory.MemoryDebugSnapshot;
 import rogo.sketch.core.memory.UnifiedMemoryFabric;
@@ -25,23 +21,14 @@ import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticEntry;
 import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceConfig;
 import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceRecorder;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
-import rogo.sketch.core.pipeline.flow.RenderFlowType;
-import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.flow.ecs.StageMembershipIndex;
-import rogo.sketch.core.pipeline.flow.impl.RasterizationPostProcessor;
-import rogo.sketch.core.pipeline.flow.v2.ComputeStageFlowScene;
-import rogo.sketch.core.pipeline.flow.v2.FunctionStageFlowScene;
-import rogo.sketch.core.pipeline.flow.v2.RasterStageFlowScene;
 import rogo.sketch.core.pipeline.flow.v2.StageEntityView;
-import rogo.sketch.core.pipeline.flow.v2.StageFlowScene;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.module.metric.MetricSnapshot;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
-import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.pipeline.submit.StageSubmitNode;
 import rogo.sketch.core.pipeline.submit.StageWindow;
 import rogo.sketch.core.resource.GraphicsResourceManager;
-import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.util.OrderedList;
 import rogo.sketch.core.util.RenderTargetUtil;
@@ -49,9 +36,9 @@ import rogo.sketch.core.pipeline.data.FrameDataDomain;
 import rogo.sketch.core.pipeline.data.GeometryFrameData;
 import rogo.sketch.core.vertex.MeshResidencyPool;
 import rogo.sketch.core.vertex.GeometryResourceCoordinator;
+import rogo.sketch.core.backend.LogicalResourceRegistryBinder;
 
 import java.util.*;
-import java.util.function.Supplier;
 
 public class GraphicsPipeline<C extends RenderContext> {
     private static final KeyId IMMEDIATE_STAGE_ID = KeyId.of("sketch_render", "immediate");
@@ -59,25 +46,22 @@ public class GraphicsPipeline<C extends RenderContext> {
     private final OrderedList<GraphicsStage> stages;
     private final Map<GraphicsStage, GraphicsBatchGroup<C>> passMap = new LinkedHashMap<>();
     private final Map<KeyId, GraphicsStage> idToStage = new LinkedHashMap<>();
-    private final RenderStateManager renderStateManager = new RenderStateManager();
+    private final RenderStateManager renderStateManager;
     private final RenderPacketQueue<C> renderPacketQueue;
     private final Map<KeyId, PipelineType> pipelineTypes = new HashMap<>();
-    private final Map<PipelineType, GeometryResourceCoordinator> resourceManagers = new LinkedHashMap<>();
-    private final Map<PipelineType, MeshResidencyPool> meshResidencyPools = new LinkedHashMap<>();
-    private final Map<PipelineType, FrameDataStore> frameDataStores = new LinkedHashMap<>();
+    private final PipelineDataHub pipelineDataHub = new PipelineDataHub();
     private final RenderTraceConfig renderTraceConfig = new RenderTraceConfig();
     private final RenderTraceRecorder renderTraceRecorder = new RenderTraceRecorder(renderTraceConfig);
-    private final Map<KeyId, GraphicsEntityId> installedFunctionResources = new LinkedHashMap<>();
-    private final Map<KeyId, GraphicsEntityId> installedDrawCallResources = new LinkedHashMap<>();
-    private final Map<KeyId, EnumMap<StageWindow, List<StageSubmitNode>>> stageSubmitNodes = new LinkedHashMap<>();
-    private final Map<String, List<StageSubmitNode>> ownedStageSubmitNodes = new LinkedHashMap<>();
-    private final GraphicsWorld graphicsWorld = new GraphicsWorld();
-    private final GraphicsEntityAssembler graphicsEntityAssembler = new GraphicsEntityAssembler(graphicsWorld);
+    private final PipelineResourceBridge pipelineResourceBridge = new PipelineResourceBridge();
+    private final StageSubmitRegistry stageSubmitRegistry = new StageSubmitRegistry();
+    private final GraphicsEntityManager graphicsEntityManager = new GraphicsEntityManager();
     private final ExtensionHost extensionHost = new ExtensionHost(this);
     private final StageMembershipIndex stageMembershipIndex = new StageMembershipIndex();
     private final Map<KeyId, Long> stageEntityOrderHints = new LinkedHashMap<>();
 
     private final PipelineConfig config;
+    private final GraphicsResourceManager resourceManager;
+    private final ImmediateRenderer<C> immediateRenderer;
     private C currentContext;
     private int currentFrameTick = 0;
     private int currentLogicTick = 0;
@@ -89,12 +73,23 @@ public class GraphicsPipeline<C extends RenderContext> {
     // New architecture: kernel
     private PipelineKernel<C> kernel;
 
-    public GraphicsPipeline(PipelineConfig config, C defaultContext) {
+    public GraphicsPipeline(PipelineConfig config, GraphicsResourceManager resourceManager, C defaultContext) {
         this.config = config;
+        this.resourceManager = Objects.requireNonNull(resourceManager, "resourceManager");
+        this.renderStateManager = new RenderStateManager(resourceManager);
+        bindResourceManagerToBackend();
         this.stages = new OrderedList<>(config.isThrowOnSortFail());
         this.currentContext = defaultContext;
         initPipelineData();
         this.renderPacketQueue = new RenderPacketQueue<>(this);
+        this.immediateRenderer = new ImmediateRenderer<>(
+                this,
+                IMMEDIATE_STAGE_ID,
+                graphicsEntityManager.graphicsWorld(),
+                graphicsEntityManager.graphicsEntityAssembler(),
+                renderPacketQueue,
+                renderStateManager,
+                renderTraceRecorder);
     }
 
     private void initPipelineData() {
@@ -107,31 +102,15 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     private void initializePipeline(PipelineType pipelineType) {
         pipelineTypes.put(pipelineType.getIdentifier(), pipelineType);
-        MeshResidencyPool meshResidencyPool = new MeshResidencyPool("mesh-residency-" + pipelineType.getIdentifier());
-        GeometryResourceCoordinator manager = new GeometryResourceCoordinator(meshResidencyPool);
-        PipelineDataStore renderStore = new PipelineDataStore();
-        PipelineDataStore asyncStore = new PipelineDataStore();
-
-        // Register standard pipeline data
-        registerDefaultPipelineData(renderStore);
-        registerDefaultPipelineData(asyncStore);
-
-        FrameDataStore frameStore = new FrameDataStore(renderStore, asyncStore);
-
-        resourceManagers.put(pipelineType, manager);
-        meshResidencyPools.put(pipelineType, meshResidencyPool);
-        frameDataStores.put(pipelineType, frameStore);
-    }
-
-    private void registerDefaultPipelineData(PipelineDataStore dataStore) {
-        dataStore.register(KeyId.of("indirect_buffers"), new IndirectBufferData());
-        dataStore.register(IndirectPlanData.KEY, new IndirectPlanData());
-        dataStore.register(KeyId.of("instanced_offsets"), new InstancedOffsetData());
-        dataStore.register(GeometryFrameData.KEY, new GeometryFrameData());
+        pipelineDataHub.initializePipeline(pipelineType);
     }
 
     public PipelineConfig getConfig() {
         return config;
+    }
+
+    public GraphicsResourceManager resourceManager() {
+        return resourceManager;
     }
 
     /**
@@ -155,7 +134,7 @@ public class GraphicsPipeline<C extends RenderContext> {
                 (s, req) -> passMap.put(s, new GraphicsBatchGroup<>(this, s.getIdentifier())));
         if (added) {
             idToStage.put(stage.getIdentifier(), stage);
-            stageSubmitNodes.computeIfAbsent(stage.getIdentifier(), ignored -> new EnumMap<>(StageWindow.class));
+            stageSubmitRegistry.onStageRegistered(stage.getIdentifier());
         }
         return added;
     }
@@ -189,14 +168,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public void renderImmediate(GraphicsEntityBlueprint blueprint, @Nullable C contextOverride) {
-        List<RenderPacket> packets = buildImmediatePackets(blueprint, contextOverride);
-        C context = contextOverride != null ? contextOverride : currentContext;
-        if (context == null || packets.isEmpty()) {
-            return;
-        }
-        for (RenderPacket packet : packets) {
-            renderPacketQueue.executeImmediate(packet, renderStateManager, context);
-        }
+        immediateRenderer.renderImmediate(blueprint, contextOverride, currentContext, graphicsEntityManager::snapshotEntity);
     }
 
     public List<RenderPacket> buildImmediatePackets(GraphicsEntityBlueprint blueprint) {
@@ -204,57 +176,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public List<RenderPacket> buildImmediatePackets(GraphicsEntityBlueprint blueprint, @Nullable C contextOverride) {
-        if (blueprint == null || blueprint.isDisposed()) {
-            return List.of();
-        }
-
-        C context = contextOverride != null ? contextOverride : currentContext;
-        if (context == null) {
-            return List.of();
-        }
-
-        GraphicsBuiltinComponents.StageBindingComponent stageBinding = blueprint.component(GraphicsBuiltinComponents.STAGE_BINDING);
-        if (stageBinding == null || stageBinding.renderParameter() == null || stageBinding.renderParameter().isInvalid()) {
-            return List.of();
-        }
-
-        GraphicsEntityId entityId = graphicsEntityAssembler.spawn(withImmediateStageBinding(blueprint));
-        StageEntityView immediateView = new StageEntityView(
-                IMMEDIATE_STAGE_ID,
-                stageBinding.pipelineType(),
-                List.of(snapshotEntity(entityId)));
-
-        PipelineType pipelineType = stageBinding.pipelineType();
-        StageFlowScene<C> immediateScene = createImmediateStageScene(pipelineType);
-        RenderPostProcessors postProcessors = new RenderPostProcessors();
-        if (pipelineType == PipelineType.RASTERIZATION || pipelineType == PipelineType.TRANSLUCENT) {
-            postProcessors.register(RenderFlowType.RASTERIZATION, new RasterizationPostProcessor());
-        }
-
-        try {
-            immediateScene.prepareForFrame(graphicsWorld, immediateView, context);
-
-            Map<ExecutionKey, List<RenderPacket>> packets = immediateScene.createRenderPackets(
-                    immediateView,
-                    pipelineType.getDefaultFlowType(),
-                    postProcessors,
-                    context);
-            if (packets.isEmpty()) {
-                return List.of();
-            }
-
-            GraphicsDriver.runtime().installImmediateGeometryBindings(this, pipelineType, postProcessors);
-            postProcessors.executeAllExcept(RenderFlowType.RASTERIZATION);
-
-            List<RenderPacket> flattenedPackets = new ArrayList<>();
-            for (List<RenderPacket> statePackets : packets.values()) {
-                flattenedPackets.addAll(statePackets);
-            }
-            GraphicsDriver.runtime().installImmediateResourceBindings(flattenedPackets);
-            return List.copyOf(flattenedPackets);
-        } finally {
-            graphicsEntityAssembler.destroy(entityId);
-        }
+        return immediateRenderer.buildImmediatePackets(blueprint, contextOverride, currentContext, graphicsEntityManager::snapshotEntity);
     }
 
     /**
@@ -293,7 +215,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     protected void resizeRenderTargets(int windowWidth, int windowHeight) {
-        RenderTargetUtil.resizeRT(windowWidth, windowHeight);
+        RenderTargetUtil.resizeRT(resourceManager, windowWidth, windowHeight);
     }
 
     /**
@@ -304,6 +226,7 @@ public class GraphicsPipeline<C extends RenderContext> {
             return;
         }
 
+        bindResourceManagerToBackend();
         createKernel();
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.EARLY));
         EventBusBridge.post(new GraphicsPipelineInitEvent(this, GraphicsPipelineInitEvent.InitPhase.NORMAL));
@@ -414,8 +337,7 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public void installPipelineResources() {
         clearInstalledPipelineResources();
-        installFunctionResources();
-        installDrawCallResources();
+        pipelineResourceBridge.installPipelineResources(resourceManager, this::spawnGraphicsEntity);
     }
 
     public void shutdown() {
@@ -425,8 +347,7 @@ public class GraphicsPipeline<C extends RenderContext> {
             kernel.cleanup();
             kernel = null;
         }
-        stageSubmitNodes.clear();
-        ownedStageSubmitNodes.clear();
+        stageSubmitRegistry.clear();
         initialized = false;
         initializedStaticGraphics = false;
         currentLogicTick = 0;
@@ -487,25 +408,15 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public PipelineDataStore getPipelineDataStore(PipelineType pipelineType, FrameDataDomain domain) {
-        FrameDataStore frameDataStore = frameDataStores.computeIfAbsent(pipelineType, pt -> {
-            initializePipeline(pt);
-            return frameDataStores.get(pt);
-        });
-        return frameDataStore.buffer(domain);
+        return pipelineDataHub.pipelineDataStore(pipelineType, domain);
     }
 
     public GeometryResourceCoordinator getGeometryResourceCoordinator(PipelineType pipelineType) {
-        return resourceManagers.computeIfAbsent(pipelineType, pt -> {
-            initializePipeline(pt);
-            return resourceManagers.get(pt);
-        });
+        return pipelineDataHub.geometryResourceCoordinator(pipelineType);
     }
 
     public MeshResidencyPool getMeshResidencyPool(PipelineType pipelineType) {
-        return meshResidencyPools.computeIfAbsent(pipelineType, pt -> {
-            initializePipeline(pt);
-            return meshResidencyPools.get(pt);
-        });
+        return pipelineDataHub.meshResidencyPool(pipelineType);
     }
 
     public KeyId getNextStage(KeyId stageId) {
@@ -539,30 +450,24 @@ public class GraphicsPipeline<C extends RenderContext> {
      * Get all pipeline data stores (for passes that need to reset them).
      */
     public Collection<PipelineDataStore> getAllPipelineDataStores(FrameDataDomain domain) {
-        List<PipelineDataStore> stores = new ArrayList<>(frameDataStores.size());
-        for (FrameDataStore frameDataStore : frameDataStores.values()) {
-            stores.add(frameDataStore.buffer(domain));
-        }
-        return stores;
+        return pipelineDataHub.allPipelineDataStores(domain);
     }
 
     public Collection<FrameDataStore> getAllFrameDataStores() {
-        return frameDataStores.values();
+        return pipelineDataHub.allFrameDataStores();
     }
 
     public void swapFrameDataStores() {
-        for (FrameDataStore dataStore : frameDataStores.values()) {
-            dataStore.swap();
-        }
+        pipelineDataHub.swapFrameDataStores();
     }
 
 
     public FrameDataStore getFrameDataStore(PipelineType pipelineType) {
-        return frameDataStores.get(pipelineType);
+        return pipelineDataHub.frameDataStore(pipelineType);
     }
 
     public void materializePendingGeometryBindings() {
-        GraphicsDriver.runtime().materializePendingGeometryResources(this);
+        GraphicsDriver.renderDevice().materializePendingGeometryResources(this);
     }
 
     /**
@@ -608,54 +513,15 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public void registerStageSubmitNode(String ownerId, StageSubmitNode node) {
-        if (node == null || node.stageId() == null || node.window() == null) {
-            return;
-        }
-        EnumMap<StageWindow, List<StageSubmitNode>> windows = stageSubmitNodes.computeIfAbsent(
-                node.stageId(),
-                ignored -> new EnumMap<>(StageWindow.class));
-        List<StageSubmitNode> nodes = new ArrayList<>(windows.getOrDefault(node.window(), List.of()));
-        nodes.add(node);
-        nodes.sort(Comparator.comparingInt(StageSubmitNode::sortHint).thenComparing(n -> n.nodeId().toString()));
-        windows.put(node.window(), List.copyOf(nodes));
-        if (ownerId != null) {
-            ownedStageSubmitNodes.computeIfAbsent(ownerId, ignored -> new ArrayList<>()).add(node);
-        }
+        stageSubmitRegistry.register(ownerId, node);
     }
 
     public void unregisterStageSubmitNodes(String ownerId) {
-        if (ownerId == null) {
-            return;
-        }
-        List<StageSubmitNode> ownedNodes = ownedStageSubmitNodes.remove(ownerId);
-        if (ownedNodes == null || ownedNodes.isEmpty()) {
-            return;
-        }
-        for (StageSubmitNode node : ownedNodes) {
-            EnumMap<StageWindow, List<StageSubmitNode>> windows = stageSubmitNodes.get(node.stageId());
-            if (windows == null) {
-                continue;
-            }
-            List<StageSubmitNode> existing = windows.get(node.window());
-            if (existing == null || existing.isEmpty()) {
-                continue;
-            }
-            List<StageSubmitNode> updated = new ArrayList<>(existing);
-            updated.removeIf(candidate -> candidate.nodeId().equals(node.nodeId()) && ownerId.equals(candidate.ownerId()));
-            if (updated.isEmpty()) {
-                windows.remove(node.window());
-            } else {
-                windows.put(node.window(), List.copyOf(updated));
-            }
-        }
+        stageSubmitRegistry.unregisterOwned(ownerId);
     }
 
     public List<StageSubmitNode> stageSubmitNodes(KeyId stageId, StageWindow window) {
-        EnumMap<StageWindow, List<StageSubmitNode>> windows = stageSubmitNodes.get(stageId);
-        if (windows == null) {
-            return List.of();
-        }
-        return windows.getOrDefault(window, List.of());
+        return stageSubmitRegistry.nodes(stageId, window);
     }
 
     @Nullable
@@ -669,11 +535,15 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public GraphicsWorld graphicsWorld() {
-        return graphicsWorld;
+        return graphicsEntityManager.graphicsWorld();
     }
 
     public GraphicsEntityAssembler graphicsEntityAssembler() {
-        return graphicsEntityAssembler;
+        return graphicsEntityManager.graphicsEntityAssembler();
+    }
+
+    public GraphicsEntityManager graphicsEntityManager() {
+        return graphicsEntityManager;
     }
 
     public ExtensionHost extensionHost() {
@@ -685,7 +555,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public GraphicsEntityId spawnGraphicsEntity(GraphicsEntityBlueprint blueprint) {
-        GraphicsEntityId entityId = graphicsEntityAssembler.spawn(blueprint);
+        GraphicsEntityId entityId = graphicsEntityManager.spawn(blueprint);
         registerSpawnedEntity(entityId);
         return entityId;
     }
@@ -695,7 +565,7 @@ public class GraphicsPipeline<C extends RenderContext> {
             kernel.moduleRegistry().onEntityDestroyed(entityId);
         }
         stageMembershipIndex.unregister(entityId);
-        graphicsEntityAssembler.destroy(entityId);
+        graphicsEntityManager.destroy(entityId);
     }
 
     public StageMembershipIndex stageMembershipIndex() {
@@ -703,193 +573,15 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public StageEntityView.Entry snapshotEntity(GraphicsEntityId entityId) {
-        GraphicsWorld.StageEntitySnapshot snapshot = graphicsWorld.stageEntitySnapshot(entityId);
-        if (snapshot == null) {
-            throw new IllegalArgumentException("Unknown graphics entity: " + entityId);
-        }
-        return snapshotEntity(snapshot);
+        return graphicsEntityManager.snapshotEntity(entityId);
     }
 
     public StageEntityView.Entry snapshotEntityIfPresent(GraphicsEntityId entityId) {
-        GraphicsWorld.StageEntitySnapshot snapshot = graphicsWorld.stageEntitySnapshot(entityId);
-        return snapshot != null ? snapshotEntity(snapshot) : null;
+        return graphicsEntityManager.snapshotEntityIfPresent(entityId);
     }
 
     public List<StageEntityView.Entry> snapshotEntitiesIfPresent(List<GraphicsEntityId> entityIds) {
-        if (entityIds == null || entityIds.isEmpty()) {
-            return List.of();
-        }
-        List<GraphicsWorld.StageEntitySnapshot> snapshots = graphicsWorld.stageEntitySnapshots(entityIds);
-        if (snapshots.isEmpty()) {
-            return List.of();
-        }
-        List<StageEntityView.Entry> entries = new ArrayList<>(snapshots.size());
-        for (GraphicsWorld.StageEntitySnapshot snapshot : snapshots) {
-            if (snapshot != null) {
-                entries.add(snapshotEntity(snapshot));
-            }
-        }
-        return entries.isEmpty() ? List.of() : List.copyOf(entries);
-    }
-
-    private StageEntityView.Entry snapshotEntity(GraphicsWorld.StageEntitySnapshot snapshot) {
-        GraphicsBuiltinComponents.StageBindingComponent stageBinding = snapshot.stageBinding();
-        GraphicsBuiltinComponents.ContainerHintComponent containerHint = snapshot.containerHint();
-        GraphicsBuiltinComponents.IdentityComponent identity = snapshot.identity();
-        GraphicsBuiltinComponents.ResourceOriginComponent resourceOrigin = snapshot.resourceOrigin();
-        GraphicsBuiltinComponents.GraphicsTagsComponent tags = snapshot.tags();
-        GraphicsEntitySchema schema = snapshot.schema();
-        GraphicsUniformSubject uniformSubject = new GraphicsUniformSubject(
-                snapshot.entityId(),
-                identity,
-                resourceOrigin,
-                tags,
-                schema,
-                stageBinding != null ? stageBinding.stageId() : null,
-                stageBinding != null ? stageBinding.pipelineType() : null,
-                stageBinding != null ? stageBinding.renderParameter() : null,
-                componentType -> resolveSnapshotComponent(snapshot, componentType),
-                () -> buildComponentSnapshot(snapshot));
-        return new StageEntityView.Entry(
-                snapshot.entityId(),
-                schema,
-                schema.capabilityView(),
-                identity,
-                resourceOrigin,
-                tags,
-                uniformSubject,
-                snapshot.lifecycle(),
-                stageBinding,
-                containerHint,
-                snapshot.rasterRenderable(),
-                snapshot.computeDispatch(),
-                snapshot.functionInvoke(),
-                snapshot.submissionCapability(),
-                snapshot.bounds(),
-                snapshot.preparedMesh(),
-                snapshot.renderDescriptor(),
-                snapshot.instanceVertexAuthoring(),
-                snapshot.transformBinding(),
-                snapshot.tickDriver(),
-                snapshot.asyncTickDriver(),
-                snapshot.descriptorVersion(),
-                snapshot.geometryVersion(),
-                snapshot.boundsVersion());
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private void putComponent(
-            Map<rogo.sketch.core.graphics.ecs.GraphicsComponentType<?>, Object> snapshot,
-            rogo.sketch.core.graphics.ecs.GraphicsComponentType componentType,
-            Object value) {
-        if (snapshot == null || componentType == null || value == null) {
-            return;
-        }
-        snapshot.put(componentType, value);
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private Object resolveSnapshotComponent(
-            GraphicsWorld.StageEntitySnapshot snapshot,
-            rogo.sketch.core.graphics.ecs.GraphicsComponentType<?> componentType) {
-        if (snapshot == null || componentType == null) {
-            return null;
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.IDENTITY)) {
-            return snapshot.identity();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.RESOURCE_ORIGIN)) {
-            return snapshot.resourceOrigin();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.GRAPHICS_TAGS)) {
-            return snapshot.tags();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.OBJECT_FLAGS)) {
-            return snapshot.objectFlags();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.LIFECYCLE)) {
-            return snapshot.lifecycle();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.STAGE_BINDING)) {
-            return snapshot.stageBinding();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.CONTAINER_HINT)) {
-            return snapshot.containerHint();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.RASTER_RENDERABLE)) {
-            return snapshot.rasterRenderable();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.COMPUTE_DISPATCH)) {
-            return snapshot.computeDispatch();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.FUNCTION_INVOKE)) {
-            return snapshot.functionInvoke();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.SUBMISSION_CAPABILITY)) {
-            return snapshot.submissionCapability();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.BOUNDS)) {
-            return snapshot.bounds();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.PREPARED_MESH)) {
-            return snapshot.preparedMesh();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.RENDER_DESCRIPTOR)) {
-            return snapshot.renderDescriptor();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.INSTANCE_VERTEX_AUTHORING)) {
-            return snapshot.instanceVertexAuthoring();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.TRANSFORM_BINDING)) {
-            return snapshot.transformBinding();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.TRANSFORM_HIERARCHY)) {
-            return snapshot.transformHierarchy();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.TICK_DRIVER)) {
-            return snapshot.tickDriver();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.ASYNC_TICK_DRIVER)) {
-            return snapshot.asyncTickDriver();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.DESCRIPTOR_VERSION)) {
-            return snapshot.descriptorVersion();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.GEOMETRY_VERSION)) {
-            return snapshot.geometryVersion();
-        }
-        if (componentType.equals(GraphicsBuiltinComponents.BOUNDS_VERSION)) {
-            return snapshot.boundsVersion();
-        }
-        return null;
-    }
-
-    private Map<rogo.sketch.core.graphics.ecs.GraphicsComponentType<?>, Object> buildComponentSnapshot(
-            GraphicsWorld.StageEntitySnapshot snapshot) {
-        Map<rogo.sketch.core.graphics.ecs.GraphicsComponentType<?>, Object> componentSnapshot = new LinkedHashMap<>();
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.IDENTITY, snapshot.identity());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.RESOURCE_ORIGIN, snapshot.resourceOrigin());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.GRAPHICS_TAGS, snapshot.tags());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.OBJECT_FLAGS, snapshot.objectFlags());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.LIFECYCLE, snapshot.lifecycle());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.STAGE_BINDING, snapshot.stageBinding());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.CONTAINER_HINT, snapshot.containerHint());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.RASTER_RENDERABLE, snapshot.rasterRenderable());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.COMPUTE_DISPATCH, snapshot.computeDispatch());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.FUNCTION_INVOKE, snapshot.functionInvoke());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.SUBMISSION_CAPABILITY, snapshot.submissionCapability());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.BOUNDS, snapshot.bounds());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.PREPARED_MESH, snapshot.preparedMesh());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.RENDER_DESCRIPTOR, snapshot.renderDescriptor());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.INSTANCE_VERTEX_AUTHORING, snapshot.instanceVertexAuthoring());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.TRANSFORM_BINDING, snapshot.transformBinding());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.TRANSFORM_HIERARCHY, snapshot.transformHierarchy());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.TICK_DRIVER, snapshot.tickDriver());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.ASYNC_TICK_DRIVER, snapshot.asyncTickDriver());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.DESCRIPTOR_VERSION, snapshot.descriptorVersion());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.GEOMETRY_VERSION, snapshot.geometryVersion());
-        putComponent(componentSnapshot, GraphicsBuiltinComponents.BOUNDS_VERSION, snapshot.boundsVersion());
-        return componentSnapshot;
+        return graphicsEntityManager.snapshotEntitiesIfPresent(entityIds);
     }
 
     private void renderOrderedStages(List<KeyId> stageIds, String scopeLabel) {
@@ -950,69 +642,13 @@ public class GraphicsPipeline<C extends RenderContext> {
         return stage != null ? ordered.indexOf(stage) : -1;
     }
 
-    private StageFlowScene<C> createImmediateStageScene(PipelineType pipelineType) {
-        GeometryResourceCoordinator resourceManager = getGeometryResourceCoordinator(pipelineType);
-        if (pipelineType == PipelineType.RASTERIZATION || pipelineType == PipelineType.TRANSLUCENT) {
-            return new RasterStageFlowScene<>(
-                    IMMEDIATE_STAGE_ID,
-                    pipelineType,
-                    resourceManager,
-                    () -> getPipelineDataStore(pipelineType, FrameDataDomain.SYNC_READ),
-                    renderTraceRecorder);
-        }
-        if (pipelineType == PipelineType.COMPUTE) {
-            return new ComputeStageFlowScene<>(pipelineType);
-        }
-        if (pipelineType == PipelineType.FUNCTION) {
-            return new FunctionStageFlowScene<>(pipelineType);
-        }
-        throw new IllegalArgumentException("Unsupported immediate pipeline type: " + pipelineType);
-    }
-
     private void clearInstalledPipelineResources() {
-        for (GraphicsEntityId entityId : installedFunctionResources.values()) {
-            destroyGraphicsEntity(entityId);
-        }
-        installedFunctionResources.clear();
-        for (GraphicsEntityId entityId : installedDrawCallResources.values()) {
-            destroyGraphicsEntity(entityId);
-        }
-        installedDrawCallResources.clear();
+        pipelineResourceBridge.clearInstalledPipelineResources(this::destroyGraphicsEntity);
     }
 
-    private void installFunctionResources() {
-        Map<KeyId, GraphicsEntityBlueprint> resources = GraphicsResourceManager.getInstance().getResourcesOfType(ResourceTypes.FUNCTION);
-        if (resources.isEmpty()) {
-            return;
-        }
-        List<Map.Entry<KeyId, GraphicsEntityBlueprint>> orderedEntries = new ArrayList<>(resources.entrySet());
-        orderedEntries.sort(Map.Entry.comparingByKey());
-        for (Map.Entry<KeyId, GraphicsEntityBlueprint> entry : orderedEntries) {
-            GraphicsEntityBlueprint blueprint = entry.getValue();
-            if (blueprint == null || blueprint.isDisposed()) {
-                continue;
-            }
-            GraphicsEntityId entityId = spawnGraphicsEntity(blueprint);
-            installedFunctionResources.put(entry.getKey(), entityId);
-        }
-    }
-
-    private void installDrawCallResources() {
-        Map<KeyId, GraphicsEntityBlueprint> resources = GraphicsResourceManager.getInstance().getResourcesOfType(ResourceTypes.DRAW_CALL);
-        if (resources.isEmpty()) {
-            return;
-        }
-        List<Map.Entry<KeyId, GraphicsEntityBlueprint>> orderedEntries = new ArrayList<>(resources.entrySet());
-        orderedEntries.sort(Map.Entry.comparingByKey());
-        for (Map.Entry<KeyId, GraphicsEntityBlueprint> entry : orderedEntries) {
-            GraphicsEntityBlueprint blueprint = entry.getValue();
-            GraphicsBuiltinComponents.StageBindingComponent stageBinding =
-                    blueprint != null ? blueprint.component(GraphicsBuiltinComponents.STAGE_BINDING) : null;
-            if (blueprint == null || blueprint.isDisposed() || stageBinding == null || stageBinding.renderParameter() == null) {
-                continue;
-            }
-            GraphicsEntityId entityId = spawnGraphicsEntity(blueprint);
-            installedDrawCallResources.put(entry.getKey(), entityId);
+    private void bindResourceManagerToBackend() {
+        if (GraphicsDriver.resourceAllocator() instanceof LogicalResourceRegistryBinder binder) {
+            binder.bindLogicalResourceRegistry(resourceManager);
         }
     }
 
@@ -1024,38 +660,13 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     private void registerSpawnedEntity(GraphicsEntityId entityId) {
         GraphicsBuiltinComponents.StageBindingComponent stageBinding =
-                graphicsWorld.component(entityId, GraphicsBuiltinComponents.STAGE_BINDING);
+                graphicsEntityManager.graphicsWorld().component(entityId, GraphicsBuiltinComponents.STAGE_BINDING);
         if (stageBinding != null) {
             stageMembershipIndex.register(entityId, stageBinding);
         }
         if (kernel != null && kernel.moduleRegistry().isInitialized()) {
             kernel.moduleRegistry().onEntitySpawned(entityId);
         }
-    }
-
-    private GraphicsEntityBlueprint withImmediateStageBinding(GraphicsEntityBlueprint blueprint) {
-        GraphicsEntityBlueprint.Builder builder = GraphicsEntityBlueprint.builder();
-        for (Map.Entry<rogo.sketch.core.graphics.ecs.GraphicsComponentType<?>, Object> entry : blueprint.components().entrySet()) {
-            copyComponent(builder, entry.getKey(), entry.getValue());
-        }
-        GraphicsBuiltinComponents.StageBindingComponent existing = blueprint.component(GraphicsBuiltinComponents.STAGE_BINDING);
-        if (existing != null) {
-            builder.put(
-                    GraphicsBuiltinComponents.STAGE_BINDING,
-                    new GraphicsBuiltinComponents.StageBindingComponent(
-                            IMMEDIATE_STAGE_ID,
-                            existing.pipelineType(),
-                            existing.renderParameter()));
-        }
-        return builder.build();
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private void copyComponent(
-            GraphicsEntityBlueprint.Builder builder,
-            rogo.sketch.core.graphics.ecs.GraphicsComponentType componentType,
-            Object value) {
-        builder.put(componentType, value);
     }
 
 }

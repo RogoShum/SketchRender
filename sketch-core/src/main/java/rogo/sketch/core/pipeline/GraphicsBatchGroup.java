@@ -3,6 +3,7 @@ package rogo.sketch.core.pipeline;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
 import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RenderPacket;
+import rogo.sketch.core.pipeline.data.FrameDataDomain;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.flow.ecs.GraphicsContainerHints;
@@ -17,6 +18,7 @@ import rogo.sketch.core.pipeline.flow.v2.StageEntityView;
 import rogo.sketch.core.pipeline.flow.v2.StageFlowScene;
 import rogo.sketch.core.pipeline.kernel.StageExecutionPlan;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -25,11 +27,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static rogo.sketch.core.pipeline.PipelineType.COMPUTE;
-import static rogo.sketch.core.pipeline.PipelineType.FUNCTION;
-import static rogo.sketch.core.pipeline.PipelineType.RASTERIZATION;
-import static rogo.sketch.core.pipeline.PipelineType.TRANSLUCENT;
 
 /**
  * ECS-native stage-local pipeline router.
@@ -56,24 +53,13 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     private void initializePipeline(PipelineType pipelineType) {
-        if (pipelineType == RASTERIZATION || pipelineType == TRANSLUCENT) {
-            flowScenes.put(pipelineType, new RasterStageFlowScene<>(
-                    stageKeyId,
-                    pipelineType,
-                    graphicsPipeline.getGeometryResourceCoordinator(pipelineType),
-                    () -> graphicsPipeline.getPipelineDataStore(pipelineType, rogo.sketch.core.pipeline.data.FrameDataDomain.ASYNC_BUILD),
-                    graphicsPipeline.renderTraceRecorder()));
-            return;
-        }
-        if (pipelineType == COMPUTE) {
-            flowScenes.put(pipelineType, new ComputeStageFlowScene<>(pipelineType));
-            return;
-        }
-        if (pipelineType == FUNCTION) {
-            flowScenes.put(pipelineType, new FunctionStageFlowScene<>(pipelineType));
-            return;
-        }
-        throw new IllegalArgumentException("Unsupported pipeline type " + pipelineType + " for stage " + stageKeyId);
+        flowScenes.put(
+                pipelineType,
+                pipelineType.createStageScene(
+                        stageKeyId,
+                        graphicsPipeline,
+                        FrameDataDomain.ASYNC_BUILD,
+                        graphicsPipeline.renderTraceRecorder()));
     }
 
     public void tick(C context) {
@@ -107,7 +93,11 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         return stageKeyId;
     }
 
-    public Map<ExecutionKey, List<RenderPacket>> createRenderPackets(PipelineType pipelineType, C context, RenderPostProcessors postProcessors) {
+    public Map<ExecutionKey, List<RenderPacket>> createRenderPackets(
+            PipelineType pipelineType,
+            C context,
+            RenderPostProcessors postProcessors,
+            FrameUniformSnapshot frameUniformSnapshot) {
         try {
             synchronized (stageStateLock) {
                 StageFlowScene<C> scene = flowScenes.get(pipelineType);
@@ -117,7 +107,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
 
                 StageEntityView view = buildStageEntityView(pipelineType, context);
                 RenderFlowType flowType = pipelineType.getDefaultFlowType();
-                Map<ExecutionKey, List<RenderPacket>> packets = scene.createRenderPackets(view, flowType, postProcessors, context);
+                Map<ExecutionKey, List<RenderPacket>> packets =
+                        scene.createRenderPackets(view, flowType, postProcessors, context, frameUniformSnapshot);
                 return packets != null ? packets : Collections.emptyMap();
             }
         } catch (Exception e) {
@@ -126,11 +117,15 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         }
     }
 
-    public Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> createAllRenderPackets(C context, RenderPostProcessors postProcessors) {
+    public Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> createAllRenderPackets(
+            C context,
+            RenderPostProcessors postProcessors,
+            FrameUniformSnapshot frameUniformSnapshot) {
         Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> allPackets = new LinkedHashMap<>();
 
         for (PipelineType pipelineType : flowScenes.keySet()) {
-            Map<ExecutionKey, List<RenderPacket>> packets = createRenderPackets(pipelineType, context, postProcessors);
+            Map<ExecutionKey, List<RenderPacket>> packets =
+                    createRenderPackets(pipelineType, context, postProcessors, frameUniformSnapshot);
             if (!packets.isEmpty()) {
                 allPackets.put(pipelineType, packets);
             }
@@ -138,8 +133,14 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         return allPackets;
     }
 
-    public StageExecutionPlan createStageExecutionPlan(C context, RenderPostProcessors postProcessors) {
-        return StageExecutionPlan.fromPackets(stageKeyId, createAllRenderPackets(context, postProcessors));
+    public StageExecutionPlan createStageExecutionPlan(
+            C context,
+            RenderPostProcessors postProcessors,
+            FrameUniformSnapshot frameUniformSnapshot) {
+        return StageExecutionPlan.fromPackets(
+                stageKeyId,
+                createAllRenderPackets(context, postProcessors, frameUniformSnapshot),
+                graphicsPipeline.resourceManager());
     }
 
     public void cleanupDiscardedInstances() {
@@ -157,16 +158,16 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         }
     }
 
-    public void prepareForFrame(C context) {
+    public void prepareForFrame(C context, FrameUniformSnapshot frameUniformSnapshot) {
         synchronized (stageStateLock) {
             for (Map.Entry<PipelineType, StageFlowScene<C>> entry : flowScenes.entrySet()) {
-                prepareSceneForPreparedView(entry.getKey(), context);
+                prepareSceneForPreparedView(entry.getKey(), context, frameUniformSnapshot);
             }
         }
     }
 
     public void prepareForFrame() {
-        prepareForFrame(graphicsPipeline.currentContext());
+        prepareForFrame(graphicsPipeline.currentContext(), FrameUniformSnapshot.empty());
     }
 
     public void clear() {
@@ -187,7 +188,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             stageViewCache.clear();
             for (PipelineType pipelineType : flowScenes.keySet()) {
                 preparePreparedStageEntityView(pipelineType);
-                prepareSceneForPreparedView(pipelineType, null);
+                prepareSceneForPreparedView(pipelineType, null, FrameUniformSnapshot.empty());
             }
         }
     }
@@ -288,22 +289,26 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         return view;
     }
 
-    private void prepareSceneForPreparedView(PipelineType pipelineType, C context) {
+    private void prepareSceneForPreparedView(PipelineType pipelineType, C context, FrameUniformSnapshot frameUniformSnapshot) {
         StageFlowScene<C> scene = flowScenes.get(pipelineType);
         if (scene == null) {
             return;
         }
         long membershipVersion = graphicsPipeline.stageMembershipIndex().version();
         int logicTick = graphicsPipeline.currentLogicTick();
+        int frameUniformSnapshotIdentity = frameUniformSnapshot != null && !frameUniformSnapshot.isEmpty()
+                ? System.identityHashCode(frameUniformSnapshot)
+                : 0;
         PreparedSceneState cached = preparedSceneCache.get(pipelineType);
         if (cached != null
                 && cached.logicTick() == logicTick
-                && cached.membershipVersion() == membershipVersion) {
+                && cached.membershipVersion() == membershipVersion
+                && cached.frameUniformSnapshotIdentity() == frameUniformSnapshotIdentity) {
             return;
         }
         StageEntityView view = preparePreparedStageEntityView(pipelineType).fullView();
-        scene.prepareForFrame(graphicsPipeline.graphicsWorld(), view, context);
-        preparedSceneCache.put(pipelineType, new PreparedSceneState(logicTick, membershipVersion));
+        scene.prepareForFrame(graphicsPipeline.graphicsWorld(), view, context, frameUniformSnapshot);
+        preparedSceneCache.put(pipelineType, new PreparedSceneState(logicTick, membershipVersion, frameUniformSnapshotIdentity));
     }
 
     private List<StageEntityView.Entry> orderContainerEntries(KeyId containerType, List<StageEntityView.Entry> entries) {
@@ -335,7 +340,8 @@ public class GraphicsBatchGroup<C extends RenderContext> {
 
     private record PreparedSceneState(
             int logicTick,
-            long membershipVersion
+            long membershipVersion,
+            int frameUniformSnapshotIdentity
     ) {
     }
 }

@@ -31,9 +31,9 @@ import rogo.sketch.core.pipeline.module.session.ModuleSession;
 import rogo.sketch.core.pipeline.module.session.ModuleSessionContext;
 import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
-import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceReference;
 import rogo.sketch.core.resource.descriptor.BufferUpdatePolicy;
+import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
 import rogo.sketch.core.shader.uniform.UniformUpdateDomain;
 import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
@@ -211,7 +211,7 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
                         (float) ((AccessorFrustum) renderContext.cullingFrustum()).camZ());
             }
             return null;
-        }, Vector3f.class, McRenderContext.class));
+        }, Vector3f.class, UniformCaptureTiming.FRAME_SYNC, McRenderContext.class));
 
         context.registerUniform(KeyId.of("sketch_cullingFrustum"), ValueGetter.create((instance) -> {
             McRenderContext renderContext = (McRenderContext) instance;
@@ -219,45 +219,46 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
                 return SketchRender.getFrustumPlanes(((AccessorFrustum) renderContext.cullingFrustum()).frustumIntersection());
             }
             return null;
-        }, Vector4f[].class, McRenderContext.class));
+        }, Vector4f[].class, UniformCaptureTiming.FRAME_SYNC, McRenderContext.class));
 
-        context.registerUniform(KeyId.of("sketch_entityCount"), ValueGetter.create(this::subjectCount, Integer.class, UniformUpdateDomain.BUILD_SNAPSHOT));
+        context.registerUniform(KeyId.of("sketch_entityCount"), ValueGetter.create(this::subjectCount, Integer.class, UniformCaptureTiming.FRAME_SYNC));
         context.registerUniform(KeyId.of("sketch_cullingTerrain"), ValueGetter.create(() ->
-                (!isChunkCullingEnabled() || shaderCapabilities.renderingShadowPass()) ? 0 : 1, Integer.class, UniformUpdateDomain.BUILD_SNAPSHOT));
-        context.registerUniform(KeyId.of("sketch_checkCulling"), ValueGetter.create(() -> debugState.checkingCull() ? 1 : 0, Integer.class, UniformUpdateDomain.BUILD_SNAPSHOT));
+                (!isChunkCullingEnabled() || shaderCapabilities.renderingShadowPass()) ? 0 : 1, Integer.class, UniformCaptureTiming.FRAME_SYNC));
+        context.registerUniform(KeyId.of("sketch_checkCulling"), ValueGetter.create(() -> debugState.checkingCull() ? 1 : 0, Integer.class, UniformCaptureTiming.FRAME_SYNC));
 
-        context.registerUniform(KeyId.of("sketch_levelMinPos"), ValueGetter.create((instance) -> ((McRenderContext) instance).get(MinecraftHiZState.LEVEL_MIN_POS_ID), Integer.class, McRenderContext.class));
-        context.registerUniform(KeyId.of("sketch_levelPosRange"), ValueGetter.create((instance) -> ((McRenderContext) instance).get(MinecraftHiZState.LEVEL_POS_RANGE_ID), Integer.class, McRenderContext.class));
-        context.registerUniform(KeyId.of("sketch_levelSectionRange"), ValueGetter.create((instance) -> ((McRenderContext) instance).get(MinecraftHiZState.LEVEL_SECTION_RANGE_ID), Integer.class, McRenderContext.class));
+        context.registerUniform(KeyId.of("sketch_levelMinPos"), ValueGetter.create((instance) -> ((McRenderContext) instance).get(MinecraftHiZState.LEVEL_MIN_POS), Integer.class, UniformCaptureTiming.FRAME_SYNC, McRenderContext.class));
+        context.registerUniform(KeyId.of("sketch_levelPosRange"), ValueGetter.create((instance) -> ((McRenderContext) instance).get(MinecraftHiZState.LEVEL_POS_RANGE), Integer.class, UniformCaptureTiming.FRAME_SYNC, McRenderContext.class));
+        context.registerUniform(KeyId.of("sketch_levelSectionRange"), ValueGetter.create((instance) -> ((McRenderContext) instance).get(MinecraftHiZState.LEVEL_SECTION_RANGE), Integer.class, UniformCaptureTiming.FRAME_SYNC, McRenderContext.class));
         context.registerUniform(KeyId.of("sketch_cameraOffset"), ValueGetter.create((instance) -> {
             McRenderContext renderContext = (McRenderContext) instance;
             Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-            BlockPos blockPos = new BlockPos((int) pos.x >> 4, renderContext.<Integer>get(MinecraftHiZState.LEVEL_MIN_POS_ID) >> 4, (int) pos.z >> 4);
+            Integer minPos = renderContext.get(MinecraftHiZState.LEVEL_MIN_POS);
+            BlockPos blockPos = new BlockPos((int) pos.x >> 4, (minPos != null ? minPos : 0) >> 4, (int) pos.z >> 4);
             return new Vector3i(blockPos.getX(), blockPos.getY(), blockPos.getZ());
-        }, Vector3i.class, McRenderContext.class));
+        }, Vector3i.class, UniformCaptureTiming.FRAME_SYNC, McRenderContext.class));
         context.registerUniform(KeyId.of("sketch_cameraPos"), ValueGetter.create(() -> {
             Vec3 pos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
             return new Vector3i((int) pos.x, (int) pos.y, (int) pos.z);
-        }, Vector3i.class));
-        context.registerUniform(KeyId.of("sketch_cullingViewMat"), ValueGetter.create((instance) -> ((RenderContext) instance).viewMatrix(), Matrix4f.class, RenderContext.class));
-        context.registerUniform(KeyId.of("sketch_cullingProjMat"), ValueGetter.create((instance) -> ((RenderContext) instance).projectionMatrix(), Matrix4f.class, RenderContext.class));
+        }, Vector3i.class, UniformCaptureTiming.FRAME_SYNC));
+        context.registerUniform(KeyId.of("sketch_cullingViewMat"), ValueGetter.create((instance) -> ((RenderContext) instance).viewMatrix(), Matrix4f.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
+        context.registerUniform(KeyId.of("sketch_cullingProjMat"), ValueGetter.create((instance) -> ((RenderContext) instance).projectionMatrix(), Matrix4f.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
         context.registerUniform(KeyId.of("sketch_cullingCameraPos"), ValueGetter.create((instance) -> {
             RenderContext renderContext = (RenderContext) instance;
             return new Vector3f(renderContext.cameraPosition());
-        }, Vector3f.class, RenderContext.class));
+        }, Vector3f.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
         context.registerUniform(KeyId.of("sketch_cullingCameraDir"), ValueGetter.create((instance) -> {
             RenderContext renderContext = (RenderContext) instance;
             return new Vector3f(renderContext.cameraDirection());
-        }, Vector3f.class, RenderContext.class));
+        }, Vector3f.class, UniformCaptureTiming.FRAME_SYNC, RenderContext.class));
 
         context.registerUniform(KeyId.of("sketch_depthSize"), ValueGetter.create(() -> {
             return currentHiZDepthInfo();
-        }, Vector3i[].class));
+        }, Vector3i[].class, UniformCaptureTiming.FRAME_SYNC));
         context.registerUniform(KeyId.of("sketch_linerDepth"), ValueGetter.create((instance) -> {
             GraphicsUniformSubject subject = (GraphicsUniformSubject) instance;
             return subject.hasTag(CullingModuleRuntime.HIZ_FIRST_TAG) ? 1 : 0;
         }, Integer.class, UniformUpdateDomain.BUILD_SNAPSHOT, GraphicsUniformSubject.class));
-        context.registerUniform(KeyId.of("sketch_cullingFineness"), ValueGetter.create(() -> (float) Config.getDepthUpdateDelay(), Float.class, UniformUpdateDomain.BUILD_SNAPSHOT));
+        context.registerUniform(KeyId.of("sketch_cullingFineness"), ValueGetter.create(() -> (float) Config.getDepthUpdateDelay(), Float.class, UniformCaptureTiming.FRAME_SYNC));
         context.registerUniform(KeyId.of("sketch_screenSize"), ValueGetter.create((instance) -> {
             GraphicsUniformSubject subject = (GraphicsUniformSubject) instance;
             if (subject.hasTag(CullingModuleRuntime.HIZ_SECOND_TAG)) {
@@ -275,20 +276,20 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
                 return new Vector4f(SketchRender.testPos.getX(), SketchRender.testPos.getY(), SketchRender.testPos.getZ(), 1);
             }
             return new Vector4f(0, 0, 0, 0);
-        }, Vector4f.class));
+        }, Vector4f.class, UniformCaptureTiming.FRAME_SYNC));
         context.registerUniform(KeyId.of("sketch_testEntityPos"), ValueGetter.create(() -> {
             if (SketchRender.testEntity != null) {
                 return new Vector4f((float) SketchRender.testEntity.position().x, (float) SketchRender.testEntity.position().y, (float) SketchRender.testEntity.position().z, 1);
             }
             return new Vector4f(0, 0, 0, 0);
-        }, Vector4f.class));
+        }, Vector4f.class, UniformCaptureTiming.FRAME_SYNC));
         context.registerUniform(KeyId.of("sketch_testEntityAABB"), ValueGetter.create(() -> {
             if (SketchRender.testEntity != null) {
                 AABB aabb = SketchRender.getObjectAABB(SketchRender.testEntity);
                 return new Vector3f((float) aabb.getXsize(), (float) aabb.getYsize(), (float) aabb.getZsize());
             }
             return new Vector3f(0, 0, 0);
-        }, Vector3f.class));
+        }, Vector3f.class, UniformCaptureTiming.FRAME_SYNC));
         context.registerUniform(KeyId.of("sketch_testBlockEntityPos"), ValueGetter.create(() -> {
             if (SketchRender.testBlockEntity != null) {
                 return new Vector4f((float) SketchRender.testBlockEntity.getBlockPos().getX() + 0.5f,
@@ -296,14 +297,14 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
                         (float) SketchRender.testBlockEntity.getBlockPos().getZ() + 0.5f, 1);
             }
             return new Vector4f(0, 0, 0, 0);
-        }, Vector4f.class));
+        }, Vector4f.class, UniformCaptureTiming.FRAME_SYNC));
         context.registerUniform(KeyId.of("sketch_testBlockEntityAABB"), ValueGetter.create(() -> {
             if (SketchRender.testBlockEntity != null) {
                 AABB aabb = SketchRender.getObjectAABB(SketchRender.testBlockEntity);
                 return new Vector3f((float) aabb.getXsize(), (float) aabb.getYsize(), (float) aabb.getZsize());
             }
             return new Vector3f(0, 0, 0);
-        }, Vector3f.class));
+        }, Vector3f.class, UniformCaptureTiming.FRAME_SYNC));
     }
 
     @Override
@@ -376,8 +377,10 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
                         .put(-1.0f, -1.0f, 0.0f)
                         .put(1.0f, 1.0f, 0.0f)
                         .put(-1.0f, 1.0f, 0.0f));
-        ResourceReference<PartialRenderSetting> partialReference = GraphicsResourceManager.getInstance()
-                .getReference(rogo.sketch.core.resource.ResourceTypes.PARTIAL_RENDER_SETTING, partialSettingId);
+        ModuleRuntimeContext context = runtimeContext;
+        ResourceReference<PartialRenderSetting> partialReference = context != null
+                ? context.resourceManager().getReference(rogo.sketch.core.resource.ResourceTypes.PARTIAL_RENDER_SETTING, partialSettingId)
+                : null;
         GraphicsEntityBlueprint.Builder builder = GraphicsEntityPresets.raster(
                 identifier,
                 MinecraftRenderStages.POST_PROGRESS.getIdentifier(),
@@ -392,7 +395,10 @@ public class VanillaCullingBridgeModuleRuntime implements ModuleRuntime {
                 rogo.sketch.core.api.graphics.SubmissionCapability.DIRECT_BATCHABLE,
                 DescriptorStability.DYNAMIC,
                 () -> GraphicsEntityPresets.partialDescriptorVersion(resolvePartial(partialReference)),
-                parameter -> GraphicsEntityPresets.compilePartialDescriptor(parameter, resolvePartial(partialReference)));
+                parameter -> GraphicsEntityPresets.compilePartialDescriptor(
+                        context != null ? context.resourceManager() : null,
+                        parameter,
+                        resolvePartial(partialReference)));
         builder.put(GraphicsBuiltinComponents.PREPARED_MESH, new GraphicsBuiltinComponents.PreparedMeshComponent(() -> mesh));
         GraphicsEntityPresets.withResourceOrigin(builder, DEBUG_RESOURCE_ORIGIN);
         GraphicsEntityPresets.withTags(builder, tag);

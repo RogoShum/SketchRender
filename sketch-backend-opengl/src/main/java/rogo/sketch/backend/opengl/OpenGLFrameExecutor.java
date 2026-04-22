@@ -19,7 +19,7 @@ import rogo.sketch.core.backend.BackendInstalledRenderTarget;
 import rogo.sketch.core.backend.BackendIndirectBuffer;
 import rogo.sketch.core.backend.BackendInstalledTexture;
 import rogo.sketch.core.backend.BackendFrameExecutor;
-import rogo.sketch.core.backend.BackendResourceResolver;
+import rogo.sketch.core.backend.BackendResourceRegistry;
 import rogo.sketch.core.backend.BackendStageScope;
 import rogo.sketch.core.debug.RenderDocRuntime;
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
@@ -49,8 +49,8 @@ import rogo.sketch.core.resource.vision.RenderTarget;
 import rogo.sketch.core.resource.vision.StandardRenderTarget;
 import rogo.sketch.core.shader.ComputeDispatchSupport;
 import rogo.sketch.core.shader.ShaderProgramHandle;
+import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
-import rogo.sketch.core.shader.uniform.UniformUpdateDomain;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 import rogo.sketch.core.shader.vertex.ActiveShaderVertexLayout;
 import rogo.sketch.core.util.KeyId;
@@ -66,12 +66,12 @@ import java.util.Optional;
  */
 public final class OpenGLFrameExecutor implements BackendFrameExecutor {
     private final GraphicsAPI api;
-    private final BackendResourceResolver resourceResolver;
+    private final BackendResourceRegistry resourceRegistry;
     private final BackendPacketHandlerRegistry<OpenGLPacketHandler> packetHandlers = new BackendPacketHandlerRegistry<>();
 
-    public OpenGLFrameExecutor(GraphicsAPI api, BackendResourceResolver resourceResolver) {
+    public OpenGLFrameExecutor(GraphicsAPI api, BackendResourceRegistry resourceRegistry) {
         this.api = api;
-        this.resourceResolver = resourceResolver;
+        this.resourceRegistry = resourceRegistry;
         registerBuiltInPacketHandlers();
     }
 
@@ -83,8 +83,8 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         return api;
     }
 
-    public BackendResourceResolver backendResourceResolver() {
-        return resourceResolver;
+    public BackendResourceRegistry backendResourceRegistry() {
+        return resourceRegistry;
     }
 
     @Override
@@ -118,7 +118,7 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         manager.accept(stateKey, context);
         ShaderProgramHandle shaderProvider = context.shaderProgramHandle();
         if (shaderProvider != null) {
-            shaderProvider.uniformHooks().updateUniforms(context, UniformUpdateDomain.FRAME_LIVE);
+            shaderProvider.uniformHooks().updateUniforms(context, UniformCaptureTiming.PER_DRAW_DEFERRED);
         }
 
         for (RenderPacket packet : packets) {
@@ -142,7 +142,7 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         manager.accept(packet.stateKey(), context);
         ShaderProgramHandle shaderProvider = context.shaderProgramHandle();
         if (shaderProvider != null) {
-            shaderProvider.uniformHooks().updateUniforms(context, UniformUpdateDomain.FRAME_LIVE);
+            shaderProvider.uniformHooks().updateUniforms(context, UniformCaptureTiming.PER_DRAW_DEFERRED);
         }
         executePacket(pipeline, packet, context);
     }
@@ -153,7 +153,9 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
             pushDebugGroup(debugLabel(packet));
         }
         try {
-            applyUniformSnapshot(packet.uniformSnapshot(), context);
+            applyUniformSnapshot(packet.uniformGroups().frameUniforms().snapshot(), context);
+            applyUniformSnapshot(packet.uniformGroups().passUniforms().snapshot(), context);
+            applyUniformSnapshot(resolveUniformSnapshot(packet), context);
             if (packet.bindingPlan() != packet.stateKey().bindingPlan()) {
                 applyResourceBinding(packet.bindingPlan(), context);
             }
@@ -206,6 +208,25 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         if (binding != null) {
             binding.bind(context);
         }
+    }
+
+    private UniformValueSnapshot resolveUniformSnapshot(RenderPacket packet) {
+        if (packet instanceof DrawPacket drawPacket) {
+            return drawPacket.uniformSnapshot();
+        }
+        if (packet instanceof DispatchPacket dispatchPacket) {
+            return dispatchPacket.uniformSnapshot();
+        }
+        if (packet instanceof ClearPacket clearPacket) {
+            return clearPacket.uniformSnapshot();
+        }
+        if (packet instanceof CopyTexturePacket copyTexturePacket) {
+            return copyTexturePacket.uniformSnapshot();
+        }
+        if (packet instanceof GenerateMipmapPacket generateMipmapPacket) {
+            return generateMipmapPacket.uniformSnapshot();
+        }
+        return UniformValueSnapshot.empty();
     }
 
     private void executeDrawPacket(GraphicsPipeline<? extends RenderContext> pipeline, DrawPacket packet, RenderContext context) {
@@ -541,7 +562,7 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
     }
 
     private void executeGenerateMipmapPacket(GenerateMipmapPacket packet) {
-        BackendInstalledTexture installedTexture = resourceResolver.resolveTexture(packet.textureId());
+        BackendInstalledTexture installedTexture = resourceRegistry.resolveTexture(packet.textureId());
         if (installedTexture instanceof OpenGLTextureHandleResource openGLTextureHandleResource) {
             api.bindTexture(GL11.GL_TEXTURE_2D, openGLTextureHandleResource.textureHandle());
             api.generateMipmap(GL11.GL_TEXTURE_2D);
@@ -553,8 +574,8 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         if (packet == null || packet.sourceTextureId() == null || packet.destinationTextureId() == null) {
             return;
         }
-        BackendInstalledTexture source = resourceResolver.resolveTexture(packet.sourceTextureId());
-        BackendInstalledTexture destination = resourceResolver.resolveTexture(packet.destinationTextureId());
+        BackendInstalledTexture source = resourceRegistry.resolveTexture(packet.sourceTextureId());
+        BackendInstalledTexture destination = resourceRegistry.resolveTexture(packet.destinationTextureId());
         if (!(source instanceof OpenGLTextureHandleResource sourceHandle)
                 || !(destination instanceof OpenGLTextureHandleResource destinationHandle)) {
             return;
@@ -650,13 +671,14 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
     }
 
     private Optional<RenderTarget> resolveLogicalRenderTarget(KeyId renderTargetId) {
-        RenderTarget renderTarget = (RenderTarget) GraphicsResourceManager.getInstance()
-                .getResource(ResourceTypes.RENDER_TARGET, renderTargetId);
+        RenderTarget renderTarget = resourceRegistry.resolveLogicalResource(ResourceTypes.RENDER_TARGET, renderTargetId) instanceof RenderTarget target
+                ? target
+                : null;
         return Optional.ofNullable(renderTarget);
     }
 
     private BackendInstalledRenderTarget resolveInstalledRenderTarget(KeyId renderTargetId, RenderTarget logicalTarget) {
-        return resourceResolver.resolveRenderTarget(renderTargetId);
+        return resourceRegistry.resolveRenderTarget(renderTargetId);
     }
 
     private void applyClearAttachments(ClearPacket packet, RenderTarget renderTarget) {
@@ -713,7 +735,7 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
     }
 
     private void completePacket(RenderPacket packet, RenderContext context) {
-        context.set(KeyId.of("rendered"), true);
+        context.set(RenderContext.RENDERED, true);
     }
 
     private String debugLabel(RenderPacket packet) {
@@ -725,9 +747,10 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         if (packet.stageId() != null) {
             builder.append(" stage=").append(packet.stageId());
         }
-        List<GraphicsUniformSubject> completionSubjects = packet.completionSubjects();
-        if (completionSubjects != null && !completionSubjects.isEmpty()) {
-            GraphicsUniformSubject subject = completionSubjects.get(0);
+        if (packet instanceof DrawPacket drawPacket
+                && drawPacket.completionSubjects() != null
+                && !drawPacket.completionSubjects().isEmpty()) {
+            GraphicsUniformSubject subject = drawPacket.completionSubjects().get(0);
             if (subject != null && subject.identifier() != null) {
                 builder.append(" graphics=").append(subject.identifier());
             }

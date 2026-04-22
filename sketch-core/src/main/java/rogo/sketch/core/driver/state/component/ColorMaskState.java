@@ -50,7 +50,7 @@ public class ColorMaskState implements RenderStateComponent {
     }
 
     @Override
-    public void deserializeFromJson(JsonObject json, Gson gson) {
+    public void deserializeFromJson(JsonObject json, Gson gson, rogo.sketch.core.resource.GraphicsResourceManager resourceManager) {
         if (json.has("red"))
             this.red = json.get("red").getAsBoolean();
         if (json.has("green"))

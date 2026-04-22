@@ -15,6 +15,7 @@ import rogo.sketch.core.backend.BackendIndirectBuffer;
 import rogo.sketch.core.backend.BackendStorageBuffer;
 import rogo.sketch.core.backend.BackendBootstrapContext;
 import rogo.sketch.core.backend.BackendKind;
+import rogo.sketch.core.backend.LogicalResourceRegistryBinder;
 import rogo.sketch.core.backend.PresentationController;
 import rogo.sketch.core.backend.WindowDisplayMode;
 import rogo.sketch.core.backend.WindowService;
@@ -80,15 +81,15 @@ public final class VulkanTestMain {
             initializeGlfw(backendKind);
             boolean visible = !terrainMeshSmoke && (smokeDurationMillis <= 0L || !scheduledResizes.isEmpty());
             window = createWindow(backendKind, visible);
-            GlfwWindowService windowService = new GlfwWindowService(window, backendKind == BackendKind.DESKTOP_GL);
+            GlfwWindowService windowService = new GlfwWindowService(window, backendKind == BackendKind.OPENGL);
             VkTestPresentationController presentationController = new VkTestPresentationController();
 
-            if (backendKind == BackendKind.DESKTOP_GL) {
+            if (backendKind == BackendKind.OPENGL) {
                 GLFW.glfwMakeContextCurrent(window);
                 GL.createCapabilities();
                 GLFW.glfwSwapInterval(0);
                 GraphicsDriver.registerBackendBootstrap(
-                        new OpenGLBackendBootstrap(BackendKind.DESKTOP_GL, new OpenGLAPI()));
+                        new OpenGLBackendBootstrap(BackendKind.OPENGL, new OpenGLAPI()));
             } else {
                 GraphicsDriver.registerBackendBootstrap(new VulkanBackendBootstrap());
             }
@@ -96,7 +97,7 @@ public final class VulkanTestMain {
             GraphicsDriver.bootstrap(
                     backendKind,
                     new BackendBootstrapContext("sketch-vk-test", window, windowService, presentationController));
-            GraphicsDriver.runtime().registerMainThread();
+            GraphicsDriver.threadContext().registerMainThread();
             EventBusBridge.setImplementation(new VkTestEventBusImplementation());
 
             if (terrainMeshSmoke) {
@@ -131,7 +132,7 @@ public final class VulkanTestMain {
                 runScheduledResizes(window, scheduledResizes, startTime, vulkanRuntime);
                 scene.renderFrame();
                 boolean frameDrawn = true;
-                if (backendKind == BackendKind.DESKTOP_GL) {
+                if (backendKind == BackendKind.OPENGL) {
                     GLFW.glfwSwapBuffers(window);
                 }
                 if (vulkanRuntime != null) {
@@ -159,7 +160,7 @@ public final class VulkanTestMain {
                 scene.close();
             }
             GraphicsDriver.shutdown();
-            if (backendKind == BackendKind.DESKTOP_GL) {
+            if (backendKind == BackendKind.OPENGL) {
                 GL.setCapabilities(null);
             }
             if (window != MemoryUtil.NULL) {
@@ -192,7 +193,7 @@ public final class VulkanTestMain {
             }
             String value = arg.substring("--backend=".length()).trim().toLowerCase();
             return switch (value) {
-                case "desktop_gl", "desktop-gl", "gl" -> BackendKind.DESKTOP_GL;
+                case "desktop_gl", "desktop-gl", "gl", "opengl" -> BackendKind.OPENGL;
                 case "vulkan", "vk" -> BackendKind.VULKAN;
                 default -> BackendKind.VULKAN;
             };
@@ -342,7 +343,10 @@ public final class VulkanTestMain {
     }
 
     private static void runTerrainMeshSmoke(BackendKind backendKind) {
-        GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
+        GraphicsResourceManager resourceManager = new GraphicsResourceManager();
+        if (GraphicsDriver.resourceAllocator() instanceof LogicalResourceRegistryBinder binder) {
+            binder.bindLogicalResourceRegistry(resourceManager);
+        }
         TerrainMeshResourceSet terrainResources = TerrainMeshResourceSet.getInstance();
         List<KeyId> registeredResourceIds = List.of(
                 TERRAIN_SMOKE_MESH_BUFFER_ID,
@@ -475,8 +479,8 @@ public final class VulkanTestMain {
     }
 
     private static void verifyStorageBinding(KeyId resourceId, int binding) {
-        BackendInstalledBindableResource bindable = GraphicsDriver.runtime()
-                .resourceResolver()
+        BackendInstalledBindableResource bindable = GraphicsDriver.renderDevice()
+                .resourceRegistry()
                 .resolveBindableResource(ResourceTypes.STORAGE_BUFFER, resourceId);
         if (bindable == null || bindable.isDisposed()) {
             throw new IllegalStateException("Missing storage-buffer binding for terrain mesh smoke resource " + resourceId);

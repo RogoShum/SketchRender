@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     implementation project(':sketch-core')
+    api project(':sketch-modules')
 
     compileOnly 'org.jetbrains:annotations:24.0.0'
 

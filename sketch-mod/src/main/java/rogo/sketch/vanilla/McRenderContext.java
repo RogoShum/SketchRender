@@ -105,18 +105,18 @@ public class McRenderContext extends RenderContext {
 
     @Override
     public void preStage(KeyId stage) {
-        this.set(KeyId.of("rendered"), false);
+        this.set(RENDERED, false);
     }
 
     @Override
     public void postStage(KeyId stage) {
-        if (get(KeyId.of("rendered")) instanceof Boolean rendered && rendered) {
+        if (Boolean.TRUE.equals(get(RENDERED))) {
             RenderSystem.activeTexture(GL13.GL_TEXTURE1);
             RenderSystem.activeTexture(GL13.GL_TEXTURE0);
             TextureManager texturemanager = Minecraft.getInstance().getTextureManager();
             AbstractTexture abstracttexture = texturemanager.getTexture(TextureAtlas.LOCATION_BLOCKS);
             RenderSystem.bindTexture(abstracttexture.getId());
-            this.set(KeyId.of("rendered"), false);
+            this.set(RENDERED, false);
         }
     }
 

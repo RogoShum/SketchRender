@@ -66,7 +66,7 @@ public class TextureLoader implements ResourceLoader<Texture> {
 
             ResolvedImageResource descriptor = TextureDescriptorParser.parse(keyId, json, width > 0 ? width : 1, height > 0 ? height : 1, imagePath);
             ResourceAllocator installer = GraphicsDriver.resourceAllocator();
-            return installer.createTexture(keyId, descriptor, imagePath, imageBuffer);
+            return installer.installTexture(keyId, descriptor, imagePath, imageBuffer);
 
         } catch (Exception e) {
             System.err.println("Failed to load texture from JSON: " + e.getMessage());

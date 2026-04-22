@@ -18,6 +18,8 @@ import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.RenderSettingCompiler;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
+import rogo.sketch.core.resource.GraphicsResourceManager;
+import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 
 import java.util.ArrayList;
@@ -28,10 +30,12 @@ import java.util.Map;
 
 public final class FunctionStageFlowScene<C extends RenderContext> implements StageFlowScene<C> {
     private final PipelineType pipelineType;
+    private final GraphicsResourceManager resourceManager;
     private final FunctionEntityStateCache stateCache = new FunctionEntityStateCache();
 
-    public FunctionStageFlowScene(PipelineType pipelineType) {
+    public FunctionStageFlowScene(PipelineType pipelineType, GraphicsResourceManager resourceManager) {
         this.pipelineType = pipelineType;
+        this.resourceManager = resourceManager;
     }
 
     @Override
@@ -40,7 +44,7 @@ public final class FunctionStageFlowScene<C extends RenderContext> implements St
     }
 
     @Override
-    public void prepareForFrame(GraphicsWorld world, StageEntityView view, C context) {
+    public void prepareForFrame(GraphicsWorld world, StageEntityView view, C context, FrameUniformSnapshot frameUniformSnapshot) {
         List<StageEntityView.Entry> entries = view != null ? view.functionEntries() : List.of();
         stateCache.retainOnly(view != null ? view.functionEntityIds() : List.of());
         for (StageEntityView.Entry entry : entries) {
@@ -51,7 +55,7 @@ public final class FunctionStageFlowScene<C extends RenderContext> implements St
             CompiledRenderSetting compiledRenderSetting = entry.buildRenderDescriptor();
             if (compiledRenderSetting == null && entry.renderParameter() != null) {
                 RenderSetting renderSetting = RenderSetting.fromPartial(entry.renderParameter(), PartialRenderSetting.EMPTY);
-                compiledRenderSetting = RenderSettingCompiler.compile(renderSetting);
+                compiledRenderSetting = RenderSettingCompiler.compile(renderSetting, resourceManager);
                 state.setRenderSetting(renderSetting);
             } else if (compiledRenderSetting != null) {
                 state.setRenderSetting(compiledRenderSetting.renderSetting());
@@ -107,7 +111,8 @@ public final class FunctionStageFlowScene<C extends RenderContext> implements St
             StageEntityView view,
             RenderFlowType flowType,
             RenderPostProcessors postProcessors,
-            C context) {
+            C context,
+            FrameUniformSnapshot frameUniformSnapshot) {
         if (view == null || view.isEmpty()) {
             return Map.of();
         }
@@ -122,7 +127,7 @@ public final class FunctionStageFlowScene<C extends RenderContext> implements St
                 CompiledRenderSetting compiledRenderSetting = entry.buildRenderDescriptor();
                 if (compiledRenderSetting == null && entry.renderParameter() != null) {
                     RenderSetting renderSetting = RenderSetting.fromPartial(entry.renderParameter(), PartialRenderSetting.EMPTY);
-                    compiledRenderSetting = RenderSettingCompiler.compile(renderSetting);
+                    compiledRenderSetting = RenderSettingCompiler.compile(renderSetting, resourceManager);
                     cached.setRenderSetting(renderSetting);
                 } else if (compiledRenderSetting != null) {
                     cached.setRenderSetting(compiledRenderSetting.renderSetting());

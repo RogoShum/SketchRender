@@ -6,8 +6,10 @@ import rogo.sketch.core.backend.BackendBootstrapContext;
 import rogo.sketch.core.backend.BackendCapabilities;
 import rogo.sketch.core.backend.BackendKind;
 import rogo.sketch.core.backend.BackendRuntime;
-import rogo.sketch.core.backend.CommandRecorderFactory;
+import rogo.sketch.core.backend.BackendThreadContext;
+import rogo.sketch.core.backend.CommandEncoderFactory;
 import rogo.sketch.core.backend.NoOpBackendRuntime;
+import rogo.sketch.core.backend.QueueRouter;
 import rogo.sketch.core.backend.RenderDevice;
 import rogo.sketch.core.backend.ResourceAllocator;
 import rogo.sketch.core.backend.SubmissionScheduler;
@@ -85,8 +87,16 @@ public final class GraphicsDriver {
         return runtime.submissionScheduler();
     }
 
-    public static CommandRecorderFactory commandRecorderFactory() {
-        return runtime.commandRecorderFactory();
+    public static CommandEncoderFactory commandEncoderFactory() {
+        return renderDevice().commandEncoderFactory();
+    }
+
+    public static BackendThreadContext threadContext() {
+        return runtime.threadContext();
+    }
+
+    public static QueueRouter queueRouter() {
+        return runtime.queueRouter();
     }
 
     public static Set<BackendKind> registeredBackends() {

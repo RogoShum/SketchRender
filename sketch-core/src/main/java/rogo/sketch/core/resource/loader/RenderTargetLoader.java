@@ -59,7 +59,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                 scaleX = scaleY = scale;
             }
 
-            GraphicsResourceManager resourceManager = GraphicsResourceManager.getInstance();
+            GraphicsResourceManager resourceManager = context.resourceManager();
             List<KeyId> colorAttachmentIds = new ArrayList<>();
             KeyId depthAttachmentId = null;
             KeyId stencilAttachmentId = null;
@@ -114,7 +114,7 @@ public class RenderTargetLoader implements ResourceLoader<RenderTarget> {
                     depthAttachmentId,
                     stencilAttachmentId);
             ResourceAllocator installer = GraphicsDriver.resourceAllocator();
-            return installer.createRenderTarget(keyId, descriptor);
+            return installer.installRenderTarget(keyId, descriptor);
 
         } catch (Exception e) {
             System.err.println("Failed to load render target from JSON: " + e.getMessage());

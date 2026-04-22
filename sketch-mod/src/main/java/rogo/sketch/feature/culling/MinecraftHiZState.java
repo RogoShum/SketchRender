@@ -19,6 +19,7 @@ import rogo.sketch.core.backend.BufferedResourceSet;
 import rogo.sketch.core.backend.BufferingMode;
 import rogo.sketch.core.backend.ResourceEpoch;
 import rogo.sketch.core.driver.GraphicsDriver;
+import rogo.sketch.core.pipeline.ContextKey;
 import rogo.sketch.core.resource.descriptor.ImageFormat;
 import rogo.sketch.core.resource.descriptor.ImageUsage;
 import rogo.sketch.core.resource.descriptor.ResolvedImageResource;
@@ -33,10 +34,10 @@ import java.util.EnumSet;
 
 public final class MinecraftHiZState {
     public static final int DEPTH_SIZE = 8;
-    public static final rogo.sketch.core.util.KeyId LEVEL_SECTION_RANGE_ID = rogo.sketch.core.util.KeyId.of("level_section_range");
-    public static final rogo.sketch.core.util.KeyId LEVEL_POS_RANGE_ID = rogo.sketch.core.util.KeyId.of("level_pos_range");
-    public static final rogo.sketch.core.util.KeyId LEVEL_MIN_SECTION_ABS_ID = rogo.sketch.core.util.KeyId.of("level_min_section_abs");
-    public static final rogo.sketch.core.util.KeyId LEVEL_MIN_POS_ID = rogo.sketch.core.util.KeyId.of("level_min_section_abs");
+    public static final ContextKey<Integer> LEVEL_SECTION_RANGE = ContextKey.of("level_section_range", Integer.class);
+    public static final ContextKey<Integer> LEVEL_POS_RANGE = ContextKey.of("level_pos_range", Integer.class);
+    public static final ContextKey<Integer> LEVEL_MIN_SECTION_ABS = ContextKey.of("level_min_section_abs", Integer.class);
+    public static final ContextKey<Integer> LEVEL_MIN_POS = ContextKey.of("level_min_pos", Integer.class);
     private static final KeyId HIZ_DEPTH_BUFFER_FAMILY_ID = KeyId.of("sketch_render", "hiz_depth_buffer_family");
     private static final KeyId HIZ_SOURCE_SNAPSHOT_FAMILY_ID = KeyId.of("sketch_render", "hiz_source_depth_snapshot_family");
 
@@ -90,10 +91,10 @@ public final class MinecraftHiZState {
             return;
         }
         if (((AccessorLevelRender) minecraft.levelRenderer).getNeedsFullRenderChunkUpdate()) {
-            context.set(LEVEL_SECTION_RANGE_ID, minecraft.level.getMaxSection() - minecraft.level.getMinSection());
-            context.set(LEVEL_POS_RANGE_ID, minecraft.level.getMaxBuildHeight() - minecraft.level.getMinBuildHeight());
-            context.set(LEVEL_MIN_SECTION_ABS_ID, Math.abs(minecraft.level.getMinSection()));
-            context.set(LEVEL_MIN_POS_ID, minecraft.level.getMinBuildHeight());
+            context.set(LEVEL_SECTION_RANGE, minecraft.level.getMaxSection() - minecraft.level.getMinSection());
+            context.set(LEVEL_POS_RANGE, minecraft.level.getMaxBuildHeight() - minecraft.level.getMinBuildHeight());
+            context.set(LEVEL_MIN_SECTION_ABS, Math.abs(minecraft.level.getMinSection()));
+            context.set(LEVEL_MIN_POS, minecraft.level.getMinBuildHeight());
         }
     }
 
@@ -261,7 +262,7 @@ public final class MinecraftHiZState {
     }
 
     private Texture createDepthTarget(int index, int width, int height) {
-        return GraphicsDriver.resourceAllocator().createTexture(
+        return GraphicsDriver.resourceAllocator().installTexture(
                 KeyId.of("sketch_render", "hiz_depth_texture_" + index),
                 new ResolvedImageResource(
                         KeyId.of("sketch_render", "hiz_depth_texture_" + index),
@@ -295,7 +296,7 @@ public final class MinecraftHiZState {
     }
 
     private Texture createSourceDepthSnapshotTarget(int width, int height) {
-        return GraphicsDriver.resourceAllocator().createTexture(
+        return GraphicsDriver.resourceAllocator().installTexture(
                 KeyId.of("sketch_render", "hiz_source_depth_snapshot_texture"),
                 new ResolvedImageResource(
                         KeyId.of("sketch_render", "hiz_source_depth_snapshot_texture"),

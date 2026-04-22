@@ -22,16 +22,16 @@ import rogo.sketch.core.backend.BackendCapabilities;
 import rogo.sketch.core.backend.BackendFrameExecutor;
 import rogo.sketch.core.backend.BackendKind;
 import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
-import rogo.sketch.core.backend.BackendResourceInstaller;
-import rogo.sketch.core.backend.BackendResourceResolver;
 import rogo.sketch.core.backend.BackendRuntime;
 import rogo.sketch.core.backend.BackendStageScope;
+import rogo.sketch.core.backend.BackendThreadContext;
 import rogo.sketch.core.backend.AsyncGpuCompletion;
-import rogo.sketch.core.backend.CommandRecorderFactory;
+import rogo.sketch.core.backend.QueueRouter;
 import rogo.sketch.core.backend.RenderDevice;
 import rogo.sketch.core.backend.ResourceAllocator;
 import rogo.sketch.core.backend.SubmissionScheduler;
 import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
+import rogo.sketch.core.packet.ExecutionDomain;
 import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.DrawPacket;
 import rogo.sketch.core.packet.GeometryHandleKey;
@@ -113,7 +113,7 @@ import static org.lwjgl.vulkan.VK10.vkResetCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkResetFences;
 import static org.lwjgl.vulkan.VK10.vkWaitForFences;
 
-public final class VulkanBackendRuntime implements BackendRuntime {
+public final class VulkanBackendRuntime implements BackendRuntime, BackendThreadContext {
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
     private static final String DIAG_MODULE = "vulkan-runtime";
 
@@ -126,8 +126,12 @@ public final class VulkanBackendRuntime implements BackendRuntime {
     private final VkDevice device;
     private final int graphicsQueueFamilyIndex;
     private final int presentQueueFamilyIndex;
+    private final int computeQueueFamilyIndex;
+    private final int transferQueueFamilyIndex;
     private final VkQueue graphicsQueue;
     private final VkQueue presentQueue;
+    private final VkQueue computeQueue;
+    private final VkQueue transferQueue;
     private long swapchainHandle;
     private int swapchainImageFormat;
     private int swapchainExtentWidth;
@@ -140,15 +144,17 @@ public final class VulkanBackendRuntime implements BackendRuntime {
     private final VulkanPipelineLayoutCache pipelineLayoutCache;
     private final VulkanResourceResolver resourceResolver;
     private final VulkanResourceAllocator resourceAllocator;
-    private final BackendResourceInstaller resourceInstaller;
     private final VulkanPacketExecutor packetExecutor;
     private VulkanRasterPipelineCache rasterPipelineCache;
     private final VulkanComputePipelineCache computePipelineCache;
     private final long commandPool;
     private final long asyncCommandPool;
+    private final long computeAsyncCommandPool;
+    private final long transferAsyncCommandPool;
     private final VulkanFrameSlot[] frameSlots;
     private final VulkanRenderDevice renderDevice;
     private final VulkanSubmissionScheduler submissionScheduler;
+    private final VulkanQueueRouter queueRouter;
     private volatile long mainThreadId;
     private volatile boolean shutdown;
     private volatile boolean vSyncEnabled;
@@ -170,8 +176,12 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             VkDevice device,
             int graphicsQueueFamilyIndex,
             int presentQueueFamilyIndex,
+            int computeQueueFamilyIndex,
+            int transferQueueFamilyIndex,
             VkQueue graphicsQueue,
             VkQueue presentQueue,
+            VkQueue computeQueue,
+            VkQueue transferQueue,
             long swapchainHandle,
             int swapchainImageFormat,
             int swapchainExtentWidth,
@@ -188,12 +198,21 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         this.device = Objects.requireNonNull(device, "device");
         this.graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
         this.presentQueueFamilyIndex = presentQueueFamilyIndex;
+        this.computeQueueFamilyIndex = computeQueueFamilyIndex;
+        this.transferQueueFamilyIndex = transferQueueFamilyIndex;
         this.graphicsQueue = Objects.requireNonNull(graphicsQueue, "graphicsQueue");
         this.presentQueue = Objects.requireNonNull(presentQueue, "presentQueue");
+        this.computeQueue = Objects.requireNonNull(computeQueue, "computeQueue");
+        this.transferQueue = Objects.requireNonNull(transferQueue, "transferQueue");
+        this.queueRouter = new VulkanQueueRouter(
+                this.graphicsQueue,
+                this.computeQueue,
+                this.transferQueue,
+                this.computeQueueFamilyIndex != this.graphicsQueueFamilyIndex,
+                this.transferQueueFamilyIndex != this.graphicsQueueFamilyIndex);
         this.pipelineLayoutCache = new VulkanPipelineLayoutCache(this.device);
         this.resourceResolver = new VulkanResourceResolver();
         this.resourceAllocator = new VulkanResourceAllocator(this, this.resourceResolver);
-        this.resourceInstaller = new VulkanBackendResourceInstaller(this.resourceAllocator);
         this.packetExecutor = new VulkanPacketExecutor(
                 this.device,
                 this.pipelineLayoutCache,
@@ -210,6 +229,8 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         VulkanTextureResource[] createdDepthAttachments = null;
         long createdCommandPool = VK_NULL_HANDLE;
         long createdAsyncCommandPool = VK_NULL_HANDLE;
+        long createdComputeAsyncCommandPool = VK_NULL_HANDLE;
+        long createdTransferAsyncCommandPool = VK_NULL_HANDLE;
         VulkanFrameSlot[] createdFrameSlots = null;
 
         try {
@@ -236,11 +257,25 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                     this.swapchainExtentHeight,
                     toImageViews(this.mainColorAttachments),
                     toImageViews(createdDepthAttachments));
-            createdCommandPool = createCommandPool();
-            createdAsyncCommandPool = createCommandPool();
+            createdCommandPool = createCommandPool(this.graphicsQueueFamilyIndex);
+            createdAsyncCommandPool = createCommandPool(this.graphicsQueueFamilyIndex);
+            createdComputeAsyncCommandPool = this.computeQueueFamilyIndex == this.graphicsQueueFamilyIndex
+                    ? createdAsyncCommandPool
+                    : createCommandPool(this.computeQueueFamilyIndex);
+            createdTransferAsyncCommandPool = this.transferQueueFamilyIndex == this.graphicsQueueFamilyIndex
+                    ? createdAsyncCommandPool
+                    : this.transferQueueFamilyIndex == this.computeQueueFamilyIndex
+                    ? createdComputeAsyncCommandPool
+                    : createCommandPool(this.transferQueueFamilyIndex);
             createdFrameSlots = createFrameSlots(createdCommandPool);
         } catch (RuntimeException ex) {
-            destroyCreatedResources(createdFrameSlots, createdCommandPool, createdAsyncCommandPool, createdImageViews);
+            destroyCreatedResources(
+                    createdFrameSlots,
+                    createdCommandPool,
+                    createdAsyncCommandPool,
+                    createdComputeAsyncCommandPool,
+                    createdTransferAsyncCommandPool,
+                    createdImageViews);
             destroyDepthAttachments(createdDepthAttachments);
             resourceAllocator.shutdown();
             destroyBaseArtifacts();
@@ -251,6 +286,8 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         this.swapchainDepthAttachments = createdDepthAttachments != null ? createdDepthAttachments : new VulkanTextureResource[0];
         this.commandPool = createdCommandPool;
         this.asyncCommandPool = createdAsyncCommandPool;
+        this.computeAsyncCommandPool = createdComputeAsyncCommandPool;
+        this.transferAsyncCommandPool = createdTransferAsyncCommandPool;
         this.frameSlots = createdFrameSlots;
         this.renderDevice = new VulkanRenderDevice(
                 this.physicalDevice,
@@ -268,6 +305,9 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                 this.pipelineLayoutCache,
                 this.computePipelineCache,
                 this.rasterPipelineCache,
+                this.resourceAllocator,
+                this::renderedFrameCount,
+                this,
                 this.debugUtilsEnabled);
         this.submissionScheduler = new VulkanSubmissionScheduler(this, this.swapchainImages.length);
         this.renderedFrameCount = 0L;
@@ -301,95 +341,18 @@ public final class VulkanBackendRuntime implements BackendRuntime {
     }
 
     @Override
+    public BackendThreadContext threadContext() {
+        return this;
+    }
+
+    @Override
+    public QueueRouter queueRouter() {
+        return queueRouter;
+    }
+
+    @Override
     public BackendCapabilities capabilities() {
         return renderDevice.capabilities();
-    }
-
-    @Override
-    public BackendFrameExecutor frameExecutor() {
-        return renderDevice.frameExecutor();
-    }
-
-    @Override
-    public BackendResourceResolver resourceResolver() {
-        return renderDevice.resourceResolver();
-    }
-
-    @Override
-    public BackendResourceInstaller resourceInstaller() {
-        return resourceInstaller;
-    }
-
-    @Override
-    public CommandRecorderFactory commandRecorderFactory() {
-        return renderDevice.commandRecorderFactory();
-    }
-
-    @Override
-    public boolean supportsGeometryMaterialization() {
-        return true;
-    }
-
-    @Override
-    public <C extends RenderContext> boolean installGeometryUploads(
-            GraphicsPipeline<C> pipeline,
-            FrameExecutionPlan executionPlan,
-            boolean uploadGeometryData) {
-        FrameExecutionPlan nextExecutionPlan = executionPlan != null ? executionPlan : FrameExecutionPlan.empty();
-        resourceAllocator.installExecutionPlan(nextExecutionPlan, renderedFrameCount, submissionScheduler.framesInFlight());
-        return true;
-    }
-
-    @Override
-    public <C extends RenderContext> boolean installImmediateGeometryBindings(
-            GraphicsPipeline<C> pipeline,
-            PipelineType pipelineType,
-            RenderPostProcessors postProcessors) {
-        if (postProcessors == null) {
-            return false;
-        }
-        RasterizationPostProcessor rasterizationPostProcessor = postProcessors.get(RenderFlowType.RASTERIZATION);
-        if (rasterizationPostProcessor == null) {
-            return false;
-        }
-        resourceAllocator.geometryArena().install(
-                rasterizationPostProcessor.geometryUploadPlans(),
-                renderedFrameCount,
-                submissionScheduler.framesInFlight());
-        return true;
-    }
-
-    @Override
-    public void installImmediateResourceBindings(List<RenderPacket> packets) {
-        if (packets == null || packets.isEmpty()) {
-            return;
-        }
-        LinkedHashMap<ResourceSetKey, FrameExecutionPlan.ResourceUploadPlan> uploadPlans = new LinkedHashMap<>();
-        for (RenderPacket packet : packets) {
-            if (packet == null) {
-                continue;
-            }
-            ResourceBindingPlan bindingPlan = packet.bindingPlan();
-            if (bindingPlan == null || bindingPlan.isEmpty()) {
-                continue;
-            }
-            ResourceSetKey resourceSetKey = packet.resourceSetKey();
-            if (resourceSetKey == null || resourceSetKey.isEmpty()) {
-                resourceSetKey = ResourceSetKey.from(bindingPlan, packet.uniformGroups().resourceUniforms());
-            }
-            ExecutionKey stateKey = packet.stateKey();
-            FrameExecutionPlan.ResourceUploadPlan uploadPlan = new FrameExecutionPlan.ResourceUploadPlan(
-                    packet.stageId(),
-                    resourceSetKey,
-                    bindingPlan,
-                    packet.uniformGroups(),
-                    stateKey != null ? stateKey.shaderId() : KeyId.of("sketch:unbound_shader"),
-                    bindingPlan.layoutKey());
-            uploadPlans.put(resourceSetKey, uploadPlan);
-        }
-        if (!uploadPlans.isEmpty()) {
-            resourceAllocator.descriptorArena().install(List.copyOf(uploadPlans.values()));
-        }
     }
 
     @Override
@@ -426,7 +389,6 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         recreateSwapchain();
     }
 
-    @Override
     public synchronized void installExecutionPlan(FrameExecutionPlan executionPlan) {
         FrameExecutionPlan nextExecutionPlan = executionPlan != null ? executionPlan : FrameExecutionPlan.empty();
         resourceAllocator.installExecutionPlan(nextExecutionPlan, renderedFrameCount, submissionScheduler.framesInFlight());
@@ -562,11 +524,16 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         submissionScheduler.shutdown();
         packetExecutor.destroy();
         resourceAllocator.shutdown();
-        destroyCreatedResources(frameSlots, commandPool, asyncCommandPool, swapchainImageViews);
+        destroyCreatedResources(
+                frameSlots,
+                commandPool,
+                asyncCommandPool,
+                computeAsyncCommandPool,
+                transferAsyncCommandPool,
+                swapchainImageViews);
         destroyBaseArtifacts();
     }
 
-    @Override
     public synchronized <C extends RenderContext> AsyncGpuCompletion submitAsyncPackets(
             GraphicsPipeline<C> pipeline,
             List<RenderPacket> packets,
@@ -574,15 +541,16 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         if (packets == null || packets.isEmpty()) {
             return AsyncGpuCompletion.completed();
         }
+        AsyncSubmissionTarget submissionTarget = resolveAsyncSubmissionTarget(packets);
         String threadName = Thread.currentThread().getName();
         beginProfile("VkAsyncSubmit:InstallBindings", threadName);
-        installImmediateResourceBindings(packets);
+        resourceAllocator.installImmediateResourceBindings(packets);
         endProfile("VkAsyncSubmit:InstallBindings", threadName);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             beginProfile("VkAsyncSubmit:AllocateCommandBuffer", threadName);
             VkCommandBufferAllocateInfo allocateInfo = VkCommandBufferAllocateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
-                    .commandPool(asyncCommandPool)
+                    .commandPool(submissionTarget.commandPool())
                     .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
                     .commandBufferCount(1);
 
@@ -624,12 +592,13 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                 VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                         .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
                         .pCommandBuffers(stack.pointers(commandBuffer.address()));
-                int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, fence);
+                int submitResult = vkQueueSubmit(submissionTarget.queue(), submitInfo, fence);
                 if (submitResult != VK_SUCCESS) {
                     throw new IllegalStateException(vkFailureMessage(
                             "vkQueueSubmit(async)",
                             submitResult,
                             "packets=" + summarizePackets(packets)
+                                    + ", queue=" + submissionTarget.label()
                                     + ", swapchainGeneration=" + swapchainGeneration
                                     + ", swapchainExtent=" + swapchainExtentWidth + "x" + swapchainExtentHeight
                                     + ", renderedFrameCount=" + renderedFrameCount
@@ -637,10 +606,10 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                                     + ", thread=" + threadName));
                 }
                 endProfile("VkAsyncSubmit:QueueSubmit", threadName);
-                return new VulkanAsyncFenceCompletion(this, asyncCommandPool, commandBuffer.address(), fence);
+                return new VulkanAsyncFenceCompletion(this, submissionTarget.commandPool(), commandBuffer.address(), fence);
             } catch (RuntimeException runtimeException) {
                 endProfile("VkAsyncSubmit:QueueSubmit", threadName);
-                releaseSubmittedCommand(asyncCommandPool, commandBuffer.address(), fence);
+                releaseSubmittedCommand(submissionTarget.commandPool(), commandBuffer.address(), fence);
                 throw runtimeException;
             }
         }
@@ -684,15 +653,16 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         if (packets == null || packets.isEmpty()) {
             return;
         }
+        AsyncSubmissionTarget submissionTarget = resolveAsyncSubmissionTarget(packets);
         String threadName = Thread.currentThread().getName();
         beginProfile("VkImmediate:InstallBindings", threadName);
-        installImmediateResourceBindings(packets);
+        resourceAllocator.installImmediateResourceBindings(packets);
         endProfile("VkImmediate:InstallBindings", threadName);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             beginProfile("VkImmediate:AllocateCommandBuffer", threadName);
             VkCommandBufferAllocateInfo allocateInfo = VkCommandBufferAllocateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
-                    .commandPool(asyncCommandPool)
+                    .commandPool(submissionTarget.commandPool())
                     .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
                     .commandBufferCount(1);
 
@@ -734,12 +704,13 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                 VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                         .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
                         .pCommandBuffers(stack.pointers(commandBuffer.address()));
-                int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, fence);
+                int submitResult = vkQueueSubmit(submissionTarget.queue(), submitInfo, fence);
                 if (submitResult != VK_SUCCESS) {
                     throw new IllegalStateException(vkFailureMessage(
                             "vkQueueSubmit(immediate)",
                             submitResult,
                             "packets=" + summarizePackets(packets)
+                                    + ", queue=" + submissionTarget.label()
                                     + ", swapchainGeneration=" + swapchainGeneration
                                     + ", swapchainExtent=" + swapchainExtentWidth + "x" + swapchainExtentHeight
                                     + ", renderedFrameCount=" + renderedFrameCount
@@ -753,9 +724,69 @@ public final class VulkanBackendRuntime implements BackendRuntime {
                         "vkWaitForFences(immediate)");
                 endProfile("VkImmediate:WaitFence", threadName);
             } finally {
-                releaseSubmittedCommand(asyncCommandPool, commandBuffer.address(), fence);
+                releaseSubmittedCommand(submissionTarget.commandPool(), commandBuffer.address(), fence);
             }
         }
+    }
+
+    private AsyncSubmissionTarget resolveAsyncSubmissionTarget(List<RenderPacket> packets) {
+        return resolveAsyncSubmissionTarget(resolveAsyncExecutionDomain(packets));
+    }
+
+    private AsyncSubmissionTarget resolveAsyncSubmissionTarget(ExecutionDomain domain) {
+        if (domain == ExecutionDomain.COMPUTE && queueRouter.isDedicatedQueue(ExecutionDomain.COMPUTE)) {
+            return new AsyncSubmissionTarget(computeQueue, computeAsyncCommandPool, "compute");
+        }
+        if (domain == ExecutionDomain.TRANSFER && queueRouter.isDedicatedQueue(ExecutionDomain.TRANSFER)) {
+            return new AsyncSubmissionTarget(transferQueue, transferAsyncCommandPool, "transfer");
+        }
+        return new AsyncSubmissionTarget(graphicsQueue, asyncCommandPool, "graphics");
+    }
+
+    private ExecutionDomain resolveAsyncExecutionDomain(List<RenderPacket> packets) {
+        boolean requiresGraphics = false;
+        boolean requiresCompute = false;
+        boolean requiresTransfer = false;
+        if (packets != null) {
+            for (RenderPacket packet : packets) {
+                ExecutionDomain packetDomain = resolvePacketExecutionDomain(packet);
+                if (packetDomain == ExecutionDomain.RASTER || packetDomain == ExecutionDomain.OFFSCREEN_GRAPHICS) {
+                    requiresGraphics = true;
+                    break;
+                }
+                if (packetDomain == ExecutionDomain.COMPUTE) {
+                    requiresCompute = true;
+                } else if (packetDomain == ExecutionDomain.TRANSFER) {
+                    requiresTransfer = true;
+                }
+            }
+        }
+        if (requiresGraphics) {
+            return ExecutionDomain.OFFSCREEN_GRAPHICS;
+        }
+        if (requiresCompute) {
+            return ExecutionDomain.COMPUTE;
+        }
+        if (requiresTransfer) {
+            return ExecutionDomain.TRANSFER;
+        }
+        return ExecutionDomain.OFFSCREEN_GRAPHICS;
+    }
+
+    private ExecutionDomain resolvePacketExecutionDomain(RenderPacket packet) {
+        if (packet == null) {
+            return ExecutionDomain.TRANSFER;
+        }
+        if (packet.stateKey() != null && packet.stateKey().domain() != null) {
+            return packet.stateKey().domain();
+        }
+        if (packet instanceof DrawPacket) {
+            return ExecutionDomain.RASTER;
+        }
+        if (packet instanceof rogo.sketch.core.packet.DispatchPacket) {
+            return ExecutionDomain.COMPUTE;
+        }
+        return ExecutionDomain.TRANSFER;
     }
 
     private void recreateSwapchain() {
@@ -873,12 +904,12 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         return textures[0].format();
     }
 
-    private long createCommandPool() {
+    private long createCommandPool(int queueFamilyIndex) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkCommandPoolCreateInfo createInfo = VkCommandPoolCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
                     .flags(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT)
-                    .queueFamilyIndex(graphicsQueueFamilyIndex);
+                    .queueFamilyIndex(queueFamilyIndex);
             LongBuffer commandPoolPointer = stack.mallocLong(1);
             VulkanDeviceBootstrapper.checkVkResult(
                     vkCreateCommandPool(device, createInfo, null, commandPoolPointer),
@@ -974,6 +1005,8 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             VulkanFrameSlot[] createdFrameSlots,
             long createdCommandPool,
             long createdAsyncCommandPool,
+            long createdComputeAsyncCommandPool,
+            long createdTransferAsyncCommandPool,
             long[] createdImageViews) {
         if (rasterPipelineCache != null) {
             rasterPipelineCache.destroy();
@@ -997,12 +1030,11 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             }
         }
 
-        if (createdCommandPool != VK_NULL_HANDLE) {
-            vkDestroyCommandPool(device, createdCommandPool, null);
-        }
-        if (createdAsyncCommandPool != VK_NULL_HANDLE) {
-            vkDestroyCommandPool(device, createdAsyncCommandPool, null);
-        }
+        destroyCommandPools(
+                createdCommandPool,
+                createdAsyncCommandPool,
+                createdComputeAsyncCommandPool,
+                createdTransferAsyncCommandPool);
 
         if (createdImageViews != null) {
             for (long imageView : createdImageViews) {
@@ -1017,6 +1049,20 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         swapchainDepthAttachments = new VulkanTextureResource[0];
         resourceResolver.destroy();
         pipelineLayoutCache.destroy();
+    }
+
+    private void destroyCommandPools(long... commandPools) {
+        if (commandPools == null || commandPools.length == 0) {
+            return;
+        }
+        List<Long> destroyed = new ArrayList<>(commandPools.length);
+        for (long commandPoolHandle : commandPools) {
+            if (commandPoolHandle == VK_NULL_HANDLE || destroyed.contains(commandPoolHandle)) {
+                continue;
+            }
+            vkDestroyCommandPool(device, commandPoolHandle, null);
+            destroyed.add(commandPoolHandle);
+        }
     }
 
     private void destroySwapchainResources() {
@@ -1219,12 +1265,28 @@ public final class VulkanBackendRuntime implements BackendRuntime {
         return presentQueueFamilyIndex;
     }
 
+    public int computeQueueFamilyIndex() {
+        return computeQueueFamilyIndex;
+    }
+
+    public int transferQueueFamilyIndex() {
+        return transferQueueFamilyIndex;
+    }
+
     public long graphicsQueueHandle() {
         return graphicsQueue.address();
     }
 
     public long presentQueueHandle() {
         return presentQueue.address();
+    }
+
+    public long computeQueueHandle() {
+        return computeQueue.address();
+    }
+
+    public long transferQueueHandle() {
+        return transferQueue.address();
     }
 
     public long swapchainHandle() {
@@ -1814,6 +1876,12 @@ public final class VulkanBackendRuntime implements BackendRuntime {
             List<RenderPacket> immediatePackets,
             boolean signalRenderFinished,
             boolean presentToSwapchain) {
+    }
+
+    private record AsyncSubmissionTarget(
+            VkQueue queue,
+            long commandPool,
+            String label) {
     }
 
     private final class VulkanFrameExecutor implements BackendFrameExecutor {
