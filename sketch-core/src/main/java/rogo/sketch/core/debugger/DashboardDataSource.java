@@ -19,6 +19,10 @@ public interface DashboardDataSource {
         return List.of();
     }
 
+    default List<DashboardTexturePreview> texturePreviews() {
+        return List.of();
+    }
+
     default List<Double> frameTimeHistory() {
         return List.of();
     }

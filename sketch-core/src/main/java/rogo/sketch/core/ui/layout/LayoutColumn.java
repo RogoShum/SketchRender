@@ -63,10 +63,7 @@ public final class LayoutColumn extends LayoutContainer {
                 height += Math.round(extra * (child.growY() / growTotal));
             }
             int width = child.fillX() ? inner.width() : Math.min(inner.width(), Math.max(child.minWidth(), measuredSize.width()));
-            int x = inner.x();
-            if (!child.fillX()) {
-                x = inner.x() + Math.max(0, (inner.width() - width) / 2);
-            }
+            int x = inner.x() + (child.fillX() ? 0 : alignOffset(child.alignX(), inner.width(), width));
             child.layout(new UiRect(x, y, width, height), inheritedClipRect);
             y += height + gap();
         }

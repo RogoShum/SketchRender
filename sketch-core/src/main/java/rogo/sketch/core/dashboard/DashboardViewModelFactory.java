@@ -84,11 +84,15 @@ public final class DashboardViewModelFactory {
                 latestAlertSequence = Math.max(latestAlertSequence, diagnostic.alertSequence());
             }
             diagnosticLines.add(new DashboardDiagnosticLine(
+                    diagnostic.alertSequence(),
                     TIME_FORMATTER.format(diagnostic.timestamp()),
                     diagnostic.level(),
                     diagnostic.moduleId(),
+                    diagnostic.threadName(),
                     diagnostic.message(),
+                    diagnostic.throwableType(),
                     diagnostic.stackPreview(),
+                    diagnostic.stackTrace(),
                     repeats));
         }
 
@@ -100,6 +104,7 @@ public final class DashboardViewModelFactory {
                 memorySection,
                 frameCaptureSnapshot,
                 ratioMetrics,
+                dataSource.texturePreviews(),
                 dataSource.frameTimeHistory(),
                 buildMacroConstants(runtimeHost),
                 diagnosticLines,

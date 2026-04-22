@@ -63,10 +63,7 @@ public final class LayoutRow extends LayoutContainer {
                 width += Math.round(extra * (child.growX() / growTotal));
             }
             int height = child.fillY() ? inner.height() : Math.min(inner.height(), Math.max(child.minHeight(), measuredSize.height()));
-            int y = inner.y();
-            if (!child.fillY()) {
-                y = inner.y() + Math.max(0, (inner.height() - height) / 2);
-            }
+            int y = inner.y() + (child.fillY() ? 0 : alignOffset(child.alignY(), inner.height(), height));
             child.layout(new UiRect(x, y, width, height), inheritedClipRect);
             x += width + gap();
         }

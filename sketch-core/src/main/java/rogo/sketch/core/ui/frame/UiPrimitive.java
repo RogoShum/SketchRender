@@ -9,4 +9,12 @@ public interface UiPrimitive {
     int order();
 
     @Nullable UiRect clipRect();
+
+    default UiPaintPass paintPass() {
+        return UiPaintPass.DECORATION;
+    }
+
+    default UiInteractionSurface surface() {
+        return UiInteractionSurface.content();
+    }
 }

@@ -53,6 +53,10 @@ public class ModuleSettingRegistry {
         return allSettingsView;
     }
 
+    public SettingNode<?> setting(KeyId settingId) {
+        return settings.get(settingId);
+    }
+
     public boolean hasSetting(KeyId settingId) {
         return settings.containsKey(settingId);
     }

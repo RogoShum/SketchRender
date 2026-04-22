@@ -11,6 +11,7 @@ import rogo.sketch.core.dashboard.DashboardViewModelFactory;
 import rogo.sketch.core.dashboard.DashboardViewSceneBuilder;
 import rogo.sketch.core.dashboard.DashboardViewSnapshot;
 import rogo.sketch.core.debugger.DashboardController;
+import rogo.sketch.core.debugger.DashboardDockResizeHandle;
 import rogo.sketch.core.debugger.DashboardDataSource;
 import rogo.sketch.core.debugger.DashboardDockSlotId;
 import rogo.sketch.core.debugger.DashboardDockSlotSpec;
@@ -18,6 +19,7 @@ import rogo.sketch.core.debugger.DashboardPanelId;
 import rogo.sketch.core.debugger.DashboardPanelMode;
 import rogo.sketch.core.debugger.DashboardTab;
 import rogo.sketch.core.debugger.DashboardTreeNode;
+import rogo.sketch.core.debugger.DashboardWindowId;
 import rogo.sketch.core.debugger.DashboardWorkspaceLayout;
 import rogo.sketch.core.debugger.DashboardWorkspaceProfile;
 import rogo.sketch.core.debugger.DashboardWorkspaceProfiles;
@@ -31,11 +33,14 @@ import rogo.sketch.core.ui.control.NumericSpec;
 import rogo.sketch.core.ui.frame.UiFrame;
 import rogo.sketch.core.ui.frame.UiPrimitive;
 import rogo.sketch.core.ui.geometry.UiRect;
+import rogo.sketch.core.ui.geometry.UiScaleContext;
 import rogo.sketch.vanilla.PipelineUtil;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class AdaptiveDebugDashboardScreen extends Screen {
@@ -55,6 +60,10 @@ public class AdaptiveDebugDashboardScreen extends Screen {
     private int draggingScrollGrabOffset;
     private boolean draggingScrollHorizontal;
     private DashboardPanelId draggingPanelId;
+    private DashboardWindowId draggingWindowId;
+    private DashboardPanelId draggingWindowSourcePanelId;
+    private double draggingWindowStartX;
+    private double draggingWindowStartY;
     private UiRect draggingPanelBoundsStart;
     private int draggingPanelGrabOffsetX;
     private int draggingPanelGrabOffsetY;
@@ -66,6 +75,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
     private boolean expandedDefaults;
     private long lastFrameSampleNanos;
     private float dashboardScale = 1.0f;
+    private UiScaleContext scaleContext = UiScaleContext.of(1.0f, 1, 1);
     private String editingNumberControlId;
     private String editingNumberDraft = "";
     private Object editingNumberOriginalValue;
@@ -77,7 +87,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
     public AdaptiveDebugDashboardScreen(Component title, DashboardWorkspaceProfile workspaceProfile) {
         super(title);
         this.workspaceProfile = Objects.requireNonNullElse(workspaceProfile, DashboardWorkspaceProfiles.dashboardDefault());
-        this.frameBuilder = new DashboardViewSceneBuilder(this.workspaceProfile);
+        this.frameBuilder = new DashboardViewSceneBuilder(this.workspaceProfile, new MinecraftUiTextMetrics());
     }
 
     @Override
@@ -108,6 +118,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
 
         sampleFrameTime();
         dashboardScale = computeDashboardScale();
+        scaleContext = UiScaleContext.of(dashboardScale, width, height);
         ensurePanelLayoutState();
         latestSnapshot = modelFactory.build(dataSource, PipelineUtil.pipeline().metricSnapshot(), PipelineUtil.pipeline().diagnosticsSnapshot());
         acknowledgeVisibleAlerts();
@@ -116,13 +127,19 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             expandDefaults(latestSnapshot.macroRoots());
             expandedDefaults = true;
         }
-        latestFrame = frameBuilder.build(latestSnapshot, controller, width, height, dashboardScale, editingNumberControlId, editingNumberDraft);
+        latestFrame = frameBuilder.build(latestSnapshot, controller, scaleContext, editingNumberControlId, editingNumberDraft);
         if (clampScrolls()) {
-            latestFrame = frameBuilder.build(latestSnapshot, controller, width, height, dashboardScale, editingNumberControlId, editingNumberDraft);
+            latestFrame = frameBuilder.build(latestSnapshot, controller, scaleContext, editingNumberControlId, editingNumberDraft);
         }
-        renderer.render(latestFrame, controller, new AdaptiveMinecraftUiCanvas(guiGraphics), mouseX, mouseY,
-                resizingPanelId, stringPropForEdge(resizingEdge),
-                resizingSlotId != null ? resizingSlotId.value() : null, stringPropForEdge(resizingSlotEdge));
+        AdaptiveMinecraftUiCanvas canvas = new AdaptiveMinecraftUiCanvas(guiGraphics);
+        canvas.beginFrame(scaleContext);
+        try {
+            renderer.render(latestFrame, controller, canvas, logicalMouseX(mouseX), logicalMouseY(mouseY),
+                    resizingPanelId, stringPropForEdge(resizingEdge),
+                    resizingSlotId != null ? resizingSlotId.value() : null, stringPropForEdge(resizingSlotEdge));
+        } finally {
+            canvas.endFrame();
+        }
         super.render(guiGraphics, mouseX, mouseY, partialTick);
     }
 
@@ -131,25 +148,19 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         if (latestFrame == null || dataSource == null) {
             return super.mouseClicked(mouseX, mouseY, button);
         }
+        double logicalMouseX = logicalMouseX(mouseX);
+        double logicalMouseY = logicalMouseY(mouseY);
 
-        DashboardPrimitive openChoiceNode = currentOpenChoiceNode();
-        if (openChoiceNode != null) {
-            for (AdaptiveDashboardRenderer.ChoiceHitBox hitBox : renderer.choiceHitBoxes(openChoiceNode, controller)) {
-                if (hitBox.bounds().contains(mouseX, mouseY)) {
-                    writeControl(openChoiceNode, hitBox.value());
-                    controller.closeChoiceDropdown();
-                    return true;
-                }
-            }
-            if (!openChoiceNode.bounds().contains(mouseX, mouseY)) {
-                controller.closeChoiceDropdown();
-            }
+        DashboardPrimitive hoveredNode = renderer.findTopPrimitive(latestFrame, logicalMouseX, logicalMouseY);
+        if (controller.openTopbarMenuId() != null && !isTopbarPrimitive(hoveredNode)) {
+            controller.setOpenTopbarMenuId(null);
         }
-
-        DashboardPrimitive hoveredNode = renderer.findTopPrimitive(latestFrame, mouseX, mouseY);
+        if (controller.openChoiceControlId() != null && !isChoicePopupPrimitive(hoveredNode) && !isChoiceOwnerPrimitive(hoveredNode)) {
+            controller.closeChoiceDropdown();
+        }
         if (editingNumberControlId != null) {
             DashboardPrimitive editingNode = findControlNode(editingNumberControlId);
-            boolean editingHit = editingNode != null && editingNode.bounds().contains(mouseX, mouseY);
+            boolean editingHit = editingNode != null && editingNode.bounds().contains(logicalMouseX, logicalMouseY);
             if (!editingHit) {
                 commitNumberEdit();
             }
@@ -173,11 +184,26 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         }
 
         switch (hoveredNode.type()) {
+            case TOPBAR -> {
+                return handleTopbarClick(hoveredNode);
+            }
+            case TOPBAR_MENU_ITEM -> {
+                return handleTopbarMenuItemClick(hoveredNode);
+            }
+            case POPUP_MENU_ITEM -> {
+                return handlePopupMenuItemClick(hoveredNode);
+            }
+            case POPUP_PANEL -> {
+                return true;
+            }
+            case WINDOW_TAB -> {
+                return handleWindowTabClick(hoveredNode, button, mouseX, mouseY);
+            }
             case PANEL -> {
-                return handlePanelClick(hoveredNode, mouseX, mouseY, button);
+                return handlePanelClick(hoveredNode, logicalMouseX, logicalMouseY, button);
             }
             case HEADER, DIAGNOSTIC_HEADER -> {
-                return beginPanelDrag(hoveredNode, mouseX, mouseY, button);
+                return beginPanelDrag(hoveredNode, logicalMouseX, logicalMouseY, button);
             }
             case TAB_BUTTON -> {
                 controller.setActiveTab(hoveredNode.id().equals("tab-settings") ? DashboardTab.MOD_SETTINGS : DashboardTab.SHADER_MACROS);
@@ -188,7 +214,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                 return true;
             }
             case TREE_CONTROL -> {
-                return handleControlClick(hoveredNode, mouseX, mouseY);
+                return handleControlClick(hoveredNode, logicalMouseX, logicalMouseY);
             }
             case MACRO_SECTION_HEADER -> {
                 String sectionId = String.valueOf(hoveredNode.props().get("sectionId"));
@@ -211,6 +237,22 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                 controller.toggleDiagnosticFilter(DiagnosticLevel.valueOf(String.valueOf(hoveredNode.props().get("level"))));
                 return true;
             }
+            case LOG_LINE -> {
+                Object rawSequence = hoveredNode.props().get("alertSequence");
+                if (rawSequence instanceof Number sequence) {
+                    controller.toggleLogExpanded(sequence.longValue());
+                    return true;
+                }
+                return false;
+            }
+            case LOG_COPY_BUTTON -> {
+                String fullText = stringProp(hoveredNode, "fullText");
+                if (!fullText.isEmpty()) {
+                    Minecraft.getInstance().keyboardHandler.setClipboard(fullText);
+                    return true;
+                }
+                return false;
+            }
             default -> {
                 return super.mouseClicked(mouseX, mouseY, button);
             }
@@ -222,16 +264,22 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         if (latestFrame == null) {
             return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         }
+        double logicalMouseX = logicalMouseX(mouseX);
+        double logicalMouseY = logicalMouseY(mouseY);
         if (resizingPanelId != null && resizingEdge != ResizeEdge.NONE) {
-            updatePanelResize(mouseX, mouseY);
+            updatePanelResize(logicalMouseX, logicalMouseY);
             return true;
         }
         if (resizingSlotId != null && resizingSlotEdge != ResizeEdge.NONE) {
-            updateSlotResize(mouseX, mouseY);
+            updateSlotResize(logicalMouseX, logicalMouseY);
             return true;
         }
         if (draggingPanelId != null) {
-            updatePanelDrag(mouseX, mouseY);
+            updatePanelDrag(logicalMouseX, logicalMouseY);
+            return true;
+        }
+        if (draggingWindowId != null) {
+            updateWindowDropPreview(mouseX, mouseY, logicalMouseX, logicalMouseY);
             return true;
         }
         if (draggingSliderControlId != null) {
@@ -240,7 +288,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                 draggingSliderControlId = null;
                 return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
             }
-            updateSliderValue(node, mouseX);
+            updateSliderValue(node, logicalMouseX);
             return true;
         }
         if (draggingScrollArea != null) {
@@ -252,7 +300,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                     return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
                 }
                 setHorizontalScrollFromThumb(draggingScrollArea, scrollbar,
-                        mouseX - draggingScrollGrabOffset - scrollbar.track().bounds().x());
+                        logicalMouseX - draggingScrollGrabOffset - scrollbar.track().bounds().x());
                 return true;
             }
             ScrollbarInfo scrollbar = scrollbarInfo(draggingScrollArea);
@@ -261,7 +309,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                 return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
             }
             setScrollFromThumb(draggingScrollArea, scrollbar,
-                    mouseY - draggingScrollGrabOffset - scrollbar.track().bounds().y());
+                    logicalMouseY - draggingScrollGrabOffset - scrollbar.track().bounds().y());
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
@@ -269,6 +317,8 @@ public class AdaptiveDebugDashboardScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        double logicalMouseX = logicalMouseX(mouseX);
+        double logicalMouseY = logicalMouseY(mouseY);
         draggingSliderControlId = null;
         draggingScrollArea = null;
         draggingScrollHorizontal = false;
@@ -290,6 +340,39 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             resizingSlotEdge = ResizeEdge.NONE;
             layoutChanged = true;
         }
+        if (draggingWindowId != null) {
+            boolean movedWindow = Math.abs(mouseX - draggingWindowStartX) + Math.abs(mouseY - draggingWindowStartY) > dragThresholdPx();
+            if (!movedWindow) {
+                draggingWindowId = null;
+                draggingWindowSourcePanelId = null;
+                controller.clearTabDropPreview();
+                return super.mouseReleased(mouseX, mouseY, button);
+            }
+            DashboardPanelId targetPanelId = panelAt(logicalMouseX, logicalMouseY);
+            if (targetPanelId != null) {
+                controller.moveWindowToPanel(draggingWindowId, targetPanelId, windowInsertIndexAt(targetPanelId, logicalMouseX, logicalMouseY));
+                layoutChanged = true;
+            } else if (draggingWindowSourcePanelId != null) {
+                controller.setPanelMode(draggingWindowSourcePanelId, DashboardPanelMode.FLOATING);
+                controller.setActiveWindow(draggingWindowSourcePanelId, draggingWindowId);
+                UiRect bounds = controller.panelFloatingBounds(draggingWindowSourcePanelId);
+                if (bounds.width() <= 0 || bounds.height() <= 0) {
+                    controller.setPanelFloatingBounds(draggingWindowSourcePanelId, new UiRect(
+                            (int) Math.round(logicalMouseX) - minPanelWidth(draggingWindowSourcePanelId) / 2,
+                            (int) Math.round(logicalMouseY) - minPanelHeight(draggingWindowSourcePanelId) / 2,
+                            minPanelWidth(draggingWindowSourcePanelId),
+                            minPanelHeight(draggingWindowSourcePanelId)));
+                }
+                controller.clampFloatingPanelToScreen(draggingWindowSourcePanelId, logicalWidth(), logicalHeight(),
+                        minPanelWidth(draggingWindowSourcePanelId), minPanelHeight(draggingWindowSourcePanelId));
+                layoutChanged = true;
+            }
+            draggingWindowId = null;
+            draggingWindowSourcePanelId = null;
+            draggingWindowStartX = 0.0D;
+            draggingWindowStartY = 0.0D;
+            controller.clearTabDropPreview();
+        }
         if (layoutChanged) {
             savePanelLayout();
         }
@@ -298,9 +381,9 @@ public class AdaptiveDebugDashboardScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        String scrollArea = scrollAreaAt(mouseX, mouseY);
+        String scrollArea = scrollAreaAt(logicalMouseX(mouseX), logicalMouseY(mouseY));
         if (scrollArea != null) {
-            double step = Math.max(18.0D, 22.0D * dashboardScale);
+            double step = Math.max(18.0D, logicalUnitsForPhysicalPx(22));
             if (scrollArea.endsWith("-x")) {
                 setHorizontalScroll(scrollArea, currentScroll(scrollArea) + (-delta * step));
             } else {
@@ -416,6 +499,110 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         return false;
     }
 
+    private boolean handleTopbarClick(DashboardPrimitive node) {
+        String role = stringProp(node, "role");
+        if ("topbar-button".equals(role)) {
+            controller.toggleTopbarMenu(stringProp(node, "menuId"));
+            return true;
+        }
+        controller.setOpenTopbarMenuId(null);
+        return true;
+    }
+
+    private boolean handleTopbarMenuItemClick(DashboardPrimitive node) {
+        String role = stringProp(node, "role");
+        if ("scale-option".equals(role)) {
+            controller.setScaleLevel(intProp(node, "scaleLevel", 3));
+            controller.setOpenTopbarMenuId(null);
+            dashboardScale = computeDashboardScale();
+            scaleContext = UiScaleContext.of(dashboardScale, Math.max(1, width), Math.max(1, height));
+            savePanelLayout();
+            return true;
+        }
+        if ("window-toggle".equals(role)) {
+            DashboardWindowId windowId = DashboardWindowId.byId(stringProp(node, "windowId"));
+            if (windowId == null) {
+                return false;
+            }
+            controller.toggleWindowVisible(windowId);
+            DashboardPanelId panelId = controller.windowPanelId(windowId);
+            DashboardWindowId active = controller.activeWindow(panelId);
+            if (active != null) {
+                controller.setActiveWindow(panelId, active);
+            }
+            savePanelLayout();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean handlePopupMenuItemClick(DashboardPrimitive node) {
+        String role = stringProp(node, "role");
+        if (!"choice-option".equals(role)) {
+            return true;
+        }
+        DashboardPrimitive ownerNode = findControlNode(stringProp(node, "controlId"));
+        if (ownerNode == null) {
+            controller.closeChoiceDropdown();
+            return true;
+        }
+        writeControl(ownerNode, stringProp(node, "optionValue"));
+        controller.closeChoiceDropdown();
+        return true;
+    }
+
+    private boolean handleWindowTabClick(DashboardPrimitive node, int button, double mouseX, double mouseY) {
+        if (button != 0 || boolProp(node, "disabled", false)) {
+            return false;
+        }
+        DashboardWindowId windowId = DashboardWindowId.byId(stringProp(node, "windowId"));
+        DashboardPanelId panelId = panelIdOf(node);
+        if (windowId == null || panelId == null) {
+            return false;
+        }
+        controller.setActiveWindow(panelId, windowId);
+        savePanelLayout();
+        draggingWindowId = windowId;
+        draggingWindowSourcePanelId = panelId;
+        draggingWindowStartX = mouseX;
+        draggingWindowStartY = mouseY;
+        return true;
+    }
+
+    private boolean isTopbarPrimitive(DashboardPrimitive node) {
+        if (node == null) {
+            return false;
+        }
+        return node.type() == UiNodeType.TOPBAR
+                || node.type() == UiNodeType.TOPBAR_MENU_ITEM
+                || (node.type() == UiNodeType.POPUP_PANEL && "topbar-popup-panel".equals(stringProp(node, "role")));
+    }
+
+    private boolean isChoicePopupPrimitive(DashboardPrimitive node) {
+        if (node == null) {
+            return false;
+        }
+        String role = stringProp(node, "role");
+        return (node.type() == UiNodeType.POPUP_PANEL && "choice-dropdown-panel".equals(role))
+                || (node.type() == UiNodeType.POPUP_MENU_ITEM && "choice-option".equals(role));
+    }
+
+    private boolean isChoiceOwnerPrimitive(DashboardPrimitive node) {
+        if (node == null || node.type() != UiNodeType.TREE_CONTROL || controller.openChoiceControlId() == null) {
+            return false;
+        }
+        return controller.openChoiceControlId().equals(stringProp(node, "controlId"));
+    }
+
+    private void updateWindowDropPreview(double physicalMouseX, double physicalMouseY, double logicalMouseX, double logicalMouseY) {
+        boolean movedWindow = Math.abs(physicalMouseX - draggingWindowStartX) + Math.abs(physicalMouseY - draggingWindowStartY) > dragThresholdPx();
+        if (!movedWindow) {
+            controller.clearTabDropPreview();
+            return;
+        }
+        controller.setTabDropPreviewPanelId(panelAt(logicalMouseX, logicalMouseY));
+    }
+
     private boolean handlePanelClick(DashboardPrimitive node, double mouseX, double mouseY, int button) {
         String role = stringProp(node, "role");
         DashboardPanelId panelId = panelIdOf(node);
@@ -486,7 +673,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             if (bounds.width() <= 0 || bounds.height() <= 0) {
                 controller.setPanelFloatingBounds(panelId, currentSlotBounds(panelId));
             }
-            controller.clampFloatingPanelToScreen(panelId, width, height, minPanelWidth(panelId), minPanelHeight(panelId));
+            controller.clampFloatingPanelToScreen(panelId, logicalWidth(), logicalHeight(), minPanelWidth(panelId), minPanelHeight(panelId));
             controller.focusPanel(panelId);
         }
         savePanelLayout();
@@ -522,7 +709,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                 draggingPanelBoundsStart.width(),
                 draggingPanelBoundsStart.height());
         controller.setPanelFloatingBounds(draggingPanelId, updated);
-        controller.clampFloatingPanelToScreen(draggingPanelId, width, height, minPanelWidth(draggingPanelId), minPanelHeight(draggingPanelId));
+        controller.clampFloatingPanelToScreen(draggingPanelId, logicalWidth(), logicalHeight(), minPanelWidth(draggingPanelId), minPanelHeight(draggingPanelId));
     }
 
     private boolean beginPanelResize(DashboardPrimitive node, double mouseX, double mouseY, int button) {
@@ -575,17 +762,17 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             left = Mth.clamp(mouseXi, 0, right - minWidth);
         }
         if (resizingEdge.east) {
-            right = Mth.clamp(mouseXi, left + minWidth, width);
+            right = Mth.clamp(mouseXi, left + minWidth, logicalWidth());
         }
         if (resizingEdge.north) {
             top = Mth.clamp(mouseYi, 0, bottom - minHeight);
         }
         if (resizingEdge.south) {
-            bottom = Mth.clamp(mouseYi, top + minHeight, height);
+            bottom = Mth.clamp(mouseYi, top + minHeight, logicalHeight());
         }
 
         controller.setPanelFloatingBounds(resizingPanelId, new UiRect(left, top, right - left, bottom - top));
-        controller.clampFloatingPanelToScreen(resizingPanelId, width, height, minWidth, minHeight);
+        controller.clampFloatingPanelToScreen(resizingPanelId, logicalWidth(), logicalHeight(), minWidth, minHeight);
     }
 
     private void updateSlotResize(double mouseX, double mouseY) {
@@ -617,7 +804,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         }
         NumericSpec numericSpec = controlSpec.numericSpec();
         UiRect control = controlBounds(node);
-        UiRect track = DashboardControlLayout.sliderTrackBounds(control, dashboardScale);
+        UiRect track = DashboardControlLayout.sliderTrackBounds(control, 1.0f);
         double normalized = (mouseX - track.x()) / Math.max(1.0D, track.width());
         normalized = Mth.clamp(normalized, 0.0D, 1.0D);
         double value = numericSpec.minValue() + (numericSpec.maxValue() - numericSpec.minValue()) * normalized;
@@ -720,12 +907,37 @@ public class AdaptiveDebugDashboardScreen extends Screen {
 
     private void loadPanelLayout() {
         String workspaceId = workspaceProfile.workspaceId();
+        controller.setScaleLevel(Config.getDashboardScaleLevel(workspaceId));
         for (DashboardPanelId panelId : DashboardPanelId.values()) {
             DashboardDockSlotId defaultHomeSlot = workspaceProfile.defaultHomeSlot(panelId);
             controller.setPanelHomeSlotId(panelId, Config.getDashboardPanelHomeSlotId(workspaceId, panelId, defaultHomeSlot));
             controller.setPanelDockedSlotId(panelId, Config.getDashboardPanelDockedSlotId(workspaceId, panelId, controller.panelHomeSlotId(panelId)));
             controller.setPanelMode(panelId, Config.getDashboardPanelMode(workspaceId, panelId));
             controller.setPanelFloatingBounds(panelId, Config.getDashboardPanelFloatingBounds(workspaceId, panelId));
+        }
+        for (DashboardWindowId windowId : DashboardWindowId.values()) {
+            controller.setWindowVisible(windowId, Config.getDashboardWindowVisible(workspaceId, windowId));
+            controller.setWindowPanelId(windowId, Config.getDashboardWindowPanelId(workspaceId, windowId));
+        }
+        for (DashboardPanelId panelId : DashboardPanelId.values()) {
+            List<DashboardWindowId> current = controller.windowsForPanel(panelId);
+            List<DashboardWindowId> saved = Config.getDashboardPanelWindowOrder(workspaceId, panelId, current);
+            List<DashboardWindowId> ordered = new ArrayList<>();
+            for (DashboardWindowId windowId : saved) {
+                if (controller.windowPanelId(windowId) == panelId && !ordered.contains(windowId)) {
+                    ordered.add(windowId);
+                }
+            }
+            for (DashboardWindowId windowId : current) {
+                if (controller.windowPanelId(windowId) == panelId && !ordered.contains(windowId)) {
+                    ordered.add(windowId);
+                }
+            }
+            controller.setPanelWindows(panelId, ordered);
+            DashboardWindowId active = Config.getDashboardActiveWindow(workspaceId, panelId, controller.activeWindow(panelId));
+            if (active != null && controller.windowPanelId(active) == panelId && controller.isWindowVisible(active)) {
+                controller.setActiveWindow(panelId, active);
+            }
         }
         for (DashboardDockSlotSpec slotSpec : workspaceProfile.slots()) {
             controller.setSlotSizeRatio(slotSpec.slotId(),
@@ -736,11 +948,21 @@ public class AdaptiveDebugDashboardScreen extends Screen {
 
     private void savePanelLayout() {
         String workspaceId = workspaceProfile.workspaceId();
+        Config.setDashboardScaleLevel(workspaceId, controller.scaleLevel());
         for (DashboardPanelId panelId : DashboardPanelId.values()) {
             Config.setDashboardPanelHomeSlotId(workspaceId, panelId, controller.panelHomeSlotId(panelId));
             Config.setDashboardPanelDockedSlotId(workspaceId, panelId, controller.panelDockedSlotId(panelId));
             Config.setDashboardPanelMode(workspaceId, panelId, controller.panelMode(panelId));
             Config.setDashboardPanelFloatingBounds(workspaceId, panelId, controller.panelFloatingBounds(panelId));
+            Config.setDashboardPanelWindowOrder(workspaceId, panelId, controller.windowsForPanel(panelId));
+            DashboardWindowId activeWindow = controller.activeWindow(panelId);
+            if (activeWindow != null) {
+                Config.setDashboardActiveWindow(workspaceId, panelId, activeWindow);
+            }
+        }
+        for (DashboardWindowId windowId : DashboardWindowId.values()) {
+            Config.setDashboardWindowVisible(workspaceId, windowId, controller.isWindowVisible(windowId));
+            Config.setDashboardWindowPanelId(workspaceId, windowId, controller.windowPanelId(windowId));
         }
         for (DashboardDockSlotSpec slotSpec : workspaceProfile.slots()) {
             Config.setDashboardSlotSizeRatio(workspaceId, slotSpec.slotId(),
@@ -764,15 +986,8 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             if (bounds.width() <= 0 || bounds.height() <= 0) {
                 controller.setPanelFloatingBounds(panelId, currentSlotBounds(panelId));
             }
-            controller.clampFloatingPanelToScreen(panelId, width, height, minPanelWidth(panelId), minPanelHeight(panelId));
+            controller.clampFloatingPanelToScreen(panelId, logicalWidth(), logicalHeight(), minPanelWidth(panelId), minPanelHeight(panelId));
         }
-    }
-
-    private DashboardPrimitive currentOpenChoiceNode() {
-        if (latestFrame == null || controller.openChoiceControlId() == null) {
-            return null;
-        }
-        return findControlNode(controller.openChoiceControlId());
     }
 
     private List<DashboardPrimitive> dashboardPrimitives() {
@@ -802,7 +1017,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
 
     private UiRect controlBounds(DashboardPrimitive node) {
         ControlSpec controlSpec = node.props().get("controlSpec") instanceof ControlSpec spec ? spec : null;
-        return DashboardControlLayout.controlBounds(node.bounds(), controlSpec, dashboardScale);
+        return DashboardControlLayout.controlBounds(node.bounds(), controlSpec, 1.0f);
     }
 
     private DashboardPrimitive findPrimitiveById(String id) {
@@ -837,11 +1052,31 @@ public class AdaptiveDebugDashboardScreen extends Screen {
     private UiRect defaultSlotBounds(DashboardDockSlotId slotId) {
         DashboardWorkspaceLayout layout = currentWorkspaceLayout();
         UiRect slotBounds = layout.slotBounds(slotId);
-        return slotBounds != null ? slotBounds : new UiRect(0, 0, Math.max(1, width), Math.max(1, height));
+        return slotBounds != null ? slotBounds : new UiRect(0, 0, logicalWidth(), logicalHeight());
     }
 
     private DashboardWorkspaceLayout currentWorkspaceLayout() {
-        return workspaceProfile.layout(width, height, dashboardScale, controller);
+        int topbarHeight = dashboardTopbarHeight();
+        DashboardWorkspaceLayout raw = workspaceProfile.layout(logicalWidth(), Math.max(1, logicalHeight() - topbarHeight), 1.0f, controller);
+        Map<DashboardDockSlotId, UiRect> shiftedSlots = new LinkedHashMap<>();
+        for (Map.Entry<DashboardDockSlotId, UiRect> entry : raw.slotBounds().entrySet()) {
+            shiftedSlots.put(entry.getKey(), shift(entry.getValue(), 0, topbarHeight));
+        }
+        List<DashboardDockResizeHandle> shiftedHandles = new ArrayList<>();
+        for (DashboardDockResizeHandle handle : raw.resizeHandles()) {
+            shiftedHandles.add(new DashboardDockResizeHandle(handle.id(), handle.slotId(), handle.edge(),
+                    shift(handle.bounds(), 0, topbarHeight), handle.minRatio(), handle.maxRatio()));
+        }
+        return new DashboardWorkspaceLayout(raw.workspaceId(), shift(raw.shellBounds(), 0, topbarHeight),
+                raw.slotSpecs(), shiftedSlots, shiftedHandles);
+    }
+
+    private UiRect shift(UiRect rect, int dx, int dy) {
+        return new UiRect(rect.x() + dx, rect.y() + dy, rect.width(), rect.height());
+    }
+
+    private int dashboardTopbarHeight() {
+        return 24;
     }
 
     private DashboardDockSlotId slotAt(double mouseX, double mouseY) {
@@ -854,9 +1089,48 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         return null;
     }
 
+    private DashboardPanelId panelAt(double mouseX, double mouseY) {
+        if (latestFrame != null) {
+            for (DashboardPrimitive node : dashboardPrimitives()) {
+                if ("panel".equals(stringProp(node, "role")) && node.bounds().contains(mouseX, mouseY)) {
+                    DashboardPanelId panelId = panelIdOf(node);
+                    if (panelId != null) {
+                        return panelId;
+                    }
+                }
+            }
+        }
+        DashboardDockSlotId slotId = slotAt(mouseX, mouseY);
+        if (slotId == null) {
+            return null;
+        }
+        for (DashboardPanelId panelId : DashboardPanelId.values()) {
+            if (slotId.equals(controller.panelDockedSlotId(panelId)) || slotId.equals(controller.panelHomeSlotId(panelId))) {
+                return panelId;
+            }
+        }
+        return null;
+    }
+
+    private int windowInsertIndexAt(DashboardPanelId targetPanelId, double mouseX, double mouseY) {
+        List<DashboardWindowId> windows = controller.windowsForPanel(targetPanelId);
+        int fallback = windows.size();
+        int index = 0;
+        for (DashboardPrimitive node : dashboardPrimitives()) {
+            if (node.type() != UiNodeType.WINDOW_TAB || panelIdOf(node) != targetPanelId || boolProp(node, "disabled", false)) {
+                continue;
+            }
+            if (node.bounds().contains(mouseX, mouseY)) {
+                return mouseX < node.bounds().x() + node.bounds().width() / 2.0D ? index : index + 1;
+            }
+            index++;
+        }
+        return fallback;
+    }
+
     private double defaultSlotRatio(DashboardDockSlotId slotId) {
         DashboardController defaults = new DashboardController();
-        DashboardWorkspaceLayout layout = workspaceProfile.layout(width, height, dashboardScale, defaults);
+        DashboardWorkspaceLayout layout = workspaceProfile.layout(logicalWidth(), logicalHeight(), 1.0f, defaults);
         UiRect slotBounds = layout.slotBounds(slotId);
         if (slotBounds == null) {
             return 0.0D;
@@ -935,6 +1209,8 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         changed |= setScroll("settings", controller.settingsScroll());
         changed |= setScroll("metrics", controller.metricsScroll());
         changed |= setScroll("diagnostics", controller.diagnosticsScroll());
+        changed |= setHorizontalScroll("settings-x", controller.settingsHorizontalScroll());
+        changed |= setHorizontalScroll("metrics-x", controller.metricsHorizontalScroll());
         changed |= setHorizontalScroll("diagnostics-x", controller.diagnosticsHorizontalScroll());
         return changed;
     }
@@ -962,6 +1238,8 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             case "settings" -> controller.settingsScroll();
             case "metrics" -> controller.metricsScroll();
             case "diagnostics" -> controller.diagnosticsScroll();
+            case "settings-x" -> controller.settingsHorizontalScroll();
+            case "metrics-x" -> controller.metricsHorizontalScroll();
             case "diagnostics-x" -> controller.diagnosticsHorizontalScroll();
             default -> 0.0D;
         };
@@ -972,6 +1250,8 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             case "settings" -> controller.setSettingsScroll(value);
             case "metrics" -> controller.setMetricsScroll(value);
             case "diagnostics" -> controller.setDiagnosticsScroll(value);
+            case "settings-x" -> controller.setSettingsHorizontalScroll(value);
+            case "metrics-x" -> controller.setMetricsHorizontalScroll(value);
             case "diagnostics-x" -> controller.setDiagnosticsHorizontalScroll(value);
             default -> {
             }
@@ -1119,33 +1399,64 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         lastFrameSampleNanos = now;
     }
 
+    private UiScaleContext currentScaleContext() {
+        if (scaleContext != null && scaleContext.physicalViewport().width() == Math.max(1, width)
+                && scaleContext.physicalViewport().height() == Math.max(1, height)) {
+            return scaleContext;
+        }
+        scaleContext = UiScaleContext.of(dashboardScale, Math.max(1, width), Math.max(1, height));
+        return scaleContext;
+    }
+
+    private double logicalMouseX(double physicalMouseX) {
+        return currentScaleContext().toLogicalX(physicalMouseX);
+    }
+
+    private double logicalMouseY(double physicalMouseY) {
+        return currentScaleContext().toLogicalY(physicalMouseY);
+    }
+
+    private int logicalWidth() {
+        return currentScaleContext().logicalViewport().width();
+    }
+
+    private int logicalHeight() {
+        return currentScaleContext().logicalViewport().height();
+    }
+
+    private int logicalUnitsForPhysicalPx(int physicalPx) {
+        return currentScaleContext().logicalUnitsForPhysicalPx(physicalPx);
+    }
+
+    private double dragThresholdPx() {
+        return 6.0D;
+    }
+
     private float computeDashboardScale() {
-        Minecraft minecraft = Minecraft.getInstance();
-        double guiScale = minecraft.getWindow().getGuiScale();
         float widthFactor = width / 1920.0f;
         float heightFactor = height / 1080.0f;
-        float designFactor = Math.min(widthFactor, heightFactor);
-        float guiFactor = (float) Mth.clamp(guiScale / 3.0D, 0.85D, 1.35D);
-        return Mth.clamp(designFactor * guiFactor, 0.75f, 1.35f);
+        float designFactor = Mth.clamp(Math.min(widthFactor, heightFactor), 0.55f, 1.10f);
+        return Mth.clamp(designFactor * controller.scaleMultiplier(), 0.32f, 1.80f);
     }
 
     private DashboardMetrics dashboardMetrics() {
-        float uiScale = Math.max(0.70f, dashboardScale * 0.90f);
-        int shellInset = Math.max(Math.max(1, Math.round(14 * uiScale)), Math.min(width, height) / 40);
-        int columnGap = Math.max(1, Math.round(10 * uiScale));
-        int panelGap = Math.max(1, Math.round(10 * uiScale));
-        int minPanelWidth = Math.max(1, Math.round(180 * uiScale));
-        int minPanelHeight = Math.max(1, Math.round(160 * uiScale));
-        int minDiagnosticsHeight = Math.max(1, Math.round(140 * uiScale));
-        int diagnosticsDockedHeight = Math.max(Math.round(170 * uiScale), Math.min(height / 3, Math.round(220 * uiScale)));
-        float leftRatio = uiScale <= 0.80f ? 0.37f : uiScale <= 0.94f ? 0.41f : uiScale <= 1.08f ? 0.45f : 0.49f;
+        int logicalWidth = logicalWidth();
+        int logicalHeight = logicalHeight();
+        int shellInset = Math.max(6, Math.min(logicalWidth, logicalHeight) / 72);
+        int columnGap = 5;
+        int panelGap = 5;
+        int minPanelWidth = 126;
+        int minPanelHeight = 104;
+        int minDiagnosticsHeight = 72;
+        int diagnosticsDockedHeight = Math.max(92, Math.min(logicalHeight / 3, 180));
+        float leftRatio = logicalWidth >= 1800 ? 0.37f : logicalWidth >= 1450 ? 0.41f : logicalWidth >= 1180 ? 0.45f : 0.49f;
         return new DashboardMetrics(shellInset, columnGap, panelGap, minPanelWidth, minPanelHeight,
                 minDiagnosticsHeight, diagnosticsDockedHeight, leftRatio);
     }
 
     private int minPanelWidth(DashboardPanelId panelId) {
         DashboardMetrics metrics = dashboardMetrics();
-        return panelId == DashboardPanelId.DIAGNOSTICS ? metrics.minPanelWidth * 2 : metrics.minPanelWidth;
+        return panelId == DashboardPanelId.DIAGNOSTICS ? Math.round(metrics.minPanelWidth * 1.35f) : metrics.minPanelWidth;
     }
 
     private int minPanelHeight(DashboardPanelId panelId) {

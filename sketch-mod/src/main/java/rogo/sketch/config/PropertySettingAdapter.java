@@ -187,6 +187,10 @@ public class PropertySettingAdapter {
         return registry;
     }
 
+    public boolean hasBinding(KeyId settingId) {
+        return settingId != null && bindings.containsKey(settingId);
+    }
+
     public record Binding<T>(
             String controlId,
             @Nullable KeyId settingId,

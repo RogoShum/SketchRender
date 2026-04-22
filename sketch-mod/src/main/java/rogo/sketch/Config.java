@@ -13,7 +13,9 @@ import rogo.sketch.core.backend.BackendKind;
 import rogo.sketch.core.debugger.DashboardDockSlotId;
 import rogo.sketch.core.debugger.DashboardPanelId;
 import rogo.sketch.core.debugger.DashboardPanelMode;
+import rogo.sketch.core.debugger.DashboardWindowId;
 import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
+import rogo.sketch.core.pipeline.module.setting.SettingNode;
 import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.ui.geometry.UiRect;
 import rogo.sketch.backend.opengl.util.GLFeatureChecker;
@@ -28,18 +30,19 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class Config {
     private static final SketchConfigService CONFIG_SERVICE = new SketchConfigService(
             FMLPaths.CONFIGDIR.get(),
-            null,
-            ConfigLayoutStrategy.SINGLE_FILE,
+            SketchRender.MOD_ID,
+            ConfigLayoutStrategy.BY_NAMESPACE_PREFIXED_MODULE_FILE,
             SketchRender.MOD_ID);
-    private static final ConfigScope RENDER_SCOPE = new ConfigScope(SketchRender.MOD_ID, "render");
-    private static final ConfigScope CULLING_SCOPE = new ConfigScope(SketchRender.MOD_ID, CullingModuleDescriptor.MODULE_ID);
-    private static final ConfigScope DASHBOARD_UI_SCOPE = new ConfigScope(SketchRender.MOD_ID, "dashboard_ui");
+    private static final ConfigScope RENDER_SCOPE = new ConfigScope("setting", SketchRender.MOD_ID);
+    private static final ConfigScope CULLING_SCOPE = new ConfigScope("setting", SketchRender.MOD_ID);
+    private static final ConfigScope DASHBOARD_UI_SCOPE = new ConfigScope("screen", "dashboard");
     private static final PropertySettingAdapter CORE_SETTINGS = new PropertySettingAdapter();
 
     private static final String PROP_GRAPHICS_BACKEND = "graphics_backend";
@@ -255,12 +258,108 @@ public class Config {
         CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, slotKey(workspaceId, slotId, "size_ratio"), PropertyCodecs.DOUBLE, ratio);
     }
 
+    public static int getDashboardScaleLevel(String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return 3;
+        }
+        int value = CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "scale_level"), PropertyCodecs.INTEGER, 3);
+        return Math.max(1, Math.min(5, value));
+    }
+
+    public static void setDashboardScaleLevel(String workspaceId, int scaleLevel) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return;
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "scale_level"), PropertyCodecs.INTEGER,
+                Math.max(1, Math.min(5, scaleLevel)));
+    }
+
+    public static boolean getDashboardWindowVisible(String workspaceId, DashboardWindowId windowId) {
+        if (workspaceId == null || workspaceId.isBlank() || windowId == null) {
+            return true;
+        }
+        return CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, windowKey(workspaceId, windowId, "visible"), PropertyCodecs.BOOLEAN, true);
+    }
+
+    public static void setDashboardWindowVisible(String workspaceId, DashboardWindowId windowId, boolean visible) {
+        if (workspaceId == null || workspaceId.isBlank() || windowId == null) {
+            return;
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, windowKey(workspaceId, windowId, "visible"), PropertyCodecs.BOOLEAN, visible);
+    }
+
+    public static DashboardPanelId getDashboardWindowPanelId(String workspaceId, DashboardWindowId windowId) {
+        if (workspaceId == null || workspaceId.isBlank() || windowId == null) {
+            return windowId != null ? windowId.defaultPanelId() : DashboardPanelId.METRICS;
+        }
+        String raw = CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, windowKey(workspaceId, windowId, "panel"), PropertyCodecs.STRING,
+                windowId.defaultPanelId().id());
+        DashboardPanelId panelId = DashboardPanelId.byId(raw);
+        return panelId != null ? panelId : windowId.defaultPanelId();
+    }
+
+    public static void setDashboardWindowPanelId(String workspaceId, DashboardWindowId windowId, DashboardPanelId panelId) {
+        if (workspaceId == null || workspaceId.isBlank() || windowId == null || panelId == null) {
+            return;
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, windowKey(workspaceId, windowId, "panel"), PropertyCodecs.STRING, panelId.id());
+    }
+
+    public static List<DashboardWindowId> getDashboardPanelWindowOrder(String workspaceId, DashboardPanelId panelId, List<DashboardWindowId> fallback) {
+        if (workspaceId == null || workspaceId.isBlank() || panelId == null) {
+            return fallback != null ? List.copyOf(fallback) : List.of();
+        }
+        List<String> raw = CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, panelKey(workspaceId, panelId, "window_order"),
+                PropertyCodecs.STRING_LIST, fallback != null ? fallback.stream().map(DashboardWindowId::id).toList() : List.of());
+        List<DashboardWindowId> resolved = new ArrayList<>();
+        for (String value : raw) {
+            DashboardWindowId windowId = DashboardWindowId.byId(value);
+            if (windowId != null && !resolved.contains(windowId)) {
+                resolved.add(windowId);
+            }
+        }
+        return resolved;
+    }
+
+    public static void setDashboardPanelWindowOrder(String workspaceId, DashboardPanelId panelId, List<DashboardWindowId> windows) {
+        if (workspaceId == null || workspaceId.isBlank() || panelId == null || windows == null) {
+            return;
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, panelKey(workspaceId, panelId, "window_order"), PropertyCodecs.STRING_LIST,
+                windows.stream().map(DashboardWindowId::id).toList());
+    }
+
+    public static DashboardWindowId getDashboardActiveWindow(String workspaceId, DashboardPanelId panelId, DashboardWindowId fallback) {
+        if (workspaceId == null || workspaceId.isBlank() || panelId == null) {
+            return fallback;
+        }
+        String raw = CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, panelKey(workspaceId, panelId, "active_window"), PropertyCodecs.STRING,
+                fallback != null ? fallback.id() : "");
+        DashboardWindowId windowId = DashboardWindowId.byId(raw);
+        return windowId != null ? windowId : fallback;
+    }
+
+    public static void setDashboardActiveWindow(String workspaceId, DashboardPanelId panelId, DashboardWindowId windowId) {
+        if (workspaceId == null || workspaceId.isBlank() || panelId == null || windowId == null) {
+            return;
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, panelKey(workspaceId, panelId, "active_window"), PropertyCodecs.STRING, windowId.id());
+    }
+
     private static String panelKey(String workspaceId, DashboardPanelId panelId, String suffix) {
         return "workspace." + workspaceId + ".panel." + panelId.id() + "." + suffix;
     }
 
     private static String slotKey(String workspaceId, DashboardDockSlotId slotId, String suffix) {
         return "workspace." + workspaceId + ".slot." + slotId.value() + "." + suffix;
+    }
+
+    private static String windowKey(String workspaceId, DashboardWindowId windowId, String suffix) {
+        return "workspace." + workspaceId + ".window." + windowId.id() + "." + suffix;
+    }
+
+    private static String workspaceKey(String workspaceId, String suffix) {
+        return "workspace." + workspaceId + "." + suffix;
     }
 
     private static BackendKind parseBackendKind(String raw) {
@@ -301,6 +400,7 @@ public class Config {
         }
         attachedRegistry = registry;
         CORE_SETTINGS.attach(registry);
+        syncPersistedModuleSettings(registry);
         registry.addListener(CORE_SETTING_LISTENER);
     }
 
@@ -327,6 +427,68 @@ public class Config {
 
     private static boolean previewBoolean(KeyId settingId, Supplier<Boolean> fallback) {
         return CORE_SETTINGS.getPreviewBoolean(settingId, fallback);
+    }
+
+    public static void persistModuleSetting(SettingNode<?> setting, Object value) {
+        if (setting == null || setting.isGroup()) {
+            return;
+        }
+        CONFIG_SERVICE.set(moduleSettingScope(setting.moduleId()), setting.id().toString(), PropertyCodecs.STRING,
+                encodeSettingValue(setting, value));
+    }
+
+    private static void syncPersistedModuleSettings(ModuleSettingRegistry registry) {
+        if (registry == null) {
+            return;
+        }
+        for (SettingNode<?> setting : registry.allSettings()) {
+            if (setting == null || setting.isGroup() || CORE_SETTINGS.hasBinding(setting.id())) {
+                continue;
+            }
+            if (!CONFIG_SERVICE.contains(moduleSettingScope(setting.moduleId()), setting.id().toString())) {
+                continue;
+            }
+            Object persisted = readPersistedModuleSetting(setting);
+            if (persisted != null) {
+                registry.setValue(setting.id(), persisted);
+            }
+        }
+    }
+
+    private static Object readPersistedModuleSetting(SettingNode<?> setting) {
+        String raw = CONFIG_SERVICE.get(moduleSettingScope(setting.moduleId()), setting.id().toString(), PropertyCodecs.STRING, null);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return setting.coerceValue(raw);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String encodeSettingValue(SettingNode<?> setting, Object value) {
+        Object normalized;
+        try {
+            normalized = setting.coerceValue(value);
+        } catch (Exception ignored) {
+            normalized = value;
+        }
+        if (normalized instanceof Enum<?> enumValue) {
+            return enumValue.name();
+        }
+        return String.valueOf(normalized);
+    }
+
+    private static ConfigScope moduleSettingScope(String moduleId) {
+        return new ConfigScope("setting", moduleSettingsFileId(moduleId));
+    }
+
+    private static String moduleSettingsFileId(String moduleId) {
+        if (moduleId == null || moduleId.isBlank()) {
+            return SketchRender.MOD_ID;
+        }
+        return moduleId.endsWith("_test") ? moduleId : SketchRender.MOD_ID;
     }
 
     private static void writeBoolean(KeyId settingId, Consumer<Boolean> persistedWriter, Supplier<Boolean> persistedReader, boolean value) {
@@ -495,6 +657,43 @@ public class Config {
         }
     }
 
+    private static void migrateLegacyPropertiesIfNeeded() {
+        Path legacyPath = FMLPaths.CONFIGDIR.get().resolve(SketchRender.MOD_ID + ".properties");
+        if (!Files.exists(legacyPath)) {
+            return;
+        }
+        Path settingsPath = CONFIG_SERVICE.resolvePath(CULLING_SCOPE);
+        Path dashboardPath = CONFIG_SERVICE.resolvePath(DASHBOARD_UI_SCOPE);
+        if (Files.exists(settingsPath) && Files.exists(dashboardPath)) {
+            return;
+        }
+
+        Properties properties = new Properties();
+        try (java.io.Reader reader = Files.newBufferedReader(legacyPath, StandardCharsets.UTF_8)) {
+            properties.load(reader);
+        } catch (IOException ignored) {
+            return;
+        }
+
+        if (!Files.exists(settingsPath)) {
+            migrateLegacyPrefix(properties, SketchRender.MOD_ID + ".render.", RENDER_SCOPE);
+            migrateLegacyPrefix(properties, SketchRender.MOD_ID + ".culling.", CULLING_SCOPE);
+        }
+        if (!Files.exists(dashboardPath)) {
+            migrateLegacyPrefix(properties, SketchRender.MOD_ID + ".dashboard_ui.", DASHBOARD_UI_SCOPE);
+        }
+    }
+
+    private static void migrateLegacyPrefix(Properties properties, String legacyPrefix, ConfigScope targetScope) {
+        for (String key : properties.stringPropertyNames()) {
+            if (!key.startsWith(legacyPrefix)) {
+                continue;
+            }
+            String targetKey = key.substring(legacyPrefix.length());
+            CONFIG_SERVICE.set(targetScope, targetKey, PropertyCodecs.STRING, properties.getProperty(key));
+        }
+    }
+
     private static String stripComment(String line) {
         int commentIndex = line.indexOf('#');
         return commentIndex >= 0 ? line.substring(0, commentIndex) : line;
@@ -543,6 +742,7 @@ public class Config {
     }
 
     static {
+        migrateLegacyPropertiesIfNeeded();
         migrateLegacyForgeConfigIfNeeded();
         ensureRenderDefaults();
         registerBindings();

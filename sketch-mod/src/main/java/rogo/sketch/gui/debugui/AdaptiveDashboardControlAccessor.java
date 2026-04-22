@@ -30,11 +30,17 @@ public class AdaptiveDashboardControlAccessor implements DashboardControlAccesso
             return;
         }
         if (setting != null) {
+            Config.persistModuleSetting(setting, value);
             registry.queueValue(setting.id(), value);
             return;
         }
         if (controlId.startsWith("setting/")) {
-            registry.queueValue(KeyId.of(controlId.substring("setting/".length())), value);
+            KeyId settingId = KeyId.of(controlId.substring("setting/".length()));
+            SettingNode<?> resolved = registry.setting(settingId);
+            if (resolved != null) {
+                Config.persistModuleSetting(resolved, value);
+            }
+            registry.queueValue(settingId, value);
         }
     }
 

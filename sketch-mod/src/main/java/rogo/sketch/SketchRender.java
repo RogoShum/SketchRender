@@ -54,7 +54,6 @@ import rogo.sketch.core.util.CommandCallTimer;
 import rogo.sketch.backend.opengl.util.RenderCallTimer;
 import rogo.sketch.core.util.TimerUtil;
 import rogo.sketch.event.ForgeEventBusImplementation;
-import rogo.sketch.feature.culling.CullingRenderEvent;
 import rogo.sketch.feature.culling.CullingStages;
 import rogo.sketch.feature.culling.MinecraftCullingDebugState;
 import rogo.sketch.feature.culling.MinecraftCullingLifecycleListener;
@@ -102,7 +101,6 @@ public class SketchRender {
                     VanillaPipelineEventHandler::onUniformInit);
             MinecraftForge.EVENT_BUS.register(new VanillaPipelineEventHandler());
             MinecraftForge.EVENT_BUS.register(this);
-            MinecraftForge.EVENT_BUS.register(new CullingRenderEvent());
             MinecraftForge.EVENT_BUS.register(new MinecraftCullingLifecycleListener());
             MinecraftForge.EVENT_BUS.register(new ProfilerEventHandler());
             FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerReloadListener);

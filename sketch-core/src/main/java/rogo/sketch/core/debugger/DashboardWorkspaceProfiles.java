@@ -1,5 +1,6 @@
 package rogo.sketch.core.debugger;
 
+import rogo.sketch.core.dashboard.DashboardUiDensityRules;
 import rogo.sketch.core.ui.geometry.UiRect;
 
 import java.util.LinkedHashMap;
@@ -36,21 +37,28 @@ public final class DashboardWorkspaceProfiles {
             UiRect shell = new UiRect(metrics.shellInset, metrics.shellInset,
                     Math.max(1, screenWidth - metrics.shellInset * 2),
                     Math.max(1, screenHeight - metrics.shellInset * 2));
-            double minLeftRatio = metrics.minPanelWidth / (double) shell.width();
-            double maxLeftRatio = Math.max(minLeftRatio, (shell.width() - metrics.minPanelWidth - metrics.columnGap) / (double) shell.width());
-            double leftRatio = resolveRatio(controller, LEFT_SIDEBAR, metrics.leftRatio, minLeftRatio, maxLeftRatio);
-            int leftWidth = clamp(Math.round(shell.width() * (float) leftRatio), metrics.minPanelWidth,
-                    shell.width() - metrics.minPanelWidth - metrics.columnGap);
-            int rightWidth = Math.max(metrics.minPanelWidth, shell.width() - leftWidth - metrics.columnGap);
+            int columnGap = Math.min(metrics.columnGap, Math.max(0, shell.width() / 16));
+            int panelGap = Math.min(metrics.panelGap, Math.max(0, shell.height() / 16));
+            int minPanelWidth = Math.min(metrics.minPanelWidth, Math.max(1, (shell.width() - columnGap) / 2));
+            int verticalAvailable = Math.max(1, shell.height() - panelGap);
+            int minTopHeight = Math.min(metrics.minPanelHeight, Math.max(1, verticalAvailable / 2));
+            int minDiagnosticsHeight = Math.min(metrics.minDiagnosticsHeight, Math.max(1, verticalAvailable - minTopHeight));
 
-            double minBottomRatio = metrics.minDiagnosticsHeight / (double) shell.height();
+            double minLeftRatio = minPanelWidth / (double) shell.width();
+            double maxLeftRatio = Math.max(minLeftRatio, (shell.width() - minPanelWidth - columnGap) / (double) shell.width());
+            double leftRatio = resolveRatio(controller, LEFT_SIDEBAR, metrics.leftRatio, minLeftRatio, maxLeftRatio);
+            int leftWidth = clamp(Math.round(shell.width() * (float) leftRatio), minPanelWidth,
+                    shell.width() - minPanelWidth - columnGap);
+            int rightWidth = Math.max(1, shell.width() - leftWidth - columnGap);
+
+            double minBottomRatio = minDiagnosticsHeight / (double) shell.height();
             double defaultBottomRatio = clamp(metrics.diagnosticsDockedHeight / (double) shell.height(), minBottomRatio,
-                    Math.max(minBottomRatio, (shell.height() - metrics.minPanelHeight - metrics.panelGap) / (double) shell.height()));
-            double maxBottomRatio = Math.max(minBottomRatio, (shell.height() - metrics.minPanelHeight - metrics.panelGap) / (double) shell.height());
+                    Math.max(minBottomRatio, (shell.height() - minTopHeight - panelGap) / (double) shell.height()));
+            double maxBottomRatio = Math.max(minBottomRatio, (shell.height() - minTopHeight - panelGap) / (double) shell.height());
             double bottomRatio = resolveRatio(controller, BOTTOM_OUTPUT, defaultBottomRatio, minBottomRatio, maxBottomRatio);
-            int diagnosticsHeight = clamp(Math.round(shell.height() * (float) bottomRatio), metrics.minDiagnosticsHeight,
-                    shell.height() - metrics.minPanelHeight - metrics.panelGap);
-            int topHeight = Math.max(metrics.minPanelHeight, shell.height() - diagnosticsHeight - metrics.panelGap);
+            int diagnosticsHeight = clamp(Math.round(shell.height() * (float) bottomRatio), minDiagnosticsHeight,
+                    shell.height() - minTopHeight - panelGap);
+            int topHeight = Math.max(1, shell.height() - diagnosticsHeight - panelGap);
 
             Map<DashboardDockSlotId, DashboardDockSlotSpec> slotSpecs = new LinkedHashMap<>();
             for (DashboardDockSlotSpec slot : slots) {
@@ -59,17 +67,17 @@ public final class DashboardWorkspaceProfiles {
 
             Map<DashboardDockSlotId, UiRect> slotBounds = new LinkedHashMap<>();
             UiRect leftSlot = new UiRect(shell.x(), shell.y(), leftWidth, topHeight);
-            UiRect rightSlot = new UiRect(leftSlot.right() + metrics.columnGap, shell.y(), rightWidth, topHeight);
-            UiRect bottomSlot = new UiRect(shell.x(), leftSlot.bottom() + metrics.panelGap, shell.width(), diagnosticsHeight);
+            UiRect rightSlot = new UiRect(leftSlot.right() + columnGap, shell.y(), rightWidth, topHeight);
+            UiRect bottomSlot = new UiRect(shell.x(), leftSlot.bottom() + panelGap, shell.width(), diagnosticsHeight);
             slotBounds.put(LEFT_SIDEBAR, leftSlot);
             slotBounds.put(RIGHT_SIDEBAR, rightSlot);
             slotBounds.put(BOTTOM_OUTPUT, bottomSlot);
 
             List<DashboardDockResizeHandle> resizeHandles = List.of(
                     verticalResizeHandle("slot-resize/" + LEFT_SIDEBAR.value() + "/E", LEFT_SIDEBAR, shell, leftSlot.right(), shell.y(), topHeight,
-                            metrics.columnGap, minLeftRatio, maxLeftRatio),
+                            columnGap, minLeftRatio, maxLeftRatio),
                     horizontalResizeHandle("slot-resize/" + BOTTOM_OUTPUT.value() + "/N", BOTTOM_OUTPUT, shell, bottomSlot.y(), shell.width(),
-                            metrics.panelGap, minBottomRatio, maxBottomRatio));
+                            panelGap, minBottomRatio, maxBottomRatio));
             return new DashboardWorkspaceLayout(workspaceId(), shell, slotSpecs, slotBounds, resizeHandles);
         }
 
@@ -106,32 +114,39 @@ public final class DashboardWorkspaceProfiles {
             UiRect shell = new UiRect(metrics.shellInset, metrics.shellInset,
                     Math.max(1, screenWidth - metrics.shellInset * 2),
                     Math.max(1, screenHeight - metrics.shellInset * 2));
-            double minBottomRatio = metrics.minDiagnosticsHeight / (double) shell.height();
-            double defaultBottomRatio = clamp(metrics.diagnosticsDockedHeight / (double) shell.height(), minBottomRatio,
-                    Math.max(minBottomRatio, (shell.height() - metrics.minPanelHeight - metrics.panelGap) / (double) shell.height()));
-            double maxBottomRatio = Math.max(minBottomRatio, (shell.height() - metrics.minPanelHeight - metrics.panelGap) / (double) shell.height());
-            double bottomRatio = resolveRatio(controller, BOTTOM_OUTPUT, defaultBottomRatio, minBottomRatio, maxBottomRatio);
-            int bottomHeight = clamp(Math.round(shell.height() * (float) bottomRatio), metrics.minDiagnosticsHeight,
-                    shell.height() - metrics.minPanelHeight - metrics.panelGap);
-            int topHeight = Math.max(metrics.minPanelHeight, shell.height() - bottomHeight - metrics.panelGap);
+            int columnGap = Math.min(metrics.columnGap, Math.max(0, shell.width() / 20));
+            int panelGap = Math.min(metrics.panelGap, Math.max(0, shell.height() / 16));
+            int verticalAvailable = Math.max(1, shell.height() - panelGap);
+            int minTopHeight = Math.min(metrics.minPanelHeight, Math.max(1, verticalAvailable / 2));
+            int minDiagnosticsHeight = Math.min(metrics.minDiagnosticsHeight, Math.max(1, verticalAvailable - minTopHeight));
 
-            double minLeftRatio = metrics.minPanelWidth / (double) shell.width();
-            double minRightRatio = metrics.minPanelWidth / (double) shell.width();
+            double minBottomRatio = minDiagnosticsHeight / (double) shell.height();
+            double defaultBottomRatio = clamp(metrics.diagnosticsDockedHeight / (double) shell.height(), minBottomRatio,
+                    Math.max(minBottomRatio, (shell.height() - minTopHeight - panelGap) / (double) shell.height()));
+            double maxBottomRatio = Math.max(minBottomRatio, (shell.height() - minTopHeight - panelGap) / (double) shell.height());
+            double bottomRatio = resolveRatio(controller, BOTTOM_OUTPUT, defaultBottomRatio, minBottomRatio, maxBottomRatio);
+            int bottomHeight = clamp(Math.round(shell.height() * (float) bottomRatio), minDiagnosticsHeight,
+                    shell.height() - minTopHeight - panelGap);
+            int topHeight = Math.max(1, shell.height() - bottomHeight - panelGap);
+
+            int minPanelWidth = Math.min(metrics.minPanelWidth, Math.max(1, (shell.width() - columnGap * 2) / 3));
+            double minLeftRatio = minPanelWidth / (double) shell.width();
+            double minRightRatio = minPanelWidth / (double) shell.width();
             double leftRatio = resolveRatio(controller, INSPECTOR_LEFT, 0.24D, minLeftRatio, 0.45D);
             double rightRatio = resolveRatio(controller, TOOL_RIGHT, 0.22D, minRightRatio, 0.38D);
 
-            int leftWidth = Math.max(metrics.minPanelWidth, Math.round(shell.width() * (float) leftRatio));
-            int rightWidth = Math.max(metrics.minPanelWidth, Math.round(shell.width() * (float) rightRatio));
-            int centerWidth = shell.width() - leftWidth - rightWidth - metrics.columnGap * 2;
-            if (centerWidth < metrics.minPanelWidth) {
-                int overflow = metrics.minPanelWidth - centerWidth;
-                int rightShrink = Math.min(overflow, rightWidth - metrics.minPanelWidth);
+            int leftWidth = Math.max(minPanelWidth, Math.round(shell.width() * (float) leftRatio));
+            int rightWidth = Math.max(minPanelWidth, Math.round(shell.width() * (float) rightRatio));
+            int centerWidth = shell.width() - leftWidth - rightWidth - columnGap * 2;
+            if (centerWidth < minPanelWidth) {
+                int overflow = minPanelWidth - centerWidth;
+                int rightShrink = Math.min(overflow, rightWidth - minPanelWidth);
                 rightWidth -= rightShrink;
                 overflow -= rightShrink;
                 if (overflow > 0) {
-                    leftWidth = Math.max(metrics.minPanelWidth, leftWidth - overflow);
+                    leftWidth = Math.max(minPanelWidth, leftWidth - overflow);
                 }
-                centerWidth = Math.max(metrics.minPanelWidth, shell.width() - leftWidth - rightWidth - metrics.columnGap * 2);
+                centerWidth = Math.max(1, shell.width() - leftWidth - rightWidth - columnGap * 2);
             }
 
             Map<DashboardDockSlotId, DashboardDockSlotSpec> slotSpecs = new LinkedHashMap<>();
@@ -141,23 +156,23 @@ public final class DashboardWorkspaceProfiles {
 
             Map<DashboardDockSlotId, UiRect> slotBounds = new LinkedHashMap<>();
             UiRect leftSlot = new UiRect(shell.x(), shell.y(), leftWidth, topHeight);
-            UiRect viewportSlot = new UiRect(leftSlot.right() + metrics.columnGap, shell.y(), centerWidth, topHeight);
-            UiRect rightSlot = new UiRect(viewportSlot.right() + metrics.columnGap, shell.y(), rightWidth, topHeight);
-            UiRect bottomSlot = new UiRect(shell.x(), leftSlot.bottom() + metrics.panelGap, shell.width(), bottomHeight);
+            UiRect viewportSlot = new UiRect(leftSlot.right() + columnGap, shell.y(), centerWidth, topHeight);
+            UiRect rightSlot = new UiRect(viewportSlot.right() + columnGap, shell.y(), Math.max(1, shell.right() - viewportSlot.right() - columnGap), topHeight);
+            UiRect bottomSlot = new UiRect(shell.x(), leftSlot.bottom() + panelGap, shell.width(), bottomHeight);
             slotBounds.put(INSPECTOR_LEFT, leftSlot);
             slotBounds.put(MAIN_VIEWPORT, viewportSlot);
             slotBounds.put(TOOL_RIGHT, rightSlot);
             slotBounds.put(BOTTOM_OUTPUT, bottomSlot);
 
-            double maxLeftRatio = Math.max(minLeftRatio, (shell.width() - rightWidth - metrics.minPanelWidth - metrics.columnGap * 2) / (double) shell.width());
-            double maxRightRatio = Math.max(minRightRatio, (shell.width() - leftWidth - metrics.minPanelWidth - metrics.columnGap * 2) / (double) shell.width());
+            double maxLeftRatio = Math.max(minLeftRatio, (shell.width() - rightWidth - minPanelWidth - columnGap * 2) / (double) shell.width());
+            double maxRightRatio = Math.max(minRightRatio, (shell.width() - leftWidth - minPanelWidth - columnGap * 2) / (double) shell.width());
             List<DashboardDockResizeHandle> resizeHandles = List.of(
                     verticalResizeHandle("slot-resize/" + INSPECTOR_LEFT.value() + "/E", INSPECTOR_LEFT, shell, leftSlot.right(), shell.y(), topHeight,
-                            metrics.columnGap, minLeftRatio, maxLeftRatio),
+                            columnGap, minLeftRatio, maxLeftRatio),
                     verticalResizeHandle("slot-resize/" + TOOL_RIGHT.value() + "/W", TOOL_RIGHT, shell, rightSlot.x(), shell.y(), topHeight,
-                            metrics.columnGap, minRightRatio, maxRightRatio),
+                            columnGap, minRightRatio, maxRightRatio),
                     horizontalResizeHandle("slot-resize/" + BOTTOM_OUTPUT.value() + "/N", BOTTOM_OUTPUT, shell, bottomSlot.y(), shell.width(),
-                            metrics.panelGap, minBottomRatio, maxBottomRatio));
+                            panelGap, minBottomRatio, maxBottomRatio));
             return new DashboardWorkspaceLayout(workspaceId(), shell, slotSpecs, slotBounds, resizeHandles);
         }
 
@@ -203,10 +218,16 @@ public final class DashboardWorkspaceProfiles {
     }
 
     private static int clamp(int value, int min, int max) {
+        if (max < min) {
+            return Math.max(1, max);
+        }
         return Math.max(min, Math.min(value, max));
     }
 
     private static double clamp(double value, double min, double max) {
+        if (max < min) {
+            return Math.max(0.0D, max);
+        }
         return Math.max(min, Math.min(value, max));
     }
 
@@ -222,15 +243,15 @@ public final class DashboardWorkspaceProfiles {
         private final int diagnosticsDockedHeight;
 
         private WorkspaceMetrics(float inputScale, int screenWidth, int screenHeight) {
-            this.uiScale = Math.max(0.70f, inputScale * 0.90f);
-            this.leftRatio = this.uiScale <= 0.80f ? 0.37f : this.uiScale <= 0.94f ? 0.41f : this.uiScale <= 1.08f ? 0.45f : 0.49f;
-            this.shellInset = Math.max(scaled(14), Math.min(screenWidth, screenHeight) / 40);
-            this.columnGap = scaled(10);
-            this.panelGap = scaled(10);
-            this.minPanelWidth = scaled(180);
-            this.minPanelHeight = scaled(160);
-            this.minDiagnosticsHeight = scaled(140);
-            this.diagnosticsDockedHeight = Math.max(scaled(170), Math.min(screenHeight / 3, scaled(220)));
+            this.uiScale = Math.max(0.45f, inputScale);
+            this.leftRatio = DashboardUiDensityRules.defaultLeftRatio(screenWidth);
+            this.shellInset = Math.max(6, Math.min(screenWidth, screenHeight) / 72);
+            this.columnGap = 5;
+            this.panelGap = 5;
+            this.minPanelWidth = 126;
+            this.minPanelHeight = 104;
+            this.minDiagnosticsHeight = 72;
+            this.diagnosticsDockedHeight = Math.max(92, Math.min(screenHeight / 3, 180));
         }
 
         private int scaled(int base) {

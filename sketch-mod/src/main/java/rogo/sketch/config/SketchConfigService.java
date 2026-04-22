@@ -58,6 +58,7 @@ public class SketchConfigService {
             case BY_NAMESPACE -> baseDir.resolve(namespace + ".properties");
             case BY_NAMESPACE_AND_MODULE -> baseDir.resolve(namespace)
                     .resolve(resolveModule(scope) + ".properties");
+            case BY_NAMESPACE_PREFIXED_MODULE_FILE -> baseDir.resolve(namespace + "_" + resolveModule(scope) + ".properties");
         };
     }
 
@@ -68,6 +69,7 @@ public class SketchConfigService {
             case SINGLE_FILE -> namespace + "." + module + "." + key;
             case BY_NAMESPACE -> module + "." + key;
             case BY_NAMESPACE_AND_MODULE -> key;
+            case BY_NAMESPACE_PREFIXED_MODULE_FILE -> key;
         };
     }
 
