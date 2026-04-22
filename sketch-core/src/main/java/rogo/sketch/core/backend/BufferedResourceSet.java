@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Shared buffered resource ownership for async-produce/sync-consume style
@@ -14,6 +15,7 @@ public final class BufferedResourceSet<T> implements AutoCloseable {
     private final BufferedResourceDescriptor descriptor;
     private final Consumer<T> disposer;
     private final Object[] resources;
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private int readIndex;
     private int writeIndex;
     private ResourceEpoch publishedEpoch = ResourceEpoch.ZERO;
@@ -52,58 +54,112 @@ public final class BufferedResourceSet<T> implements AutoCloseable {
     }
 
     public BufferedResourceView<T> readView() {
-        return new BufferedResourceView<>(readResource(), publishedEpoch);
+        lock.readLock().lock();
+        try {
+            return new BufferedResourceView<>(resourceAt(readIndex), publishedEpoch);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     public BufferedResourceView<T> writeView() {
-        return new BufferedResourceView<>(writeResource(), nextEpoch);
+        lock.readLock().lock();
+        try {
+            return new BufferedResourceView<>(resourceAt(writeIndex), nextEpoch);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     public @Nullable T readResource() {
-        return resourceAt(readIndex);
+        lock.readLock().lock();
+        try {
+            return resourceAt(readIndex);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     public @Nullable T writeResource() {
-        return resourceAt(writeIndex);
+        lock.readLock().lock();
+        try {
+            return resourceAt(writeIndex);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     public ResourceEpoch publishedEpoch() {
-        return publishedEpoch;
+        lock.readLock().lock();
+        try {
+            return publishedEpoch;
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     public ResourceEpoch nextEpoch() {
-        return nextEpoch;
+        lock.readLock().lock();
+        try {
+            return nextEpoch;
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     public ResourceEpoch claimNextEpoch() {
-        ResourceEpoch claimed = nextEpoch;
-        nextEpoch = nextEpoch.next();
-        return claimed;
+        lock.writeLock().lock();
+        try {
+            ResourceEpoch claimed = nextEpoch;
+            nextEpoch = nextEpoch.next();
+            return claimed;
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     public boolean promote(ResourceEpoch epoch) {
-        if (epoch == null || epoch.value() <= publishedEpoch.value()) {
-            return false;
+        lock.writeLock().lock();
+        try {
+            if (epoch == null || epoch.value() <= publishedEpoch.value()) {
+                return false;
+            }
+            publishedEpoch = epoch;
+            if (resources.length > 1) {
+                int previousRead = readIndex;
+                readIndex = writeIndex;
+                writeIndex = nextWriteIndex(previousRead);
+            }
+            return true;
+        } finally {
+            lock.writeLock().unlock();
         }
-        publishedEpoch = epoch;
-        if (resources.length > 1) {
-            int previousRead = readIndex;
-            readIndex = writeIndex;
-            writeIndex = nextWriteIndex(previousRead);
-        }
-        return true;
     }
 
     public void recreate(IntFunction<T> resourceFactory) {
         Objects.requireNonNull(resourceFactory, "resourceFactory");
-        for (int i = 0; i < resources.length; i++) {
-            disposeResource(resourceAt(i));
-            resources[i] = resourceFactory.apply(i);
+        lock.writeLock().lock();
+        try {
+            for (int i = 0; i < resources.length; i++) {
+                disposeResource(resourceAt(i));
+                resources[i] = resourceFactory.apply(i);
+            }
+            resetStateLocked();
+        } finally {
+            lock.writeLock().unlock();
         }
-        resetState();
     }
 
     public void resetState() {
+        lock.writeLock().lock();
+        try {
+            resetStateLocked();
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    private void resetStateLocked() {
         readIndex = 0;
         writeIndex = resources.length > 1 ? 1 : 0;
         publishedEpoch = ResourceEpoch.ZERO;
@@ -112,9 +168,14 @@ public final class BufferedResourceSet<T> implements AutoCloseable {
 
     @Override
     public void close() {
-        for (int i = 0; i < resources.length; i++) {
-            disposeResource(resourceAt(i));
-            resources[i] = null;
+        lock.writeLock().lock();
+        try {
+            for (int i = 0; i < resources.length; i++) {
+                disposeResource(resourceAt(i));
+                resources[i] = null;
+            }
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 

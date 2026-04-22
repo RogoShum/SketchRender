@@ -11,7 +11,8 @@ final class OpenGLSubmissionScheduler implements SubmissionScheduler {
         installedExecutionPlan = plan != null ? plan : FrameExecutionPlan.empty();
     }
 
-    FrameExecutionPlan installedExecutionPlan() {
+    @Override
+    public FrameExecutionPlan installedExecutionPlan() {
         return installedExecutionPlan;
     }
 }

@@ -14,12 +14,14 @@ import rogo.sketch.core.backend.BackendWorkerLane;
 import rogo.sketch.core.backend.CommandEncoderFactory;
 import rogo.sketch.core.backend.IndirectDrawService;
 import rogo.sketch.core.backend.RenderDevice;
+import rogo.sketch.core.backend.RuntimeDebugToggles;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 
 import java.util.List;
 
@@ -151,12 +153,21 @@ final class OpenGLRenderDevice implements RenderDevice, BackendThreadContext {
         if (!capabilities.workerLanesSupported()) {
             return;
         }
-        switch (lane) {
-            case RENDER_ASYNC -> api.initRenderWorkerContext(mainWindowHandle);
-            case TICK_ASYNC -> api.initTickWorkerContext(mainWindowHandle);
-            case UPLOAD_ASYNC -> api.initUploadWorkerContext(mainWindowHandle);
-            case COMPUTE_ASYNC -> api.initComputeWorkerContext(mainWindowHandle);
-            case OFFSCREEN_GRAPHICS_ASYNC -> api.initOffscreenGraphicsWorkerContext(mainWindowHandle);
+        try {
+            switch (lane) {
+                case RENDER_ASYNC -> api.initRenderWorkerContext(mainWindowHandle);
+                case TICK_ASYNC -> api.initTickWorkerContext(mainWindowHandle);
+                case UPLOAD_ASYNC -> api.initUploadWorkerContext(mainWindowHandle);
+                case COMPUTE_ASYNC -> api.initComputeWorkerContext(mainWindowHandle);
+                case OFFSCREEN_GRAPHICS_ASYNC -> api.initOffscreenGraphicsWorkerContext(mainWindowHandle);
+            }
+        } catch (RuntimeException exception) {
+            RuntimeDebugToggles.setGlAsyncGpuWorkersDisabled(true);
+            SketchDiagnostics.get().warn(
+                    "opengl-worker",
+                    "Failed to create shared GL worker context for lane " + lane
+                            + "; async GPU packets will fall back to inline execution",
+                    exception);
         }
     }
 

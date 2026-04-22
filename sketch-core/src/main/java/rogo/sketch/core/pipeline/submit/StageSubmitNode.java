@@ -1,5 +1,6 @@
 package rogo.sketch.core.pipeline.submit;
 
+import rogo.sketch.core.packet.ExecutionDomain;
 import rogo.sketch.core.packet.RenderPacketQueue;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
@@ -33,6 +34,7 @@ public final class StageSubmitNode {
     private final KeyId nodeId;
     private final KeyId stageId;
     private final StageWindow window;
+    private final ExecutionDomain executionDomain;
     private final NodeType nodeType;
     private final List<KeyId> reads;
     private final List<KeyId> writes;
@@ -51,10 +53,37 @@ public final class StageSubmitNode {
             int sortHint,
             StageSubmitExecutor executor,
             boolean synthetic) {
+        this(
+                ownerId,
+                nodeId,
+                stageId,
+                window,
+                null,
+                nodeType,
+                reads,
+                writes,
+                sortHint,
+                executor,
+                synthetic);
+    }
+
+    public StageSubmitNode(
+            String ownerId,
+            KeyId nodeId,
+            KeyId stageId,
+            StageWindow window,
+            ExecutionDomain executionDomain,
+            NodeType nodeType,
+            List<KeyId> reads,
+            List<KeyId> writes,
+            int sortHint,
+            StageSubmitExecutor executor,
+            boolean synthetic) {
         this.ownerId = ownerId != null ? ownerId : "unknown";
         this.nodeId = Objects.requireNonNull(nodeId, "nodeId");
         this.stageId = Objects.requireNonNull(stageId, "stageId");
         this.window = Objects.requireNonNull(window, "window");
+        this.executionDomain = executionDomain != null ? executionDomain : this.window.executionDomain();
         this.nodeType = Objects.requireNonNull(nodeType, "nodeType");
         this.reads = reads != null ? List.copyOf(reads) : List.of();
         this.writes = writes != null ? List.copyOf(writes) : List.of();
@@ -97,6 +126,10 @@ public final class StageSubmitNode {
 
     public StageWindow window() {
         return window;
+    }
+
+    public ExecutionDomain executionDomain() {
+        return executionDomain;
     }
 
     public NodeType nodeType() {

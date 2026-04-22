@@ -67,7 +67,8 @@ final class VulkanSubmissionScheduler implements SubmissionScheduler {
         return snapshot;
     }
 
-    FrameExecutionPlan installedExecutionPlan() {
+    @Override
+    public FrameExecutionPlan installedExecutionPlan() {
         return installedExecutionPlan;
     }
 

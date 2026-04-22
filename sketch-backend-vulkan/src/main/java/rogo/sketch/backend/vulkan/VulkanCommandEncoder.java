@@ -21,8 +21,6 @@ import static org.lwjgl.vulkan.VK10.vkCmdDispatch;
 import static org.lwjgl.vulkan.VK10.vkCmdPipelineBarrier;
 import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkFreeCommandBuffers;
-import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
-import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
 
 final class VulkanCommandEncoder implements CommandEncoder {
     private final VulkanRenderDevice renderDevice;
@@ -71,12 +69,7 @@ final class VulkanCommandEncoder implements CommandEncoder {
             VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
                     .pCommandBuffers(stack.pointers(commandBuffer.address()));
-            VulkanDeviceBootstrapper.checkVkResult(
-                    vkQueueSubmit(renderDevice.graphicsQueue(), submitInfo, VK_NULL_HANDLE),
-                    "vkQueueSubmit");
-            VulkanDeviceBootstrapper.checkVkResult(
-                    vkQueueWaitIdle(renderDevice.graphicsQueue()),
-                    "vkQueueWaitIdle");
+            renderDevice.submitGraphicsAndWait(submitInfo, "vkQueueSubmit");
         }
         submitted = true;
         recording = false;

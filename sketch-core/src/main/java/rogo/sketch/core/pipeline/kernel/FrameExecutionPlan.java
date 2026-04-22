@@ -59,30 +59,43 @@ public record FrameExecutionPlan(
     public static FrameExecutionPlan fromPackets(
             Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets,
             GraphicsResourceManager resourceManager) {
-        Map<KeyId, StageExecutionPlan> stagePlans = new LinkedHashMap<>();
+        Map<KeyId, Map<PipelineType, Map<ExecutionKey, java.util.ArrayList<RenderPacket>>>> packetBuilder = new LinkedHashMap<>();
         if (packets != null) {
             for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : packets.entrySet()) {
                 PipelineType pipelineType = pipelineEntry.getKey();
+                if (pipelineType == null || pipelineEntry.getValue() == null) {
+                    continue;
+                }
                 for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
                     ExecutionKey stateKey = stateEntry.getKey();
+                    if (stateKey == null || stateEntry.getValue() == null) {
+                        continue;
+                    }
                     for (RenderPacket packet : stateEntry.getValue()) {
                         if (packet == null) {
                             continue;
                         }
-                        KeyId stageId = packet.stageId();
-                        StageExecutionPlan existing = stagePlans.get(stageId);
-                        Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> stagePackets =
-                                existing != null ? new LinkedHashMap<>(existing.packets()) : new LinkedHashMap<>();
-                        Map<ExecutionKey, List<RenderPacket>> states =
-                                new LinkedHashMap<>(stagePackets.getOrDefault(pipelineType, Map.of()));
-                        List<RenderPacket> packetList = new java.util.ArrayList<>(states.getOrDefault(stateKey, List.of()));
-                        packetList.add(packet);
-                        states.put(stateKey, List.copyOf(packetList));
-                        stagePackets.put(pipelineType, Collections.unmodifiableMap(states));
-                        stagePlans.put(stageId, StageExecutionPlan.fromPackets(stageId, stagePackets, resourceManager));
+                        packetBuilder
+                                .computeIfAbsent(packet.stageId(), ignored -> new LinkedHashMap<>())
+                                .computeIfAbsent(pipelineType, ignored -> new LinkedHashMap<>())
+                                .computeIfAbsent(stateKey, ignored -> new java.util.ArrayList<>())
+                                .add(packet);
                     }
                 }
             }
+        }
+
+        Map<KeyId, StageExecutionPlan> stagePlans = new LinkedHashMap<>();
+        for (Map.Entry<KeyId, Map<PipelineType, Map<ExecutionKey, java.util.ArrayList<RenderPacket>>>> stageEntry : packetBuilder.entrySet()) {
+            Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> stagePackets = new LinkedHashMap<>();
+            for (Map.Entry<PipelineType, Map<ExecutionKey, java.util.ArrayList<RenderPacket>>> pipelineEntry : stageEntry.getValue().entrySet()) {
+                Map<ExecutionKey, List<RenderPacket>> statePackets = new LinkedHashMap<>();
+                for (Map.Entry<ExecutionKey, java.util.ArrayList<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
+                    statePackets.put(stateEntry.getKey(), List.copyOf(stateEntry.getValue()));
+                }
+                stagePackets.put(pipelineEntry.getKey(), Collections.unmodifiableMap(statePackets));
+            }
+            stagePlans.put(stageEntry.getKey(), StageExecutionPlan.fromPackets(stageEntry.getKey(), stagePackets, resourceManager));
         }
         return new FrameExecutionPlan(
                 stagePlans,

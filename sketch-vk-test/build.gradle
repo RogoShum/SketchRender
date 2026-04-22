@@ -101,6 +101,19 @@ tasks.register('resizeSmokeRun', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = application.mainClass
     workingDir = rootProject.file('run-vk-test')
+    args '--smoke=6500', '--resize=960x540@250', '--resize=1440x810@550', '--resize=1280x720@850'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('resizeSplitSubmitSmokeRun', JavaExec) {
+    group = 'application'
+    description = 'Runs the Vulkan resize smoke with per-packet split-submit diagnostics enabled.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-vk-test')
     jvmArgs '-Dsketch.vulkan.split_submit_diagnostic=true'
     args '--smoke=6500', '--resize=960x540@250', '--resize=1440x810@550', '--resize=1280x720@850'
     doFirst {

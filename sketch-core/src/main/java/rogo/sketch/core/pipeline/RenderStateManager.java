@@ -15,6 +15,7 @@ import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.RasterPipelineKey;
 import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.packet.ResourceBindingStamp;
+import rogo.sketch.core.pipeline.kernel.FrameCaptureSnapshot;
 import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.util.KeyId;
@@ -104,6 +105,15 @@ public class RenderStateManager {
      */
     public ResourceBinding getCurrentResourceBinding() {
         return currentResourceBindingPlan != null ? currentResourceBindingPlan.binding() : null;
+    }
+
+    public FrameCaptureSnapshot.RenderStateCapture captureCurrentState() {
+        return new FrameCaptureSnapshot.RenderStateCapture(
+                currentDomain,
+                currentShaderId(),
+                currentRenderTargetId(),
+                currentResourceBindingPlan != null ? currentResourceBindingPlan.layoutKey() : null,
+                currentResourceBindingStamp != null ? currentResourceBindingStamp : ResourceBindingStamp.NONE);
     }
 
     /**
@@ -272,6 +282,38 @@ public class RenderStateManager {
             return false;
         }
         return Objects.equals(currentResourceBindingStamp, bindingPlan.stamp());
+    }
+
+    private KeyId currentShaderId() {
+        if (currentShaderBindingState != null
+                && currentShaderBindingState.shaderState() != null) {
+            return currentShaderBindingState.shaderState().getShaderId();
+        }
+        if (currentRasterState != null
+                && currentRasterState.shaderBindingState() != null
+                && currentRasterState.shaderBindingState().shaderState() != null) {
+            return currentRasterState.shaderBindingState().shaderState().getShaderId();
+        }
+        if (currentState != null && currentState.shaderState() != null) {
+            return currentState.shaderState().getShaderId();
+        }
+        return null;
+    }
+
+    private KeyId currentRenderTargetId() {
+        if (currentAttachmentBindingState != null
+                && currentAttachmentBindingState.renderTargetState() != null) {
+            return currentAttachmentBindingState.renderTargetState().renderTargetId();
+        }
+        if (currentRasterState != null
+                && currentRasterState.attachmentBindingState() != null
+                && currentRasterState.attachmentBindingState().renderTargetState() != null) {
+            return currentRasterState.attachmentBindingState().renderTargetState().renderTargetId();
+        }
+        if (currentState != null && currentState.renderTargetState() != null) {
+            return currentState.renderTargetState().renderTargetId();
+        }
+        return null;
     }
 }
 

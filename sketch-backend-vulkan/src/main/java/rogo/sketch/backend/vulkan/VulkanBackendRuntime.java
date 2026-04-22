@@ -109,6 +109,7 @@ import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkFreeCommandBuffers;
 import static org.lwjgl.vulkan.VK10.vkGetFenceStatus;
 import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
+import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
 import static org.lwjgl.vulkan.VK10.vkResetCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkResetFences;
 import static org.lwjgl.vulkan.VK10.vkWaitForFences;
@@ -155,6 +156,9 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
     private final VulkanRenderDevice renderDevice;
     private final VulkanSubmissionScheduler submissionScheduler;
     private final VulkanQueueRouter queueRouter;
+    private final Object graphicsQueueLock = new Object();
+    private final Object asyncSubmitLock = new Object();
+    private final Object swapchainLock = new Object();
     private volatile long mainThreadId;
     private volatile boolean shutdown;
     private volatile boolean vSyncEnabled;
@@ -381,21 +385,23 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
         submissionScheduler.markFramebufferResized();
     }
 
-    public synchronized void setVSyncEnabled(boolean enabled) {
+    public void setVSyncEnabled(boolean enabled) {
         if (this.vSyncEnabled == enabled) {
             return;
         }
         this.vSyncEnabled = enabled;
-        recreateSwapchain();
+        synchronized (swapchainLock) {
+            recreateSwapchain();
+        }
     }
 
-    public synchronized void installExecutionPlan(FrameExecutionPlan executionPlan) {
+    public void installExecutionPlan(FrameExecutionPlan executionPlan) {
         FrameExecutionPlan nextExecutionPlan = executionPlan != null ? executionPlan : FrameExecutionPlan.empty();
         resourceAllocator.installExecutionPlan(nextExecutionPlan, renderedFrameCount, submissionScheduler.framesInFlight());
         submissionScheduler.installExecutionPlan(nextExecutionPlan);
     }
 
-    public synchronized void registerInterleavedColorGeometry(GeometryHandleKey geometryHandle, float[] vertexData, int vertexCount) {
+    public void registerInterleavedColorGeometry(GeometryHandleKey geometryHandle, float[] vertexData, int vertexCount) {
         resourceAllocator.geometryArena().registerInterleavedColorGeometry(geometryHandle, vertexData, vertexCount);
     }
 
@@ -487,54 +493,64 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
         return submissionScheduler.drawFrame();
     }
 
-    public synchronized void waitForDeviceIdle() {
+    public void waitForDeviceIdle() {
         if (!shutdown) {
-            vkDeviceWaitIdle(device);
+            synchronized (graphicsQueueLock) {
+                vkDeviceWaitIdle(device);
+            }
         }
     }
 
-    public synchronized VulkanTextureResource currentPresentedDepthAttachment() {
-        if (swapchainDepthAttachments.length == 0) {
-            return null;
+    public VulkanTextureResource currentPresentedDepthAttachment() {
+        synchronized (swapchainLock) {
+            if (swapchainDepthAttachments.length == 0) {
+                return null;
+            }
+            if (lastDrawImageIndex < 0 || lastDrawImageIndex >= swapchainDepthAttachments.length) {
+                return swapchainDepthAttachments[0];
+            }
+            return swapchainDepthAttachments[lastDrawImageIndex];
         }
-        if (lastDrawImageIndex < 0 || lastDrawImageIndex >= swapchainDepthAttachments.length) {
-            return swapchainDepthAttachments[0];
-        }
-        return swapchainDepthAttachments[lastDrawImageIndex];
     }
 
-    public synchronized VulkanTextureResource currentPresentedColorAttachment() {
-        if (mainColorAttachments.length == 0) {
-            return null;
+    public VulkanTextureResource currentPresentedColorAttachment() {
+        synchronized (swapchainLock) {
+            if (mainColorAttachments.length == 0) {
+                return null;
+            }
+            if (lastDrawImageIndex < 0 || lastDrawImageIndex >= mainColorAttachments.length) {
+                return mainColorAttachments[0];
+            }
+            return mainColorAttachments[lastDrawImageIndex];
         }
-        if (lastDrawImageIndex < 0 || lastDrawImageIndex >= mainColorAttachments.length) {
-            return mainColorAttachments[0];
-        }
-        return mainColorAttachments[lastDrawImageIndex];
     }
 
     @Override
-    public synchronized void shutdown() {
+    public void shutdown() {
         if (shutdown) {
             return;
         }
         shutdown = true;
 
-        vkDeviceWaitIdle(device);
+        synchronized (graphicsQueueLock) {
+            vkDeviceWaitIdle(device);
+        }
         submissionScheduler.shutdown();
         packetExecutor.destroy();
         resourceAllocator.shutdown();
-        destroyCreatedResources(
-                frameSlots,
-                commandPool,
-                asyncCommandPool,
-                computeAsyncCommandPool,
-                transferAsyncCommandPool,
-                swapchainImageViews);
-        destroyBaseArtifacts();
+        synchronized (swapchainLock) {
+            destroyCreatedResources(
+                    frameSlots,
+                    commandPool,
+                    asyncCommandPool,
+                    computeAsyncCommandPool,
+                    transferAsyncCommandPool,
+                    swapchainImageViews);
+            destroyBaseArtifacts();
+        }
     }
 
-    public synchronized <C extends RenderContext> AsyncGpuCompletion submitAsyncPackets(
+    public <C extends RenderContext> AsyncGpuCompletion submitAsyncPackets(
             GraphicsPipeline<C> pipeline,
             List<RenderPacket> packets,
             C context) {
@@ -542,6 +558,7 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
             return AsyncGpuCompletion.completed();
         }
         AsyncSubmissionTarget submissionTarget = resolveAsyncSubmissionTarget(packets);
+        synchronized (lockForSubmission(submissionTarget)) {
         String threadName = Thread.currentThread().getName();
         beginProfile("VkAsyncSubmit:InstallBindings", threadName);
         resourceAllocator.installImmediateResourceBindings(packets);
@@ -613,47 +630,55 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
                 throw runtimeException;
             }
         }
+        }
     }
 
-    synchronized boolean pollSubmittedFence(long fence) {
+    boolean pollSubmittedFence(long fence) {
         if (fence == 0L) {
             return true;
         }
-        int result = vkGetFenceStatus(device, fence);
-        if (result == VK_SUCCESS) {
-            return true;
+        synchronized (asyncSubmitLock) {
+            int result = vkGetFenceStatus(device, fence);
+            if (result == VK_SUCCESS) {
+                return true;
+            }
+            if (result == VK_NOT_READY) {
+                return false;
+            }
+            throw new IllegalStateException("vkGetFenceStatus(async) failed with Vulkan error code " + result);
         }
-        if (result == VK_NOT_READY) {
-            return false;
-        }
-        throw new IllegalStateException("vkGetFenceStatus(async) failed with Vulkan error code " + result);
     }
 
-    synchronized void awaitSubmittedFence(long fence) {
+    void awaitSubmittedFence(long fence) {
         if (fence == 0L) {
             return;
         }
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            VulkanDeviceBootstrapper.checkVkResult(
-                    vkWaitForFences(device, stack.longs(fence), true, Long.MAX_VALUE),
-                    "vkWaitForFences(async)");
+        synchronized (asyncSubmitLock) {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                VulkanDeviceBootstrapper.checkVkResult(
+                        vkWaitForFences(device, stack.longs(fence), true, Long.MAX_VALUE),
+                        "vkWaitForFences(async)");
+            }
         }
     }
 
-    synchronized void releaseSubmittedCommand(long commandPoolHandle, long commandBufferHandle, long fence) {
-        if (fence != 0L) {
-            vkDestroyFence(device, fence, null);
-        }
-        if (commandBufferHandle != 0L && commandPoolHandle != 0L) {
-            vkFreeCommandBuffers(device, commandPoolHandle, new VkCommandBuffer(commandBufferHandle, device));
+    void releaseSubmittedCommand(long commandPoolHandle, long commandBufferHandle, long fence) {
+        synchronized (lockForCommandPool(commandPoolHandle)) {
+            if (fence != 0L) {
+                vkDestroyFence(device, fence, null);
+            }
+            if (commandBufferHandle != 0L && commandPoolHandle != 0L) {
+                vkFreeCommandBuffers(device, commandPoolHandle, new VkCommandBuffer(commandBufferHandle, device));
+            }
         }
     }
 
-    private synchronized void executeImmediatePacketsNow(List<RenderPacket> packets) {
+    private void executeImmediatePacketsNow(List<RenderPacket> packets) {
         if (packets == null || packets.isEmpty()) {
             return;
         }
         AsyncSubmissionTarget submissionTarget = resolveAsyncSubmissionTarget(packets);
+        synchronized (lockForSubmission(submissionTarget)) {
         String threadName = Thread.currentThread().getName();
         beginProfile("VkImmediate:InstallBindings", threadName);
         resourceAllocator.installImmediateResourceBindings(packets);
@@ -727,6 +752,7 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
                 releaseSubmittedCommand(submissionTarget.commandPool(), commandBuffer.address(), fence);
             }
         }
+        }
     }
 
     private AsyncSubmissionTarget resolveAsyncSubmissionTarget(List<RenderPacket> packets) {
@@ -741,6 +767,27 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
             return new AsyncSubmissionTarget(transferQueue, transferAsyncCommandPool, "transfer");
         }
         return new AsyncSubmissionTarget(graphicsQueue, asyncCommandPool, "graphics");
+    }
+
+    private Object lockForSubmission(AsyncSubmissionTarget target) {
+        if (target == null || target.queue() == null || target.queue().address() == graphicsQueue.address()) {
+            return graphicsQueueLock;
+        }
+        return asyncSubmitLock;
+    }
+
+    private Object lockForCommandPool(long commandPoolHandle) {
+        if (commandPoolHandle == commandPool || commandPoolHandle == asyncCommandPool) {
+            return graphicsQueueLock;
+        }
+        return asyncSubmitLock;
+    }
+
+    void submitGraphicsAndWait(VkSubmitInfo submitInfo, String operation) {
+        synchronized (graphicsQueueLock) {
+            VulkanDeviceBootstrapper.checkVkResult(vkQueueSubmit(graphicsQueue, submitInfo, VK_NULL_HANDLE), operation);
+            VulkanDeviceBootstrapper.checkVkResult(vkQueueWaitIdle(graphicsQueue), "vkQueueWaitIdle");
+        }
     }
 
     private ExecutionDomain resolveAsyncExecutionDomain(List<RenderPacket> packets) {
@@ -1337,18 +1384,28 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
         return swapchainRecreationCount;
     }
 
-    public synchronized boolean postResizeValidationActive() {
-        return postResizeValidationFramesRemaining > 0;
+    public boolean postResizeValidationActive() {
+        synchronized (swapchainLock) {
+            return postResizeValidationFramesRemaining > 0;
+        }
     }
 
-    synchronized boolean drawScheduledFrame(VulkanSubmissionScheduler scheduler) {
+    boolean drawScheduledFrame(VulkanSubmissionScheduler scheduler) {
+        synchronized (graphicsQueueLock) {
+            return drawScheduledFrameLocked(scheduler);
+        }
+    }
+
+    private boolean drawScheduledFrameLocked(VulkanSubmissionScheduler scheduler) {
         assertMainThread("VulkanBackendRuntime.drawFrame");
         if (shutdown) {
             throw new IllegalStateException("Vulkan backend has already been shut down");
         }
         if (scheduler.framebufferResized()) {
             beginProfile("VkDrawFrame:RecreateSwapchain", Thread.currentThread().getName());
-            recreateSwapchain();
+            synchronized (swapchainLock) {
+                recreateSwapchain();
+            }
             endProfile("VkDrawFrame:RecreateSwapchain", Thread.currentThread().getName());
         }
 
@@ -1374,7 +1431,9 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
             endProfile("VkDrawFrame:AcquireNextImage", threadName);
             if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
                 beginProfile("VkDrawFrame:RecreateSwapchain", threadName);
-                recreateSwapchain();
+                synchronized (swapchainLock) {
+                    recreateSwapchain();
+                }
                 endProfile("VkDrawFrame:RecreateSwapchain", threadName);
                 return false;
             }
@@ -1471,7 +1530,9 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
             endProfile("VkDrawFrame:Present", threadName);
             if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || scheduler.framebufferResized()) {
                 beginProfile("VkDrawFrame:RecreateSwapchain", threadName);
-                recreateSwapchain();
+                synchronized (swapchainLock) {
+                    recreateSwapchain();
+                }
                 endProfile("VkDrawFrame:RecreateSwapchain", threadName);
                 return false;
             }

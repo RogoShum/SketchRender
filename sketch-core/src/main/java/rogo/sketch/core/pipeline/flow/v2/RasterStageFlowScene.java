@@ -12,8 +12,10 @@ import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.PacketBuildContext;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.pipeline.CompiledRenderSetting;
+import rogo.sketch.core.pipeline.GraphicsStage;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.RenderSettingCompiler;
 import rogo.sketch.core.pipeline.data.PipelineDataStore;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
@@ -27,6 +29,8 @@ import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.parmeter.RasterizationParameter;
 import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
+import rogo.sketch.core.resource.GraphicsResourceManager;
+import rogo.sketch.core.shader.variant.ShaderVariantKey;
 import rogo.sketch.core.util.KeyId;
 import rogo.sketch.core.vertex.GeometryResourceCoordinator;
 
@@ -43,7 +47,9 @@ import java.util.function.Supplier;
 
 public final class RasterStageFlowScene<C extends RenderContext> implements StageFlowScene<C> {
     private final KeyId stageId;
+    private final ShaderVariantKey stageVariantKey;
     private final PipelineType pipelineType;
+    private final GraphicsResourceManager shaderResourceManager;
     private final GeometryResourceCoordinator resourceManager;
     private final Supplier<PipelineDataStore> dataStoreSupplier;
     private final RasterGeometryEncoder geometryEncoder = new RasterGeometryEncoder();
@@ -57,13 +63,17 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
     private long visibilityRevision = 0L;
 
     public RasterStageFlowScene(
+            GraphicsStage stage,
             KeyId stageId,
             PipelineType pipelineType,
+            GraphicsResourceManager shaderResourceManager,
             GeometryResourceCoordinator resourceManager,
             Supplier<PipelineDataStore> dataStoreSupplier,
             RenderTraceRecorder renderTraceRecorder) {
         this.stageId = stageId;
+        this.stageVariantKey = stage != null ? stage.getStageVariantKey() : ShaderVariantKey.EMPTY;
         this.pipelineType = pipelineType;
+        this.shaderResourceManager = shaderResourceManager;
         this.resourceManager = resourceManager;
         this.dataStoreSupplier = dataStoreSupplier;
         this.renderTraceRecorder = renderTraceRecorder;
@@ -498,7 +508,17 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
     }
 
     private CompiledRenderSetting resolveCompiledRenderSetting(StageEntityView.Entry entry) {
-        return entry != null ? entry.buildRenderDescriptor() : null;
+        CompiledRenderSetting compiledRenderSetting = entry != null ? entry.buildRenderDescriptor() : null;
+        if (compiledRenderSetting == null
+                || compiledRenderSetting.renderSetting() == null
+                || stageVariantKey == null
+                || stageVariantKey.isEmpty()) {
+            return compiledRenderSetting;
+        }
+        return RenderSettingCompiler.compile(
+                compiledRenderSetting.renderSetting(),
+                shaderResourceManager,
+                stageVariantKey);
     }
 
     private long resolveDescriptorVersion(StageEntityView.Entry entry) {

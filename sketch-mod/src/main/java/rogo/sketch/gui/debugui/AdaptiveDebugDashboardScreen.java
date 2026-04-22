@@ -203,6 +203,10 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                 controller.cycleMetricsLayoutMode();
                 return true;
             }
+            case CAPTURE_BUTTON -> {
+                dataSource.requestFrameCapture();
+                return true;
+            }
             case DIAGNOSTIC_FILTER -> {
                 controller.toggleDiagnosticFilter(DiagnosticLevel.valueOf(String.valueOf(hoveredNode.props().get("level"))));
                 return true;

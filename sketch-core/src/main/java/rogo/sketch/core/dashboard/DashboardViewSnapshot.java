@@ -2,6 +2,7 @@ package rogo.sketch.core.dashboard;
 
 import rogo.sketch.core.debugger.DashboardDiagnosticLine;
 import rogo.sketch.core.debugger.DashboardTreeNode;
+import rogo.sketch.core.pipeline.kernel.FrameCaptureSnapshot;
 
 import java.util.List;
 
@@ -10,6 +11,7 @@ public record DashboardViewSnapshot(
         List<DashboardTreeNode> macroRoots,
         List<DashboardSummaryMetric> summaryMetrics,
         DashboardMemorySection memorySection,
+        FrameCaptureSnapshot frameCaptureSnapshot,
         List<DashboardRatioMetric> ratioMetrics,
         List<Double> frameTimeHistory,
         List<DashboardMacroConstantView> macroConstants,
@@ -25,6 +27,7 @@ public record DashboardViewSnapshot(
         macroRoots = List.copyOf(macroRoots);
         summaryMetrics = List.copyOf(summaryMetrics);
         memorySection = memorySection != null ? memorySection : DashboardMemorySection.empty();
+        frameCaptureSnapshot = frameCaptureSnapshot != null ? frameCaptureSnapshot : FrameCaptureSnapshot.empty();
         ratioMetrics = List.copyOf(ratioMetrics);
         frameTimeHistory = List.copyOf(frameTimeHistory);
         macroConstants = List.copyOf(macroConstants);

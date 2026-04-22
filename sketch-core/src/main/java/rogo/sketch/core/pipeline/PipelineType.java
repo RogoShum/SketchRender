@@ -21,13 +21,13 @@ public final class PipelineType implements Comparable<PipelineType> {
             "compute",
             100,
             RenderFlowType.COMPUTE,
-            (stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new ComputeStageFlowScene<>(pipelineType));
+            (stage, stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new ComputeStageFlowScene<>(pipelineType));
 
     public static final PipelineType FUNCTION = new PipelineType(
             "function",
             200,
             RenderFlowType.FUNCTION,
-            (stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new FunctionStageFlowScene<>(
+            (stage, stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new FunctionStageFlowScene<>(
                     pipelineType,
                     pipeline.resourceManager()));
 
@@ -35,9 +35,11 @@ public final class PipelineType implements Comparable<PipelineType> {
             "rasterization",
             300,
             RenderFlowType.RASTERIZATION,
-            (stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new RasterStageFlowScene<>(
+            (stage, stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new RasterStageFlowScene<>(
+                    stage,
                     stageId,
                     pipelineType,
+                    pipeline.resourceManager(),
                     pipeline.getGeometryResourceCoordinator(pipelineType),
                     () -> pipeline.getPipelineDataStore(pipelineType, dataDomain),
                     renderTraceRecorder));
@@ -46,9 +48,11 @@ public final class PipelineType implements Comparable<PipelineType> {
             "translucent",
             400,
             RenderFlowType.RASTERIZATION,
-            (stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new RasterStageFlowScene<>(
+            (stage, stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new RasterStageFlowScene<>(
+                    stage,
                     stageId,
                     pipelineType,
+                    pipeline.resourceManager(),
                     pipeline.getGeometryResourceCoordinator(pipelineType),
                     () -> pipeline.getPipelineDataStore(pipelineType, dataDomain),
                     renderTraceRecorder));
@@ -90,7 +94,27 @@ public final class PipelineType implements Comparable<PipelineType> {
             GraphicsPipeline<C> pipeline,
             FrameDataDomain dataDomain,
             RenderTraceRecorder renderTraceRecorder) {
-        return (StageFlowScene<C>) sceneFactory.create(stageId, this, pipeline, dataDomain, renderTraceRecorder);
+        return createStageScene(null, stageId, pipeline, dataDomain, renderTraceRecorder);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <C extends RenderContext> StageFlowScene<C> createStageScene(
+            GraphicsStage stage,
+            GraphicsPipeline<C> pipeline,
+            FrameDataDomain dataDomain,
+            RenderTraceRecorder renderTraceRecorder) {
+        KeyId stageId = stage != null ? stage.getIdentifier() : null;
+        return createStageScene(stage, stageId, pipeline, dataDomain, renderTraceRecorder);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <C extends RenderContext> StageFlowScene<C> createStageScene(
+            GraphicsStage stage,
+            KeyId stageId,
+            GraphicsPipeline<C> pipeline,
+            FrameDataDomain dataDomain,
+            RenderTraceRecorder renderTraceRecorder) {
+        return (StageFlowScene<C>) sceneFactory.create(stage, stageId, this, pipeline, dataDomain, renderTraceRecorder);
     }
 
     @Override

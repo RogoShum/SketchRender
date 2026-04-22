@@ -27,15 +27,18 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 
 /**
  * ECS-native stage-local pipeline router.
  */
 public class GraphicsBatchGroup<C extends RenderContext> {
     private final GraphicsPipeline<C> graphicsPipeline;
+    private final GraphicsStage stage;
     private final KeyId stageKeyId;
     private final Map<PipelineType, StageFlowScene<C>> flowScenes = new LinkedHashMap<>();
-    private final Object stageStateLock = new Object();
+    private final ReentrantReadWriteLock stageStateLock = new ReentrantReadWriteLock();
     private final QueueIndexSystem queueIndexSystem = new QueueIndexSystem();
     private final PriorityIndexSystem priorityIndexSystem = new PriorityIndexSystem();
     private final SpatialIndexSystem<C> spatialIndexSystem = new SpatialIndexSystem<>();
@@ -44,8 +47,17 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     private final Map<PipelineType, CachedStageEntityView> stageViewCache = new LinkedHashMap<>();
 
     public GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, KeyId stageKeyId) {
+        this(graphicsPipeline, null, stageKeyId);
+    }
+
+    public GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, GraphicsStage stage) {
+        this(graphicsPipeline, stage, stage != null ? stage.getIdentifier() : null);
+    }
+
+    private GraphicsBatchGroup(GraphicsPipeline<C> graphicsPipeline, GraphicsStage stage, KeyId stageKeyId) {
         this.graphicsPipeline = graphicsPipeline;
         this.stageKeyId = stageKeyId;
+        this.stage = stage;
 
         for (PipelineType pipelineType : graphicsPipeline.getPipelineTypes()) {
             initializePipeline(pipelineType);
@@ -56,6 +68,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
         flowScenes.put(
                 pipelineType,
                 pipelineType.createStageScene(
+                        stage,
                         stageKeyId,
                         graphicsPipeline,
                         FrameDataDomain.ASYNC_BUILD,
@@ -63,30 +76,30 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     public void tick(C context) {
-        synchronized (stageStateLock) {
+        withStageWriteLock(() -> {
             for (Map.Entry<PipelineType, StageFlowScene<C>> entry : flowScenes.entrySet()) {
                 StageEntityView view = preparePreparedStageEntityView(entry.getKey()).fullView();
                 entry.getValue().tick(graphicsPipeline.graphicsWorld(), view, context);
             }
-        }
+        });
     }
 
     public void asyncTick(C context) {
-        synchronized (stageStateLock) {
+        withStageWriteLock(() -> {
             for (Map.Entry<PipelineType, StageFlowScene<C>> entry : flowScenes.entrySet()) {
                 StageEntityView view = preparePreparedStageEntityView(entry.getKey()).fullView();
                 entry.getValue().asyncTick(graphicsPipeline.graphicsWorld(), view, context);
             }
-        }
+        });
     }
 
     public void swapData() {
-        synchronized (stageStateLock) {
+        withStageWriteLock(() -> {
             for (Map.Entry<PipelineType, StageFlowScene<C>> entry : flowScenes.entrySet()) {
                 StageEntityView view = preparePreparedStageEntityView(entry.getKey()).fullView();
                 entry.getValue().swapData(graphicsPipeline.graphicsWorld(), view);
             }
-        }
+        });
     }
 
     public KeyId getStageIdentifier() {
@@ -99,7 +112,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             RenderPostProcessors postProcessors,
             FrameUniformSnapshot frameUniformSnapshot) {
         try {
-            synchronized (stageStateLock) {
+            return withStageWriteLock(() -> {
                 StageFlowScene<C> scene = flowScenes.get(pipelineType);
                 if (scene == null) {
                     return Collections.emptyMap();
@@ -110,7 +123,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
                 Map<ExecutionKey, List<RenderPacket>> packets =
                         scene.createRenderPackets(view, flowType, postProcessors, context, frameUniformSnapshot);
                 return packets != null ? packets : Collections.emptyMap();
-            }
+            });
         } catch (Exception e) {
             SketchDiagnostics.get().error("graphics-batch-group", "Failed to create render packets for stage " + stageKeyId, e);
             return Collections.emptyMap();
@@ -144,7 +157,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     public void cleanupDiscardedInstances() {
-        synchronized (stageStateLock) {
+        withStageWriteLock(() -> {
             for (Map.Entry<PipelineType, StageFlowScene<C>> entry : flowScenes.entrySet()) {
                 StageEntityView view = preparePreparedStageEntityView(entry.getKey()).fullView();
                 entry.getValue().cleanupDiscardedEntities(
@@ -155,15 +168,15 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             preparedViewCache.clear();
             preparedSceneCache.clear();
             stageViewCache.clear();
-        }
+        });
     }
 
     public void prepareForFrame(C context, FrameUniformSnapshot frameUniformSnapshot) {
-        synchronized (stageStateLock) {
+        withStageWriteLock(() -> {
             for (Map.Entry<PipelineType, StageFlowScene<C>> entry : flowScenes.entrySet()) {
                 prepareSceneForPreparedView(entry.getKey(), context, frameUniformSnapshot);
             }
-        }
+        });
     }
 
     public void prepareForFrame() {
@@ -171,18 +184,18 @@ public class GraphicsBatchGroup<C extends RenderContext> {
     }
 
     public void clear() {
-        synchronized (stageStateLock) {
+        withStageWriteLock(() -> {
             for (StageFlowScene<C> scene : flowScenes.values()) {
                 scene.clear();
             }
             preparedViewCache.clear();
             preparedSceneCache.clear();
             stageViewCache.clear();
-        }
+        });
     }
 
     public void prepareNextFrameStageViews() {
-        synchronized (stageStateLock) {
+        withStageWriteLock(() -> {
             preparedViewCache.clear();
             preparedSceneCache.clear();
             stageViewCache.clear();
@@ -190,15 +203,17 @@ public class GraphicsBatchGroup<C extends RenderContext> {
                 preparePreparedStageEntityView(pipelineType);
                 prepareSceneForPreparedView(pipelineType, null, FrameUniformSnapshot.empty());
             }
-        }
+        });
     }
 
     public int getTotalInstanceCount() {
-        int total = 0;
-        for (PipelineType pipelineType : flowScenes.keySet()) {
-            total += graphicsPipeline.stageMembershipIndex().entities(stageKeyId, pipelineType).size();
-        }
-        return total;
+        return withStageReadLock(() -> {
+            int total = 0;
+            for (PipelineType pipelineType : flowScenes.keySet()) {
+                total += graphicsPipeline.stageMembershipIndex().entities(stageKeyId, pipelineType).size();
+            }
+            return total;
+        });
     }
 
     public boolean hasInstances() {
@@ -319,6 +334,33 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             return priorityIndexSystem.order(entries);
         }
         return queueIndexSystem.order(entries);
+    }
+
+    private void withStageWriteLock(Runnable action) {
+        stageStateLock.writeLock().lock();
+        try {
+            action.run();
+        } finally {
+            stageStateLock.writeLock().unlock();
+        }
+    }
+
+    private <T> T withStageWriteLock(Supplier<T> action) {
+        stageStateLock.writeLock().lock();
+        try {
+            return action.get();
+        } finally {
+            stageStateLock.writeLock().unlock();
+        }
+    }
+
+    private <T> T withStageReadLock(Supplier<T> action) {
+        stageStateLock.readLock().lock();
+        try {
+            return action.get();
+        } finally {
+            stageStateLock.readLock().unlock();
+        }
     }
 
     private record CachedStageEntityView(

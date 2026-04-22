@@ -237,6 +237,17 @@ public final class DashboardViewSceneBuilder {
                         metrics.layoutToggleHeight), null,
                 panelProps(DashboardPanelId.METRICS, Map.of("layoutMode", controller.metricsLayoutMode().name(),
                         "columns", columns, "scale", metrics.uiScale))));
+        assembly.add(new DashboardPrimitive("frame-capture-button", UiNodeType.CAPTURE_BUTTON, contentLayer, assembly.nextOrder(),
+                new UiRect(panelRect.right() - metrics.innerInset - metrics.headerButtonSize - metrics.smallGap
+                        - metrics.layoutToggleWidth - metrics.smallGap - metrics.headerButtonSize,
+                        panelRect.y() + Math.max(4, (metrics.headerHeight - metrics.headerButtonSize) / 2),
+                        metrics.headerButtonSize,
+                        metrics.headerButtonSize), null,
+                panelProps(DashboardPanelId.METRICS, Map.of(
+                        "role", "frame-capture",
+                        "interactive", true,
+                        "detail", "debug.dashboard.capture_frame.detail",
+                        "scale", metrics.uiScale))));
 
         UiRect viewport = new UiRect(panelRect.x() + metrics.innerInset,
                 panelRect.y() + metrics.headerHeight + metrics.sectionGap,
@@ -809,7 +820,7 @@ public final class DashboardViewSceneBuilder {
                 return true;
             }
             return switch (primitive.type()) {
-                case TAB_BUTTON, TREE_GROUP, TREE_CONTROL, MACRO_SECTION_HEADER, METRICS_LAYOUT_TOGGLE, DIAGNOSTIC_FILTER -> true;
+                case TAB_BUTTON, TREE_GROUP, TREE_CONTROL, MACRO_SECTION_HEADER, METRICS_LAYOUT_TOGGLE, CAPTURE_BUTTON, DIAGNOSTIC_FILTER -> true;
                 default -> false;
             };
         }

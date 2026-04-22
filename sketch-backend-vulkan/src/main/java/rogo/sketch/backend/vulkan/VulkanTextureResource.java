@@ -35,7 +35,7 @@ public final class VulkanTextureResource implements ResourceObject, BackendInsta
     private final int usageFlags;
     private final boolean ownsHandles;
     private final MemoryLease textureLease;
-    private volatile int currentImageLayout;
+    private int currentImageLayout;
     private boolean disposed;
 
     public VulkanTextureResource(

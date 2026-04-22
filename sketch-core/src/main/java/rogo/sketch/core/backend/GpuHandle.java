@@ -8,6 +8,11 @@ public record GpuHandle(long value) {
         return value != NULL;
     }
 
+    /**
+     * Compatibility bridge for OpenGL-only callers. New backend-neutral code
+     * should keep the opaque long handle instead of narrowing it to a GL name.
+     */
+    @Deprecated
     public int asGlName() {
         return Math.toIntExact(value);
     }
@@ -16,6 +21,10 @@ public record GpuHandle(long value) {
         return value == NULL ? NONE : new GpuHandle(value);
     }
 
+    /**
+     * Compatibility bridge for legacy GL integer names.
+     */
+    @Deprecated
     public static GpuHandle ofGl(int name) {
         return of((long) name);
     }

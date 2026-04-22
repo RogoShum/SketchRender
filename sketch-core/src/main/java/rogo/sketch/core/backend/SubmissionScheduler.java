@@ -14,6 +14,10 @@ public interface SubmissionScheduler {
     default void installExecutionPlan(FrameExecutionPlan plan) {
     }
 
+    default FrameExecutionPlan installedExecutionPlan() {
+        return FrameExecutionPlan.empty();
+    }
+
     default int framesInFlight() {
         return 1;
     }

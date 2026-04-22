@@ -7,6 +7,7 @@ import rogo.sketch.core.debugger.DashboardControlAccessor;
 import rogo.sketch.core.debugger.DashboardDataSource;
 import rogo.sketch.core.debugger.DashboardMetricCard;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
+import rogo.sketch.core.pipeline.kernel.FrameCaptureSnapshot;
 import rogo.sketch.vanilla.PipelineUtil;
 
 import java.util.ArrayList;
@@ -51,5 +52,17 @@ public class AdaptiveDashboardDataSource implements DashboardDataSource {
     @Override
     public MemoryDebugSnapshot memorySnapshot() {
         return PipelineUtil.pipeline() != null ? PipelineUtil.pipeline().memoryDebugSnapshot() : MemoryDebugSnapshot.empty();
+    }
+
+    @Override
+    public void requestFrameCapture() {
+        if (PipelineUtil.pipeline() != null) {
+            PipelineUtil.pipeline().requestFrameCapture();
+        }
+    }
+
+    @Override
+    public FrameCaptureSnapshot latestFrameCaptureSnapshot() {
+        return PipelineUtil.pipeline() != null ? PipelineUtil.pipeline().latestFrameCaptureSnapshot() : FrameCaptureSnapshot.empty();
     }
 }

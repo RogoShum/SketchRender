@@ -227,8 +227,8 @@ public class CullingModuleRuntime implements ModuleRuntime {
 
     @Override
     public <C extends RenderContext> void contributeToTickGraph(TickGraphBuilder<C> builder) {
-        if (builder.hasPostTickGlAsyncPass("transform_async_tick_collect")) {
-            builder.addPostTickGlAsyncPass(new AsyncPrepareEntitySubjectsPass<>(), "transform_async_tick_collect");
+        if (builder.hasPostTickGlAsyncPass(TransformModule.PASS_ASYNC_TICK_COLLECT)) {
+            builder.addPostTickGlAsyncPass(new AsyncPrepareEntitySubjectsPass<>(), TransformModule.PASS_ASYNC_TICK_COLLECT);
         } else {
             builder.addPostTickGlAsyncPass(new AsyncPrepareEntitySubjectsPass<>());
         }

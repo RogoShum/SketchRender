@@ -3,6 +3,7 @@ package rogo.sketch.core.pipeline;
 import rogo.sketch.core.driver.state.component.ShaderState;
 import rogo.sketch.core.driver.state.component.RenderTargetState;
 import rogo.sketch.core.driver.state.CompiledRenderState;
+import rogo.sketch.core.driver.state.RenderStatePatch;
 import rogo.sketch.core.driver.state.RenderStateCompiler;
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.packet.ComputePipelineKey;
@@ -28,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public final class RenderSettingCompiler {
     private static final KeyId UNBOUND_SHADER = KeyId.of("sketch:unbound_shader");
@@ -43,21 +45,32 @@ public final class RenderSettingCompiler {
     public static CompiledRenderSetting compile(
             RenderSetting renderSetting,
             @Nullable GraphicsResourceManager resourceManager) {
+        return compile(renderSetting, resourceManager, ShaderVariantKey.EMPTY);
+    }
+
+    public static CompiledRenderSetting compile(
+            RenderSetting renderSetting,
+            @Nullable GraphicsResourceManager resourceManager,
+            @Nullable ShaderVariantKey stageVariantKey) {
         RenderSetting setting = renderSetting != null
                 ? renderSetting
                 : RenderSetting.fromPartial(null, PartialRenderSetting.EMPTY);
-        var effectiveRenderState = applyTargetBinding(setting);
+        RenderStatePatch effectiveRenderState = applyTargetBinding(setting);
         TargetBindingDescriptor targetBindingDescriptor = TargetBindingDescriptor.from(setting.targetBinding());
+        ShaderState shaderState = extractShaderState(effectiveRenderState);
+        ShaderVariantKey effectiveShaderVariant = resolveEffectiveShaderVariant(shaderState, stageVariantKey);
+        effectiveRenderState = applyShaderVariant(
+                effectiveRenderState,
+                shaderState,
+                effectiveShaderVariant,
+                resourceManager);
+        ShaderState effectiveShaderState = extractShaderState(effectiveRenderState);
         CompiledRenderState compiledRenderState = RenderStateCompiler.compile(effectiveRenderState);
 
-        ShaderState shaderState = null;
-        if (effectiveRenderState != null && effectiveRenderState.get(ShaderState.TYPE) instanceof ShaderState state) {
-            shaderState = state;
-        }
         ResourceBindingPlan bindingPlan = ResourceBindingPlan.from(
                 setting.resourceBinding(),
-                resolveShaderResourceBindings(shaderState, resourceManager));
-        validateShaderBindingSlots(bindingPlan, shaderState, resourceManager);
+                resolveShaderResourceBindings(effectiveShaderState, resourceManager));
+        validateShaderBindingSlots(bindingPlan, effectiveShaderState, resourceManager);
         validateResourceAccessConflicts(bindingPlan, setting.aliasPolicy());
         validateExplicitImageUsage(bindingPlan, resourceManager);
 
@@ -66,8 +79,8 @@ public final class RenderSettingCompiler {
                 effectiveRenderState,
                 compiledRenderState,
                 setting.shouldSwitchRenderState(),
-                shaderState != null ? shaderState.getShaderId() : UNBOUND_SHADER,
-                shaderState != null ? shaderState.getVariantKey() : ShaderVariantKey.EMPTY,
+                effectiveShaderState != null ? effectiveShaderState.getShaderId() : UNBOUND_SHADER,
+                effectiveShaderState != null ? effectiveShaderVariant : ShaderVariantKey.EMPTY,
                 setting.renderParameter() != null && setting.renderParameter().getLayout() != null
                         ? KeyId.of("sketch:vertex_layout_" + Integer.toHexString(setting.renderParameter().getLayout().hashCode()))
                         : EMPTY_VERTEX_LAYOUT,
@@ -81,8 +94,8 @@ public final class RenderSettingCompiler {
                     rogo.sketch.core.driver.state.ComputeStateCompiler.compile(effectiveRenderState),
                     bindingPlan,
                     setting.shouldSwitchRenderState(),
-                    shaderState != null ? shaderState.getShaderId() : UNBOUND_SHADER,
-                    shaderState != null ? shaderState.getVariantKey() : ShaderVariantKey.EMPTY,
+                    effectiveShaderState != null ? effectiveShaderState.getShaderId() : UNBOUND_SHADER,
+                    effectiveShaderState != null ? effectiveShaderVariant : ShaderVariantKey.EMPTY,
                     bindingPlan.layoutKey());
             case OFFSCREEN_GRAPHICS -> new OffscreenGraphicsPipelineKey(
                     setting.renderParameter(),
@@ -90,8 +103,8 @@ public final class RenderSettingCompiler {
                     rogo.sketch.core.driver.state.RasterStateCompiler.compile(effectiveRenderState),
                     bindingPlan,
                     setting.shouldSwitchRenderState(),
-                    shaderState != null ? shaderState.getShaderId() : UNBOUND_SHADER,
-                    shaderState != null ? shaderState.getVariantKey() : ShaderVariantKey.EMPTY,
+                    effectiveShaderState != null ? effectiveShaderState.getShaderId() : UNBOUND_SHADER,
+                    effectiveShaderState != null ? effectiveShaderVariant : ShaderVariantKey.EMPTY,
                     RasterPipelineKey.deriveVertexLayoutKey(setting.renderParameter()),
                     targetBindingDescriptor != null ? targetBindingDescriptor.renderTargetId() : PipelineConfig.DEFAULT_RENDER_TARGET_ID,
                     bindingPlan.layoutKey());
@@ -104,8 +117,8 @@ public final class RenderSettingCompiler {
                     rogo.sketch.core.driver.state.RasterStateCompiler.compile(effectiveRenderState),
                     bindingPlan,
                     setting.shouldSwitchRenderState(),
-                    shaderState != null ? shaderState.getShaderId() : UNBOUND_SHADER,
-                    shaderState != null ? shaderState.getVariantKey() : ShaderVariantKey.EMPTY);
+                    effectiveShaderState != null ? effectiveShaderState.getShaderId() : UNBOUND_SHADER,
+                    effectiveShaderState != null ? effectiveShaderVariant : ShaderVariantKey.EMPTY);
         };
         PipelineStateDescriptor descriptorForSetting = setting.executionDomain() == ExecutionDomain.RASTER
                 || setting.executionDomain() == ExecutionDomain.OFFSCREEN_GRAPHICS
@@ -118,6 +131,41 @@ public final class RenderSettingCompiler {
                 targetBindingDescriptor,
                 bindingPlan,
                 stateKey);
+    }
+
+    private static ShaderState extractShaderState(@Nullable RenderStatePatch renderState) {
+        if (renderState != null && renderState.get(ShaderState.TYPE) instanceof ShaderState state) {
+            return state;
+        }
+        return null;
+    }
+
+    private static ShaderVariantKey resolveEffectiveShaderVariant(
+            @Nullable ShaderState shaderState,
+            @Nullable ShaderVariantKey stageVariantKey) {
+        if (shaderState == null) {
+            return ShaderVariantKey.EMPTY;
+        }
+        ShaderVariantKey baseVariant = shaderState.getVariantKey() != null
+                ? shaderState.getVariantKey()
+                : ShaderVariantKey.EMPTY;
+        return baseVariant.merge(stageVariantKey);
+    }
+
+    private static RenderStatePatch applyShaderVariant(
+            @Nullable RenderStatePatch renderState,
+            @Nullable ShaderState shaderState,
+            ShaderVariantKey effectiveShaderVariant,
+            @Nullable GraphicsResourceManager resourceManager) {
+        if (shaderState == null || effectiveShaderVariant == null) {
+            return renderState;
+        }
+        if (Objects.equals(shaderState.getVariantKey(), effectiveShaderVariant)) {
+            return renderState;
+        }
+        String[] flags = effectiveShaderVariant.getFlags().toArray(String[]::new);
+        ShaderState effectiveShaderState = new ShaderState(resourceManager, shaderState.getShaderId(), flags);
+        return (renderState != null ? renderState : RenderStatePatch.empty()).with(effectiveShaderState);
     }
 
     private static Map<KeyId, Map<KeyId, Integer>> resolveShaderResourceBindings(

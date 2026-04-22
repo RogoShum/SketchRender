@@ -6,6 +6,7 @@ import rogo.sketch.core.debugger.DashboardDiagnosticLine;
 import rogo.sketch.core.debugger.DashboardMetricCard;
 import rogo.sketch.core.debugger.DashboardTreeNode;
 import rogo.sketch.core.memory.MemoryDebugSnapshot;
+import rogo.sketch.core.pipeline.kernel.FrameCaptureSnapshot;
 import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticEntry;
 import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticLevel;
 import rogo.sketch.core.pipeline.module.macro.ModuleMacroDefinition;
@@ -65,6 +66,8 @@ public final class DashboardViewModelFactory {
         summaryMetrics.addAll(buildMetricCards(runtimeHost, metricSnapshot));
         MemoryDebugSnapshot memorySnapshot = dataSource.memorySnapshot();
         DashboardMemorySection memorySection = memorySectionBuilder.build(memorySnapshot);
+        FrameCaptureSnapshot frameCaptureSnapshot = dataSource.latestFrameCaptureSnapshot();
+        summaryMetrics.addAll(buildFrameCaptureMetrics(frameCaptureSnapshot));
 
         List<DashboardRatioMetric> ratioMetrics = buildRatioMetrics(metricSnapshot);
         List<DashboardDiagnosticLine> diagnosticLines = new ArrayList<>();
@@ -95,6 +98,7 @@ public final class DashboardViewModelFactory {
                 macroRoots,
                 summaryMetrics,
                 memorySection,
+                frameCaptureSnapshot,
                 ratioMetrics,
                 dataSource.frameTimeHistory(),
                 buildMacroConstants(runtimeHost),
@@ -354,6 +358,57 @@ public final class DashboardViewModelFactory {
                     Objects.toString(descriptor.detailKey(), "")));
         }
         return cards;
+    }
+
+    private List<DashboardSummaryMetric> buildFrameCaptureMetrics(FrameCaptureSnapshot captureSnapshot) {
+        if (captureSnapshot == null || (captureSnapshot.stages().isEmpty() && captureSnapshot.resourceBindings().isEmpty()
+                && FrameCaptureSnapshot.RenderStateCapture.empty().equals(captureSnapshot.renderState()))) {
+            return List.of();
+        }
+
+        int packetCount = 0;
+        int drawPacketCount = 0;
+        int stateCount = 0;
+        for (FrameCaptureSnapshot.StageCapture stage : captureSnapshot.stages()) {
+            packetCount += stage.packetCount();
+            drawPacketCount += stage.drawPacketCount();
+            stateCount += stage.states().size();
+        }
+
+        List<DashboardSummaryMetric> metrics = new ArrayList<>();
+        metrics.add(new DashboardSummaryMetric(
+                "frame-capture/stages",
+                "debug.dashboard.capture.stages",
+                String.valueOf(captureSnapshot.stages().size()),
+                "",
+                0xFF93C5FD,
+                "debug.dashboard.capture.stages.detail"));
+        metrics.add(new DashboardSummaryMetric(
+                "frame-capture/packets",
+                "debug.dashboard.capture.packets",
+                String.valueOf(packetCount),
+                "pkt",
+                0xFF34D399,
+                "draw=" + drawPacketCount + ", states=" + stateCount));
+        metrics.add(new DashboardSummaryMetric(
+                "frame-capture/resources",
+                "debug.dashboard.capture.resources",
+                String.valueOf(captureSnapshot.resourceBindings().size()),
+                "sets",
+                0xFFF59E0B,
+                renderStateDetail(captureSnapshot.renderState())));
+        return metrics;
+    }
+
+    private String renderStateDetail(FrameCaptureSnapshot.RenderStateCapture renderState) {
+        if (renderState == null || FrameCaptureSnapshot.RenderStateCapture.empty().equals(renderState)) {
+            return "No render state was bound when the capture was requested.";
+        }
+        return "domain=" + renderState.domain()
+                + ", shader=" + renderState.shaderId()
+                + ", target=" + renderState.renderTargetId()
+                + ", layout=" + renderState.resourceLayoutKey()
+                + ", stamp=" + renderState.resourceBindingStamp();
     }
 
     private List<DashboardRatioMetric> buildRatioMetrics(MetricSnapshot metricSnapshot) {

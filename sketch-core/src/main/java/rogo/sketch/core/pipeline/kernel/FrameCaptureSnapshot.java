@@ -1,9 +1,12 @@
 package rogo.sketch.core.pipeline.kernel;
 
 import rogo.sketch.core.packet.ExecutionKey;
+import rogo.sketch.core.packet.ExecutionDomain;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.RenderPacketKind;
+import rogo.sketch.core.packet.ResourceBindingStamp;
 import rogo.sketch.core.packet.ResourceSetKey;
+import rogo.sketch.core.pipeline.PipelineConfig;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.util.KeyId;
 
@@ -13,9 +16,23 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public record FrameCaptureSnapshot(List<StageCapture> stages) {
+public record FrameCaptureSnapshot(
+        List<StageCapture> stages,
+        List<ResourceBindingCapture> resourceBindings,
+        RenderStateCapture renderState
+) {
+    public FrameCaptureSnapshot {
+        stages = stages != null ? List.copyOf(stages) : List.of();
+        resourceBindings = resourceBindings != null ? List.copyOf(resourceBindings) : List.of();
+        renderState = renderState != null ? renderState : RenderStateCapture.empty();
+    }
+
     public static FrameCaptureSnapshot empty() {
-        return new FrameCaptureSnapshot(List.of());
+        return new FrameCaptureSnapshot(List.of(), List.of(), RenderStateCapture.empty());
+    }
+
+    public FrameCaptureSnapshot withRenderState(RenderStateCapture nextRenderState) {
+        return new FrameCaptureSnapshot(stages, resourceBindings, nextRenderState);
     }
 
     public static FrameCaptureSnapshot fromStagePlans(Map<KeyId, StageExecutionPlan> stagePlans) {
@@ -24,6 +41,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
         }
 
         List<StageCapture> captures = new ArrayList<>(stagePlans.size());
+        Map<ResourceSetKey, MutableResourceBindingCapture> resourceBindings = new LinkedHashMap<>();
         for (Map.Entry<KeyId, StageExecutionPlan> stageEntry : stagePlans.entrySet()) {
             StageExecutionPlan stagePlan = stageEntry.getValue();
             Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> packets =
@@ -42,12 +60,13 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
                         drawPacketCount += drawCount;
                         StateCaptureKey captureKey = new StateCaptureKey(
                                 pipelineType,
-                                stateKey != null ? stateKey.renderTargetKey() : KeyId.of("minecraft:main_target"),
+                                stateKey != null ? stateKey.renderTargetKey() : PipelineConfig.DEFAULT_RENDER_TARGET_ID,
                                 stateKey,
                                 packet.resourceSetKey() != null ? packet.resourceSetKey() : ResourceSetKey.empty());
                         MutableStateCapture capture = states.computeIfAbsent(captureKey, ignored -> new MutableStateCapture());
                         capture.packetCount++;
                         capture.drawPacketCount += drawCount;
+                        recordResourceBinding(resourceBindings, packet);
                     }
                 }
             }
@@ -61,6 +80,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
                         key.targetKey,
                         key.stateKey,
                         key.resourceSetKey,
+                        key.resourceSetKey.resourceLayoutKey(),
                         capture.packetCount,
                         capture.drawPacketCount));
             }
@@ -71,7 +91,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
                     packetCount,
                     drawPacketCount));
         }
-        return new FrameCaptureSnapshot(List.copyOf(captures));
+        return new FrameCaptureSnapshot(List.copyOf(captures), buildResourceBindingCaptures(resourceBindings), RenderStateCapture.empty());
     }
 
     public static FrameCaptureSnapshot fromPackets(Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> stagePackets) {
@@ -80,6 +100,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
         }
 
         Map<KeyId, StageCaptureBuilder> builders = new LinkedHashMap<>();
+        Map<ResourceSetKey, MutableResourceBindingCapture> resourceBindings = new LinkedHashMap<>();
         for (Map.Entry<PipelineType, Map<ExecutionKey, List<RenderPacket>>> pipelineEntry : stagePackets.entrySet()) {
             PipelineType pipelineType = pipelineEntry.getKey();
             for (Map.Entry<ExecutionKey, List<RenderPacket>> stateEntry : pipelineEntry.getValue().entrySet()) {
@@ -89,6 +110,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
                             packet.stageId(),
                             key -> new StageCaptureBuilder(key));
                     stageBuilder.add(pipelineType, stateKey, packet.resourceSetKey(), packet);
+                    recordResourceBinding(resourceBindings, packet);
                 }
             }
         }
@@ -97,7 +119,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
         for (StageCaptureBuilder builder : builders.values()) {
             captures.add(builder.build());
         }
-        return new FrameCaptureSnapshot(List.copyOf(captures));
+        return new FrameCaptureSnapshot(List.copyOf(captures), buildResourceBindingCaptures(resourceBindings), RenderStateCapture.empty());
     }
 
     public record StageCapture(KeyId stageId, List<StateCapture> states, int packetCount, int drawPacketCount) {
@@ -108,9 +130,30 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
             KeyId targetKey,
             ExecutionKey stateKey,
             ResourceSetKey resourceSetKey,
+            KeyId resourceLayoutKey,
             int packetCount,
             int drawPacketCount
     ) {
+    }
+
+    public record ResourceBindingCapture(
+            ResourceSetKey resourceSetKey,
+            KeyId resourceLayoutKey,
+            int bindingEntryCount,
+            int packetCount
+    ) {
+    }
+
+    public record RenderStateCapture(
+            ExecutionDomain domain,
+            KeyId shaderId,
+            KeyId renderTargetId,
+            KeyId resourceLayoutKey,
+            ResourceBindingStamp resourceBindingStamp
+    ) {
+        public static RenderStateCapture empty() {
+            return new RenderStateCapture(null, null, null, null, ResourceBindingStamp.NONE);
+        }
     }
 
     private static final class StageCaptureBuilder {
@@ -133,7 +176,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
             drawPacketCount += drawCount;
             StateCaptureKey captureKey = new StateCaptureKey(
                     pipelineType,
-                    stateKey != null ? stateKey.renderTargetKey() : KeyId.of("minecraft:main_target"),
+                    stateKey != null ? stateKey.renderTargetKey() : PipelineConfig.DEFAULT_RENDER_TARGET_ID,
                     stateKey,
                     resourceSetKey != null ? resourceSetKey : ResourceSetKey.empty());
             MutableStateCapture capture = states.computeIfAbsent(captureKey, ignored -> new MutableStateCapture());
@@ -151,6 +194,7 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
                         key.targetKey,
                         key.stateKey,
                         key.resourceSetKey,
+                        key.resourceSetKey.resourceLayoutKey(),
                         capture.packetCount,
                         capture.drawPacketCount));
             }
@@ -169,5 +213,44 @@ public record FrameCaptureSnapshot(List<StageCapture> stages) {
     private static final class MutableStateCapture {
         private int packetCount;
         private int drawPacketCount;
+    }
+
+    private static void recordResourceBinding(
+            Map<ResourceSetKey, MutableResourceBindingCapture> captures,
+            RenderPacket packet) {
+        if (captures == null || packet == null) {
+            return;
+        }
+        ResourceSetKey resourceSetKey = packet.resourceSetKey() != null ? packet.resourceSetKey() : ResourceSetKey.empty();
+        MutableResourceBindingCapture capture = captures.computeIfAbsent(
+                resourceSetKey,
+                ignored -> new MutableResourceBindingCapture());
+        capture.packetCount++;
+        if (packet.bindingPlan() != null) {
+            capture.bindingEntryCount = Math.max(capture.bindingEntryCount, packet.bindingPlan().entries().length);
+        }
+    }
+
+    private static List<ResourceBindingCapture> buildResourceBindingCaptures(
+            Map<ResourceSetKey, MutableResourceBindingCapture> captures) {
+        if (captures == null || captures.isEmpty()) {
+            return List.of();
+        }
+        List<ResourceBindingCapture> result = new ArrayList<>(captures.size());
+        for (Map.Entry<ResourceSetKey, MutableResourceBindingCapture> entry : captures.entrySet()) {
+            ResourceSetKey key = entry.getKey();
+            MutableResourceBindingCapture capture = entry.getValue();
+            result.add(new ResourceBindingCapture(
+                    key,
+                    key.resourceLayoutKey(),
+                    capture.bindingEntryCount,
+                    capture.packetCount));
+        }
+        return List.copyOf(result);
+    }
+
+    private static final class MutableResourceBindingCapture {
+        private int bindingEntryCount;
+        private int packetCount;
     }
 }

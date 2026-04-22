@@ -8,6 +8,7 @@ import rogo.sketch.core.util.KeyId;
 @FunctionalInterface
 interface PipelineFlowSceneFactory {
     StageFlowScene<?> create(
+            GraphicsStage stage,
             KeyId stageId,
             PipelineType pipelineType,
             GraphicsPipeline<?> pipeline,

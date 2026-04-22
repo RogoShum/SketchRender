@@ -48,7 +48,7 @@ public class TransformModule implements ModuleRuntime {
     public static final String MODULE_NAME = "transform";
     private static final String PASS_TICK_SWAP = "transform_tick_swap";
     private static final String PASS_SYNC_TICK_COLLECT = "transform_sync_tick_collect";
-    private static final String PASS_ASYNC_TICK_COLLECT = "transform_async_tick_collect";
+    public static final String PASS_ASYNC_TICK_COLLECT = "transform_async_tick_collect";
     private static final String PASS_FRAME_COLLECT = "transform_frame_collect";
     private static final String PASS_FRAME_UPLOAD = "transform_frame_upload";
 

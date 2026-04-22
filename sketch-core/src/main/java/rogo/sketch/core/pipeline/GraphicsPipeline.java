@@ -22,6 +22,8 @@ import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceConfig;
 import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceRecorder;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.pipeline.flow.ecs.StageMembershipIndex;
+import rogo.sketch.core.pipeline.kernel.FrameCaptureSnapshot;
+import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
 import rogo.sketch.core.pipeline.flow.v2.StageEntityView;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.module.metric.MetricSnapshot;
@@ -69,6 +71,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     private boolean[] nextTick = new boolean[20];
     private boolean initialized = false;
     private boolean initializedStaticGraphics = false;
+    private volatile FrameCaptureSnapshot latestFrameCaptureSnapshot = FrameCaptureSnapshot.empty();
 
     // New architecture: kernel
     private PipelineKernel<C> kernel;
@@ -131,7 +134,7 @@ public class GraphicsPipeline<C extends RenderContext> {
      */
     public boolean registerStage(GraphicsStage stage) {
         boolean added = stages.add(stage, stage.getOrderRequirement(),
-                (s, req) -> passMap.put(s, new GraphicsBatchGroup<>(this, s.getIdentifier())));
+                (s, req) -> passMap.put(s, new GraphicsBatchGroup<>(this, s)));
         if (added) {
             idToStage.put(stage.getIdentifier(), stage);
             stageSubmitRegistry.onStageRegistered(stage.getIdentifier());
@@ -510,6 +513,19 @@ public class GraphicsPipeline<C extends RenderContext> {
 
     public MemoryDebugSnapshot memoryDebugSnapshot() {
         return UnifiedMemoryFabric.get().snapshot();
+    }
+
+    public FrameCaptureSnapshot requestFrameCapture() {
+        FrameExecutionPlan executionPlan = GraphicsDriver.submissionScheduler().installedExecutionPlan();
+        FrameCaptureSnapshot baseSnapshot = executionPlan != null
+                ? executionPlan.frameCaptureSnapshot()
+                : FrameCaptureSnapshot.empty();
+        latestFrameCaptureSnapshot = baseSnapshot.withRenderState(renderStateManager.captureCurrentState());
+        return latestFrameCaptureSnapshot;
+    }
+
+    public FrameCaptureSnapshot latestFrameCaptureSnapshot() {
+        return latestFrameCaptureSnapshot;
     }
 
     public void registerStageSubmitNode(String ownerId, StageSubmitNode node) {

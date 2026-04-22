@@ -32,16 +32,25 @@ public final class ShaderProgramResolver {
         if (compiledRenderSetting == null) {
             return null;
         }
-        return resolveProgramHandle(compiledRenderSetting.renderSetting());
+        ShaderVariantKey variantKey = compiledRenderSetting.pipelineStateKey() != null
+                ? compiledRenderSetting.pipelineStateKey().shaderVariantKey()
+                : ShaderVariantKey.EMPTY;
+        return resolveProgramHandle(compiledRenderSetting.renderSetting(), variantKey);
     }
 
     public static ShaderProgramHandle resolveProgramHandle(RenderSetting renderSetting) throws IOException {
+        return resolveProgramHandle(renderSetting, null);
+    }
+
+    public static ShaderProgramHandle resolveProgramHandle(
+            RenderSetting renderSetting,
+            ShaderVariantKey variantKeyOverride) throws IOException {
         if (renderSetting == null
                 || renderSetting.renderState() == null
                 || !(renderSetting.renderState().get(ResourceTypes.SHADER_TEMPLATE) instanceof ShaderState shaderState)) {
             return null;
         }
-        return resolveProgramHandle(shaderState);
+        return resolveProgramHandle(shaderState, variantKeyOverride);
     }
 
     public static ShaderProgramHandle resolveProgramHandleIfAvailable(CompiledRenderSetting compiledRenderSetting) {
@@ -61,6 +70,12 @@ public final class ShaderProgramResolver {
     }
 
     public static ShaderProgramHandle resolveProgramHandle(ShaderState shaderState) throws IOException {
+        return resolveProgramHandle(shaderState, null);
+    }
+
+    public static ShaderProgramHandle resolveProgramHandle(
+            ShaderState shaderState,
+            ShaderVariantKey variantKeyOverride) throws IOException {
         if (shaderState == null) {
             return null;
         }
@@ -74,7 +89,7 @@ public final class ShaderProgramResolver {
             return null;
         }
 
-        ShaderVariantKey variantKey = shaderState.getVariantKey();
+        ShaderVariantKey variantKey = variantKeyOverride != null ? variantKeyOverride : shaderState.getVariantKey();
         BackendShaderProgramCache shaderProgramCache = GraphicsDriver.runtime() != null
                 ? GraphicsDriver.renderDevice().shaderProgramCache()
                 : BackendShaderProgramCache.NO_OP;

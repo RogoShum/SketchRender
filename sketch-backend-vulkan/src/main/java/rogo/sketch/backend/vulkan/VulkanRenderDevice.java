@@ -3,6 +3,7 @@ package rogo.sketch.backend.vulkan;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueue;
+import org.lwjgl.vulkan.VkSubmitInfo;
 import rogo.sketch.core.backend.BackendCapabilities;
 import rogo.sketch.core.backend.BackendFrameExecutor;
 import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
@@ -122,6 +123,10 @@ final class VulkanRenderDevice implements RenderDevice {
 
     long commandPoolHandle() {
         return commandPool;
+    }
+
+    void submitGraphicsAndWait(VkSubmitInfo submitInfo, String operation) {
+        runtime.submitGraphicsAndWait(submitInfo, operation);
     }
 
     VulkanFrameSlot[] frameSlots() {

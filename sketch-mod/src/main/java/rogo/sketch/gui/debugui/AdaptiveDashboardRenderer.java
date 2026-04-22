@@ -167,6 +167,7 @@ public class AdaptiveDashboardRenderer {
             case MACRO_SECTION_HEADER -> renderMacroSectionHeader(node, canvas, hovered);
             case MACRO_CONSTANT_ROW -> renderMacroConstant(node, canvas, hovered);
             case METRICS_LAYOUT_TOGGLE -> renderMetricsLayoutToggle(node, canvas, hovered);
+            case CAPTURE_BUTTON -> renderCaptureButton(node, canvas, hovered);
             case DIAGNOSTIC_HEADER -> renderDiagnosticsHeader(node, canvas, hovered, hoveredPrimitive, resizingPanelId, resizingPanelEdge, resizingSlotId, resizingSlotEdge);
             case DIAGNOSTIC_FILTER -> renderDiagnosticsFilter(node, canvas, hovered);
             case LOG_LINE -> renderLogLine(node, canvas, hovered);
@@ -491,6 +492,28 @@ public class AdaptiveDashboardRenderer {
                 node.bounds().x() + node.bounds().width() / 2,
                 node.bounds().y() + Math.max(3, Math.round(4 * scale(node))),
                 auto ? 0xFFFFFFFF : SUBTLE);
+    }
+
+    private void renderCaptureButton(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
+        canvas.fillRect(node.bounds(), hovered ? 0xC2314458 : 0x70111A25);
+        canvas.borderRect(node.bounds(), hovered ? ACTIVE : BORDER);
+        float scale = scale(node);
+        int inset = Math.max(3, Math.round(4 * scale));
+        UiRect body = new UiRect(
+                node.bounds().x() + inset,
+                node.bounds().y() + Math.max(inset, node.bounds().height() / 4),
+                Math.max(4, node.bounds().width() - inset * 2),
+                Math.max(4, node.bounds().height() - inset * 2));
+        int iconColor = hovered ? 0xFFFFFFFF : SUBTLE;
+        canvas.borderRect(body, iconColor);
+        int topWidth = Math.max(3, body.width() / 3);
+        canvas.fillRect(new UiRect(body.x() + 1, Math.max(node.bounds().y() + 1, body.y() - 2), topWidth, 2), iconColor);
+        int lensSize = Math.max(2, Math.min(4, Math.min(body.width(), body.height()) - 2));
+        canvas.fillRect(new UiRect(
+                body.x() + Math.max(1, (body.width() - lensSize) / 2),
+                body.y() + Math.max(1, (body.height() - lensSize) / 2),
+                lensSize,
+                lensSize), hovered ? ACTIVE : iconColor);
     }
 
     private void renderSummaryMetric(DashboardPrimitive node, UiCanvas canvas, boolean hovered) {
