@@ -16,7 +16,6 @@ rootProject.name = 'sketchlib'
 
 include 'sketch-core'
 include 'sketch-modules'
-include 'sketch-mod'
 include 'sketch-backend-opengl'
 include 'sketch-backend-vulkan'
 include 'sketch-platform-test'
