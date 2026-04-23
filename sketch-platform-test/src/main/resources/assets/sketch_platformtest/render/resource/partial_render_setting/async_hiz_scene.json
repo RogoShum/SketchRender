@@ -1,0 +1,25 @@
+{
+  "executionDomain": "COMPUTE",
+  "renderState": {
+    "shader_template": {
+      "identifier": "sketch_platformtest:async_hiz_shader"
+    }
+  },
+  "resourceBinding": {
+    "image": {
+      "output_texture_0": {
+        "resource": "sketch_platformtest:async_hiz_async_texture",
+        "view": "STORAGE_IMAGE",
+        "access": "WRITE"
+      }
+    },
+    "texture": {
+      "test_depth_texture": {
+        "resource": "sketch_platformtest:async_hiz_source_snapshot",
+        "view": "SAMPLED_TEXTURE",
+        "access": "READ"
+      }
+    }
+  },
+  "shouldSwitchRenderState": true
+}

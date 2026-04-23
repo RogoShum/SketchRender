@@ -1,8 +1,14 @@
 // Root build.gradle
 // Most logic is moved to subprojects
 
+tasks.register('platformSmokeAll') {
+    group = 'verification'
+    description = 'Runs all sketch-platform-test smoke tasks.'
+    dependsOn(':sketch-platform-test:allSmokeRuns')
+}
+
 tasks.register('vkSmokeAll') {
     group = 'verification'
-    description = 'Runs all sketch-vk-test smoke tasks.'
-    dependsOn(':sketch-vk-test:allSmokeRuns')
+    description = 'Compatibility alias for platformSmokeAll.'
+    dependsOn('platformSmokeAll')
 }

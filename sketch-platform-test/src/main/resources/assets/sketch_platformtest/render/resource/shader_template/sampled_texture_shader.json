@@ -1,0 +1,12 @@
+{
+  "vertex": "sketch_platformtest:sampled_texture.vsh",
+  "fragment": "sketch_platformtest:sampled_texture.fsh",
+  "attributes": [
+    "position"
+  ],
+  "resourceBindings": {
+    "texture": {
+      "test_texture": 0
+    }
+  }
+}

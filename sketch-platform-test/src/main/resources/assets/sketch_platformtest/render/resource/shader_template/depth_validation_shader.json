@@ -1,0 +1,8 @@
+{
+  "vertex": "sketch_platformtest:depth_triangle.vsh",
+  "fragment": "sketch_platformtest:color_triangle.fsh",
+  "attributes": [
+    "position",
+    "color"
+  ]
+}

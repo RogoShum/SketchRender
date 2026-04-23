@@ -1,0 +1,14 @@
+{
+  "renderState": {
+    "shader_template": {
+      "identifier": "sketch_platformtest:color_shader"
+    },
+    "depth_test": {
+      "enabled": false
+    },
+    "cull_face": {
+      "enabled": false
+    }
+  },
+  "shouldSwitchRenderState": true
+}

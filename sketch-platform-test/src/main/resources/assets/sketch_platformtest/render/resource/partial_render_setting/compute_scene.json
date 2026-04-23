@@ -1,0 +1,9 @@
+{
+  "executionDomain": "COMPUTE",
+  "renderState": {
+    "shader_template": {
+      "identifier": "sketch_platformtest:compute_shader"
+    }
+  },
+  "shouldSwitchRenderState": true
+}

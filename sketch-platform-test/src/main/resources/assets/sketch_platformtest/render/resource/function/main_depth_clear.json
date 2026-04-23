@@ -1,0 +1,14 @@
+{
+  "stage": "sketch_platformtest:function_stage",
+  "priority": 0,
+  "command": [
+    {
+      "operate": "clear",
+      "renderTarget": "minecraft:main_target",
+      "colorAttachments": [0],
+      "clearChannels": "depth",
+      "depth": 1.0,
+      "restorePreviousRenderTarget": true
+    }
+  ]
+}

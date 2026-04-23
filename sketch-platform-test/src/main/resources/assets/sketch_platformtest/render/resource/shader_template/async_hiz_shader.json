@@ -1,0 +1,11 @@
+{
+  "compute": "sketch_platformtest:async_hiz.comp",
+  "resourceBindings": {
+    "image": {
+      "output_texture_0": 0
+    },
+    "texture": {
+      "test_depth_texture": 1
+    }
+  }
+}

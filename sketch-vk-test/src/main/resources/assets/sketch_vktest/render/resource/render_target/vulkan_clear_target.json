@@ -1,9 +1,0 @@
-{
-  "resolutionMode": "FIXED",
-  "width": 4,
-  "height": 4,
-  "colorAttachments": [
-    "sketch_vktest:vulkan_clear_color"
-  ],
-  "depthAttachment": "sketch_vktest:vulkan_clear_depth"
-}

@@ -1,0 +1,7 @@
+{
+  "vertex": "sketch_platformtest:subset_triangle.vsh",
+  "fragment": "sketch_platformtest:subset_triangle.fsh",
+  "attributes": [
+    "position"
+  ]
+}

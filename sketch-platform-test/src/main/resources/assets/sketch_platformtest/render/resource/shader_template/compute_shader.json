@@ -1,0 +1,3 @@
+{
+  "compute": "sketch_platformtest:noop_compute.comp"
+}

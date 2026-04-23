@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
- * Backend-neutral async GPU task scheduler used by both runClient and vk-test.
+ * Backend-neutral async GPU task scheduler used by both runClient and platform-test.
  * It deliberately operates on immutable packet batches and waits only on the
  * returned job handles instead of forcing frame-global synchronization.
  */

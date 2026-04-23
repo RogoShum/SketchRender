@@ -1,0 +1,18 @@
+{
+  "stage": "sketch_platformtest:function_stage",
+  "priority": 0,
+  "command": [
+    {
+      "operate": "clear",
+      "renderTarget": "minecraft:main_target",
+      "colorAttachments": [0],
+      "clearChannels": "color",
+      "color": [0.04, 0.08, 0.16, 1.0],
+      "restorePreviousRenderTarget": true
+    },
+    {
+      "operate": "genMipmap",
+      "texture": "sketch_platformtest:texture_a"
+    }
+  ]
+}

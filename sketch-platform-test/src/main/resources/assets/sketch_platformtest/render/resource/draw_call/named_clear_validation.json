@@ -1,0 +1,6 @@
+{
+  "stage": "sketch_platformtest:overlay_stage",
+  "renderSetting": "sketch_platformtest:sampled_texture_scene",
+  "modelName": "sketch_platformtest:shared_source_asset",
+  "meshName": "sketch_platformtest:shared_left_mesh"
+}
