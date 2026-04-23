@@ -1,6 +1,33 @@
 // Root build.gradle
 // Most logic is moved to subprojects
 
+def versionBuilds = [
+        '1.20.1': [
+                dir     : file('../SketchLib-1.20.1'),
+                javaHome: 'C:/Users/12693/.jdks/corretto-17.0.11'
+        ],
+        '1.21.1': [
+                dir     : file('../SketchLib-1.21.1'),
+                javaHome: 'C:/Users/12693/.jdks/corretto-21.0.3-1'
+        ],
+        '26.1'  : [
+                dir     : file('../SketchLib-26.1'),
+                javaHome: 'C:/Users/12693/.jdks/azul-25.0.2'
+        ]
+]
+
+def configureVersionGradleExec = { Exec task, Map spec ->
+    File versionDir = spec.dir
+    String javaHome = spec.javaHome
+    task.workingDir = versionDir
+    task.environment 'JAVA_HOME', javaHome
+    task.environment 'PATH', javaHome + '/bin' + File.pathSeparator + System.getenv('PATH')
+    task.commandLine versionDir.toPath().resolve('gradlew.bat').toFile().absolutePath,
+            ':sketch-mod:compileJava',
+            ':sketch-mod:processResources',
+            '--console=plain'
+}
+
 tasks.register('platformSmokeAll') {
     group = 'verification'
     description = 'Runs all sketch-platform-test smoke tasks.'
@@ -11,4 +38,49 @@ tasks.register('vkSmokeAll') {
     group = 'verification'
     description = 'Compatibility alias for platformSmokeAll.'
     dependsOn('platformSmokeAll')
+}
+
+tasks.register('verifySharedPlatform') {
+    group = 'verification'
+    description = 'Compiles shared modules and runs the desktop GL and Vulkan platform smoke tests.'
+    dependsOn(
+            ':sketch-core:compileJava',
+            ':sketch-modules:compileJava',
+            ':sketch-backend-opengl:compileJava',
+            ':sketch-backend-vulkan:compileJava',
+            ':sketch-platform-test:desktopGlSmokeRun',
+            ':sketch-platform-test:smokeRun')
+}
+
+tasks.register('verifyMinecraftMods') {
+    group = 'verification'
+    description = 'Compiles and processes resources for all external Minecraft version mod projects with their own wrappers/JDKs.'
+    dependsOn(
+            'verifyMinecraftMod1201',
+            'verifyMinecraftMod1211',
+            'verifyMinecraftMod261')
+}
+
+tasks.register('verifyAllVersions') {
+    group = 'verification'
+    description = 'Runs shared platform validation plus every Minecraft version mod compile/resource check.'
+    dependsOn('verifySharedPlatform', 'verifyMinecraftMods')
+}
+
+tasks.register('verifyMinecraftMod1201', Exec) {
+    group = 'verification'
+    description = 'Compiles the external Forge 1.20.1 mod project.'
+    configureVersionGradleExec(delegate, versionBuilds['1.20.1'])
+}
+
+tasks.register('verifyMinecraftMod1211', Exec) {
+    group = 'verification'
+    description = 'Compiles the external NeoForge 1.21.1 mod project.'
+    configureVersionGradleExec(delegate, versionBuilds['1.21.1'])
+}
+
+tasks.register('verifyMinecraftMod261', Exec) {
+    group = 'verification'
+    description = 'Compiles the external NeoForge 26.1 mod project.'
+    configureVersionGradleExec(delegate, versionBuilds['26.1'])
 }
