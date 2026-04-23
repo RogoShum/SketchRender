@@ -21,6 +21,7 @@ import rogo.sketch.core.ui.frame.UiInteractionSurface;
 import rogo.sketch.core.ui.frame.UiLayer;
 import rogo.sketch.core.ui.frame.UiPaintPass;
 import rogo.sketch.core.ui.frame.UiPrimitive;
+import rogo.sketch.core.ui.frame.TexturePatchPrimitive;
 import rogo.sketch.core.ui.frame.TexturePrimitive;
 import rogo.sketch.core.ui.geometry.UiScaleContext;
 import rogo.sketch.core.ui.input.HitRegion;
@@ -93,6 +94,10 @@ public class AdaptiveDashboardRenderer {
                 canvas.drawTexture(texturePrimitive.texture(), texturePrimitive.rect(), texturePrimitive.uv(), texturePrimitive.tintArgb());
                 continue;
             }
+            if (primitive instanceof TexturePatchPrimitive texturePatchPrimitive) {
+                canvas.drawTexturePatch(texturePatchPrimitive.patch(), texturePatchPrimitive.rect());
+                continue;
+            }
             if (primitive instanceof DashboardPrimitive node) {
                 boolean isHovered = isHoveredNode(node, hovered, hoveredSurface, floatingHoverScope, mouseX, mouseY);
                 renderNodePass(node, controller, canvas, pass, isHovered, hovered, resizingPanelId, resizingPanelEdge, resizingSlotId, resizingSlotEdge);
@@ -129,7 +134,7 @@ public class AdaptiveDashboardRenderer {
     private List<RenderStep> renderSteps(UiFrame frame) {
         List<RenderStep> steps = new ArrayList<>();
         for (UiPrimitive primitive : frame.primitives()) {
-            if (primitive instanceof TexturePrimitive) {
+            if (primitive instanceof TexturePrimitive || primitive instanceof TexturePatchPrimitive) {
                 steps.add(new RenderStep(primitive, UiPaintPass.TEXTURE));
             } else if (primitive instanceof DashboardPrimitive) {
                 for (UiPaintPass pass : UiPaintPass.values()) {
@@ -1401,6 +1406,9 @@ public class AdaptiveDashboardRenderer {
         }
         if (primitive instanceof TexturePrimitive texturePrimitive) {
             return texturePrimitive.rect();
+        }
+        if (primitive instanceof TexturePatchPrimitive texturePatchPrimitive) {
+            return texturePatchPrimitive.rect();
         }
         return null;
     }

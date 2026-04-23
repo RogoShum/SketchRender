@@ -15,8 +15,12 @@ import net.minecraft.network.chat.Component;
 import rogo.sketch.core.ui.geometry.UiRect;
 import rogo.sketch.core.ui.geometry.UiScaleContext;
 import org.joml.Matrix4f;
+import rogo.sketch.core.ui.layout.UiInsets;
 import rogo.sketch.core.ui.texture.UiTextureKind;
+import rogo.sketch.core.ui.texture.UiTexturePatch;
 import rogo.sketch.core.ui.texture.UiTextureRef;
+import rogo.sketch.core.ui.texture.UiTextureRegion;
+import rogo.sketch.core.ui.texture.UiTextureScaleMode;
 import rogo.sketch.core.ui.texture.UiTextureUv;
 
 import java.util.ArrayDeque;
@@ -30,7 +34,10 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
     private final Deque<UiRect> clipStack = new ArrayDeque<>();
     private final List<GeometryQuad> geometryBatch = new ArrayList<>();
     private final List<TextDraw> textBatch = new ArrayList<>();
+    private final List<TextureQuad> textureBatch = new ArrayList<>();
     private UiScaleContext scaleContext = UiScaleContext.of(1.0f, 1, 1);
+    private TextureBatchKey activeTextureKey;
+    private UiTextureRef activeTexture;
     private boolean frameActive;
 
     public AdaptiveMinecraftUiCanvas(GuiGraphics guiGraphics) {
@@ -46,6 +53,9 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         this.scaleContext = scaleContext != null ? scaleContext : UiScaleContext.of(1.0f, 1, 1);
         this.geometryBatch.clear();
         this.textBatch.clear();
+        this.textureBatch.clear();
+        this.activeTextureKey = null;
+        this.activeTexture = null;
         this.clipStack.clear();
         guiGraphics.pose().pushPose();
         guiGraphics.pose().scale(this.scaleContext.rootScale(), this.scaleContext.rootScale(), 1.0f);
@@ -65,6 +75,9 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         }
         geometryBatch.clear();
         textBatch.clear();
+        textureBatch.clear();
+        activeTextureKey = null;
+        activeTexture = null;
     }
 
     @Override
@@ -72,6 +85,7 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         if (rect.width() <= 0 || rect.height() <= 0) {
             return;
         }
+        flushTextureBatch();
         geometryBatch.add(new GeometryQuad(rect, color));
     }
 
@@ -91,6 +105,7 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         if (text == null) {
             return;
         }
+        flushTextureBatch();
         textBatch.add(new TextDraw(text, x, y, color));
     }
 
@@ -99,6 +114,7 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         if (text == null) {
             return;
         }
+        flushTextureBatch();
         int drawX = centerX - minecraft.font.width(text) / 2;
         textBatch.add(new TextDraw(text, drawX, y, color));
     }
@@ -108,30 +124,20 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         if (texture == null || !texture.isRenderable() || dst == null || dst.width() <= 0 || dst.height() <= 0) {
             return;
         }
-        flush();
-        if (!bindTexture(texture)) {
+        queueTextureQuad(texture, dst, uv != null ? uv : UiTextureUv.FULL, tintArgb);
+    }
+
+    @Override
+    public void drawTexturePatch(UiTexturePatch patch, UiRect dst) {
+        if (patch == null || !patch.isRenderable() || dst == null || dst.width() <= 0 || dst.height() <= 0) {
             return;
         }
-        UiTextureUv resolvedUv = uv != null ? uv : UiTextureUv.FULL;
-        Matrix4f pose = guiGraphics.pose().last().pose();
-        BufferBuilder builder = Tesselator.getInstance().getBuilder();
-        float alpha = ((tintArgb >>> 24) & 0xFF) / 255.0F;
-        float red = ((tintArgb >>> 16) & 0xFF) / 255.0F;
-        float green = ((tintArgb >>> 8) & 0xFF) / 255.0F;
-        float blue = (tintArgb & 0xFF) / 255.0F;
-
-        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.depthMask(false);
-        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
-        builder.vertex(pose, dst.x(), dst.bottom(), 0.0F).uv(resolvedUv.u0(), resolvedUv.v1()).color(red, green, blue, alpha).endVertex();
-        builder.vertex(pose, dst.right(), dst.bottom(), 0.0F).uv(resolvedUv.u1(), resolvedUv.v1()).color(red, green, blue, alpha).endVertex();
-        builder.vertex(pose, dst.right(), dst.y(), 0.0F).uv(resolvedUv.u1(), resolvedUv.v0()).color(red, green, blue, alpha).endVertex();
-        builder.vertex(pose, dst.x(), dst.y(), 0.0F).uv(resolvedUv.u0(), resolvedUv.v0()).color(red, green, blue, alpha).endVertex();
-        Tesselator.getInstance().end();
-        RenderSystem.depthMask(true);
-        RenderSystem.disableBlend();
+        if (patch.scaleMode() == UiTextureScaleMode.NINE_SLICE && patch.sliceInsets() != UiInsets.NONE) {
+            drawNineSlicePatch(patch, dst);
+        } else {
+            UiTextureRegion region = patch.region();
+            queueTextureQuad(region.texture(), dst, region.uv(), patch.tintArgb());
+        }
     }
 
     @Override
@@ -168,8 +174,59 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         if (!geometryBatch.isEmpty()) {
             flushGeometryBatch();
         }
+        if (!textureBatch.isEmpty()) {
+            flushTextureBatch();
+        }
         if (!textBatch.isEmpty()) {
             flushTextBatch();
+        }
+    }
+
+    private void queueTextureQuad(UiTextureRef texture, UiRect dst, UiTextureUv uv, int tintArgb) {
+        TextureBatchKey key = TextureBatchKey.from(texture);
+        if (!textureBatch.isEmpty() && !key.equals(activeTextureKey)) {
+            flushTextureBatch();
+        }
+        if (textureBatch.isEmpty()) {
+            if (!geometryBatch.isEmpty()) {
+                flushGeometryBatch();
+            }
+            if (!textBatch.isEmpty()) {
+                flushTextBatch();
+            }
+            activeTextureKey = key;
+            activeTexture = texture;
+        }
+        textureBatch.add(new TextureQuad(dst, uv != null ? uv : UiTextureUv.FULL, tintArgb));
+    }
+
+    private void drawNineSlicePatch(UiTexturePatch patch, UiRect dst) {
+        UiTextureRegion region = patch.region();
+        UiInsets sourceInsets = clampInsets(patch.sliceInsets(), region.sourceWidth(), region.sourceHeight());
+        int left = Math.min(sourceInsets.left(), Math.max(0, dst.width() / 2));
+        int right = Math.min(sourceInsets.right(), Math.max(0, dst.width() - left));
+        int top = Math.min(sourceInsets.top(), Math.max(0, dst.height() / 2));
+        int bottom = Math.min(sourceInsets.bottom(), Math.max(0, dst.height() - top));
+
+        int[] dstX = {dst.x(), dst.x() + left, dst.right() - right, dst.right()};
+        int[] dstY = {dst.y(), dst.y() + top, dst.bottom() - bottom, dst.bottom()};
+        int[] srcX = {0, sourceInsets.left(), region.sourceWidth() - sourceInsets.right(), region.sourceWidth()};
+        int[] srcY = {0, sourceInsets.top(), region.sourceHeight() - sourceInsets.bottom(), region.sourceHeight()};
+
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < 3; x++) {
+                int width = dstX[x + 1] - dstX[x];
+                int height = dstY[y + 1] - dstY[y];
+                int sourceWidth = srcX[x + 1] - srcX[x];
+                int sourceHeight = srcY[y + 1] - srcY[y];
+                if (width <= 0 || height <= 0 || sourceWidth <= 0 || sourceHeight <= 0) {
+                    continue;
+                }
+                queueTextureQuad(region.texture(),
+                        new UiRect(dstX[x], dstY[y], width, height),
+                        subUv(region, srcX[x], srcY[y], srcX[x + 1], srcY[y + 1]),
+                        patch.tintArgb());
+            }
         }
     }
 
@@ -186,15 +243,45 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         guiGraphics.flush();
     }
 
+    private void flushTextureBatch() {
+        if (textureBatch.isEmpty()) {
+            return;
+        }
+        if (activeTexture == null || !bindTexture(activeTexture)) {
+            textureBatch.clear();
+            activeTextureKey = null;
+            activeTexture = null;
+            return;
+        }
+        Matrix4f pose = guiGraphics.pose().last().pose();
+        BufferBuilder builder = Tesselator.getInstance().getBuilder();
+        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.depthMask(false);
+        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        for (TextureQuad quad : textureBatch) {
+            emitTextureQuad(builder, pose, quad.rect(), quad.uv(), quad.tintArgb());
+        }
+        Tesselator.getInstance().end();
+        RenderSystem.depthMask(true);
+        RenderSystem.disableBlend();
+        textureBatch.clear();
+        activeTextureKey = null;
+        activeTexture = null;
+    }
+
     private void flushTextBatch() {
         if (textBatch.isEmpty()) {
             return;
         }
-        for (TextDraw textDraw : textBatch) {
-            guiGraphics.drawString(minecraft.font, textDraw.text(), textDraw.x(), textDraw.y(), textDraw.color(), false);
-        }
+        guiGraphics.drawManaged(() -> {
+            for (TextDraw textDraw : textBatch) {
+                guiGraphics.drawString(minecraft.font, textDraw.text(), textDraw.x(), textDraw.y(), textDraw.color(), false);
+            }
+        });
         textBatch.clear();
-        guiGraphics.flush();
+        //guiGraphics.flush();
     }
 
     private UiRect intersect(UiRect a, UiRect b) {
@@ -214,6 +301,37 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
         vertexConsumer.vertex(pose, rect.right(), rect.bottom(), 0.0F).color(red, green, blue, alpha).endVertex();
         vertexConsumer.vertex(pose, rect.right(), rect.y(), 0.0F).color(red, green, blue, alpha).endVertex();
         vertexConsumer.vertex(pose, rect.x(), rect.y(), 0.0F).color(red, green, blue, alpha).endVertex();
+    }
+
+    private void emitTextureQuad(BufferBuilder builder, Matrix4f pose, UiRect rect, UiTextureUv uv, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0F;
+        float red = ((color >>> 16) & 0xFF) / 255.0F;
+        float green = ((color >>> 8) & 0xFF) / 255.0F;
+        float blue = (color & 0xFF) / 255.0F;
+        builder.vertex(pose, rect.x(), rect.bottom(), 0.0F).uv(uv.u0(), uv.v1()).color(red, green, blue, alpha).endVertex();
+        builder.vertex(pose, rect.right(), rect.bottom(), 0.0F).uv(uv.u1(), uv.v1()).color(red, green, blue, alpha).endVertex();
+        builder.vertex(pose, rect.right(), rect.y(), 0.0F).uv(uv.u1(), uv.v0()).color(red, green, blue, alpha).endVertex();
+        builder.vertex(pose, rect.x(), rect.y(), 0.0F).uv(uv.u0(), uv.v0()).color(red, green, blue, alpha).endVertex();
+    }
+
+    private UiTextureUv subUv(UiTextureRegion region, int x0, int y0, int x1, int y1) {
+        float u0 = lerp(region.uv().u0(), region.uv().u1(), x0 / (float) region.sourceWidth());
+        float u1 = lerp(region.uv().u0(), region.uv().u1(), x1 / (float) region.sourceWidth());
+        float v0 = lerp(region.uv().v0(), region.uv().v1(), y0 / (float) region.sourceHeight());
+        float v1 = lerp(region.uv().v0(), region.uv().v1(), y1 / (float) region.sourceHeight());
+        return new UiTextureUv(u0, v0, u1, v1);
+    }
+
+    private float lerp(float start, float end, float factor) {
+        return start + (end - start) * factor;
+    }
+
+    private UiInsets clampInsets(UiInsets insets, int width, int height) {
+        int left = Math.min(insets.left(), Math.max(0, width / 2));
+        int right = Math.min(insets.right(), Math.max(0, width - left));
+        int top = Math.min(insets.top(), Math.max(0, height / 2));
+        int bottom = Math.min(insets.bottom(), Math.max(0, height - top));
+        return new UiInsets(left, top, right, bottom);
     }
 
     private boolean bindTexture(UiTextureRef texture) {
@@ -241,6 +359,18 @@ public class AdaptiveMinecraftUiCanvas implements UiCanvas {
     }
 
     private record TextDraw(Component text, int x, int y, int color) {
+    }
+
+    private record TextureQuad(UiRect rect, UiTextureUv uv, int tintArgb) {
+    }
+
+    private record TextureBatchKey(UiTextureKind kind, String resourceId, long handleValue) {
+        private static TextureBatchKey from(UiTextureRef texture) {
+            return new TextureBatchKey(
+                    texture.kind(),
+                    texture.kind() == UiTextureKind.MINECRAFT_RESOURCE ? texture.resourceId() : "",
+                    texture.kind() == UiTextureKind.GPU_HANDLE ? texture.handle().value() : 0L);
+        }
     }
 
 }

@@ -26,6 +26,7 @@ import rogo.sketch.core.ui.frame.UiInteractionSurface;
 import rogo.sketch.core.ui.frame.UiLayer;
 import rogo.sketch.core.ui.frame.UiPaintPass;
 import rogo.sketch.core.ui.frame.UiPrimitive;
+import rogo.sketch.core.ui.frame.TexturePatchPrimitive;
 import rogo.sketch.core.ui.frame.TexturePrimitive;
 import rogo.sketch.core.ui.geometry.UiScaleContext;
 import rogo.sketch.core.ui.geometry.UiRect;
@@ -33,10 +34,14 @@ import rogo.sketch.core.ui.input.CursorHint;
 import rogo.sketch.core.ui.input.HitRegion;
 import rogo.sketch.core.ui.input.InputActionId;
 import rogo.sketch.core.ui.input.RectHitShape;
+import rogo.sketch.core.ui.layout.UiInsets;
 import rogo.sketch.core.ui.text.UiMeasuredTextBlock;
 import rogo.sketch.core.ui.text.UiText;
 import rogo.sketch.core.ui.text.UiTextMetrics;
 import rogo.sketch.core.ui.text.UiTextLayouts;
+import rogo.sketch.core.ui.texture.UiTexturePatch;
+import rogo.sketch.core.ui.texture.UiTextureRef;
+import rogo.sketch.core.ui.texture.UiTextureRegion;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +51,11 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class DashboardViewSceneBuilder {
+    private static final UiTexturePatch VANILLA_BUTTON_PATCH = UiTexturePatch.nineSlice(
+            UiTextureRegion.fromPixels(UiTextureRef.minecraftResource("minecraft:textures/gui/widgets.png"),
+                    256, 256, 0, 46, 200, 20),
+            0xFFFFFFFF,
+            new UiInsets(4, 4, 4, 4));
     private final DashboardWorkspaceProfile workspaceProfile;
     private final UiTextMetrics textMetrics;
 
@@ -873,9 +883,12 @@ public final class DashboardViewSceneBuilder {
     }
 
     private int appendTopbarButton(FrameAssembly assembly, String id, String label, String menuId, int x, Metrics metrics, DashboardController controller) {
+        UiRect buttonBounds = new UiRect(x, metrics.smallGap, metrics.topbarButtonWidth, metrics.topbarHeight - metrics.smallGap * 2);
+        assembly.add(new TexturePatchPrimitive(UiLayer.CONTROLS, assembly.nextOrder(), VANILLA_BUTTON_PATCH, buttonBounds, null,
+                UiPaintPass.TEXTURE, UiInteractionSurface.content("topbar")));
         assembly.add(new DashboardPrimitive(id, UiNodeType.TOPBAR, UiLayer.CONTROLS, assembly.nextOrder(),
-                new UiRect(x, metrics.smallGap, metrics.topbarButtonWidth, metrics.topbarHeight - metrics.smallGap * 2), null,
-                Map.of("fill", 0x50131D27, "border", 0x78324458, "role", "topbar-button",
+                buttonBounds, null,
+                Map.of("fill", 0x28131D27, "border", 0x78324458, "role", "topbar-button",
                         "menuId", menuId, "label", label, "active", menuId.equals(controller.openTopbarMenuId()), "scale", metrics.uiScale)));
         return x + metrics.topbarButtonWidth + metrics.smallGap;
     }
@@ -1343,6 +1356,16 @@ public final class DashboardViewSceneBuilder {
                         texturePrimitive.paintPass(),
                         resolveSurface(texturePrimitive.surface(), Map.of(), texturePrimitive.layer()));
             }
+            if (primitive instanceof TexturePatchPrimitive texturePatchPrimitive) {
+                return new TexturePatchPrimitive(
+                        texturePatchPrimitive.layer(),
+                        texturePatchPrimitive.order(),
+                        texturePatchPrimitive.patch(),
+                        texturePatchPrimitive.rect(),
+                        texturePatchPrimitive.clipRect(),
+                        texturePatchPrimitive.paintPass(),
+                        resolveSurface(texturePatchPrimitive.surface(), Map.of(), texturePatchPrimitive.layer()));
+            }
             return primitive;
         }
 
@@ -1465,6 +1488,9 @@ public final class DashboardViewSceneBuilder {
             }
             if (primitive instanceof TexturePrimitive texturePrimitive) {
                 return texturePrimitive.rect();
+            }
+            if (primitive instanceof TexturePatchPrimitive texturePatchPrimitive) {
+                return texturePatchPrimitive.rect();
             }
             return null;
         }

@@ -38,10 +38,12 @@ import rogo.sketch.vanilla.PipelineUtil;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class AdaptiveDebugDashboardScreen extends Screen {
     private static long sessionAcknowledgedAlertSequence;
@@ -73,6 +75,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
     private DashboardDockSlotId resizingSlotId;
     private ResizeEdge resizingSlotEdge = ResizeEdge.NONE;
     private boolean expandedDefaults;
+    private boolean panelLayoutLoaded;
     private long lastFrameSampleNanos;
     private float dashboardScale = 1.0f;
     private UiScaleContext scaleContext = UiScaleContext.of(1.0f, 1, 1);
@@ -93,6 +96,18 @@ public class AdaptiveDebugDashboardScreen extends Screen {
     @Override
     public boolean isPauseScreen() {
         return false;
+    }
+
+    @Override
+    public void onClose() {
+        savePanelLayout();
+        super.onClose();
+    }
+
+    @Override
+    public void removed() {
+        savePanelLayout();
+        super.removed();
     }
 
     @Override
@@ -123,8 +138,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         latestSnapshot = modelFactory.build(dataSource, PipelineUtil.pipeline().metricSnapshot(), PipelineUtil.pipeline().diagnosticsSnapshot());
         acknowledgeVisibleAlerts();
         if (!expandedDefaults) {
-            expandDefaults(latestSnapshot.settingRoots());
-            expandDefaults(latestSnapshot.macroRoots());
+            restoreTreeExpansion(latestSnapshot);
             expandedDefaults = true;
         }
         latestFrame = frameBuilder.build(latestSnapshot, controller, scaleContext, editingNumberControlId, editingNumberDraft);
@@ -211,6 +225,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             }
             case TREE_GROUP -> {
                 controller.toggleExpanded(hoveredNode.id());
+                savePanelLayout();
                 return true;
             }
             case TREE_CONTROL -> {
@@ -223,6 +238,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
                 } else {
                     controller.toggleMacroConstantsExpanded();
                 }
+                savePanelLayout();
                 return true;
             }
             case METRICS_LAYOUT_TOGGLE -> {
@@ -235,6 +251,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             }
             case DIAGNOSTIC_FILTER -> {
                 controller.toggleDiagnosticFilter(DiagnosticLevel.valueOf(String.valueOf(hoveredNode.props().get("level"))));
+                savePanelLayout();
                 return true;
             }
             case LOG_LINE -> {
@@ -448,6 +465,7 @@ public class AdaptiveDebugDashboardScreen extends Screen {
     private boolean handleControlClick(DashboardPrimitive node, double mouseX, double mouseY) {
         if (boolProp(node, "expandable", false) && mouseX < controlBounds(node).x()) {
             controller.toggleExpanded(node.id());
+            savePanelLayout();
             return true;
         }
         if (!boolProp(node, "enabled", true)) {
@@ -906,6 +924,9 @@ public class AdaptiveDebugDashboardScreen extends Screen {
     }
 
     private void loadPanelLayout() {
+        if (panelLayoutLoaded) {
+            return;
+        }
         String workspaceId = workspaceProfile.workspaceId();
         controller.setScaleLevel(Config.getDashboardScaleLevel(workspaceId));
         for (DashboardPanelId panelId : DashboardPanelId.values()) {
@@ -943,10 +964,23 @@ public class AdaptiveDebugDashboardScreen extends Screen {
             controller.setSlotSizeRatio(slotSpec.slotId(),
                     Config.getDashboardSlotSizeRatio(workspaceId, slotSpec.slotId(), defaultSlotRatio(slotSpec.slotId())));
         }
+        controller.setMemorySectionExpanded(Config.getDashboardMemorySectionExpanded(workspaceId));
+        controller.setMacroConstantsExpanded(Config.getDashboardMacroConstantsExpanded(workspaceId));
+        controller.setDiagnosticFilters(Config.getDashboardDiagnosticFilters(workspaceId));
+        controller.setSettingsScroll(Config.getDashboardPanelVerticalScroll(workspaceId, DashboardPanelId.SETTINGS));
+        controller.setMetricsScroll(Config.getDashboardPanelVerticalScroll(workspaceId, DashboardPanelId.METRICS));
+        controller.setDiagnosticsScroll(Config.getDashboardPanelVerticalScroll(workspaceId, DashboardPanelId.DIAGNOSTICS));
+        controller.setSettingsHorizontalScroll(Config.getDashboardPanelHorizontalScroll(workspaceId, DashboardPanelId.SETTINGS));
+        controller.setMetricsHorizontalScroll(Config.getDashboardPanelHorizontalScroll(workspaceId, DashboardPanelId.METRICS));
+        controller.setDiagnosticsHorizontalScroll(Config.getDashboardPanelHorizontalScroll(workspaceId, DashboardPanelId.DIAGNOSTICS));
         controller.clearDockPreview();
+        panelLayoutLoaded = true;
     }
 
     private void savePanelLayout() {
+        if (!panelLayoutLoaded) {
+            return;
+        }
         String workspaceId = workspaceProfile.workspaceId();
         Config.setDashboardScaleLevel(workspaceId, controller.scaleLevel());
         for (DashboardPanelId panelId : DashboardPanelId.values()) {
@@ -967,6 +1001,18 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         for (DashboardDockSlotSpec slotSpec : workspaceProfile.slots()) {
             Config.setDashboardSlotSizeRatio(workspaceId, slotSpec.slotId(),
                     controller.slotSizeRatio(slotSpec.slotId(), defaultSlotRatio(slotSpec.slotId())));
+        }
+        Config.setDashboardMemorySectionExpanded(workspaceId, controller.memorySectionExpanded());
+        Config.setDashboardMacroConstantsExpanded(workspaceId, controller.macroConstantsExpanded());
+        Config.setDashboardDiagnosticFilters(workspaceId, controller.diagnosticFilters());
+        Config.setDashboardPanelVerticalScroll(workspaceId, DashboardPanelId.SETTINGS, controller.settingsScroll());
+        Config.setDashboardPanelVerticalScroll(workspaceId, DashboardPanelId.METRICS, controller.metricsScroll());
+        Config.setDashboardPanelVerticalScroll(workspaceId, DashboardPanelId.DIAGNOSTICS, controller.diagnosticsScroll());
+        Config.setDashboardPanelHorizontalScroll(workspaceId, DashboardPanelId.SETTINGS, controller.settingsHorizontalScroll());
+        Config.setDashboardPanelHorizontalScroll(workspaceId, DashboardPanelId.METRICS, controller.metricsHorizontalScroll());
+        Config.setDashboardPanelHorizontalScroll(workspaceId, DashboardPanelId.DIAGNOSTICS, controller.diagnosticsHorizontalScroll());
+        if (expandedDefaults) {
+            Config.setDashboardExpandedTreeNodes(workspaceId, persistedExpandedTreeNodeIds());
         }
     }
 
@@ -1356,6 +1402,59 @@ public class AdaptiveDebugDashboardScreen extends Screen {
         double maxScroll = Math.max(0.0D, scrollbar.contentWidth() - scrollbar.viewportWidth());
         double scroll = maxScroll <= 0.0D ? 0.0D : (relative / travel) * maxScroll;
         setHorizontalScroll(area, scroll);
+    }
+
+    private void restoreTreeExpansion(DashboardViewSnapshot snapshot) {
+        String workspaceId = workspaceProfile.workspaceId();
+        if (!Config.hasDashboardExpandedTreeNodes(workspaceId)) {
+            controller.setExpandedTreeNodes(List.of());
+            expandDefaults(snapshot.settingRoots());
+            expandDefaults(snapshot.macroRoots());
+            return;
+        }
+        Set<String> validNodeIds = expandableTreeNodeIds(snapshot);
+        List<String> restored = new ArrayList<>();
+        for (String nodeId : Config.getDashboardExpandedTreeNodes(workspaceId)) {
+            if (validNodeIds.contains(nodeId) && !restored.contains(nodeId)) {
+                restored.add(nodeId);
+            }
+        }
+        controller.setExpandedTreeNodes(restored);
+    }
+
+    private List<String> persistedExpandedTreeNodeIds() {
+        if (latestSnapshot == null) {
+            return new ArrayList<>(controller.expandedTreeNodes());
+        }
+        List<String> nodeIds = new ArrayList<>();
+        appendPersistedExpandedTreeNodeIds(latestSnapshot.settingRoots(), nodeIds);
+        appendPersistedExpandedTreeNodeIds(latestSnapshot.macroRoots(), nodeIds);
+        return nodeIds;
+    }
+
+    private void appendPersistedExpandedTreeNodeIds(List<DashboardTreeNode> nodes, List<String> target) {
+        for (DashboardTreeNode node : nodes) {
+            if (node.expandable() && controller.isExpanded(node.id()) && !target.contains(node.id())) {
+                target.add(node.id());
+            }
+            appendPersistedExpandedTreeNodeIds(node.children(), target);
+        }
+    }
+
+    private Set<String> expandableTreeNodeIds(DashboardViewSnapshot snapshot) {
+        Set<String> nodeIds = new HashSet<>();
+        collectExpandableTreeNodeIds(snapshot.settingRoots(), nodeIds);
+        collectExpandableTreeNodeIds(snapshot.macroRoots(), nodeIds);
+        return nodeIds;
+    }
+
+    private void collectExpandableTreeNodeIds(List<DashboardTreeNode> nodes, Set<String> target) {
+        for (DashboardTreeNode node : nodes) {
+            if (node.expandable()) {
+                target.add(node.id());
+            }
+            collectExpandableTreeNodeIds(node.children(), target);
+        }
     }
 
     private void expandDefaults(List<DashboardTreeNode> nodes) {

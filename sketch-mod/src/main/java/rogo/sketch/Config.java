@@ -14,6 +14,7 @@ import rogo.sketch.core.debugger.DashboardDockSlotId;
 import rogo.sketch.core.debugger.DashboardPanelId;
 import rogo.sketch.core.debugger.DashboardPanelMode;
 import rogo.sketch.core.debugger.DashboardWindowId;
+import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticLevel;
 import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
 import rogo.sketch.core.pipeline.module.setting.SettingNode;
 import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
@@ -28,9 +29,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -344,6 +347,135 @@ public class Config {
             return;
         }
         CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, panelKey(workspaceId, panelId, "active_window"), PropertyCodecs.STRING, windowId.id());
+    }
+
+    public static boolean hasDashboardExpandedTreeNodes(String workspaceId) {
+        return workspaceId != null && !workspaceId.isBlank()
+                && CONFIG_SERVICE.contains(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "expanded_tree_nodes"));
+    }
+
+    public static List<String> getDashboardExpandedTreeNodes(String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return List.of();
+        }
+        return CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "expanded_tree_nodes"),
+                PropertyCodecs.STRING_LIST, List.of());
+    }
+
+    public static void setDashboardExpandedTreeNodes(String workspaceId, List<String> nodeIds) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return;
+        }
+        List<String> sanitized = new ArrayList<>();
+        if (nodeIds != null) {
+            for (String nodeId : nodeIds) {
+                if (nodeId != null && !nodeId.isBlank() && !sanitized.contains(nodeId)) {
+                    sanitized.add(nodeId);
+                }
+            }
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "expanded_tree_nodes"),
+                PropertyCodecs.STRING_LIST, sanitized);
+    }
+
+    public static boolean getDashboardMemorySectionExpanded(String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return true;
+        }
+        return CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "memory_section_expanded"),
+                PropertyCodecs.BOOLEAN, true);
+    }
+
+    public static void setDashboardMemorySectionExpanded(String workspaceId, boolean expanded) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return;
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "memory_section_expanded"),
+                PropertyCodecs.BOOLEAN, expanded);
+    }
+
+    public static boolean getDashboardMacroConstantsExpanded(String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return true;
+        }
+        return CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "macro_constants_expanded"),
+                PropertyCodecs.BOOLEAN, true);
+    }
+
+    public static void setDashboardMacroConstantsExpanded(String workspaceId, boolean expanded) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return;
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "macro_constants_expanded"),
+                PropertyCodecs.BOOLEAN, expanded);
+    }
+
+    public static Set<DiagnosticLevel> getDashboardDiagnosticFilters(String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return EnumSet.noneOf(DiagnosticLevel.class);
+        }
+        List<String> raw = CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "diagnostic_filters"),
+                PropertyCodecs.STRING_LIST, List.of());
+        EnumSet<DiagnosticLevel> filters = EnumSet.noneOf(DiagnosticLevel.class);
+        for (String value : raw) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            try {
+                filters.add(DiagnosticLevel.valueOf(value.trim().toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return filters;
+    }
+
+    public static void setDashboardDiagnosticFilters(String workspaceId, Set<DiagnosticLevel> filters) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return;
+        }
+        List<String> values = new ArrayList<>();
+        if (filters != null) {
+            for (DiagnosticLevel level : DiagnosticLevel.values()) {
+                if (filters.contains(level)) {
+                    values.add(level.name());
+                }
+            }
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, workspaceKey(workspaceId, "diagnostic_filters"),
+                PropertyCodecs.STRING_LIST, values);
+    }
+
+    public static double getDashboardPanelVerticalScroll(String workspaceId, DashboardPanelId panelId) {
+        return getDashboardPanelScroll(workspaceId, panelId, "scroll_y");
+    }
+
+    public static void setDashboardPanelVerticalScroll(String workspaceId, DashboardPanelId panelId, double scroll) {
+        setDashboardPanelScroll(workspaceId, panelId, "scroll_y", scroll);
+    }
+
+    public static double getDashboardPanelHorizontalScroll(String workspaceId, DashboardPanelId panelId) {
+        return getDashboardPanelScroll(workspaceId, panelId, "scroll_x");
+    }
+
+    public static void setDashboardPanelHorizontalScroll(String workspaceId, DashboardPanelId panelId, double scroll) {
+        setDashboardPanelScroll(workspaceId, panelId, "scroll_x", scroll);
+    }
+
+    private static double getDashboardPanelScroll(String workspaceId, DashboardPanelId panelId, String suffix) {
+        if (workspaceId == null || workspaceId.isBlank() || panelId == null) {
+            return 0.0D;
+        }
+        double value = CONFIG_SERVICE.get(DASHBOARD_UI_SCOPE, panelKey(workspaceId, panelId, suffix),
+                PropertyCodecs.DOUBLE, 0.0D);
+        return Double.isFinite(value) ? Math.max(0.0D, value) : 0.0D;
+    }
+
+    private static void setDashboardPanelScroll(String workspaceId, DashboardPanelId panelId, String suffix, double scroll) {
+        if (workspaceId == null || workspaceId.isBlank() || panelId == null || !Double.isFinite(scroll)) {
+            return;
+        }
+        CONFIG_SERVICE.set(DASHBOARD_UI_SCOPE, panelKey(workspaceId, panelId, suffix),
+                PropertyCodecs.DOUBLE, Math.max(0.0D, scroll));
     }
 
     private static String panelKey(String workspaceId, DashboardPanelId panelId, String suffix) {

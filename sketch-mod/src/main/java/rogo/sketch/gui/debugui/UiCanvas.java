@@ -3,6 +3,7 @@ package rogo.sketch.gui.debugui;
 import net.minecraft.network.chat.Component;
 import rogo.sketch.core.ui.geometry.UiRect;
 import rogo.sketch.core.ui.geometry.UiScaleContext;
+import rogo.sketch.core.ui.texture.UiTexturePatch;
 import rogo.sketch.core.ui.texture.UiTextureRef;
 import rogo.sketch.core.ui.texture.UiTextureUv;
 
@@ -20,6 +21,8 @@ public interface UiCanvas extends UiTextMeasurer {
     void drawCenteredText(Component text, int centerX, int y, int color);
 
     void drawTexture(UiTextureRef texture, UiRect dst, UiTextureUv uv, int tintArgb);
+
+    void drawTexturePatch(UiTexturePatch patch, UiRect dst);
 
     void pushClip(UiRect rect);
 

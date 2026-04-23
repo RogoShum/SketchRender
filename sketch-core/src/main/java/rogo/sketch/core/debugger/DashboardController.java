@@ -3,6 +3,7 @@ package rogo.sketch.core.debugger;
 import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticLevel;
 import rogo.sketch.core.ui.geometry.UiRect;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -78,6 +79,18 @@ public class DashboardController {
         return Collections.unmodifiableSet(expandedTreeNodes);
     }
 
+    public void setExpandedTreeNodes(Collection<String> nodeIds) {
+        expandedTreeNodes.clear();
+        if (nodeIds == null) {
+            return;
+        }
+        for (String nodeId : nodeIds) {
+            if (nodeId != null && !nodeId.isBlank()) {
+                expandedTreeNodes.add(nodeId);
+            }
+        }
+    }
+
     public boolean isLogExpanded(long alertSequence) {
         return expandedLogEntries.contains(alertSequence);
     }
@@ -144,6 +157,18 @@ public class DashboardController {
         return Collections.unmodifiableSet(diagnosticFilters);
     }
 
+    public void setDiagnosticFilters(Collection<DiagnosticLevel> levels) {
+        diagnosticFilters.clear();
+        if (levels == null) {
+            return;
+        }
+        for (DiagnosticLevel level : levels) {
+            if (level != null) {
+                diagnosticFilters.add(level);
+            }
+        }
+    }
+
     public boolean macroConstantsExpanded() {
         return macroConstantsExpanded;
     }
@@ -152,12 +177,20 @@ public class DashboardController {
         macroConstantsExpanded = !macroConstantsExpanded;
     }
 
+    public void setMacroConstantsExpanded(boolean macroConstantsExpanded) {
+        this.macroConstantsExpanded = macroConstantsExpanded;
+    }
+
     public boolean memorySectionExpanded() {
         return memorySectionExpanded;
     }
 
     public void toggleMemorySectionExpanded() {
         memorySectionExpanded = !memorySectionExpanded;
+    }
+
+    public void setMemorySectionExpanded(boolean memorySectionExpanded) {
+        this.memorySectionExpanded = memorySectionExpanded;
     }
 
     public MetricsLayoutMode metricsLayoutMode() {
