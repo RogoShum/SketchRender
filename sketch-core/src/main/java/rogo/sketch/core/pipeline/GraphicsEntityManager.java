@@ -9,10 +9,10 @@ import rogo.sketch.core.graphics.ecs.GraphicsEntitySchema;
 import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.graphics.ecs.GraphicsWorld;
 import rogo.sketch.core.pipeline.flow.v2.StageEntityView;
+import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Owns ECS entity storage/assembly and converts immutable world snapshots into
@@ -43,15 +43,30 @@ public final class GraphicsEntityManager {
         if (snapshot == null) {
             throw new IllegalArgumentException("Unknown graphics entity: " + entityId);
         }
-        return snapshotEntity(snapshot);
+        return snapshotEntity(snapshot, null, null);
     }
 
     public @Nullable StageEntityView.Entry snapshotEntityIfPresent(GraphicsEntityId entityId) {
         GraphicsWorld.StageEntitySnapshot snapshot = graphicsWorld.stageEntitySnapshot(entityId);
-        return snapshot != null ? snapshotEntity(snapshot) : null;
+        return snapshot != null ? snapshotEntity(snapshot, null, null) : null;
+    }
+
+    public @Nullable StageEntityView.Entry snapshotEntityIfPresent(
+            GraphicsEntityId entityId,
+            @Nullable KeyId stageId,
+            @Nullable PipelineType pipelineType) {
+        GraphicsWorld.StageEntitySnapshot snapshot = graphicsWorld.stageEntitySnapshot(entityId);
+        return snapshot != null ? snapshotEntity(snapshot, stageId, pipelineType) : null;
     }
 
     public List<StageEntityView.Entry> snapshotEntitiesIfPresent(List<GraphicsEntityId> entityIds) {
+        return snapshotEntitiesIfPresent(entityIds, null, null);
+    }
+
+    public List<StageEntityView.Entry> snapshotEntitiesIfPresent(
+            List<GraphicsEntityId> entityIds,
+            @Nullable KeyId stageId,
+            @Nullable PipelineType pipelineType) {
         if (entityIds == null || entityIds.isEmpty()) {
             return List.of();
         }
@@ -62,14 +77,34 @@ public final class GraphicsEntityManager {
         List<StageEntityView.Entry> entries = new ArrayList<>(snapshots.size());
         for (GraphicsWorld.StageEntitySnapshot snapshot : snapshots) {
             if (snapshot != null) {
-                entries.add(snapshotEntity(snapshot));
+                StageEntityView.Entry entry = snapshotEntity(snapshot, stageId, pipelineType);
+                if (entry != null) {
+                    entries.add(entry);
+                }
             }
         }
         return entries.isEmpty() ? List.of() : List.copyOf(entries);
     }
 
-    private StageEntityView.Entry snapshotEntity(GraphicsWorld.StageEntitySnapshot snapshot) {
+    private @Nullable StageEntityView.Entry snapshotEntity(
+            GraphicsWorld.StageEntitySnapshot snapshot,
+            @Nullable KeyId stageId,
+            @Nullable PipelineType pipelineType) {
         GraphicsBuiltinComponents.StageBindingComponent stageBinding = snapshot.stageBinding();
+        GraphicsBuiltinComponents.StageRoutesComponent stageRoutes = snapshot.stageRoutes();
+        StageRouteDescriptor stageRoute = StageRouteCompiler.resolveRoute(stageBinding, stageRoutes, stageId, pipelineType);
+        if (stageRoute == null && (stageId != null || pipelineType != null)) {
+            return null;
+        }
+        KeyId effectiveStageId = stageRoute != null
+                ? stageRoute.stageId()
+                : stageBinding != null ? stageBinding.stageId() : null;
+        PipelineType effectivePipelineType = stageRoute != null
+                ? stageRoute.pipelineType()
+                : stageBinding != null ? stageBinding.pipelineType() : null;
+        var effectiveRenderParameter = stageRoute != null
+                ? stageRoute.renderParameter()
+                : stageBinding != null ? stageBinding.renderParameter() : null;
         GraphicsBuiltinComponents.ContainerHintComponent containerHint = snapshot.containerHint();
         GraphicsBuiltinComponents.IdentityComponent identity = snapshot.identity();
         GraphicsBuiltinComponents.ResourceOriginComponent resourceOrigin = snapshot.resourceOrigin();
@@ -81,9 +116,9 @@ public final class GraphicsEntityManager {
                 resourceOrigin,
                 tags,
                 schema,
-                stageBinding != null ? stageBinding.stageId() : null,
-                stageBinding != null ? stageBinding.pipelineType() : null,
-                stageBinding != null ? stageBinding.renderParameter() : null,
+                effectiveStageId,
+                effectivePipelineType,
+                effectiveRenderParameter,
                 snapshot::component,
                 snapshot::componentSnapshot);
         return new StageEntityView.Entry(
@@ -96,6 +131,8 @@ public final class GraphicsEntityManager {
                 uniformSubject,
                 snapshot.lifecycle(),
                 stageBinding,
+                stageRoutes,
+                stageRoute,
                 containerHint,
                 snapshot.rasterRenderable(),
                 snapshot.computeDispatch(),

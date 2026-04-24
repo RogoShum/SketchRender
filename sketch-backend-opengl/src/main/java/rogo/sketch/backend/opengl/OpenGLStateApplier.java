@@ -38,6 +38,7 @@ import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.resource.vision.AttachmentBackedRenderTarget;
 import rogo.sketch.core.resource.vision.RenderTarget;
+import rogo.sketch.core.resource.vision.StandardRenderTarget;
 import rogo.sketch.core.shader.ShaderProgramHandle;
 import rogo.sketch.core.shader.ShaderProgramResolver;
 import rogo.sketch.core.util.KeyId;
@@ -51,6 +52,7 @@ public final class OpenGLStateApplier implements BackendStateApplier {
     private final GraphicsAPI api;
     private final BackendResourceRegistry resourceRegistry;
     private final OpenGLStateAccess stateAccess;
+    private RenderTarget currentRenderTarget;
 
     public OpenGLStateApplier(GraphicsAPI api, BackendResourceRegistry resourceRegistry, OpenGLStateAccess stateAccess) {
         this.api = api;
@@ -198,6 +200,7 @@ public final class OpenGLStateApplier implements BackendStateApplier {
         RenderTarget logicalTarget = resourceRegistry.resolveLogicalResource(ResourceTypes.RENDER_TARGET, renderTargetId) instanceof RenderTarget target
                 ? target
                 : null;
+        currentRenderTarget = logicalTarget;
         applyDrawBuffers(logicalTarget, state.drawBuffers());
     }
 
@@ -298,8 +301,16 @@ public final class OpenGLStateApplier implements BackendStateApplier {
 
     private void applyViewport(ViewportState state, RenderContext context) {
         if (state.auto()) {
-            int width = context != null ? context.windowWidth() : 0;
-            int height = context != null ? context.windowHeight() : 0;
+            int width = currentRenderTarget instanceof StandardRenderTarget standardRenderTarget && !standardRenderTarget.isDisposed()
+                    ? standardRenderTarget.getCurrentWidth()
+                    : 0;
+            int height = currentRenderTarget instanceof StandardRenderTarget standardRenderTarget && !standardRenderTarget.isDisposed()
+                    ? standardRenderTarget.getCurrentHeight()
+                    : 0;
+            if (width <= 0 || height <= 0) {
+                width = context != null ? context.windowWidth() : 0;
+                height = context != null ? context.windowHeight() : 0;
+            }
             stateAccess.viewport(0, 0, width, height);
         } else {
             stateAccess.viewport(state.x(), state.y(), state.width(), state.height());

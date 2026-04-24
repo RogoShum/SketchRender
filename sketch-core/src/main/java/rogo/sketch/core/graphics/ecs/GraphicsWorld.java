@@ -252,6 +252,7 @@ public final class GraphicsWorld {
                 chunk.component(row, GraphicsBuiltinComponents.OBJECT_FLAGS),
                 chunk.component(row, GraphicsBuiltinComponents.LIFECYCLE),
                 chunk.component(row, GraphicsBuiltinComponents.STAGE_BINDING),
+                chunk.component(row, GraphicsBuiltinComponents.STAGE_ROUTES),
                 chunk.component(row, GraphicsBuiltinComponents.CONTAINER_HINT),
                 chunk.component(row, GraphicsBuiltinComponents.RASTER_RENDERABLE),
                 chunk.component(row, GraphicsBuiltinComponents.COMPUTE_DISPATCH),
@@ -319,6 +320,7 @@ public final class GraphicsWorld {
             GraphicsBuiltinComponents.ObjectFlagsComponent objectFlags,
             GraphicsBuiltinComponents.LifecycleComponent lifecycle,
             GraphicsBuiltinComponents.StageBindingComponent stageBinding,
+            GraphicsBuiltinComponents.StageRoutesComponent stageRoutes,
             GraphicsBuiltinComponents.ContainerHintComponent containerHint,
             GraphicsBuiltinComponents.RasterRenderableComponent rasterRenderable,
             GraphicsBuiltinComponents.ComputeDispatchComponent computeDispatch,
@@ -383,6 +385,7 @@ public final class GraphicsWorld {
             accessors.put(GraphicsBuiltinComponents.OBJECT_FLAGS, snapshot -> snapshot.objectFlags());
             accessors.put(GraphicsBuiltinComponents.LIFECYCLE, snapshot -> snapshot.lifecycle());
             accessors.put(GraphicsBuiltinComponents.STAGE_BINDING, snapshot -> snapshot.stageBinding());
+            accessors.put(GraphicsBuiltinComponents.STAGE_ROUTES, snapshot -> snapshot.stageRoutes());
             accessors.put(GraphicsBuiltinComponents.CONTAINER_HINT, snapshot -> snapshot.containerHint());
             accessors.put(GraphicsBuiltinComponents.RASTER_RENDERABLE, snapshot -> snapshot.rasterRenderable());
             accessors.put(GraphicsBuiltinComponents.COMPUTE_DISPATCH, snapshot -> snapshot.computeDispatch());

@@ -1,6 +1,7 @@
 package rogo.sketch.core.pipeline.flow.plan;
 
 import org.jetbrains.annotations.Nullable;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
 import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.pipeline.flow.v2.PreparedStageGeometryView;
@@ -19,10 +20,12 @@ import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class ResourceGroupCompiler {
     public List<ResourceGroupSlice> compile(
@@ -143,9 +146,11 @@ public final class ResourceGroupCompiler {
             return groups;
         }
         IdentityHashMap<StageEntityView.Entry, Boolean> allowed = new IdentityHashMap<>();
+        Set<GraphicsEntityId> allowedEntityIds = new HashSet<>();
         for (StageEntityView.Entry entry : visibleEntries) {
             if (entry != null) {
                 allowed.put(entry, Boolean.TRUE);
+                allowedEntityIds.add(entry.entityId());
             }
         }
         if (allowed.isEmpty()) {
@@ -155,20 +160,27 @@ public final class ResourceGroupCompiler {
             if (preparedGroup == null || preparedGroup.preparedEntries().isEmpty()) {
                 continue;
             }
-            boolean allVisible = preparedGroup.preparedEntries().size() == allowed.size();
-            if (allVisible) {
+            boolean sameVisibleSize = preparedGroup.preparedEntries().size() == allowed.size();
+            boolean allVisibleByIdentity = sameVisibleSize;
+            if (sameVisibleSize) {
                 for (StageEntityView.Entry entry : preparedGroup.preparedEntries()) {
                     if (!allowed.containsKey(entry)) {
-                        allVisible = false;
+                        allVisibleByIdentity = false;
+                    }
+                    if (!isAllowed(entry, allowed, allowedEntityIds)) {
+                        allVisibleByIdentity = false;
                         break;
                     }
                 }
             }
-            List<StageEntityView.Entry> selected = preparedGroup.preparedEntries();
-            if (!allVisible) {
+            List<StageEntityView.Entry> selected = allVisibleByIdentity ? preparedGroup.preparedEntries() : List.of();
+            if (!allVisibleByIdentity) {
                 selected = new ArrayList<>();
-                for (StageEntityView.Entry entry : preparedGroup.preparedEntries()) {
-                    if (allowed.containsKey(entry)) {
+                Set<GraphicsEntityId> preparedEntityIds = entityIdsOf(preparedGroup.preparedEntries());
+                IdentityHashMap<StageEntityView.Entry, Boolean> preparedIdentities = identitiesOf(preparedGroup.preparedEntries());
+                for (StageEntityView.Entry entry : visibleEntries) {
+                    if (entry != null
+                            && (preparedIdentities.containsKey(entry) || preparedEntityIds.contains(entry.entityId()))) {
                         selected.add(entry);
                     }
                 }
@@ -185,6 +197,39 @@ public final class ResourceGroupCompiler {
                     selected));
         }
         return groups;
+    }
+
+    private boolean isAllowed(
+            StageEntityView.Entry entry,
+            IdentityHashMap<StageEntityView.Entry, Boolean> allowed,
+            Set<GraphicsEntityId> allowedEntityIds) {
+        return entry != null && (allowed.containsKey(entry) || allowedEntityIds.contains(entry.entityId()));
+    }
+
+    private IdentityHashMap<StageEntityView.Entry, Boolean> identitiesOf(List<StageEntityView.Entry> entries) {
+        IdentityHashMap<StageEntityView.Entry, Boolean> identities = new IdentityHashMap<>();
+        if (entries == null) {
+            return identities;
+        }
+        for (StageEntityView.Entry entry : entries) {
+            if (entry != null) {
+                identities.put(entry, Boolean.TRUE);
+            }
+        }
+        return identities;
+    }
+
+    private Set<GraphicsEntityId> entityIdsOf(List<StageEntityView.Entry> entries) {
+        Set<GraphicsEntityId> entityIds = new HashSet<>();
+        if (entries == null) {
+            return entityIds;
+        }
+        for (StageEntityView.Entry entry : entries) {
+            if (entry != null) {
+                entityIds.add(entry.entityId());
+            }
+        }
+        return entityIds;
     }
 
     private ShaderProgramHandle extractShaderProvider(CompiledRenderSetting compiledRenderSetting) {

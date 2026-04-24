@@ -524,12 +524,22 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
                 : -1;
 
         resolveLogicalRenderTarget(packet.renderTargetId()).ifPresent(renderTarget -> {
-            if (packet.colorMask() != null && context.renderStateManager() != null && packet.colorMask().length >= 4) {
-                context.renderStateManager().changeState(new ColorMaskState(
-                        packet.colorMask()[0],
-                        packet.colorMask()[1],
-                        packet.colorMask()[2],
-                        packet.colorMask()[3]), context);
+            if (packet.clearColor()) {
+                boolean[] colorMask = packet.colorMask() != null && packet.colorMask().length >= 4
+                        ? packet.colorMask()
+                        : new boolean[]{true, true, true, true};
+                if (context.renderStateManager() != null) {
+                    context.renderStateManager().changeState(new ColorMaskState(
+                            colorMask[0],
+                            colorMask[1],
+                            colorMask[2],
+                            colorMask[3]), context);
+                } else {
+                    api.colorMask(colorMask[0], colorMask[1], colorMask[2], colorMask[3]);
+                }
+            }
+            if (packet.clearDepth()) {
+                api.depthMask(true);
             }
 
             try {

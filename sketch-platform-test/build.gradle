@@ -94,6 +94,58 @@ tasks.register('desktopGlSmokeRun', JavaExec) {
     }
 }
 
+tasks.register('realSceneRun', JavaExec) {
+    group = 'application'
+    description = 'Bootstraps the Vulkan backend with the optional real-scene visual harness.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-platform-test')
+    args '--scene=real'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('desktopGlRealSceneRun', JavaExec) {
+    group = 'application'
+    description = 'Bootstraps the desktop OpenGL backend with the optional real-scene visual harness.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-platform-test')
+    args '--backend=desktop_gl', '--scene=real'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('realSceneShadowDebugRun', JavaExec) {
+    group = 'application'
+    description = 'Bootstraps the Vulkan real-scene harness with the shadow target debug overlay.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-platform-test')
+    args '--scene=real', '--shadow-debug=target'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
+tasks.register('desktopGlRealSceneShadowDebugRun', JavaExec) {
+    group = 'application'
+    description = 'Bootstraps the desktop OpenGL real-scene harness with the shadow target debug overlay.'
+    javaLauncher = java17Launcher
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.file('run-platform-test')
+    args '--backend=desktop_gl', '--scene=real', '--shadow-debug=target'
+    doFirst {
+        workingDir.mkdirs()
+    }
+}
+
 tasks.register('resizeSmokeRun', JavaExec) {
     group = 'application'
     description = 'Runs the Vulkan test backend and forces a few resize events as a quick sanity check.'
@@ -232,6 +284,91 @@ tasks.register('allSmokeRuns') {
             'terrainMeshSmokeRun',
             'desktopGlTerrainMeshSmokeRun'
     )
+}
+
+def optionalPlatformTestModels = [
+        sponza  : [
+                archive    : 'sponza.zip',
+                url        : 'https://casual-effects.com/g3d/data10/common/model/crytek_sponza/sponza.zip',
+                extractDir : 'sponza',
+                obj        : 'sponza.obj',
+                license    : 'CC BY 3.0',
+                attribution: 'McGuire Computer Graphics Archive / Crytek Sponza'
+        ],
+        rungholt: [
+                archive    : 'rungholt.zip',
+                url        : 'https://casual-effects.com/g3d/data10/research/model/rungholt/rungholt.zip',
+                extractDir : 'rungholt',
+                obj        : 'rungholt.obj',
+                license    : 'CC BY 3.0',
+                attribution: 'McGuire Computer Graphics Archive / Rungholt scene'
+        ]
+]
+
+tasks.register('checkPlatformTestOptionalModels') {
+    group = 'platform test assets'
+    description = 'Reports whether optional CC BY 3.0 platform-test scene models are present in the local run cache.'
+    doLast {
+        def root = rootProject.file('run-platform-test/models/external')
+        optionalPlatformTestModels.each { name, spec ->
+            def objFile = new File(new File(root, spec.extractDir), spec.obj)
+            if (objFile.isFile()) {
+                println "platform-test optional model present: ${name} -> ${objFile}"
+            } else {
+                println "platform-test optional model missing: ${name}"
+                println "  source: ${spec.url}"
+                println "  license: ${spec.license}; attribution required: ${spec.attribution}"
+                println "  local cache source is also accepted: plan/model/${spec.archive}"
+                println "  install: .\\gradlew.bat :sketch-platform-test:downloadPlatformTestOptionalModels -PacceptPlatformTestOptionalModelLicenses=true --console=plain"
+            }
+        }
+    }
+}
+
+tasks.register('downloadPlatformTestOptionalModels') {
+    group = 'platform test assets'
+    description = 'Manually downloads and extracts optional CC BY 3.0 scene models into run-platform-test/models/external.'
+    doLast {
+        if (!project.findProperty('acceptPlatformTestOptionalModelLicenses')?.toString()?.toBoolean()) {
+            throw new GradleException(
+                    'Optional platform-test scene models are CC BY 3.0 assets. '
+                            + 'Re-run with -PacceptPlatformTestOptionalModelLicenses=true after accepting attribution obligations.')
+        }
+        def downloadDir = rootProject.file('run-platform-test/models/downloads')
+        def extractRoot = rootProject.file('run-platform-test/models/external')
+        downloadDir.mkdirs()
+        extractRoot.mkdirs()
+        optionalPlatformTestModels.each { name, spec ->
+            def archiveFile = new File(downloadDir, spec.archive)
+            if (!archiveFile.isFile()) {
+                def localPlanArchive = rootProject.file("plan/model/${spec.archive}")
+                if (localPlanArchive.isFile()) {
+                    println "Using local plan/model archive for ${name}: ${localPlanArchive}"
+                    archiveFile.bytes = localPlanArchive.bytes
+                } else {
+                    println "Downloading ${name} from ${spec.url}"
+                    archiveFile.withOutputStream { output ->
+                        new URL(spec.url).withInputStream { input ->
+                            output << input
+                        }
+                    }
+                }
+            } else {
+                println "Using cached ${name} archive: ${archiveFile}"
+            }
+            def targetDir = new File(extractRoot, spec.extractDir)
+            copy {
+                from zipTree(archiveFile)
+                into targetDir
+            }
+            def objFile = new File(targetDir, spec.obj)
+            if (!objFile.isFile()) {
+                throw new GradleException("Downloaded ${name}, but expected OBJ was not found: ${objFile}")
+            }
+            println "Installed optional platform-test model ${name}: ${objFile}"
+            println "  license: ${spec.license}; attribution required: ${spec.attribution}"
+        }
+    }
 }
 
 gradle.taskGraph.whenReady {

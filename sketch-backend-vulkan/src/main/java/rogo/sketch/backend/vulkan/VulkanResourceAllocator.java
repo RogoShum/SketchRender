@@ -19,7 +19,10 @@ import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.ResourceBindingPlan;
 import rogo.sketch.core.packet.ResourceSetKey;
 import rogo.sketch.core.pipeline.kernel.FrameExecutionPlan;
+import rogo.sketch.core.pipeline.module.diagnostic.SketchDiagnostics;
 import rogo.sketch.core.resource.GraphicsResourceManager;
+import rogo.sketch.core.resource.descriptor.ImageFormat;
+import rogo.sketch.core.resource.descriptor.ImageUsage;
 import rogo.sketch.core.resource.descriptor.ResolvedBufferResource;
 import rogo.sketch.core.resource.descriptor.ResolvedImageResource;
 import rogo.sketch.core.resource.descriptor.ResolvedRenderTargetSpec;
@@ -34,6 +37,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 
 final class VulkanResourceAllocator implements ResourceAllocator, LogicalResourceRegistryBinder {
+    private static final String DIAG_MODULE = "vulkan-resource-allocator";
+
     private final VulkanBackendRuntime runtime;
     private final VulkanResourceResolver resourceResolver;
     private final VulkanDescriptorArena descriptorArena;
@@ -54,7 +59,55 @@ final class VulkanResourceAllocator implements ResourceAllocator, LogicalResourc
             @Nullable ByteBuffer imageData) {
         StandardTexture texture = new StandardTexture(GpuHandle.NONE, resourceId, descriptor, imagePath);
         texture.updateCurrentSize(descriptor.width(), descriptor.height());
+        installSampledTextureOverride(resourceId, descriptor, imagePath, imageData);
         return texture;
+    }
+
+    private void installSampledTextureOverride(
+            KeyId resourceId,
+            ResolvedImageResource descriptor,
+            @Nullable String imagePath,
+            @Nullable ByteBuffer imageData) {
+        if (resourceId == null || descriptor == null || !isStandaloneSampledTexture(descriptor)) {
+            return;
+        }
+        VulkanTextureResource textureResource;
+        if (imageData == null) {
+            SketchDiagnostics.get().warn(
+                    DIAG_MODULE,
+                    "Using Vulkan 1x1 placeholder for texture " + resourceId + ": no image data"
+                            + describeImagePath(imagePath));
+            textureResource = VulkanTextureFactory.createPlaceholderTexture(runtime.physicalDevice(), runtime.device(), 1, 1);
+        } else if (descriptor.format() != ImageFormat.RGBA8_UNORM) {
+            SketchDiagnostics.get().warn(
+                    DIAG_MODULE,
+                    "Using Vulkan 1x1 placeholder for texture " + resourceId
+                            + ": upload v1 only supports RGBA8_UNORM, got " + descriptor.format()
+                            + describeImagePath(imagePath));
+            textureResource = VulkanTextureFactory.createPlaceholderTexture(runtime.physicalDevice(), runtime.device(), 1, 1);
+        } else {
+            try {
+                textureResource = VulkanTextureFactory.createUploadedSampledTexture(runtime, descriptor, imageData);
+            } catch (RuntimeException e) {
+                SketchDiagnostics.get().warn(
+                        DIAG_MODULE,
+                        "Using Vulkan 1x1 placeholder for texture " + resourceId
+                                + ": upload failed" + describeImagePath(imagePath),
+                        e);
+                textureResource = VulkanTextureFactory.createPlaceholderTexture(runtime.physicalDevice(), runtime.device(), 1, 1);
+            }
+        }
+        resourceResolver.registerTexture(resourceId, textureResource);
+    }
+
+    private boolean isStandaloneSampledTexture(ResolvedImageResource descriptor) {
+        return descriptor.supports(ImageUsage.SAMPLED)
+                && !descriptor.supports(ImageUsage.STORAGE)
+                && !descriptor.isRenderTargetAttachment();
+    }
+
+    private String describeImagePath(@Nullable String imagePath) {
+        return imagePath != null && !imagePath.isBlank() ? " [" + imagePath + "]" : "";
     }
 
     @Override

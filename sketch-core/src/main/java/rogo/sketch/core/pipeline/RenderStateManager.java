@@ -8,6 +8,7 @@ import rogo.sketch.core.driver.state.CompiledRasterState;
 import rogo.sketch.core.driver.state.RenderStateCompiler;
 import rogo.sketch.core.driver.state.RenderStatePatch;
 import rogo.sketch.core.driver.state.ShaderBindingState;
+import rogo.sketch.core.driver.state.DynamicRenderState;
 import rogo.sketch.core.driver.GraphicsDriver;
 import rogo.sketch.core.packet.ComputePipelineKey;
 import rogo.sketch.core.packet.ExecutionDomain;
@@ -206,11 +207,11 @@ public class RenderStateManager {
         if (state.pipelineRasterState() != null) {
             GraphicsDriver.renderDevice().stateApplier().applyPipelineRasterState(state.pipelineRasterState(), context);
         }
-        if (state.dynamicRenderState() != null) {
-            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
-        }
         if (state.attachmentBindingState() != null) {
             GraphicsDriver.renderDevice().stateApplier().applyAttachmentBindingState(state.attachmentBindingState(), context);
+        }
+        if (state.dynamicRenderState() != null) {
+            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
         }
         if (state.shaderBindingState() != null) {
             GraphicsDriver.renderDevice().stateApplier().applyShaderBindingState(state.shaderBindingState(), context);
@@ -228,13 +229,14 @@ public class RenderStateManager {
                 && !Objects.equals(oldState.pipelineRasterState(), newState.pipelineRasterState())) {
             GraphicsDriver.renderDevice().stateApplier().applyPipelineRasterState(newState.pipelineRasterState(), context);
         }
-        if (oldState.dynamicRenderState() != newState.dynamicRenderState()
-                && !Objects.equals(oldState.dynamicRenderState(), newState.dynamicRenderState())) {
-            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
-        }
         if (oldState.attachmentBindingState() != newState.attachmentBindingState()
                 && !Objects.equals(oldState.attachmentBindingState(), newState.attachmentBindingState())) {
             GraphicsDriver.renderDevice().stateApplier().applyAttachmentBindingState(newState.attachmentBindingState(), context);
+        }
+        if (hasAutoViewport(newState.dynamicRenderState())
+                || oldState.dynamicRenderState() != newState.dynamicRenderState()
+                && !Objects.equals(oldState.dynamicRenderState(), newState.dynamicRenderState())) {
+            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
         }
         if (oldState.shaderBindingState() != newState.shaderBindingState()
                 && !Objects.equals(oldState.shaderBindingState(), newState.shaderBindingState())) {
@@ -251,11 +253,11 @@ public class RenderStateManager {
         if (state.pipelineRasterState() != null) {
             GraphicsDriver.renderDevice().stateApplier().applyPipelineRasterState(state.pipelineRasterState(), context);
         }
-        if (state.dynamicRenderState() != null) {
-            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
-        }
         if (state.passBindingState() != null) {
             GraphicsDriver.renderDevice().stateApplier().applyPassBindingState(state.passBindingState(), context);
+        }
+        if (state.dynamicRenderState() != null) {
+            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(state.dynamicRenderState(), context);
         }
     }
 
@@ -264,14 +266,21 @@ public class RenderStateManager {
                 && !Objects.equals(oldState.pipelineRasterState(), newState.pipelineRasterState())) {
             GraphicsDriver.renderDevice().stateApplier().applyPipelineRasterState(newState.pipelineRasterState(), context);
         }
-        if (oldState.dynamicRenderState() != newState.dynamicRenderState()
-                && !Objects.equals(oldState.dynamicRenderState(), newState.dynamicRenderState())) {
-            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
-        }
         if (oldState.passBindingState() != newState.passBindingState()
                 && !Objects.equals(oldState.passBindingState(), newState.passBindingState())) {
             GraphicsDriver.renderDevice().stateApplier().applyPassBindingState(newState.passBindingState(), context);
         }
+        if (hasAutoViewport(newState.dynamicRenderState())
+                || oldState.dynamicRenderState() != newState.dynamicRenderState()
+                && !Objects.equals(oldState.dynamicRenderState(), newState.dynamicRenderState())) {
+            GraphicsDriver.renderDevice().stateApplier().applyDynamicRenderState(newState.dynamicRenderState(), context);
+        }
+    }
+
+    private boolean hasAutoViewport(DynamicRenderState dynamicRenderState) {
+        return dynamicRenderState != null
+                && dynamicRenderState.viewportState() != null
+                && dynamicRenderState.viewportState().auto();
     }
 
     private boolean isEquivalentBindingPlan(ResourceBindingPlan bindingPlan) {

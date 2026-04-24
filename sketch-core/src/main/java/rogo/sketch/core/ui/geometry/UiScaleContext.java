@@ -36,11 +36,11 @@ public record UiScaleContext(
         if (logicalRect == null) {
             return new UiRect(0, 0, 0, 0);
         }
-        int x = scaleCoordinate(logicalRect.x());
-        int y = scaleCoordinate(logicalRect.y());
-        int width = Math.max(0, scaleLength(logicalRect.width()));
-        int height = Math.max(0, scaleLength(logicalRect.height()));
-        return new UiRect(x, y, width, height);
+        int x = (int) Math.floor(logicalRect.x() * rootScale);
+        int y = (int) Math.floor(logicalRect.y() * rootScale);
+        int right = (int) Math.ceil(logicalRect.right() * rootScale);
+        int bottom = (int) Math.ceil(logicalRect.bottom() * rootScale);
+        return new UiRect(x, y, Math.max(0, right - x), Math.max(0, bottom - y));
     }
 
     public int logicalUnitsForPhysicalPx(int physicalPx) {

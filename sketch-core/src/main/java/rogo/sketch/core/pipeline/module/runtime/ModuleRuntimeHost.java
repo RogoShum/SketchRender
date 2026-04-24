@@ -93,7 +93,7 @@ public class ModuleRuntimeHost {
         sorted.sort(Comparator.comparingInt(ModuleDescriptor::priority));
 
         for (ModuleDescriptor descriptor : sorted) {
-            ensureModuleEnabledSetting(descriptor.id());
+            ensureModuleEnabledSetting(descriptor);
             descriptor.describe(new DescriptorContextImpl(descriptor.id()));
         }
 
@@ -435,7 +435,8 @@ public class ModuleRuntimeHost {
         }
     }
 
-    private void ensureModuleEnabledSetting(String moduleId) {
+    private void ensureModuleEnabledSetting(ModuleDescriptor descriptor) {
+        String moduleId = descriptor.id();
         KeyId enabledSettingId = moduleEnabledSettingId(moduleId);
         for (SettingNode<?> setting : settingRegistry.allSettings()) {
             if (setting.id().equals(enabledSettingId)) {
@@ -451,7 +452,7 @@ public class ModuleRuntimeHost {
                 ChangeImpact.RECREATE_SESSION_RESOURCES,
                 false,
                 List.of(),
-                true));
+                descriptor.enabledByDefault()));
     }
 
     private void applySettingChanges(List<SettingChangeEvent> events) {

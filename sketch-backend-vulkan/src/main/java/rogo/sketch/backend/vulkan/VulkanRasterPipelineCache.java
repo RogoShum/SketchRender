@@ -84,6 +84,7 @@ final class VulkanRasterPipelineCache {
     private long[] framebuffers = new long[0];
     private int extentWidth;
     private int extentHeight;
+    private int colorAttachmentCount;
     private int depthAttachmentFormat = VK_FORMAT_UNDEFINED;
 
     VulkanRasterPipelineCache(VkDevice device, VulkanPipelineLayoutCache layoutCache) {
@@ -96,6 +97,7 @@ final class VulkanRasterPipelineCache {
         destroySwapchainResources();
         this.extentWidth = extentWidth;
         this.extentHeight = extentHeight;
+        this.colorAttachmentCount = colorAttachmentFormat != VK_FORMAT_UNDEFINED ? 1 : 0;
         this.depthAttachmentFormat = depthAttachmentFormat;
         renderPass = createRenderPass(device, colorAttachmentFormat, depthAttachmentFormat);
         framebuffers = createFramebuffers(device, renderPass, extentWidth, extentHeight, imageViews, depthImageViews);
@@ -127,6 +129,14 @@ final class VulkanRasterPipelineCache {
 
     int extentHeight() {
         return extentHeight;
+    }
+
+    int colorAttachmentCount() {
+        return colorAttachmentCount;
+    }
+
+    boolean hasDepthAttachment() {
+        return depthAttachmentFormat != VK_FORMAT_UNDEFINED;
     }
 
     void destroy() {
@@ -186,7 +196,8 @@ final class VulkanRasterPipelineCache {
                 extentHeight,
                 key.stateKey(),
                 graphicsVariant,
-                inputDescriptions);
+                inputDescriptions,
+                colorAttachmentCount);
         return new PipelineVariant(pipeline, pipelineLayout);
     }
 
@@ -254,36 +265,48 @@ final class VulkanRasterPipelineCache {
 
     private static long createRenderPass(VkDevice device, int colorAttachmentFormat, int depthAttachmentFormat) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(2, stack);
-            attachments.get(0)
-                    .format(colorAttachmentFormat)
-                    .samples(VK_SAMPLE_COUNT_1_BIT)
-                    .loadOp(VK_ATTACHMENT_LOAD_OP_LOAD)
-                    .storeOp(VK_ATTACHMENT_STORE_OP_STORE)
-                    .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-                    .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
-                    .initialLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-                    .finalLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-            attachments.get(1)
-                    .format(depthAttachmentFormat)
-                    .samples(VK_SAMPLE_COUNT_1_BIT)
-                    .loadOp(VK_ATTACHMENT_LOAD_OP_LOAD)
-                    .storeOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
-                    .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-                    .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
-                    .initialLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-                    .finalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            boolean hasColor = colorAttachmentFormat != VK_FORMAT_UNDEFINED;
+            boolean hasDepth = depthAttachmentFormat != VK_FORMAT_UNDEFINED;
+            int attachmentCount = (hasColor ? 1 : 0) + (hasDepth ? 1 : 0);
+            VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(attachmentCount, stack);
+            int attachmentIndex = 0;
+            if (hasColor) {
+                attachments.get(attachmentIndex++)
+                        .format(colorAttachmentFormat)
+                        .samples(VK_SAMPLE_COUNT_1_BIT)
+                        .loadOp(VK_ATTACHMENT_LOAD_OP_LOAD)
+                        .storeOp(VK_ATTACHMENT_STORE_OP_STORE)
+                        .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                        .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                        .initialLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                        .finalLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            }
+            if (hasDepth) {
+                attachments.get(attachmentIndex)
+                        .format(depthAttachmentFormat)
+                        .samples(VK_SAMPLE_COUNT_1_BIT)
+                        .loadOp(VK_ATTACHMENT_LOAD_OP_LOAD)
+                        .storeOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                        .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                        .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                        .initialLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                        .finalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            }
 
-            VkAttachmentReference.Buffer colorAttachmentRef = VkAttachmentReference.calloc(1, stack);
-            colorAttachmentRef.get(0).attachment(0).layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-            VkAttachmentReference depthAttachmentRef = VkAttachmentReference.calloc(stack)
-                    .attachment(1)
-                    .layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            VkAttachmentReference.Buffer colorAttachmentRef = hasColor ? VkAttachmentReference.calloc(1, stack) : null;
+            if (hasColor) {
+                colorAttachmentRef.get(0).attachment(0).layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            }
+            VkAttachmentReference depthAttachmentRef = hasDepth
+                    ? VkAttachmentReference.calloc(stack)
+                    .attachment(hasColor ? 1 : 0)
+                    .layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                    : null;
 
             VkSubpassDescription.Buffer subpasses = VkSubpassDescription.calloc(1, stack);
             subpasses.get(0)
                     .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
-                    .colorAttachmentCount(1)
+                    .colorAttachmentCount(hasColor ? 1 : 0)
                     .pColorAttachments(colorAttachmentRef)
                     .pDepthStencilAttachment(depthAttachmentRef);
 
@@ -324,7 +347,8 @@ final class VulkanRasterPipelineCache {
             int extentHeight,
             RasterPipelineKey stateKey,
             VulkanShaderVariantCache.GraphicsVariantModules graphicsVariant,
-            VertexInputDescriptions inputDescriptions) {
+            VertexInputDescriptions inputDescriptions,
+            int colorAttachmentCount) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
             shaderStages.get(0)
@@ -427,16 +451,21 @@ final class VulkanRasterPipelineCache {
                     .stencilTestEnable(false);
 
             boolean blendEnabled = blendState != null && blendState.enabled();
-            VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack);
-            colorBlendAttachment.get(0)
-                    .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
-                    .blendEnable(blendEnabled)
-                    .srcColorBlendFactor(mapBlendFactor(blendEnabled ? blendState.colorSrcFactor() : BlendFactor.ONE))
-                    .dstColorBlendFactor(mapBlendFactor(blendEnabled ? blendState.colorDstFactor() : BlendFactor.ZERO))
-                    .colorBlendOp(mapBlendOp(blendEnabled ? blendState.colorOp() : BlendOp.ADD))
-                    .srcAlphaBlendFactor(mapBlendFactor(blendEnabled ? blendState.alphaSrcFactor() : BlendFactor.ONE))
-                    .dstAlphaBlendFactor(mapBlendFactor(blendEnabled ? blendState.alphaDstFactor() : BlendFactor.ZERO))
-                    .alphaBlendOp(mapBlendOp(blendEnabled ? blendState.alphaOp() : BlendOp.ADD));
+            boolean hasColorAttachment = colorAttachmentCount > 0;
+            VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = hasColorAttachment
+                    ? VkPipelineColorBlendAttachmentState.calloc(1, stack)
+                    : null;
+            if (hasColorAttachment) {
+                colorBlendAttachment.get(0)
+                        .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                        .blendEnable(blendEnabled)
+                        .srcColorBlendFactor(mapBlendFactor(blendEnabled ? blendState.colorSrcFactor() : BlendFactor.ONE))
+                        .dstColorBlendFactor(mapBlendFactor(blendEnabled ? blendState.colorDstFactor() : BlendFactor.ZERO))
+                        .colorBlendOp(mapBlendOp(blendEnabled ? blendState.colorOp() : BlendOp.ADD))
+                        .srcAlphaBlendFactor(mapBlendFactor(blendEnabled ? blendState.alphaSrcFactor() : BlendFactor.ONE))
+                        .dstAlphaBlendFactor(mapBlendFactor(blendEnabled ? blendState.alphaDstFactor() : BlendFactor.ZERO))
+                        .alphaBlendOp(mapBlendOp(blendEnabled ? blendState.alphaOp() : BlendOp.ADD));
+            }
 
             VkPipelineColorBlendStateCreateInfo colorBlending = VkPipelineColorBlendStateCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
@@ -474,7 +503,10 @@ final class VulkanRasterPipelineCache {
             int extentHeight,
             long[] imageViews,
             long[] depthImageViews) {
-        long[] framebuffers = new long[imageViews.length];
+        boolean hasColor = imageViews != null && imageViews.length > 0;
+        boolean hasDepth = depthImageViews != null && depthImageViews.length > 0;
+        int framebufferCount = Math.max(hasColor ? imageViews.length : 0, hasDepth ? depthImageViews.length : 0);
+        long[] framebuffers = new long[framebufferCount];
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkFramebufferCreateInfo createInfo = VkFramebufferCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
@@ -482,8 +514,12 @@ final class VulkanRasterPipelineCache {
                     .width(extentWidth)
                     .height(extentHeight)
                     .layers(1);
-            for (int i = 0; i < imageViews.length; i++) {
-                createInfo.pAttachments(stack.longs(imageViews[i], depthImageViews[i]));
+            for (int i = 0; i < framebufferCount; i++) {
+                long colorView = hasColor ? imageViews[Math.min(i, imageViews.length - 1)] : VK_NULL_HANDLE;
+                long depthView = hasDepth ? depthImageViews[Math.min(i, depthImageViews.length - 1)] : VK_NULL_HANDLE;
+                createInfo.pAttachments(hasColor && hasDepth
+                        ? stack.longs(colorView, depthView)
+                        : hasColor ? stack.longs(colorView) : stack.longs(depthView));
                 LongBuffer framebufferPointer = stack.mallocLong(1);
                 VulkanDeviceBootstrapper.checkVkResult(
                         vkCreateFramebuffer(device, createInfo, null, framebufferPointer),

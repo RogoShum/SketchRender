@@ -61,6 +61,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR;
@@ -501,6 +502,10 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
         }
     }
 
+    public void invalidateNamedRenderTargetCaches() {
+        packetExecutor.invalidateNamedRenderTargetCaches();
+    }
+
     public VulkanTextureResource currentPresentedDepthAttachment() {
         synchronized (swapchainLock) {
             if (swapchainDepthAttachments.length == 0) {
@@ -787,6 +792,46 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
         synchronized (graphicsQueueLock) {
             VulkanDeviceBootstrapper.checkVkResult(vkQueueSubmit(graphicsQueue, submitInfo, VK_NULL_HANDLE), operation);
             VulkanDeviceBootstrapper.checkVkResult(vkQueueWaitIdle(graphicsQueue), "vkQueueWaitIdle");
+        }
+    }
+
+    void submitGraphicsCommandsAndWait(String operation, Consumer<VkCommandBuffer> recorder) {
+        if (recorder == null) {
+            return;
+        }
+        synchronized (graphicsQueueLock) {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                VkCommandBufferAllocateInfo allocateInfo = VkCommandBufferAllocateInfo.calloc(stack)
+                        .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
+                        .commandPool(commandPool)
+                        .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+                        .commandBufferCount(1);
+                PointerBuffer commandBufferPointer = stack.mallocPointer(1);
+                VulkanDeviceBootstrapper.checkVkResult(
+                        vkAllocateCommandBuffers(device, allocateInfo, commandBufferPointer),
+                        "vkAllocateCommandBuffers(" + operation + ")");
+                VkCommandBuffer commandBuffer = new VkCommandBuffer(commandBufferPointer.get(0), device);
+                try {
+                    VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
+                            .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
+                            .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+                    VulkanDeviceBootstrapper.checkVkResult(
+                            vkBeginCommandBuffer(commandBuffer, beginInfo),
+                            "vkBeginCommandBuffer(" + operation + ")");
+                    recorder.accept(commandBuffer);
+                    VulkanDeviceBootstrapper.checkVkResult(
+                            vkEndCommandBuffer(commandBuffer),
+                            "vkEndCommandBuffer(" + operation + ")");
+
+                    VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
+                            .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
+                            .pCommandBuffers(stack.pointers(commandBuffer.address()));
+                    VulkanDeviceBootstrapper.checkVkResult(vkQueueSubmit(graphicsQueue, submitInfo, VK_NULL_HANDLE), operation);
+                    VulkanDeviceBootstrapper.checkVkResult(vkQueueWaitIdle(graphicsQueue), "vkQueueWaitIdle");
+                } finally {
+                    vkFreeCommandBuffers(device, commandPool, commandBuffer);
+                }
+            }
         }
     }
 
@@ -1643,9 +1688,11 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
                 throw new IllegalStateException("Post-resize Vulkan validation failed: missing render target "
                         + renderTargetId + " for packet " + summarizePackets(List.of(packet)));
             }
-            if (renderTarget.colorAttachments().isEmpty()) {
+            VulkanTextureResource depthAttachment = renderTarget.depthAttachment();
+            boolean hasLiveDepthAttachment = depthAttachment != null && !depthAttachment.isDisposed();
+            if (renderTarget.colorAttachments().isEmpty() && !hasLiveDepthAttachment) {
                 throw new IllegalStateException("Post-resize Vulkan validation failed: render target "
-                        + renderTargetId + " has no color attachments for packet " + summarizePackets(List.of(packet)));
+                        + renderTargetId + " has no live color or depth attachments for packet " + summarizePackets(List.of(packet)));
             }
             for (var entry : renderTarget.colorAttachments().entrySet()) {
                 VulkanTextureResource attachment = entry.getValue();
@@ -1654,6 +1701,11 @@ public final class VulkanBackendRuntime implements BackendRuntime, BackendThread
                             + renderTargetId + " color[" + entry.getKey() + "] is "
                             + describeTexture(attachment) + " for packet " + summarizePackets(List.of(packet)));
                 }
+            }
+            if (depthAttachment != null && depthAttachment.isDisposed()) {
+                throw new IllegalStateException("Post-resize Vulkan validation failed: render target "
+                        + renderTargetId + " depth attachment is "
+                        + describeTexture(depthAttachment) + " for packet " + summarizePackets(List.of(packet)));
             }
         } else if (packet.packetKind() == rogo.sketch.core.packet.RenderPacketKind.DRAW
                 || packet.packetKind() == rogo.sketch.core.packet.RenderPacketKind.CLEAR) {

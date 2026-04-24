@@ -8,6 +8,9 @@ import rogo.sketch.core.packet.ResourceBindingStamp;
 import rogo.sketch.core.packet.ResourceSetKey;
 import rogo.sketch.core.pipeline.PipelineConfig;
 import rogo.sketch.core.pipeline.PipelineType;
+import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshot;
+import rogo.sketch.core.pipeline.shadow.ShadowFrameView;
+import rogo.sketch.core.pipeline.shadow.ShadowProvider;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
@@ -19,20 +22,44 @@ import java.util.Map;
 public record FrameCaptureSnapshot(
         List<StageCapture> stages,
         List<ResourceBindingCapture> resourceBindings,
-        RenderStateCapture renderState
+        RenderStateCapture renderState,
+        ShadowFrameView shadowView,
+        ShadowPassSnapshot shadowPassSnapshot
 ) {
     public FrameCaptureSnapshot {
         stages = stages != null ? List.copyOf(stages) : List.of();
         resourceBindings = resourceBindings != null ? List.copyOf(resourceBindings) : List.of();
         renderState = renderState != null ? renderState : RenderStateCapture.empty();
+        shadowView = shadowView != null ? shadowView : ShadowFrameView.unavailable(ShadowProvider.NONE_PROVIDER_ID);
+        shadowPassSnapshot = shadowPassSnapshot != null ? shadowPassSnapshot : ShadowPassSnapshot.fallback(shadowView);
     }
 
     public static FrameCaptureSnapshot empty() {
-        return new FrameCaptureSnapshot(List.of(), List.of(), RenderStateCapture.empty());
+        return new FrameCaptureSnapshot(
+                List.of(),
+                List.of(),
+                RenderStateCapture.empty(),
+                ShadowFrameView.unavailable(ShadowProvider.NONE_PROVIDER_ID),
+                ShadowPassSnapshot.fallback(ShadowFrameView.unavailable(ShadowProvider.NONE_PROVIDER_ID)));
     }
 
     public FrameCaptureSnapshot withRenderState(RenderStateCapture nextRenderState) {
-        return new FrameCaptureSnapshot(stages, resourceBindings, nextRenderState);
+        return new FrameCaptureSnapshot(stages, resourceBindings, nextRenderState, shadowView, shadowPassSnapshot);
+    }
+
+    public FrameCaptureSnapshot withShadowView(ShadowFrameView nextShadowView) {
+        return new FrameCaptureSnapshot(stages, resourceBindings, renderState, nextShadowView, shadowPassSnapshot);
+    }
+
+    public FrameCaptureSnapshot withShadowPassSnapshot(ShadowPassSnapshot nextShadowPassSnapshot) {
+        return new FrameCaptureSnapshot(stages, resourceBindings, renderState, shadowView, nextShadowPassSnapshot);
+    }
+
+    public FrameCaptureSnapshot withRuntimeState(
+            RenderStateCapture nextRenderState,
+            ShadowFrameView nextShadowView,
+            ShadowPassSnapshot nextShadowPassSnapshot) {
+        return new FrameCaptureSnapshot(stages, resourceBindings, nextRenderState, nextShadowView, nextShadowPassSnapshot);
     }
 
     public static FrameCaptureSnapshot fromStagePlans(Map<KeyId, StageExecutionPlan> stagePlans) {
@@ -91,7 +118,12 @@ public record FrameCaptureSnapshot(
                     packetCount,
                     drawPacketCount));
         }
-        return new FrameCaptureSnapshot(List.copyOf(captures), buildResourceBindingCaptures(resourceBindings), RenderStateCapture.empty());
+        return new FrameCaptureSnapshot(
+                List.copyOf(captures),
+                buildResourceBindingCaptures(resourceBindings),
+                RenderStateCapture.empty(),
+                ShadowFrameView.unavailable(ShadowProvider.NONE_PROVIDER_ID),
+                ShadowPassSnapshot.fallback(ShadowFrameView.unavailable(ShadowProvider.NONE_PROVIDER_ID)));
     }
 
     public static FrameCaptureSnapshot fromPackets(Map<PipelineType, Map<ExecutionKey, List<RenderPacket>>> stagePackets) {
@@ -119,7 +151,12 @@ public record FrameCaptureSnapshot(
         for (StageCaptureBuilder builder : builders.values()) {
             captures.add(builder.build());
         }
-        return new FrameCaptureSnapshot(List.copyOf(captures), buildResourceBindingCaptures(resourceBindings), RenderStateCapture.empty());
+        return new FrameCaptureSnapshot(
+                List.copyOf(captures),
+                buildResourceBindingCaptures(resourceBindings),
+                RenderStateCapture.empty(),
+                ShadowFrameView.unavailable(ShadowProvider.NONE_PROVIDER_ID),
+                ShadowPassSnapshot.fallback(ShadowFrameView.unavailable(ShadowProvider.NONE_PROVIDER_ID)));
     }
 
     public record StageCapture(KeyId stageId, List<StateCapture> states, int packetCount, int drawPacketCount) {

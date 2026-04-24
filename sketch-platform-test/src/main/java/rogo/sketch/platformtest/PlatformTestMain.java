@@ -42,6 +42,7 @@ import rogo.sketch.module.culling.TerrainMeshIndirectBuffer;
 import rogo.sketch.module.culling.TerrainMeshReadbackBuffer;
 import rogo.sketch.module.culling.TerrainMeshResourceSet;
 
+import java.nio.DoubleBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -71,6 +72,8 @@ public final class PlatformTestMain {
         long smokeDurationMillis = parseSmokeDurationMillis(args);
         List<ScheduledResize> scheduledResizes = parseScheduledResizes(args);
         boolean terrainMeshSmoke = hasFlag(args, "--terrain-mesh-smoke");
+        PipelineTestScene.SceneMode sceneMode = parseSceneMode(args, smokeDurationMillis, scheduledResizes, terrainMeshSmoke);
+        PipelineTestScene.ShadowDebugMode shadowDebugMode = parseShadowDebugMode(args, sceneMode);
         GLFWErrorCallback errorCallback = GLFWErrorCallback.createPrint(System.err);
         errorCallback.set();
 
@@ -106,7 +109,12 @@ public final class PlatformTestMain {
             }
 
             int[] framebufferSize = framebufferSize(window);
-            scene = PipelineTestScene.create(backendKind, framebufferSize[0], framebufferSize[1]);
+            scene = PipelineTestScene.create(
+                    backendKind,
+                    framebufferSize[0],
+                    framebufferSize[1],
+                    sceneMode,
+                    shadowDebugMode);
             scene.setRelaxAsyncValidation(!scheduledResizes.isEmpty());
             installResizeCallback(window, backendKind, scene, presentationController);
             boolean controlPlaneEnabled = smokeDurationMillis <= 0L && !terrainMeshSmoke;
@@ -118,6 +126,7 @@ public final class PlatformTestMain {
 
             long deadline = smokeDurationMillis > 0L ? System.nanoTime() + smokeDurationMillis * 1_000_000L : Long.MAX_VALUE;
             long startTime = System.nanoTime();
+            long lastFrameTime = startTime;
             VulkanBackendRuntime vulkanRuntime =
                     backendKind == BackendKind.VULKAN ? (VulkanBackendRuntime) GraphicsDriver.runtime() : null;
 
@@ -130,6 +139,12 @@ public final class PlatformTestMain {
                     GLFW.glfwSetWindowShouldClose(window, true);
                 }
                 runScheduledResizes(window, scheduledResizes, startTime, vulkanRuntime);
+                long now = System.nanoTime();
+                float deltaSeconds = Math.min(0.1f, Math.max(0.0f, (now - lastFrameTime) / 1_000_000_000.0f));
+                lastFrameTime = now;
+                if (scene.isRealSceneMode()) {
+                    scene.updateRealSceneInput(readSceneInputState(window), deltaSeconds);
+                }
                 scene.renderFrame();
                 boolean frameDrawn = true;
                 if (backendKind == BackendKind.OPENGL) {
@@ -201,6 +216,50 @@ public final class PlatformTestMain {
         return BackendKind.VULKAN;
     }
 
+    private static PipelineTestScene.SceneMode parseSceneMode(
+            String[] args,
+            long smokeDurationMillis,
+            List<ScheduledResize> scheduledResizes,
+            boolean terrainMeshSmoke) {
+        if (args != null) {
+            for (String arg : args) {
+                if (arg == null || !arg.startsWith("--scene=")) {
+                    continue;
+                }
+                String value = arg.substring("--scene=".length()).trim().toLowerCase();
+                return switch (value) {
+                    case "real", "real_scene", "realscene" -> PipelineTestScene.SceneMode.REAL_SCENE;
+                    case "validation", "validate", "test" -> PipelineTestScene.SceneMode.VALIDATION;
+                    default -> PipelineTestScene.SceneMode.VALIDATION;
+                };
+            }
+        }
+        if (terrainMeshSmoke || smokeDurationMillis > 0L || (scheduledResizes != null && !scheduledResizes.isEmpty())) {
+            return PipelineTestScene.SceneMode.VALIDATION;
+        }
+        return PipelineTestScene.SceneMode.REAL_SCENE;
+    }
+
+    private static PipelineTestScene.ShadowDebugMode parseShadowDebugMode(
+            String[] args,
+            PipelineTestScene.SceneMode sceneMode) {
+        if (sceneMode != PipelineTestScene.SceneMode.REAL_SCENE || args == null) {
+            return PipelineTestScene.ShadowDebugMode.OFF;
+        }
+        for (String arg : args) {
+            if (arg == null || !arg.startsWith("--shadow-debug=")) {
+                continue;
+            }
+            String value = arg.substring("--shadow-debug=".length()).trim().toLowerCase();
+            return switch (value) {
+                case "target", "shadow_target", "shadow-target" -> PipelineTestScene.ShadowDebugMode.TARGET;
+                case "off", "none", "false", "0" -> PipelineTestScene.ShadowDebugMode.OFF;
+                default -> PipelineTestScene.ShadowDebugMode.OFF;
+            };
+        }
+        return PipelineTestScene.ShadowDebugMode.OFF;
+    }
+
     private static long parseSmokeDurationMillis(String[] args) {
         if (args == null) {
             return 0L;
@@ -249,6 +308,28 @@ public final class PlatformTestMain {
             }
         }
         return schedules;
+    }
+
+    private static PipelineTestScene.SceneInputState readSceneInputState(long window) {
+        double mouseX = 0.0;
+        double mouseY = 0.0;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            DoubleBuffer x = stack.mallocDouble(1);
+            DoubleBuffer y = stack.mallocDouble(1);
+            GLFW.glfwGetCursorPos(window, x, y);
+            mouseX = x.get(0);
+            mouseY = y.get(0);
+        }
+        return new PipelineTestScene.SceneInputState(
+                GLFW.glfwGetKey(window, GLFW.GLFW_KEY_W) == GLFW.GLFW_PRESS,
+                GLFW.glfwGetKey(window, GLFW.GLFW_KEY_S) == GLFW.GLFW_PRESS,
+                GLFW.glfwGetKey(window, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS,
+                GLFW.glfwGetKey(window, GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS,
+                GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS
+                        || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS,
+                GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS,
+                mouseX,
+                mouseY);
     }
 
     private static void runScheduledResizes(
@@ -685,18 +766,25 @@ public final class PlatformTestMain {
             PipelineTestScene.ControlSnapshot snapshot = scene.captureControlSnapshot();
             MemoryDebugSnapshot memorySnapshot = UnifiedMemoryFabric.get().snapshot();
             BackendCapabilities capabilities = GraphicsDriver.capabilities();
+            String modeDetails = snapshot.sceneMode() == PipelineTestScene.SceneMode.REAL_SCENE
+                    ? " | Scene:" + snapshot.sceneAsset()
+                    + " | Actor:" + snapshot.actorModel()
+                    + " | ShadowPackets:" + snapshot.shadowTargetPacketCount()
+                    + " | ShadowDebug:" + snapshot.shadowDebugMode().displayName()
+                    + " dbgPackets:" + snapshot.shadowDebugOverlayPacketCount()
+                    : " | Async C/G:" + snapshot.asyncHiZSubmissionCount() + "/" + snapshot.asyncGraphicsSubmissionCount()
+                    + " | HiZ src/snap/lin/hiz:" + snapshot.hizSourceWidth() + "x" + snapshot.hizSourceHeight()
+                    + "/" + snapshot.hizSnapshotWidth() + "x" + snapshot.hizSnapshotHeight()
+                    + "/" + snapshot.hizSnapshotWidth() + "x" + snapshot.hizSnapshotHeight()
+                    + "/" + snapshot.hizPublishedWidth() + "x" + snapshot.hizPublishedHeight()
+                    + " | epochs " + snapshot.hizSubmittedEpoch() + "->" + snapshot.hizPublishedEpoch();
             String title = baseTitle
                     + " | F8 Controls"
                     + " | F7 Profiler:" + profilerStatus
                     + " | F9 VSync:" + (windowService.vSyncEnabled() ? "ON" : "OFF")
                     + " | F10 Fullscreen:" + (windowService.fullscreenEnabled() ? "ON" : "OFF")
                     + " | [ ] Resolution:" + snapshot.windowWidth() + "x" + snapshot.windowHeight()
-                    + " | Async C/G:" + snapshot.asyncHiZSubmissionCount() + "/" + snapshot.asyncGraphicsSubmissionCount()
-                    + " | HiZ src/snap/lin/hiz:" + snapshot.hizSourceWidth() + "x" + snapshot.hizSourceHeight()
-                    + "/" + snapshot.hizSnapshotWidth() + "x" + snapshot.hizSnapshotHeight()
-                    + "/" + snapshot.hizSnapshotWidth() + "x" + snapshot.hizSnapshotHeight()
-                    + "/" + snapshot.hizPublishedWidth() + "x" + snapshot.hizPublishedHeight()
-                    + " | epochs " + snapshot.hizSubmittedEpoch() + "->" + snapshot.hizPublishedEpoch()
+                    + modeDetails
                     + " | offscreen=" + capabilities.offscreenGraphicsWorkerSupported()
                     + " | memLive=" + DashboardMemorySectionBuilder.formatBytes(memorySnapshot.totalLiveBytes());
             GLFW.glfwSetWindowTitle(windowHandle, title);

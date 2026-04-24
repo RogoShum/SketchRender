@@ -23,7 +23,7 @@ import rogo.sketch.core.util.KeyId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 final class ImmediateRenderer<C extends RenderContext> {
     private final GraphicsPipeline<C> pipeline;
@@ -55,7 +55,7 @@ final class ImmediateRenderer<C extends RenderContext> {
             GraphicsEntityBlueprint blueprint,
             @Nullable C contextOverride,
             @Nullable C currentContext,
-            Function<GraphicsEntityId, StageEntityView.Entry> snapshotEntity) {
+            BiFunction<GraphicsEntityId, PipelineKey, StageEntityView.Entry> snapshotEntity) {
         List<RenderPacket> packets = buildImmediatePackets(blueprint, contextOverride, currentContext, snapshotEntity);
         C context = contextOverride != null ? contextOverride : currentContext;
         if (context == null || packets.isEmpty()) {
@@ -70,7 +70,7 @@ final class ImmediateRenderer<C extends RenderContext> {
             GraphicsEntityBlueprint blueprint,
             @Nullable C contextOverride,
             @Nullable C currentContext,
-            Function<GraphicsEntityId, StageEntityView.Entry> snapshotEntity) {
+            BiFunction<GraphicsEntityId, PipelineKey, StageEntityView.Entry> snapshotEntity) {
         if (blueprint == null || blueprint.isDisposed()) {
             return List.of();
         }
@@ -80,18 +80,26 @@ final class ImmediateRenderer<C extends RenderContext> {
             return List.of();
         }
 
-        GraphicsBuiltinComponents.StageBindingComponent stageBinding = blueprint.component(GraphicsBuiltinComponents.STAGE_BINDING);
-        if (stageBinding == null || stageBinding.renderParameter() == null || stageBinding.renderParameter().isInvalid()) {
+        PipelineKey pipelineKey = resolveImmediatePipelineKey(blueprint);
+        if (pipelineKey == null
+                || pipelineKey.pipelineType() == null
+                || pipelineKey.renderParameter() == null
+                || pipelineKey.renderParameter().isInvalid()) {
             return List.of();
         }
 
-        GraphicsEntityId entityId = graphicsEntityAssembler.spawn(withImmediateStageBinding(blueprint));
+        GraphicsEntityId entityId = graphicsEntityAssembler.spawn(withImmediateStageBinding(blueprint, pipelineKey));
+        StageEntityView.Entry snapshot = snapshotEntity.apply(entityId, pipelineKey);
+        if (snapshot == null) {
+            graphicsEntityAssembler.destroy(entityId);
+            return List.of();
+        }
         StageEntityView immediateView = new StageEntityView(
                 immediateStageId,
-                stageBinding.pipelineType(),
-                List.of(snapshotEntity.apply(entityId)));
+                pipelineKey.pipelineType(),
+                List.of(snapshot));
 
-        PipelineType pipelineType = stageBinding.pipelineType();
+        PipelineType pipelineType = pipelineKey.pipelineType();
         StageFlowScene<C> immediateScene = createImmediateStageScene(pipelineType);
         RenderPostProcessors postProcessors = new RenderPostProcessors();
         if (pipelineType == PipelineType.RASTERIZATION || pipelineType == PipelineType.TRANSLUCENT) {
@@ -134,21 +142,39 @@ final class ImmediateRenderer<C extends RenderContext> {
                 renderTraceRecorder);
     }
 
-    private GraphicsEntityBlueprint withImmediateStageBinding(GraphicsEntityBlueprint blueprint) {
+    private GraphicsEntityBlueprint withImmediateStageBinding(GraphicsEntityBlueprint blueprint, PipelineKey pipelineKey) {
         GraphicsEntityBlueprint.Builder builder = GraphicsEntityBlueprint.builder();
         for (Map.Entry<rogo.sketch.core.graphics.ecs.GraphicsComponentType<?>, Object> entry : blueprint.components().entrySet()) {
             copyComponent(builder, entry.getKey(), entry.getValue());
         }
-        GraphicsBuiltinComponents.StageBindingComponent existing = blueprint.component(GraphicsBuiltinComponents.STAGE_BINDING);
-        if (existing != null) {
-            builder.put(
-                    GraphicsBuiltinComponents.STAGE_BINDING,
-                    new GraphicsBuiltinComponents.StageBindingComponent(
-                            immediateStageId,
-                            existing.pipelineType(),
-                            existing.renderParameter()));
-        }
+        builder.remove(GraphicsBuiltinComponents.STAGE_ROUTES);
+        builder.put(
+                GraphicsBuiltinComponents.STAGE_BINDING,
+                new GraphicsBuiltinComponents.StageBindingComponent(
+                        immediateStageId,
+                        pipelineKey.pipelineType(),
+                        pipelineKey.renderParameter()));
+        builder.put(
+                GraphicsBuiltinComponents.STAGE_ROUTES,
+                new GraphicsBuiltinComponents.StageRoutesComponent(List.of(
+                        StageRouteDescriptor.of(immediateStageId, pipelineKey.pipelineType(), pipelineKey.renderParameter()))));
         return builder.build();
+    }
+
+    private PipelineKey resolveImmediatePipelineKey(GraphicsEntityBlueprint blueprint) {
+        if (blueprint == null) {
+            return null;
+        }
+        GraphicsBuiltinComponents.StageBindingComponent stageBinding = blueprint.component(GraphicsBuiltinComponents.STAGE_BINDING);
+        GraphicsBuiltinComponents.StageRoutesComponent stageRoutes = blueprint.component(GraphicsBuiltinComponents.STAGE_ROUTES);
+        StageRouteDescriptor route = StageRouteCompiler.resolveRoute(stageBinding, stageRoutes, null, null);
+        if (route != null) {
+            return new PipelineKey(route.pipelineType(), route.renderParameter());
+        }
+        if (stageBinding != null) {
+            return new PipelineKey(stageBinding.pipelineType(), stageBinding.renderParameter());
+        }
+        return null;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -157,5 +183,8 @@ final class ImmediateRenderer<C extends RenderContext> {
             rogo.sketch.core.graphics.ecs.GraphicsComponentType componentType,
             Object value) {
         builder.put(componentType, value);
+    }
+
+    record PipelineKey(PipelineType pipelineType, rogo.sketch.core.pipeline.parmeter.RenderParameter renderParameter) {
     }
 }

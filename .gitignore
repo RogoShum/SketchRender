@@ -132,6 +132,8 @@ runs/
 /sketch-backend-opengl/bin/
 /sketch-vk-test/bin/
 /run-vk-test/
+/run-platform-test/
 /.tmp/
 /.tmp-javac-check/
 /.cursor/
+/misc/

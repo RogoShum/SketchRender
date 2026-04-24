@@ -21,18 +21,18 @@
     {
       "name": "sponza",
       "sourceArchive": "sponza.zip",
-      "sourceUrl": "https://casual-effects.com/data/",
+      "sourceUrl": "https://casual-effects.com/g3d/data10/common/model/crytek_sponza/sponza.zip",
       "upstreamUrl": "http://www.crytek.com/cryengine/cryengine3/downloads",
       "license": "CC BY 3.0 / upstream-specific attribution requirements",
-      "notes": "Not vendored. Download manually into an ignored local cache if needed."
+      "notes": "Not vendored. Optional Gradle task installs into run-platform-test/models/external after explicit license acceptance."
     },
     {
       "name": "rungholt",
       "sourceArchive": "rungholt.zip",
-      "sourceUrl": "https://casual-effects.com/data/",
+      "sourceUrl": "https://casual-effects.com/g3d/data10/research/model/rungholt/rungholt.zip",
       "upstreamUrl": "http://www.planetminecraft.com/project/neu-rungholt/",
       "license": "CC BY 3.0 / upstream-specific attribution requirements",
-      "notes": "Not vendored. Download manually into an ignored local cache if needed."
+      "notes": "Not vendored. Optional Gradle task installs into run-platform-test/models/external after explicit license acceptance."
     }
   ]
 }

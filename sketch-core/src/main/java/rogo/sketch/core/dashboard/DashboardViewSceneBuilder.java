@@ -1,5 +1,6 @@
 package rogo.sketch.core.dashboard;
 
+import org.joml.Vector3f;
 import org.jetbrains.annotations.Nullable;
 import rogo.sketch.core.ui.control.ChoicePresentation;
 import rogo.sketch.core.ui.control.ChoiceSpec;
@@ -20,6 +21,10 @@ import rogo.sketch.core.debugger.DashboardWorkspaceLayout;
 import rogo.sketch.core.debugger.DashboardWorkspaceProfile;
 import rogo.sketch.core.debugger.DashboardWorkspaceProfiles;
 import rogo.sketch.core.debugger.ui.UiNodeType;
+import rogo.sketch.core.pipeline.kernel.FrameCaptureSnapshot;
+import rogo.sketch.core.pipeline.shadow.ShadowFrameView;
+import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshot;
+import rogo.sketch.core.pipeline.shadow.ShadowProvider;
 import rogo.sketch.core.pipeline.module.diagnostic.DiagnosticLevel;
 import rogo.sketch.core.ui.frame.UiFrame;
 import rogo.sketch.core.ui.frame.UiInteractionSurface;
@@ -47,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -168,6 +174,7 @@ public final class DashboardViewSceneBuilder {
         headerProps.put("floating", floating);
         headerProps.put("interactive", true);
         headerProps.put("scale", metrics.uiScale);
+        appendHeaderActionProps(headerProps, DashboardPanelId.SETTINGS, snapshot, controller, header, metrics);
         assembly.add(new DashboardPrimitive("settings-header", UiNodeType.HEADER, contentLayer, assembly.nextOrder(),
                 header, null, headerProps));
         appendModeToggle(assembly, DashboardPanelId.SETTINGS, header, contentLayer, floating, metrics);
@@ -189,9 +196,11 @@ public final class DashboardViewSceneBuilder {
         if (metricsLike) {
             int contentWidth = Math.max(metrics.minMetricColumnWidth, panelRect.width() - metrics.innerInset * 2 - metrics.scrollbarGutter);
             int columns = resolveMetricColumns(controller, contentWidth, metrics);
+            UiRect header = headerRect(panelRect, metrics);
+            int actionLaneRight = modeToggleRect(header, metrics).x() - metrics.smallGap;
             assembly.add(new DashboardPrimitive("metrics-layout-toggle/" + panelId.id(), UiNodeType.METRICS_LAYOUT_TOGGLE, contentLayer, assembly.nextOrder(),
-                    new UiRect(panelRect.right() - metrics.innerInset - metrics.headerButtonSize - metrics.smallGap - metrics.layoutToggleWidth,
-                            panelRect.y() + metrics.layoutToggleYOffset,
+                    new UiRect(actionLaneRight - metrics.layoutToggleWidth,
+                            header.y() + metrics.layoutToggleYOffset,
                             metrics.layoutToggleWidth,
                             metrics.layoutToggleHeight), null,
                     panelProps(panelId, Map.of("layoutMode", controller.metricsLayoutMode().name(),
@@ -388,6 +397,7 @@ public final class DashboardViewSceneBuilder {
         headerProps.put("floating", floating);
         headerProps.put("interactive", true);
         headerProps.put("scale", metrics.uiScale);
+        appendHeaderActionProps(headerProps, DashboardPanelId.METRICS, snapshot, controller, header, metrics);
         assembly.add(new DashboardPrimitive("metrics-header", UiNodeType.HEADER, contentLayer, assembly.nextOrder(),
                 header, null, headerProps));
         appendModeToggle(assembly, DashboardPanelId.METRICS, header, contentLayer, floating, metrics);
@@ -558,6 +568,75 @@ public final class DashboardViewSceneBuilder {
                         "", 0xFFF59E0B, ""));
         y = appendSummaryMetricRows(assembly, panelId, captureSummary, viewport, y, 1, viewport.width(), 0,
                 metrics.summaryRowHeight, metrics, contentLayer, "frame-capture/");
+        ShadowFrameView shadowView = capture.shadowView();
+        if (hasShadowCapture(shadowView)) {
+            List<DashboardSummaryMetric> shadowSummary = List.of(
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-provider",
+                            "debug.dashboard.shadow.provider",
+                            Objects.toString(shadowView.providerId(), "none"),
+                            "",
+                            0xFF60A5FA,
+                            "debug.dashboard.shadow.provider.detail"),
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-available",
+                            "debug.dashboard.shadow.available",
+                            String.valueOf(shadowView.available()),
+                            "",
+                            shadowView.available() ? 0xFF34D399 : 0xFFF59E0B,
+                            "passActive=" + shadowView.shadowPassActive() + ", size=" + shadowView.width() + "x" + shadowView.height()),
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-target",
+                            "debug.dashboard.shadow.target",
+                            shadowTargetValue(shadowView),
+                            "",
+                            0xFFF59E0B,
+                            "debug.dashboard.shadow.target.detail"),
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-epoch",
+                            "debug.dashboard.shadow.epoch",
+                            String.valueOf(shadowView.epoch()),
+                            "",
+                            0xFF34D399,
+                            "target=" + Objects.toString(shadowView.renderTargetId(), "none")));
+            y = appendSummaryMetricRows(assembly, panelId, shadowSummary, viewport, y, 1, viewport.width(), 0,
+                    metrics.summaryRowHeight, metrics, contentLayer, "frame-capture/shadow/");
+        }
+        ShadowPassSnapshot shadowPassSnapshot = capture.shadowPassSnapshot();
+        if (hasShadowPassSnapshot(shadowPassSnapshot)) {
+            List<DashboardSummaryMetric> shadowPassSummary = List.of(
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-snapshot-size",
+                            "debug.dashboard.shadow.snapshot_size",
+                            shadowPassSnapshot.width() + "x" + shadowPassSnapshot.height(),
+                            "",
+                            0xFF60A5FA,
+                            "epoch=" + shadowPassSnapshot.epoch()),
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-snapshot-light",
+                            "debug.dashboard.shadow.snapshot_light",
+                            formatVector(shadowPassSnapshot.lightDirection()),
+                            "",
+                            0xFFF59E0B,
+                            "debug.dashboard.shadow.snapshot_light.detail"),
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-snapshot-focus",
+                            "debug.dashboard.shadow.snapshot_focus",
+                            formatVector(shadowPassSnapshot.focusCenter()),
+                            "",
+                            0xFF34D399,
+                            "debug.dashboard.shadow.snapshot_focus.detail"),
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-snapshot-range",
+                            "debug.dashboard.shadow.snapshot_range",
+                            formatScalar(shadowPassSnapshot.shadowDistance()),
+                            "",
+                            0xFFA78BFA,
+                            "near=" + formatScalar(shadowPassSnapshot.nearPlane())
+                                    + ", far=" + formatScalar(shadowPassSnapshot.farPlane())));
+            y = appendSummaryMetricRows(assembly, panelId, shadowPassSummary, viewport, y, 1, viewport.width(), 0,
+                    metrics.summaryRowHeight, metrics, contentLayer, "frame-capture/shadow-pass/");
+        }
         for (var stage : capture.stages()) {
             String label = stage.stageId() != null ? stage.stageId().toString() : "unknown";
             String summary = "packets " + stage.packetCount()
@@ -580,8 +659,99 @@ public final class DashboardViewSceneBuilder {
                     new UiRect(viewport.x(), y, viewport.width(), rowHeight), viewport,
                     panelProps(panelId, props)));
             y += rowHeight + metrics.sectionGap;
+            for (var state : stage.states()) {
+                String stateLabel = frameCaptureStateLabel(state);
+                String stateSummary = frameCaptureStateSummary(state);
+                UiMeasuredTextBlock stateTitleLayout = measureTextBlock(stateLabel, Math.max(24, viewport.width() - metrics.innerInset * 2), metrics);
+                UiMeasuredTextBlock stateSummaryLayout = measureTextBlock(stateSummary, Math.max(24, viewport.width() - metrics.innerInset * 2), metrics);
+                int stateLineCount = Math.max(stateTitleLayout.lineCount(), stateSummaryLayout.lineCount());
+                int stateRowHeight = Math.max(metrics.constantRowHeight,
+                        metrics.innerInset + stateLineCount * metrics.lineHeight + Math.max(0, stateLineCount - 1) * metrics.textLineGap + metrics.innerInset);
+                Map<String, Object> stateProps = new LinkedHashMap<>();
+                stateProps.put("title", stateLabel);
+                stateProps.put("summary", stateSummary);
+                stateProps.put("accent", 0xFFA78BFA);
+                stateProps.put("titleLayout", stateTitleLayout);
+                stateProps.put("summaryLayout", stateSummaryLayout);
+                stateProps.put("scale", metrics.uiScale);
+                stateProps.put("mode", "capture-state-row");
+                assembly.add(new DashboardPrimitive("frame-capture-state/" + label + "/" + stateLabel, UiNodeType.METRIC_CARD, contentLayer, assembly.nextOrder(),
+                        new UiRect(viewport.x(), y, viewport.width(), stateRowHeight), viewport,
+                        panelProps(panelId, stateProps)));
+                y += stateRowHeight + metrics.gap;
+            }
         }
         return y;
+    }
+
+    private String frameCaptureStateLabel(FrameCaptureSnapshot.StateCapture state) {
+        if (state == null) {
+            return "unknown state";
+        }
+        return state.pipelineType() + " -> " + Objects.toString(state.targetKey(), "unknown_target");
+    }
+
+    private String frameCaptureStateSummary(FrameCaptureSnapshot.StateCapture state) {
+        if (state == null) {
+            return "";
+        }
+        String variant = state.stateKey() != null && state.stateKey().shaderVariantKey() != null
+                ? state.stateKey().shaderVariantKey().toString()
+                : "empty";
+        return "packets " + state.packetCount()
+                + " / draw " + state.drawPacketCount()
+                + " / variant " + variant;
+    }
+
+    private boolean hasShadowCapture(ShadowFrameView shadowView) {
+        if (shadowView == null) {
+            return false;
+        }
+        return !Objects.equals(shadowView.providerId(), ShadowProvider.NONE_PROVIDER_ID)
+                || shadowView.available()
+                || shadowView.shadowPassActive()
+                || shadowView.renderTargetId() != null
+                || shadowView.shadowMapTextureId() != null
+                || shadowView.nativeTargetHandle().isValid()
+                || shadowView.width() > 0
+                || shadowView.height() > 0
+                || shadowView.epoch() > 0L;
+    }
+
+    private boolean hasShadowPassSnapshot(ShadowPassSnapshot shadowPassSnapshot) {
+        if (shadowPassSnapshot == null) {
+            return false;
+        }
+        return shadowPassSnapshot.width() > 0
+                || shadowPassSnapshot.height() > 0
+                || shadowPassSnapshot.epoch() > 0L
+                || shadowPassSnapshot.shadowDistance() > 0.0f
+                || shadowPassSnapshot.nearPlane() > 0.0f
+                || shadowPassSnapshot.farPlane() > 0.0f
+                || shadowPassSnapshot.focusCenter().lengthSquared() > 0.0f;
+    }
+
+    private String shadowTargetValue(ShadowFrameView shadowView) {
+        if (shadowView == null) {
+            return "none";
+        }
+        String renderTarget = Objects.toString(shadowView.renderTargetId(), "none");
+        String texture = Objects.toString(shadowView.shadowMapTextureId(), "none");
+        String nativeTarget = shadowView.nativeTargetHandle().isValid()
+                ? Long.toString(shadowView.nativeTargetHandle().value())
+                : "none";
+        return "rt=" + renderTarget + ", tex=" + texture + ", native=" + nativeTarget;
+    }
+
+    private String formatVector(Vector3f value) {
+        if (value == null) {
+            return "(0, 0, 0)";
+        }
+        return "(" + formatScalar(value.x) + ", " + formatScalar(value.y) + ", " + formatScalar(value.z) + ")";
+    }
+
+    private String formatScalar(float value) {
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 
     private int appendMetricsOverviewSection(FrameAssembly assembly, DashboardPanelId panelId, DashboardViewSnapshot snapshot,
@@ -705,19 +875,22 @@ public final class DashboardViewSceneBuilder {
             }
             visibleCount++;
             boolean expanded = controller.isLogExpanded(line.alertSequence());
+            int copyReserve = expanded ? metrics.copyButtonWidth + metrics.smallGap : 0;
+            int textMeasureWidth = Math.max(32, viewport.width() - metrics.innerInset * 2 - copyReserve);
             UiMeasuredTextBlock messageLayout = expanded
-                    ? measureTextBlock(line.message(), Math.max(32, viewport.width() - metrics.innerInset * 2), metrics)
+                    ? measureTextBlock(line.message(), textMeasureWidth, metrics)
                     : measureSingleLineText(line.message(), metrics);
             String detailText = Objects.toString(line.stackTrace() != null && !line.stackTrace().isBlank() ? line.stackTrace() : line.stackPreview(), "");
             UiMeasuredTextBlock detailLayout = expanded && !detailText.isBlank()
-                    ? measureTextBlock(detailText, Math.max(32, viewport.width() - metrics.innerInset * 2), metrics)
+                    ? measureTextBlock(detailText, textMeasureWidth, metrics)
                     : new UiMeasuredTextBlock(List.of(), metrics.lineHeight, metrics.textLineGap, 0, 0);
             List<String> messageLines = messageLayout.lines();
             List<String> detailLines = expanded ? detailLayout.lines() : List.of();
             int bodyLines = 1 + messageLayout.lineCount() + (expanded ? detailLayout.lineCount() : 0);
+            int detailTopPadding = expanded && detailLayout.lineCount() > 0 ? metrics.logDetailTopPadding : 0;
             int lineHeight = expanded
                     ? Math.max(metrics.logLineHeight, metrics.innerInset + bodyLines * messageLayout.lineHeight()
-                    + Math.max(0, bodyLines - 1) * messageLayout.lineGap() + metrics.innerInset)
+                    + Math.max(0, bodyLines - 1) * messageLayout.lineGap() + detailTopPadding + metrics.innerInset)
                     : metrics.logLineHeight;
             if (expanded) {
                 lineHeight = Math.max(lineHeight, metrics.filterHeight + metrics.smallGap * 2);
@@ -737,6 +910,9 @@ public final class DashboardViewSceneBuilder {
             logProps.put("expanded", expanded);
             logProps.put("repeat", line.repeatCount());
             logProps.put("detail", detailText);
+            logProps.put("contentRight", expanded ? viewport.right() - copyReserve : viewport.right());
+            logProps.put("bodyWidth", textMeasureWidth);
+            logProps.put("detailTopPadding", detailTopPadding);
             logProps.put("scale", metrics.uiScale);
             assembly.add(new DashboardPrimitive("log/" + panelId.id() + "/" + visibleCount, UiNodeType.LOG_LINE, contentLayer, assembly.nextOrder(),
                     new UiRect(viewport.x() - (int) Math.round(horizontalScroll), y, contentWidth, lineHeight),
@@ -768,23 +944,17 @@ public final class DashboardViewSceneBuilder {
         UiRect header = headerRect(panelRect, metrics);
         Map<String, Object> headerProps = new LinkedHashMap<>();
         headerProps.put("title", "debug.dashboard.diagnostics");
-        headerProps.put("unreadAlerts", unreadAlerts);
-        headerProps.put("warningCount", snapshot.warningCount());
-        headerProps.put("errorCount", snapshot.errorCount());
+        headerProps.put("fill", 0xC8192230);
+        headerProps.put("border", 0x7A37485F);
         headerProps.put("role", "panel-header");
         headerProps.put("panelId", DashboardPanelId.DIAGNOSTICS.id());
         headerProps.put("floating", floating);
         headerProps.put("interactive", true);
         headerProps.put("scale", metrics.uiScale);
-        UiRect modeToggleRect = modeToggleRect(header, metrics);
-        int badgeGap = metrics.smallGap + 2;
-        int badgeLaneRight = modeToggleRect.x() - metrics.smallGap;
-        int reservedBadgeWidth = diagnosticsBadgeLaneWidth(snapshot.warningCount(), snapshot.errorCount(), badgeGap, metrics);
-        int actionLaneLeft = Math.max(header.x() + metrics.innerInset, badgeLaneRight - reservedBadgeWidth);
-        headerProps.put("badgeGap", badgeGap);
-        headerProps.put("badgeLaneRight", badgeLaneRight);
-        headerProps.put("actionLaneLeft", actionLaneLeft);
-        headerProps.put("titleRight", Math.max(header.x() + metrics.innerInset, actionLaneLeft - metrics.smallGap));
+        appendHeaderActionProps(headerProps, DashboardPanelId.DIAGNOSTICS, snapshot, controller, header, metrics);
+        if (unreadAlerts && controller.activeWindow(DashboardPanelId.DIAGNOSTICS) == DashboardWindowId.CONSOLE) {
+            headerProps.put("border", snapshot.errorCount() > 0 ? 0xFFF87171 : 0xFFF59E0B);
+        }
         assembly.add(new DashboardPrimitive("diagnostics-header", UiNodeType.DIAGNOSTIC_HEADER, contentLayer, assembly.nextOrder(),
                 header, null, headerProps));
         appendModeToggle(assembly, DashboardPanelId.DIAGNOSTICS, header, contentLayer, floating, metrics);
@@ -968,6 +1138,36 @@ public final class DashboardViewSceneBuilder {
                 buttonRect, null,
                 Map.of("fill", 0x72202C39, "border", 0xAA4C627A, "role", "panel-mode-toggle", "interactive", true,
                         "panelId", panelId.id(), "floating", floating, "label", floating ? "D" : "F", "scale", metrics.uiScale)));
+    }
+
+    private void appendHeaderActionProps(Map<String, Object> headerProps, DashboardPanelId panelId,
+                                         DashboardViewSnapshot snapshot, DashboardController controller,
+                                         UiRect header, Metrics metrics) {
+        DashboardWindowId activeWindow = controller.activeWindow(panelId);
+        UiRect modeToggleRect = modeToggleRect(header, metrics);
+        int actionLaneRight = modeToggleRect.x() - metrics.smallGap;
+        int actionLaneLeft = actionLaneRight;
+        int badgeGap = metrics.smallGap + 2;
+        boolean consoleActive = activeWindow == DashboardWindowId.CONSOLE;
+        int warningCount = consoleActive ? snapshot.warningCount() : 0;
+        int errorCount = consoleActive ? snapshot.errorCount() : 0;
+        if (warningCount > 0 || errorCount > 0) {
+            int reservedBadgeWidth = diagnosticsBadgeLaneWidth(warningCount, errorCount, badgeGap, metrics);
+            actionLaneLeft = Math.min(actionLaneLeft, actionLaneRight - reservedBadgeWidth);
+        }
+        boolean metricsLike = activeWindow == DashboardWindowId.METRICS || activeWindow == DashboardWindowId.MEMORY;
+        if (metricsLike) {
+            actionLaneLeft = Math.min(actionLaneLeft, actionLaneRight - metrics.layoutToggleWidth);
+        }
+        int minLeft = header.x() + metrics.innerInset;
+        actionLaneLeft = Math.max(minLeft, actionLaneLeft);
+        headerProps.put("unreadAlerts", consoleActive && snapshot.latestAlertSequence() > controller.acknowledgedAlertSequence());
+        headerProps.put("warningCount", warningCount);
+        headerProps.put("errorCount", errorCount);
+        headerProps.put("badgeGap", badgeGap);
+        headerProps.put("badgeLaneRight", actionLaneRight);
+        headerProps.put("actionLaneLeft", actionLaneLeft);
+        headerProps.put("titleRight", Math.max(minLeft, actionLaneLeft - metrics.smallGap));
     }
 
     private UiRect modeToggleRect(UiRect header, Metrics metrics) {
@@ -1520,6 +1720,7 @@ public final class DashboardViewSceneBuilder {
         private final int chartHeight;
         private final int constantRowHeight;
         private final int logLineHeight;
+        private final int logDetailTopPadding;
         private final int filterWidth;
         private final int filterHeight;
         private final int topbarHeight;
@@ -1578,6 +1779,7 @@ public final class DashboardViewSceneBuilder {
             this.chartHeight = Math.max(108, screenHeight / 6);
             this.constantRowHeight = 34;
             this.logLineHeight = 20;
+            this.logDetailTopPadding = 6;
             this.filterWidth = Math.max(48, screenWidth / 28);
             this.filterHeight = 20;
             this.topbarHeight = 24;

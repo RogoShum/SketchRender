@@ -9,6 +9,7 @@ import rogo.sketch.core.data.MeshIndexMode;
 import rogo.sketch.core.data.PrimitiveType;
 import rogo.sketch.core.data.TopologyIndexGenerator;
 import rogo.sketch.core.data.format.VertexBufferKey;
+import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
 import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.packet.DrawPacket;
 import rogo.sketch.core.packet.DrawPlan;
@@ -40,10 +41,12 @@ import rogo.sketch.core.vertex.GeometryResourceCoordinator;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class DrawStreamCompiler {
@@ -262,26 +265,41 @@ final class DrawStreamCompiler {
         if (compiledSettingSlice == null || compiledSettingSlice.preparedMeshSlices().isEmpty() || resourceGroupEntries == null || resourceGroupEntries.isEmpty()) {
             return List.of();
         }
-        Map<StageEntityView.Entry, Boolean> allowed = new IdentityHashMap<>();
-        for (StageEntityView.Entry entry : resourceGroupEntries) {
-            allowed.put(entry, Boolean.TRUE);
-        }
-        if (allowed.isEmpty()) {
-            return List.of();
-        }
         List<StageGeometryView.PreparedMeshSlice> slices = new ArrayList<>();
         for (StageGeometryView.PreparedMeshSlice preparedMeshSlice : compiledSettingSlice.preparedMeshSlices()) {
-            List<StageEntityView.Entry> selected = new ArrayList<>();
-            for (StageEntityView.Entry entry : preparedMeshSlice.entries()) {
-                if (allowed.containsKey(entry)) {
-                    selected.add(entry);
-                }
-            }
+            List<StageEntityView.Entry> selected = selectMatchingEntries(preparedMeshSlice.entries(), resourceGroupEntries);
             if (!selected.isEmpty()) {
                 slices.add(new StageGeometryView.PreparedMeshSlice(preparedMeshSlice.preparedMesh(), selected));
             }
         }
         return slices;
+    }
+
+    private List<StageEntityView.Entry> selectMatchingEntries(
+            List<StageEntityView.Entry> candidates,
+            List<StageEntityView.Entry> resourceGroupEntries) {
+        if (candidates == null || candidates.isEmpty()
+                || resourceGroupEntries == null || resourceGroupEntries.isEmpty()) {
+            return List.of();
+        }
+        Map<StageEntityView.Entry, Boolean> candidateIdentities = new IdentityHashMap<>();
+        Set<GraphicsEntityId> candidateEntityIds = new HashSet<>();
+        for (StageEntityView.Entry entry : candidates) {
+            if (entry != null) {
+                candidateIdentities.put(entry, Boolean.TRUE);
+                candidateEntityIds.add(entry.entityId());
+            }
+        }
+        if (candidateIdentities.isEmpty()) {
+            return List.of();
+        }
+        List<StageEntityView.Entry> selected = new ArrayList<>();
+        for (StageEntityView.Entry entry : resourceGroupEntries) {
+            if (entry != null && (candidateIdentities.containsKey(entry) || candidateEntityIds.contains(entry.entityId()))) {
+                selected.add(entry);
+            }
+        }
+        return selected;
     }
 
     private DrawPlan.DirectDrawItem encodePreparedMeshSlice(

@@ -13,6 +13,10 @@ public interface ModuleDescriptor {
         return 1000;
     }
 
+    default boolean enabledByDefault() {
+        return true;
+    }
+
     default void describe(ModuleDescriptorContext context) {
     }
 

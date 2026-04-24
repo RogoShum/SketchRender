@@ -9,6 +9,7 @@ import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.RenderSettingCompiler;
+import rogo.sketch.core.pipeline.StageRouteDescriptor;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.pipeline.flow.ecs.GraphicsContainerHints;
@@ -18,6 +19,7 @@ import rogo.sketch.core.util.KeyId;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -140,6 +142,36 @@ public final class GraphicsEntityPresets {
             values.remove(null);
         }
         return builder.put(GraphicsBuiltinComponents.GRAPHICS_TAGS, new GraphicsBuiltinComponents.GraphicsTagsComponent(values));
+    }
+
+    public static GraphicsEntityBlueprint.Builder withStageRoutes(
+            GraphicsEntityBlueprint.Builder builder,
+            StageRouteDescriptor... stageRoutes) {
+        if (builder == null) {
+            throw new IllegalArgumentException("builder");
+        }
+        if (stageRoutes == null || stageRoutes.length == 0) {
+            builder.remove(GraphicsBuiltinComponents.STAGE_ROUTES);
+            return builder;
+        }
+        return builder.put(
+                GraphicsBuiltinComponents.STAGE_ROUTES,
+                new GraphicsBuiltinComponents.StageRoutesComponent(Arrays.asList(stageRoutes)));
+    }
+
+    public static GraphicsEntityBlueprint.Builder withStageRoutes(
+            GraphicsEntityBlueprint.Builder builder,
+            List<StageRouteDescriptor> stageRoutes) {
+        if (builder == null) {
+            throw new IllegalArgumentException("builder");
+        }
+        if (stageRoutes == null || stageRoutes.isEmpty()) {
+            builder.remove(GraphicsBuiltinComponents.STAGE_ROUTES);
+            return builder;
+        }
+        return builder.put(
+                GraphicsBuiltinComponents.STAGE_ROUTES,
+                new GraphicsBuiltinComponents.StageRoutesComponent(stageRoutes));
     }
 
     public static long partialDescriptorVersion(PartialRenderSetting partialRenderSetting) {

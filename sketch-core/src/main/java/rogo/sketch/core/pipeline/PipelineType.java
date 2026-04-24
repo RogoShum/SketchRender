@@ -21,13 +21,17 @@ public final class PipelineType implements Comparable<PipelineType> {
             "compute",
             100,
             RenderFlowType.COMPUTE,
-            (stage, stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new ComputeStageFlowScene<>(pipelineType));
+            (stage, stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new ComputeStageFlowScene<>(
+                    stage,
+                    pipelineType,
+                    pipeline.resourceManager()));
 
     public static final PipelineType FUNCTION = new PipelineType(
             "function",
             200,
             RenderFlowType.FUNCTION,
             (stage, stageId, pipelineType, pipeline, dataDomain, renderTraceRecorder) -> new FunctionStageFlowScene<>(
+                    stage,
                     pipelineType,
                     pipeline.resourceManager()));
 

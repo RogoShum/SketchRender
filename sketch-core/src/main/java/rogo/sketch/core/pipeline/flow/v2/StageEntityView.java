@@ -12,6 +12,7 @@ import rogo.sketch.core.graphics.ecs.GraphicsEntitySchema;
 import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.pipeline.PipelineType;
+import rogo.sketch.core.pipeline.StageRouteDescriptor;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
@@ -137,6 +138,8 @@ public final class StageEntityView {
             GraphicsUniformSubject uniformSubject,
             GraphicsBuiltinComponents.LifecycleComponent lifecycle,
             GraphicsBuiltinComponents.StageBindingComponent stageBinding,
+            @Nullable GraphicsBuiltinComponents.StageRoutesComponent stageRoutes,
+            @Nullable StageRouteDescriptor stageRoute,
             GraphicsBuiltinComponents.ContainerHintComponent containerHint,
             @Nullable GraphicsBuiltinComponents.RasterRenderableComponent rasterRenderable,
             @Nullable GraphicsBuiltinComponents.ComputeDispatchComponent computeDispatch,
@@ -185,8 +188,24 @@ public final class StageEntityView {
             return tags != null && tags.hasTag(tag);
         }
 
+        public KeyId stageId() {
+            return stageRoute != null ? stageRoute.stageId() : stageBinding != null ? stageBinding.stageId() : null;
+        }
+
+        public PipelineType pipelineType() {
+            return stageRoute != null ? stageRoute.pipelineType() : stageBinding != null ? stageBinding.pipelineType() : null;
+        }
+
+        public @Nullable StageRouteDescriptor stageRoute() {
+            return stageRoute;
+        }
+
+        public @Nullable GraphicsBuiltinComponents.StageRoutesComponent stageRoutes() {
+            return stageRoutes;
+        }
+
         public RenderParameter renderParameter() {
-            return stageBinding != null ? stageBinding.renderParameter() : null;
+            return stageRoute != null ? stageRoute.renderParameter() : stageBinding != null ? stageBinding.renderParameter() : null;
         }
 
         public KeyId containerType() {

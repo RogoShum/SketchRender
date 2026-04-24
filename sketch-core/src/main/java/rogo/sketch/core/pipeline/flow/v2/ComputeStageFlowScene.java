@@ -11,8 +11,10 @@ import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.ResourceSetKey;
 import rogo.sketch.core.api.ShaderResource;
 import rogo.sketch.core.pipeline.CompiledRenderSetting;
+import rogo.sketch.core.pipeline.GraphicsStage;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
+import rogo.sketch.core.pipeline.StageRouteCompiler;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.pipeline.information.ComputeInstanceInfo;
@@ -24,7 +26,9 @@ import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
 import rogo.sketch.core.shader.uniform.UniformGroupSet;
 import rogo.sketch.core.shader.uniform.UniformHookGroup;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
+import rogo.sketch.core.shader.variant.ShaderVariantKey;
 import rogo.sketch.core.util.KeyId;
+import rogo.sketch.core.resource.GraphicsResourceManager;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,10 +37,17 @@ import java.util.Map;
 
 public final class ComputeStageFlowScene<C extends RenderContext> implements StageFlowScene<C> {
     private final PipelineType pipelineType;
+    private final ShaderVariantKey stageVariantKey;
+    private final GraphicsResourceManager resourceManager;
     private final ComputeEntityStateCache stateCache = new ComputeEntityStateCache();
 
-    public ComputeStageFlowScene(PipelineType pipelineType) {
+    public ComputeStageFlowScene(
+            GraphicsStage stage,
+            PipelineType pipelineType,
+            GraphicsResourceManager resourceManager) {
         this.pipelineType = pipelineType;
+        this.stageVariantKey = stage != null ? stage.getStageVariantKey() : ShaderVariantKey.EMPTY;
+        this.resourceManager = resourceManager;
     }
 
     @Override
@@ -55,7 +66,7 @@ public final class ComputeStageFlowScene<C extends RenderContext> implements Sta
             ComputeEntityStateCache.Entry state = stateCache.upsert(entry.entityId());
             long descriptorVersion = entry.descriptorVersionValue();
             if (state.compiledRenderSetting() == null || state.descriptorVersion() != descriptorVersion) {
-                state.setCompiledRenderSetting(entry.buildRenderDescriptor());
+                state.setCompiledRenderSetting(resolveCompiledRenderSetting(entry));
                 state.setDescriptorVersion(descriptorVersion);
             }
         }
@@ -121,7 +132,7 @@ public final class ComputeStageFlowScene<C extends RenderContext> implements Sta
             }
             ComputeEntityStateCache.Entry cached = stateCache.upsert(entry.entityId());
             if (cached.compiledRenderSetting() == null) {
-                cached.setCompiledRenderSetting(entry.buildRenderDescriptor());
+                cached.setCompiledRenderSetting(resolveCompiledRenderSetting(entry));
                 cached.setDescriptorVersion(entry.descriptorVersionValue());
             }
             if (cached.compiledRenderSetting() == null) {
@@ -193,6 +204,15 @@ public final class ComputeStageFlowScene<C extends RenderContext> implements Sta
 
     @Override
     public void clear() {
+    }
+
+    private CompiledRenderSetting resolveCompiledRenderSetting(StageEntityView.Entry entry) {
+        return StageRouteCompiler.compile(
+                entry != null ? entry.buildRenderDescriptor() : null,
+                entry != null ? entry.renderParameter() : null,
+                resourceManager,
+                entry != null ? entry.stageRoute() : null,
+                stageVariantKey);
     }
 
     private UniformSnapshots resolveUniformSnapshots(

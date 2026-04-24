@@ -7,6 +7,7 @@ import imgui.flag.ImGuiWindowFlags;
 import imgui.gl3.ImGuiImplGl3;
 import imgui.glfw.ImGuiImplGlfw;
 import imgui.type.ImBoolean;
+import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
@@ -251,16 +252,30 @@ final class PlatformTestControlPlane implements AutoCloseable {
                 + ", pending=" + snapshot.asyncGraphicsPendingJob());
         ImGui.separator();
 
-        ImGui.text("HiZ Inspection");
-        ImGui.bulletText("Source depth (pre-freeze): " + snapshot.hizSourceWidth() + "x" + snapshot.hizSourceHeight());
-        ImGui.bulletText("HiZ input snapshot (pre-compute): " + snapshot.hizSnapshotWidth() + "x" + snapshot.hizSnapshotHeight());
-        ImGui.bulletText("HiZ input linearized preview: " + snapshot.hizSnapshotWidth() + "x" + snapshot.hizSnapshotHeight());
-        ImGui.bulletText("Published HiZ (post-compute): " + snapshot.hizPublishedWidth() + "x" + snapshot.hizPublishedHeight());
-        ImGui.bulletText("Submitted epoch: " + snapshot.hizSubmittedEpoch());
-        ImGui.bulletText("Published epoch: " + snapshot.hizPublishedEpoch());
-        ImGui.bulletText("Async offscreen: " + snapshot.asyncGraphicsWidth() + "x" + snapshot.asyncGraphicsHeight()
-                + " @ epoch " + snapshot.asyncGraphicsPublishedEpoch());
-        ImGui.textWrapped("The main platform-test window shows the live inspection strip for source depth, frozen snapshot, linearized snapshot preview, published HiZ, and async offscreen color.");
+        if (snapshot.sceneMode() == PipelineTestScene.SceneMode.REAL_SCENE) {
+            ImGui.text("Real Scene");
+            ImGui.bulletText("Scene asset: " + snapshot.sceneAsset());
+            ImGui.bulletText("Actor model: " + snapshot.actorModel());
+            ImGui.bulletText("Camera: " + formatVector(snapshot.cameraPosition()));
+            ImGui.bulletText("Actor: " + formatVector(snapshot.actorPosition()));
+            ImGui.bulletText("Shadow target actor packets: " + snapshot.shadowTargetPacketCount());
+            ImGui.bulletText("Shadow debug: " + snapshot.shadowDebugMode().displayName());
+            ImGui.bulletText("Shadow map: " + snapshot.shadowMapWidth() + "x" + snapshot.shadowMapHeight()
+                    + " @ epoch " + snapshot.shadowEpoch());
+            ImGui.bulletText("Shadow debug overlay packets: " + snapshot.shadowDebugOverlayPacketCount());
+            ImGui.textWrapped("WASD moves the actor in noclip mode. Hold right mouse and drag to steer the third-person camera; Shift increases movement speed.");
+        } else {
+            ImGui.text("HiZ Inspection");
+            ImGui.bulletText("Source depth (pre-freeze): " + snapshot.hizSourceWidth() + "x" + snapshot.hizSourceHeight());
+            ImGui.bulletText("HiZ input snapshot (pre-compute): " + snapshot.hizSnapshotWidth() + "x" + snapshot.hizSnapshotHeight());
+            ImGui.bulletText("HiZ input linearized preview: " + snapshot.hizSnapshotWidth() + "x" + snapshot.hizSnapshotHeight());
+            ImGui.bulletText("Published HiZ (post-compute): " + snapshot.hizPublishedWidth() + "x" + snapshot.hizPublishedHeight());
+            ImGui.bulletText("Submitted epoch: " + snapshot.hizSubmittedEpoch());
+            ImGui.bulletText("Published epoch: " + snapshot.hizPublishedEpoch());
+            ImGui.bulletText("Async offscreen: " + snapshot.asyncGraphicsWidth() + "x" + snapshot.asyncGraphicsHeight()
+                    + " @ epoch " + snapshot.asyncGraphicsPublishedEpoch());
+            ImGui.textWrapped("The main platform-test window shows the live inspection strip for source depth, frozen snapshot, linearized snapshot preview, published HiZ, and async offscreen color.");
+        }
         ImGui.separator();
 
         ImGui.text("Memory");
@@ -274,6 +289,13 @@ final class PlatformTestControlPlane implements AutoCloseable {
         }
 
         ImGui.end();
+    }
+
+    private static String formatVector(Vector3f vector) {
+        if (vector == null) {
+            return "(0.00, 0.00, 0.00)";
+        }
+        return "(%.2f, %.2f, %.2f)".formatted(vector.x, vector.y, vector.z);
     }
 
     private void closeControlWindow() {

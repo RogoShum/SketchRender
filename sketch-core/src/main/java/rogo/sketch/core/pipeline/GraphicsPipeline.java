@@ -28,6 +28,9 @@ import rogo.sketch.core.pipeline.flow.v2.StageEntityView;
 import rogo.sketch.core.pipeline.kernel.PipelineKernel;
 import rogo.sketch.core.pipeline.module.metric.MetricSnapshot;
 import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeHost;
+import rogo.sketch.core.pipeline.shadow.ShadowFrameResources;
+import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshot;
+import rogo.sketch.core.pipeline.shadow.ShadowProviderRegistry;
 import rogo.sketch.core.pipeline.submit.StageSubmitNode;
 import rogo.sketch.core.pipeline.submit.StageWindow;
 import rogo.sketch.core.resource.GraphicsResourceManager;
@@ -171,7 +174,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public void renderImmediate(GraphicsEntityBlueprint blueprint, @Nullable C contextOverride) {
-        immediateRenderer.renderImmediate(blueprint, contextOverride, currentContext, graphicsEntityManager::snapshotEntity);
+        immediateRenderer.renderImmediate(blueprint, contextOverride, currentContext, this::snapshotEntityForStage);
     }
 
     public List<RenderPacket> buildImmediatePackets(GraphicsEntityBlueprint blueprint) {
@@ -179,7 +182,7 @@ public class GraphicsPipeline<C extends RenderContext> {
     }
 
     public List<RenderPacket> buildImmediatePackets(GraphicsEntityBlueprint blueprint, @Nullable C contextOverride) {
-        return immediateRenderer.buildImmediatePackets(blueprint, contextOverride, currentContext, graphicsEntityManager::snapshotEntity);
+        return immediateRenderer.buildImmediatePackets(blueprint, contextOverride, currentContext, this::snapshotEntityForStage);
     }
 
     /**
@@ -520,7 +523,17 @@ public class GraphicsPipeline<C extends RenderContext> {
         FrameCaptureSnapshot baseSnapshot = executionPlan != null
                 ? executionPlan.frameCaptureSnapshot()
                 : FrameCaptureSnapshot.empty();
-        latestFrameCaptureSnapshot = baseSnapshot.withRenderState(renderStateManager.captureCurrentState());
+        ShadowPassSnapshot shadowPassSnapshot = FrameCaptureSnapshot.empty().shadowPassSnapshot();
+        if (kernel != null) {
+            var publishedShadowPassSnapshot = kernel.peekFrameResource(ShadowFrameResources.SHADOW_PASS_SNAPSHOT);
+            if (publishedShadowPassSnapshot != null && publishedShadowPassSnapshot.payload() != null) {
+                shadowPassSnapshot = publishedShadowPassSnapshot.payload();
+            }
+        }
+        latestFrameCaptureSnapshot = baseSnapshot.withRuntimeState(
+                renderStateManager.captureCurrentState(),
+                ShadowProviderRegistry.currentFrameView(),
+                shadowPassSnapshot);
         return latestFrameCaptureSnapshot;
     }
 
@@ -600,6 +613,20 @@ public class GraphicsPipeline<C extends RenderContext> {
         return graphicsEntityManager.snapshotEntitiesIfPresent(entityIds);
     }
 
+    public StageEntityView.Entry snapshotEntityIfPresent(
+            GraphicsEntityId entityId,
+            @Nullable KeyId stageId,
+            @Nullable PipelineType pipelineType) {
+        return graphicsEntityManager.snapshotEntityIfPresent(entityId, stageId, pipelineType);
+    }
+
+    public List<StageEntityView.Entry> snapshotEntitiesIfPresent(
+            List<GraphicsEntityId> entityIds,
+            @Nullable KeyId stageId,
+            @Nullable PipelineType pipelineType) {
+        return graphicsEntityManager.snapshotEntitiesIfPresent(entityIds, stageId, pipelineType);
+    }
+
     private void renderOrderedStages(List<KeyId> stageIds, String scopeLabel) {
         renderPacketQueue.executeStageRange(stageIds, this.renderStateManager, this.currentContext, scopeLabel);
     }
@@ -677,12 +704,23 @@ public class GraphicsPipeline<C extends RenderContext> {
     private void registerSpawnedEntity(GraphicsEntityId entityId) {
         GraphicsBuiltinComponents.StageBindingComponent stageBinding =
                 graphicsEntityManager.graphicsWorld().component(entityId, GraphicsBuiltinComponents.STAGE_BINDING);
-        if (stageBinding != null) {
-            stageMembershipIndex.register(entityId, stageBinding);
+        GraphicsBuiltinComponents.StageRoutesComponent stageRoutes =
+                graphicsEntityManager.graphicsWorld().component(entityId, GraphicsBuiltinComponents.STAGE_ROUTES);
+        if (stageBinding != null || stageRoutes != null) {
+            stageMembershipIndex.register(entityId, stageBinding, stageRoutes);
         }
         if (kernel != null && kernel.moduleRegistry().isInitialized()) {
             kernel.moduleRegistry().onEntitySpawned(entityId);
         }
+    }
+
+    private StageEntityView.Entry snapshotEntityForStage(
+            GraphicsEntityId entityId,
+            ImmediateRenderer.PipelineKey pipelineKey) {
+        if (pipelineKey == null) {
+            return null;
+        }
+        return graphicsEntityManager.snapshotEntityIfPresent(entityId, IMMEDIATE_STAGE_ID, pipelineKey.pipelineType());
     }
 
 }

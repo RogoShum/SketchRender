@@ -135,11 +135,11 @@ public class DashboardController {
 
     public static float scaleMultiplierForLevel(int scaleLevel) {
         return switch (Math.max(1, Math.min(5, scaleLevel))) {
-            case 1 -> 0.90f;
-            case 2 -> 1.15f;
+            case 1 -> 0.85f;
+            case 2 -> 1.10f;
             case 3 -> 1.30f;
-            case 4 -> 1.45f;
-            default -> 1.60f;
+            case 4 -> 1.50f;
+            default -> 1.70f;
         };
     }
 

@@ -1,5 +1,6 @@
 package rogo.sketch.core.dashboard;
 
+import org.joml.Vector3f;
 import rogo.sketch.core.debugger.DashboardControlAccessor;
 import rogo.sketch.core.debugger.DashboardDataSource;
 import rogo.sketch.core.debugger.DashboardDiagnosticLine;
@@ -18,6 +19,9 @@ import rogo.sketch.core.pipeline.module.setting.ChangeImpact;
 import rogo.sketch.core.pipeline.module.setting.DependencyRule;
 import rogo.sketch.core.pipeline.module.setting.ModuleSettingRegistry;
 import rogo.sketch.core.pipeline.module.setting.SettingNode;
+import rogo.sketch.core.pipeline.shadow.ShadowFrameView;
+import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshot;
+import rogo.sketch.core.pipeline.shadow.ShadowProvider;
 import rogo.sketch.core.shader.config.MacroContext;
 import rogo.sketch.core.shader.config.MacroEntryType;
 import rogo.sketch.core.shader.config.MacroSnapshotEntry;
@@ -366,8 +370,12 @@ public final class DashboardViewModelFactory {
     }
 
     private List<DashboardSummaryMetric> buildFrameCaptureMetrics(FrameCaptureSnapshot captureSnapshot) {
+        ShadowFrameView shadowView = captureSnapshot != null ? captureSnapshot.shadowView() : null;
+        ShadowPassSnapshot shadowPassSnapshot = captureSnapshot != null ? captureSnapshot.shadowPassSnapshot() : null;
         if (captureSnapshot == null || (captureSnapshot.stages().isEmpty() && captureSnapshot.resourceBindings().isEmpty()
-                && FrameCaptureSnapshot.RenderStateCapture.empty().equals(captureSnapshot.renderState()))) {
+                && FrameCaptureSnapshot.RenderStateCapture.empty().equals(captureSnapshot.renderState())
+                && !hasShadowCapture(shadowView)
+                && !hasShadowPassSnapshot(shadowPassSnapshot))) {
             return List.of();
         }
 
@@ -402,6 +410,25 @@ public final class DashboardViewModelFactory {
                 "sets",
                 0xFFF59E0B,
                 renderStateDetail(captureSnapshot.renderState())));
+        if (hasShadowPassSnapshot(shadowPassSnapshot)) {
+            metrics.add(new DashboardSummaryMetric(
+                    "frame-capture/shadow-snapshot-size",
+                    "debug.dashboard.shadow.target",
+                    shadowPassSnapshot.width() + "x" + shadowPassSnapshot.height(),
+                    "",
+                    0xFF60A5FA,
+                    "dir=" + formatVector(shadowPassSnapshot.lightDirection())
+                            + ", focus=" + formatVector(shadowPassSnapshot.focusCenter())));
+            metrics.add(new DashboardSummaryMetric(
+                    "frame-capture/shadow-snapshot-epoch",
+                    "debug.dashboard.shadow.epoch",
+                    String.valueOf(shadowPassSnapshot.epoch()),
+                    "",
+                    0xFF34D399,
+                    "distance=" + formatScalar(shadowPassSnapshot.shadowDistance())
+                            + ", near=" + formatScalar(shadowPassSnapshot.nearPlane())
+                            + ", far=" + formatScalar(shadowPassSnapshot.farPlane())));
+        }
         return metrics;
     }
 
@@ -414,6 +441,45 @@ public final class DashboardViewModelFactory {
                 + ", target=" + renderState.renderTargetId()
                 + ", layout=" + renderState.resourceLayoutKey()
                 + ", stamp=" + renderState.resourceBindingStamp();
+    }
+
+    private boolean hasShadowCapture(ShadowFrameView shadowView) {
+        if (shadowView == null) {
+            return false;
+        }
+        return !Objects.equals(shadowView.providerId(), ShadowProvider.NONE_PROVIDER_ID)
+                || shadowView.available()
+                || shadowView.shadowPassActive()
+                || shadowView.renderTargetId() != null
+                || shadowView.shadowMapTextureId() != null
+                || shadowView.nativeTargetHandle().isValid()
+                || shadowView.width() > 0
+                || shadowView.height() > 0
+                || shadowView.epoch() > 0L;
+    }
+
+    private boolean hasShadowPassSnapshot(ShadowPassSnapshot shadowPassSnapshot) {
+        if (shadowPassSnapshot == null) {
+            return false;
+        }
+        return shadowPassSnapshot.width() > 0
+                || shadowPassSnapshot.height() > 0
+                || shadowPassSnapshot.epoch() > 0L
+                || shadowPassSnapshot.shadowDistance() > 0.0f
+                || shadowPassSnapshot.nearPlane() > 0.0f
+                || shadowPassSnapshot.farPlane() > 0.0f
+                || shadowPassSnapshot.focusCenter().lengthSquared() > 0.0f;
+    }
+
+    private String formatVector(Vector3f value) {
+        if (value == null) {
+            return "(0, 0, 0)";
+        }
+        return "(" + formatScalar(value.x) + ", " + formatScalar(value.y) + ", " + formatScalar(value.z) + ")";
+    }
+
+    private String formatScalar(float value) {
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 
     private List<DashboardRatioMetric> buildRatioMetrics(MetricSnapshot metricSnapshot) {

@@ -59,8 +59,35 @@ public final class PreparedStageGeometryView {
         return batchesByKey.get(geometryBatchKey);
     }
 
+    public @Nullable PreparedVisibleBatch batchForEntry(StageEntityView.Entry entry) {
+        if (entry == null) {
+            return null;
+        }
+        for (PreparedVisibleBatch preparedBatch : preparedBatches) {
+            if (preparedBatch == null || preparedBatch.preparedEntries().isEmpty()) {
+                continue;
+            }
+            for (StageEntityView.Entry preparedEntry : preparedBatch.preparedEntries()) {
+                if (sameEntry(preparedEntry, entry)) {
+                    return preparedBatch;
+                }
+            }
+        }
+        return null;
+    }
+
     public boolean isEmpty() {
         return preparedBatches.isEmpty();
+    }
+
+    private static boolean sameEntry(StageEntityView.Entry left, StageEntityView.Entry right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null) {
+            return false;
+        }
+        return left.entityId() != null && left.entityId().equals(right.entityId());
     }
 
     public record PreparedVisibleBatch(

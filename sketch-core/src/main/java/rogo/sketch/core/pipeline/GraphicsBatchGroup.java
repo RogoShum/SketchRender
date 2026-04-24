@@ -118,6 +118,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
                     return Collections.emptyMap();
                 }
 
+                prepareSceneForPreparedView(pipelineType, context, frameUniformSnapshot);
                 StageEntityView view = buildStageEntityView(pipelineType, context);
                 RenderFlowType flowType = pipelineType.getDefaultFlowType();
                 Map<ExecutionKey, List<RenderPacket>> packets =
@@ -267,7 +268,7 @@ public class GraphicsBatchGroup<C extends RenderContext> {
             return emptyView;
         }
 
-        List<StageEntityView.Entry> snapshots = graphicsPipeline.snapshotEntitiesIfPresent(entityIds);
+        List<StageEntityView.Entry> snapshots = graphicsPipeline.snapshotEntitiesIfPresent(entityIds, stageKeyId, pipelineType);
         if (snapshots.isEmpty()) {
             PreparedStageEntityView emptyView = new PreparedStageEntityView(stageKeyId, pipelineType, List.of());
             preparedViewCache.put(pipelineType, new CachedPreparedStageEntityView(logicTick, membershipVersion, emptyView));

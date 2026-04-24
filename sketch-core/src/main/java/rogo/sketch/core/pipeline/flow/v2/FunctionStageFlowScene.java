@@ -11,16 +11,19 @@ import rogo.sketch.core.packet.GenerateMipmapPacket;
 import rogo.sketch.core.packet.RenderPacket;
 import rogo.sketch.core.packet.TransferPlanKey;
 import rogo.sketch.core.pipeline.CompiledRenderSetting;
+import rogo.sketch.core.pipeline.GraphicsStage;
 import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderSetting;
 import rogo.sketch.core.pipeline.RenderSettingCompiler;
+import rogo.sketch.core.pipeline.StageRouteCompiler;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
 import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.shader.uniform.FrameUniformSnapshot;
 import rogo.sketch.core.shader.uniform.UniformValueSnapshot;
+import rogo.sketch.core.shader.variant.ShaderVariantKey;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,11 +34,16 @@ import java.util.Map;
 public final class FunctionStageFlowScene<C extends RenderContext> implements StageFlowScene<C> {
     private final PipelineType pipelineType;
     private final GraphicsResourceManager resourceManager;
+    private final ShaderVariantKey stageVariantKey;
     private final FunctionEntityStateCache stateCache = new FunctionEntityStateCache();
 
-    public FunctionStageFlowScene(PipelineType pipelineType, GraphicsResourceManager resourceManager) {
+    public FunctionStageFlowScene(
+            GraphicsStage stage,
+            PipelineType pipelineType,
+            GraphicsResourceManager resourceManager) {
         this.pipelineType = pipelineType;
         this.resourceManager = resourceManager;
+        this.stageVariantKey = stage != null ? stage.getStageVariantKey() : ShaderVariantKey.EMPTY;
     }
 
     @Override
@@ -52,10 +60,15 @@ public final class FunctionStageFlowScene<C extends RenderContext> implements St
                 continue;
             }
             FunctionEntityStateCache.Entry state = stateCache.upsert(entry.entityId());
-            CompiledRenderSetting compiledRenderSetting = entry.buildRenderDescriptor();
+            CompiledRenderSetting compiledRenderSetting = resolveCompiledRenderSetting(entry);
             if (compiledRenderSetting == null && entry.renderParameter() != null) {
                 RenderSetting renderSetting = RenderSetting.fromPartial(entry.renderParameter(), PartialRenderSetting.EMPTY);
-                compiledRenderSetting = RenderSettingCompiler.compile(renderSetting, resourceManager);
+                compiledRenderSetting = StageRouteCompiler.compile(
+                        RenderSettingCompiler.compile(renderSetting, resourceManager),
+                        entry.renderParameter(),
+                        resourceManager,
+                        entry.stageRoute(),
+                        stageVariantKey);
                 state.setRenderSetting(renderSetting);
             } else if (compiledRenderSetting != null) {
                 state.setRenderSetting(compiledRenderSetting.renderSetting());
@@ -124,10 +137,15 @@ public final class FunctionStageFlowScene<C extends RenderContext> implements St
             }
             FunctionEntityStateCache.Entry cached = stateCache.upsert(entry.entityId());
             if (cached.compiledRenderSetting() == null) {
-                CompiledRenderSetting compiledRenderSetting = entry.buildRenderDescriptor();
+                CompiledRenderSetting compiledRenderSetting = resolveCompiledRenderSetting(entry);
                 if (compiledRenderSetting == null && entry.renderParameter() != null) {
                     RenderSetting renderSetting = RenderSetting.fromPartial(entry.renderParameter(), PartialRenderSetting.EMPTY);
-                    compiledRenderSetting = RenderSettingCompiler.compile(renderSetting, resourceManager);
+                    compiledRenderSetting = StageRouteCompiler.compile(
+                            RenderSettingCompiler.compile(renderSetting, resourceManager),
+                            entry.renderParameter(),
+                            resourceManager,
+                            entry.stageRoute(),
+                            stageVariantKey);
                     cached.setRenderSetting(renderSetting);
                 } else if (compiledRenderSetting != null) {
                     cached.setRenderSetting(compiledRenderSetting.renderSetting());
@@ -173,6 +191,15 @@ public final class FunctionStageFlowScene<C extends RenderContext> implements St
 
     @Override
     public void clear() {
+    }
+
+    private CompiledRenderSetting resolveCompiledRenderSetting(StageEntityView.Entry entry) {
+        return StageRouteCompiler.compile(
+                entry != null ? entry.buildRenderDescriptor() : null,
+                entry != null ? entry.renderParameter() : null,
+                resourceManager,
+                entry != null ? entry.stageRoute() : null,
+                stageVariantKey);
     }
 
     private int functionPriority(GraphicsBuiltinComponents.FunctionInvokeComponent component) {

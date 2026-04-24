@@ -10,12 +10,17 @@ import rogo.sketch.core.object.ObjectGraphicsHandle;
 import rogo.sketch.core.object.ObjectGraphicsRootRole;
 import rogo.sketch.core.pipeline.CompiledRenderSetting;
 import rogo.sketch.core.pipeline.PipelineType;
+import rogo.sketch.core.pipeline.StageRouteDescriptor;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
 import rogo.sketch.core.util.KeyId;
 
+import java.util.ArrayList;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.Map;
+import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -30,6 +35,8 @@ public final class GraphicsBuiltinComponents {
             GraphicsComponentType.of(KeyId.of("sketch", "graphics_lifecycle_binding"), LifecycleBindingComponent.class);
     public static final GraphicsComponentType<StageBindingComponent> STAGE_BINDING =
             GraphicsComponentType.of(KeyId.of("sketch", "graphics_stage_binding"), StageBindingComponent.class);
+    public static final GraphicsComponentType<StageRoutesComponent> STAGE_ROUTES =
+            GraphicsComponentType.of(KeyId.of("sketch", "graphics_stage_routes"), StageRoutesComponent.class);
     public static final GraphicsComponentType<ContainerHintComponent> CONTAINER_HINT =
             GraphicsComponentType.of(KeyId.of("sketch", "graphics_container_hint"), ContainerHintComponent.class);
     public static final GraphicsComponentType<ResourceOriginComponent> RESOURCE_ORIGIN =
@@ -119,6 +126,49 @@ public final class GraphicsBuiltinComponents {
             PipelineType pipelineType,
             RenderParameter renderParameter
     ) {
+    }
+
+    public record StageRoutesComponent(List<StageRouteDescriptor> routes) {
+        public StageRoutesComponent {
+            if (routes == null || routes.isEmpty()) {
+                routes = List.of();
+            } else {
+                List<StageRouteDescriptor> normalized = new ArrayList<>(routes.size());
+                LinkedHashSet<StageRouteKey> seen = new LinkedHashSet<>();
+                for (StageRouteDescriptor route : routes) {
+                    if (route == null) {
+                        throw new IllegalArgumentException("Stage route list cannot contain null routes");
+                    }
+                    StageRouteKey key = new StageRouteKey(route.stageId(), route.pipelineType());
+                    if (!seen.add(key)) {
+                        throw new IllegalArgumentException(
+                                "Duplicate stage route declared for " + route.stageId() + " / " + route.pipelineType());
+                    }
+                    normalized.add(route);
+                }
+                routes = List.copyOf(normalized);
+            }
+        }
+
+        public boolean isEmpty() {
+            return routes.isEmpty();
+        }
+
+        public StageRouteDescriptor firstEnabledRoute() {
+            for (StageRouteDescriptor route : routes) {
+                if (route != null && route.enabled()) {
+                    return route;
+                }
+            }
+            return null;
+        }
+
+        private record StageRouteKey(KeyId stageId, PipelineType pipelineType) {
+            private StageRouteKey {
+                Objects.requireNonNull(stageId, "stageId");
+                Objects.requireNonNull(pipelineType, "pipelineType");
+            }
+        }
     }
 
     public record ContainerHintComponent(

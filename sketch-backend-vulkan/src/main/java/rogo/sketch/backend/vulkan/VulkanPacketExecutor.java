@@ -108,6 +108,7 @@ final class VulkanPacketExecutor {
     private final Set<String> warnedMipmap = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedUnsupportedClearTargets = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedUnsupportedClearDepth = ConcurrentHashMap.newKeySet();
+    private final Set<String> warnedSkippedDrawTargets = ConcurrentHashMap.newKeySet();
     private final boolean debugUtilsEnabled;
     private final BackendPacketHandlerRegistry<VulkanPacketHandler> packetHandlers = new BackendPacketHandlerRegistry<>();
 
@@ -163,6 +164,11 @@ final class VulkanPacketExecutor {
                         }
                     } else if (packet.packetKind() == RenderPacketKind.DRAW) {
                         KeyId renderTargetId = packet.stateKey() != null ? packet.stateKey().renderTargetKey() : null;
+                        if (packet instanceof DrawPacket drawPacket
+                                && bindingPlanNeedsTextureTransition(drawPacket.bindingPlan())) {
+                            executionContext.ensureRenderPassClosed();
+                            transitionBindingTexturesForSampling(commandBuffer, drawPacket.bindingPlan());
+                        }
                         executionContext.ensureRenderPassOpen(renderTargetId);
                     } else {
                         executionContext.ensureRenderPassClosed();
@@ -229,6 +235,10 @@ final class VulkanPacketExecutor {
             DrawPacket packet) {
         DrawPlan drawPlan = packet.drawPlan();
         if (drawPlan == null) {
+            return;
+        }
+        if (pipelineCache == null) {
+            warnSkippedDrawTarget(packet);
             return;
         }
 
@@ -606,6 +616,20 @@ final class VulkanPacketExecutor {
                 "Vulkan ClearPacket could not resolve a depth attachment for render target " + renderTargetId);
     }
 
+    private void warnSkippedDrawTarget(DrawPacket packet) {
+        KeyId renderTargetId = packet != null && packet.stateKey() != null
+                ? packet.stateKey().renderTargetKey()
+                : null;
+        String warnKey = String.valueOf(renderTargetId);
+        if (!warnedSkippedDrawTargets.add(warnKey)) {
+            return;
+        }
+        SketchDiagnostics.get().warn(
+                DIAG_MODULE,
+                "Skipping Vulkan DrawPacket because render target " + renderTargetId
+                        + " has no active raster pipeline cache");
+    }
+
     private void warnUnsupportedMipmap(KeyId textureId, String reason) {
         String warnKey = textureId + ":" + reason;
         if (!warnedMipmap.add(warnKey)) {
@@ -621,9 +645,21 @@ final class VulkanPacketExecutor {
             VulkanRasterPipelineCache pipelineCache,
             int framebufferIndex,
             MemoryStack stack) {
-        VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
-        clearValues.get(0).color().float32(0, 0.0f).float32(1, 0.0f).float32(2, 0.0f).float32(3, 0.0f);
-        clearValues.get(1).depthStencil().depth(1.0f).stencil(0);
+        int clearValueCount = Math.max(1,
+                pipelineCache.colorAttachmentCount() + (pipelineCache.hasDepthAttachment() ? 1 : 0));
+        VkClearValue.Buffer clearValues = VkClearValue.calloc(clearValueCount, stack);
+        int clearIndex = 0;
+        if (pipelineCache.colorAttachmentCount() > 0) {
+            clearValues.get(clearIndex++)
+                    .color()
+                    .float32(0, 0.0f)
+                    .float32(1, 0.0f)
+                    .float32(2, 0.0f)
+                    .float32(3, 0.0f);
+        }
+        if (pipelineCache.hasDepthAttachment()) {
+            clearValues.get(clearIndex).depthStencil().depth(1.0f).stencil(0);
+        }
 
         VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
@@ -699,6 +735,7 @@ final class VulkanPacketExecutor {
             }
         }
         namedRenderTargetCaches.clear();
+        warnedSkippedDrawTargets.clear();
     }
 
     void invalidateNamedRenderTargetCaches() {
@@ -825,22 +862,24 @@ final class VulkanPacketExecutor {
             return null;
         }
         VulkanResourceResolver.ResolvedRenderTarget renderTarget = resourceResolver.resolveRenderTargetResource(renderTargetId);
-        if (renderTarget == null || renderTarget.colorAttachments().isEmpty()) {
+        if (renderTarget == null) {
+            removeNamedRenderTargetCache(renderTargetId);
             return null;
         }
         VulkanTextureResource colorAttachment = renderTarget.colorAttachments().values().stream()
                 .filter(texture -> texture != null && !texture.isDisposed())
                 .findFirst()
                 .orElse(null);
-        if (colorAttachment == null) {
+        VulkanTextureResource depthAttachment = renderTarget.depthAttachment();
+        if (colorAttachment == null && (depthAttachment == null || depthAttachment.isDisposed())) {
+            removeNamedRenderTargetCache(renderTargetId);
             return null;
         }
-        VulkanTextureResource depthAttachment = renderTarget.depthAttachment();
-        long colorView = colorAttachment.imageView();
+        long colorView = colorAttachment != null ? colorAttachment.imageView() : VK_NULL_HANDLE;
         long depthView = depthAttachment != null ? depthAttachment.imageView() : VK_NULL_HANDLE;
-        int width = colorAttachment.width();
-        int height = colorAttachment.height();
-        int colorFormat = colorAttachment.format();
+        int width = colorAttachment != null ? colorAttachment.width() : depthAttachment.width();
+        int height = colorAttachment != null ? colorAttachment.height() : depthAttachment.height();
+        int colorFormat = colorAttachment != null ? colorAttachment.format() : VK_FORMAT_UNDEFINED;
         int depthFormat = depthAttachment != null ? depthAttachment.format() : VK_FORMAT_UNDEFINED;
 
         NamedRenderTargetCache existing = namedRenderTargetCaches.get(renderTargetId);
@@ -857,12 +896,22 @@ final class VulkanPacketExecutor {
                 depthFormat,
                 width,
                 height,
-                new long[]{colorView},
+                colorView != VK_NULL_HANDLE ? new long[]{colorView} : new long[0],
                 depthAttachment != null ? new long[]{depthView} : new long[0]);
         namedRenderTargetCaches.put(
                 renderTargetId,
                 new NamedRenderTargetCache(pipelineCache, colorView, depthView, width, height, colorFormat, depthFormat));
         return pipelineCache;
+    }
+
+    private void removeNamedRenderTargetCache(KeyId renderTargetId) {
+        if (renderTargetId == null) {
+            return;
+        }
+        NamedRenderTargetCache removed = namedRenderTargetCaches.remove(renderTargetId);
+        if (removed != null && removed.pipelineCache() != null) {
+            removed.pipelineCache().destroy();
+        }
     }
 
     private void transitionBindingTexturesForSampling(
@@ -897,6 +946,30 @@ final class VulkanPacketExecutor {
                     textureResource.mipLevels());
             textureResource.setCurrentImageLayout(sampledLayout);
         }
+    }
+
+    private boolean bindingPlanNeedsTextureTransition(ResourceBindingPlan bindingPlan) {
+        if (bindingPlan == null || bindingPlan.isEmpty()) {
+            return false;
+        }
+        for (ResourceBindingPlan.BindingEntry entry : bindingPlan.entries()) {
+            if (entry == null || entry.resourceId() == null || entry.resourceType() == null) {
+                continue;
+            }
+            KeyId normalizedType = ResourceTypes.normalize(entry.resourceType());
+            if (!ResourceTypes.TEXTURE.equals(normalizedType)) {
+                continue;
+            }
+            VulkanTextureResource textureResource = resourceResolver.resolveTextureResource(entry.resourceId());
+            if (textureResource == null || textureResource.isDisposed()) {
+                continue;
+            }
+            int sampledLayout = textureResource.imageLayout();
+            if (sampledLayout != 0 && textureResource.currentImageLayout() != sampledLayout) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<Integer> resolveNamedColorAttachments(

@@ -16,6 +16,7 @@ import rogo.sketch.core.pipeline.GraphicsStage;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderSettingCompiler;
+import rogo.sketch.core.pipeline.StageRouteCompiler;
 import rogo.sketch.core.pipeline.data.PipelineDataStore;
 import rogo.sketch.core.pipeline.flow.RenderFlowType;
 import rogo.sketch.core.pipeline.flow.RenderPostProcessors;
@@ -336,7 +337,14 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
             }
 
             GeometryBatchKey geometryBatchKey = cached.geometryTraitsRef().geometryBatchKey();
-            if (preparedGeometryView.batch(geometryBatchKey) == null) {
+            PreparedStageGeometryView.PreparedVisibleBatch preparedBatch = preparedGeometryView.batch(geometryBatchKey);
+            if (preparedBatch == null) {
+                preparedBatch = preparedGeometryView.batchForEntry(entry);
+                if (preparedBatch != null) {
+                    geometryBatchKey = preparedBatch.geometryBatchKey();
+                }
+            }
+            if (preparedBatch == null) {
                 traceDrop(entry.uniformSubject(), "missing_prepared_geometry_batch");
                 continue;
             }
@@ -421,36 +429,16 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
             return directSlices;
         }
 
-        Map<StageEntityView.Entry, Boolean> allowed = new IdentityHashMap<>();
-        for (StageEntityView.Entry visibleEntry : visibleEntries) {
-            if (visibleEntry != null) {
-                allowed.put(visibleEntry, Boolean.TRUE);
-            }
-        }
-        if (allowed.isEmpty()) {
-            return List.of();
-        }
-
         List<StageGeometryView.CompiledSettingSlice> finalized = new ArrayList<>();
         for (PreparedStageGeometryView.PreparedCompiledSettingSlice preparedSlice : preparedBatch.compiledSettingSlices()) {
-            List<StageEntityView.Entry> selectedEntries = new ArrayList<>();
-            for (StageEntityView.Entry entry : preparedSlice.entries()) {
-                if (allowed.containsKey(entry)) {
-                    selectedEntries.add(entry);
-                }
-            }
+            List<StageEntityView.Entry> selectedEntries = selectVisibleEntries(preparedSlice.entries(), visibleEntries);
             if (selectedEntries.isEmpty()) {
                 continue;
             }
 
             List<StageGeometryView.PreparedMeshSlice> preparedMeshSlices = new ArrayList<>();
             for (PreparedStageGeometryView.PreparedMeshSlice preparedMeshSlice : preparedSlice.preparedMeshSlices()) {
-                List<StageEntityView.Entry> meshEntries = new ArrayList<>();
-                for (StageEntityView.Entry entry : preparedMeshSlice.entries()) {
-                    if (allowed.containsKey(entry)) {
-                        meshEntries.add(entry);
-                    }
-                }
+                List<StageEntityView.Entry> meshEntries = selectVisibleEntries(preparedMeshSlice.entries(), visibleEntries);
                 if (!meshEntries.isEmpty()) {
                     preparedMeshSlices.add(new StageGeometryView.PreparedMeshSlice(
                             preparedMeshSlice.preparedMesh(),
@@ -468,6 +456,32 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
                     resourceGroups));
         }
         return finalized;
+    }
+
+    private List<StageEntityView.Entry> selectVisibleEntries(
+            List<StageEntityView.Entry> preparedEntries,
+            List<StageEntityView.Entry> visibleEntries) {
+        if (preparedEntries == null || preparedEntries.isEmpty() || visibleEntries == null || visibleEntries.isEmpty()) {
+            return List.of();
+        }
+        Map<StageEntityView.Entry, Boolean> preparedIdentities = new IdentityHashMap<>();
+        Set<GraphicsEntityId> preparedEntityIds = new HashSet<>();
+        for (StageEntityView.Entry entry : preparedEntries) {
+            if (entry != null) {
+                preparedIdentities.put(entry, Boolean.TRUE);
+                preparedEntityIds.add(entry.entityId());
+            }
+        }
+        if (preparedIdentities.isEmpty()) {
+            return List.of();
+        }
+        List<StageEntityView.Entry> selected = new ArrayList<>();
+        for (StageEntityView.Entry entry : visibleEntries) {
+            if (entry != null && (preparedIdentities.containsKey(entry) || preparedEntityIds.contains(entry.entityId()))) {
+                selected.add(entry);
+            }
+        }
+        return selected;
     }
 
     private RasterEntityStateCache.Entry refreshEntry(StageEntityView.Entry entry, boolean forceFullRefresh) {
@@ -508,16 +522,11 @@ public final class RasterStageFlowScene<C extends RenderContext> implements Stag
     }
 
     private CompiledRenderSetting resolveCompiledRenderSetting(StageEntityView.Entry entry) {
-        CompiledRenderSetting compiledRenderSetting = entry != null ? entry.buildRenderDescriptor() : null;
-        if (compiledRenderSetting == null
-                || compiledRenderSetting.renderSetting() == null
-                || stageVariantKey == null
-                || stageVariantKey.isEmpty()) {
-            return compiledRenderSetting;
-        }
-        return RenderSettingCompiler.compile(
-                compiledRenderSetting.renderSetting(),
+        return StageRouteCompiler.compile(
+                entry != null ? entry.buildRenderDescriptor() : null,
+                entry != null ? entry.renderParameter() : null,
                 shaderResourceManager,
+                entry != null ? entry.stageRoute() : null,
                 stageVariantKey);
     }
 
