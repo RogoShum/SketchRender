@@ -429,6 +429,15 @@ public final class DashboardViewModelFactory {
                             + ", near=" + formatScalar(shadowPassSnapshot.nearPlane())
                             + ", far=" + formatScalar(shadowPassSnapshot.farPlane())));
         }
+        if (hasShadowCapture(shadowView)) {
+            metrics.add(new DashboardSummaryMetric(
+                    "frame-capture/shadow-profile",
+                    "debug.dashboard.shadow.profile",
+                    inferredShadowProfile(shadowView),
+                    "",
+                    0xFFA78BFA,
+                    "exports=" + exportedAttachmentSummary(shadowView)));
+        }
         return metrics;
     }
 
@@ -452,6 +461,7 @@ public final class DashboardViewModelFactory {
                 || shadowView.shadowPassActive()
                 || shadowView.renderTargetId() != null
                 || shadowView.shadowMapTextureId() != null
+                || !shadowView.exportedTextures().isEmpty()
                 || shadowView.nativeTargetHandle().isValid()
                 || shadowView.width() > 0
                 || shadowView.height() > 0
@@ -480,6 +490,25 @@ public final class DashboardViewModelFactory {
 
     private String formatScalar(float value) {
         return String.format(Locale.ROOT, "%.2f", value);
+    }
+
+    private String inferredShadowProfile(ShadowFrameView shadowView) {
+        if (shadowView == null || shadowView.exportedTextures().isEmpty()) {
+            return "DEPTH_ONLY";
+        }
+        if (shadowView.exportedTextures().containsKey("shadow_color0")) {
+            return "DEPTH_PLUS_COLOR0";
+        }
+        return "CUSTOM";
+    }
+
+    private String exportedAttachmentSummary(ShadowFrameView shadowView) {
+        if (shadowView == null || shadowView.exportedTextures().isEmpty()) {
+            return "none";
+        }
+        return shadowView.exportedTextures().entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private List<DashboardRatioMetric> buildRatioMetrics(MetricSnapshot metricSnapshot) {

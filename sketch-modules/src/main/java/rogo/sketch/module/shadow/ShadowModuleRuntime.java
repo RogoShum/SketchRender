@@ -19,17 +19,28 @@ import rogo.sketch.core.pipeline.module.setting.SettingChangeEvent;
 import rogo.sketch.core.pipeline.shadow.ShadowFrameView;
 import rogo.sketch.core.pipeline.shadow.ShadowFrameResources;
 import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshot;
+import rogo.sketch.core.pipeline.shadow.ShadowProfile;
 import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshotRegistry;
 import rogo.sketch.core.pipeline.shadow.ShadowProviderRegistry;
 import rogo.sketch.core.resource.ResourceScope;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
+import rogo.sketch.core.shader.uniform.ValueGetter;
 import rogo.sketch.core.util.KeyId;
 
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
+
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.function.Consumer;
 
 public class ShadowModuleRuntime implements ModuleRuntime {
     private static final String PASS_CAPTURE = "shadow_capture";
+    public static final KeyId UNIFORM_LIGHT_VIEW_PROJECTION = KeyId.of("u_LightViewProjection");
+    public static final KeyId UNIFORM_LIGHT_DIRECTION = KeyId.of("u_LightDirection");
+    public static final KeyId UNIFORM_SHADOW_PARAMS = KeyId.of("u_ShadowParams");
 
     private final SketchShadowProvider sketchProvider = new SketchShadowProvider();
     private Consumer<SettingChangeEvent> settingListener;
@@ -71,15 +82,30 @@ public class ShadowModuleRuntime implements ModuleRuntime {
         registerMetric(context, ShadowModuleDescriptor.EPOCH_METRIC, MetricKind.COUNT,
                 "debug.dashboard.shadow.epoch", "debug.dashboard.shadow.epoch.detail",
                 () -> currentView().epoch());
+        registerMetric(context, ShadowModuleDescriptor.PROFILE_METRIC, MetricKind.STRING,
+                "debug.dashboard.shadow.profile", "debug.dashboard.shadow.profile.detail",
+                () -> currentProfile().name());
+        registerMetric(context, ShadowModuleDescriptor.EXPORTED_ATTACHMENTS_METRIC, MetricKind.STRING,
+                "debug.dashboard.shadow.exported_attachments", "debug.dashboard.shadow.exported_attachments.detail",
+                this::exportedAttachmentSummary);
+        registerMetric(context, ShadowModuleDescriptor.COLOR0_BOUND_METRIC, MetricKind.BOOLEAN,
+                "debug.dashboard.shadow.color0_bound", "debug.dashboard.shadow.color0_bound.detail",
+                () -> currentView().exportedTextures().containsKey(ShadowModuleDescriptor.SHADOW_COLOR0_ALIAS));
         context.registerBuiltInResource(
                 ResourceTypes.TEXTURE,
                 ShadowModuleDescriptor.SHADOW_MAP_TEXTURE,
                 () -> {
                     KeyId textureId = currentView().shadowMapTextureId();
-                    return textureId != null
-                            ? context.resourceManager().getResource(ResourceTypes.TEXTURE, textureId)
-                            : null;
+                    return resolveTextureAlias(context, ShadowModuleDescriptor.SHADOW_MAP_TEXTURE, textureId);
                 });
+        context.registerBuiltInResource(
+                ResourceTypes.TEXTURE,
+                ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE,
+                () -> {
+                    KeyId textureId = currentView().exportedTextures().get(ShadowModuleDescriptor.SHADOW_COLOR0_ALIAS);
+                    return resolveTextureAlias(context, ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE, textureId);
+                });
+        registerShadowSamplingUniforms(context);
         syncSettings(context);
     }
 
@@ -127,6 +153,7 @@ public class ShadowModuleRuntime implements ModuleRuntime {
                 && context.settings().getBoolean(ShadowModuleDescriptor.OWN_SHADOW_ENABLED, false);
         Object resolutionValue = context.settings().getValue(ShadowModuleDescriptor.SHADOW_RESOLUTION);
         int resolution = resolutionValue instanceof Number number ? number.intValue() : 2048;
+        ShadowProfile profile = resolveShadowProfile(context.settings().getValue(ShadowModuleDescriptor.SHADOW_PROFILE));
         if (!kernelInitialized) {
             if (!ownShadowEnabled) {
                 sketchProvider.clearPublishedResources(context.resourceManager());
@@ -139,11 +166,25 @@ public class ShadowModuleRuntime implements ModuleRuntime {
                 context.ownerId(),
                 ResourceScope.MODULE_OWNED,
                 ownShadowEnabled,
-                resolution);
+                resolution,
+                profile);
     }
 
     private ShadowFrameView currentView() {
         return ShadowProviderRegistry.currentFrameView();
+    }
+
+    private static rogo.sketch.core.resource.vision.Texture resolveTextureAlias(
+            ModuleRuntimeContext context,
+            KeyId aliasId,
+            KeyId textureId) {
+        if (context == null || context.resourceManager() == null || textureId == null) {
+            return null;
+        }
+        if (Objects.equals(aliasId, textureId)) {
+            return null;
+        }
+        return context.resourceManager().getResource(ResourceTypes.TEXTURE, textureId);
     }
 
     private ShadowPassSnapshot currentShadowPassSnapshot() {
@@ -156,11 +197,65 @@ public class ShadowModuleRuntime implements ModuleRuntime {
         }
         String renderTarget = view.renderTargetId() != null ? view.renderTargetId().toString() : "none";
         String texture = view.shadowMapTextureId() != null ? view.shadowMapTextureId().toString() : "none";
+        String exports = view.exportedTextures().isEmpty()
+                ? "none"
+                : view.exportedTextures().entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(", "));
         String nativeTarget = view.nativeTargetHandle().isValid()
                 ? Long.toString(view.nativeTargetHandle().value())
                 : "none";
         return "target=" + renderTarget + ", texture=" + texture + ", nativeTarget=" + nativeTarget
-                + ", size=" + view.width() + "x" + view.height();
+                + ", exports=" + exports + ", size=" + view.width() + "x" + view.height();
+    }
+
+    private ShadowProfile currentProfile() {
+        return sketchProvider.profile();
+    }
+
+    private String exportedAttachmentSummary() {
+        ShadowFrameView view = currentView();
+        if (view == null || view.exportedTextures().isEmpty()) {
+            return "none";
+        }
+        return view.exportedTextures().entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(", "));
+    }
+
+    private ShadowProfile resolveShadowProfile(Object rawValue) {
+        if (rawValue instanceof ShadowProfile profile) {
+            return profile;
+        }
+        if (rawValue instanceof String stringValue) {
+            try {
+                return ShadowProfile.valueOf(stringValue);
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return ShadowProfile.DEPTH_ONLY;
+    }
+
+    private void registerShadowSamplingUniforms(ModuleRuntimeContext context) {
+        context.registerUniform(UNIFORM_LIGHT_VIEW_PROJECTION, ValueGetter.create(
+                () -> {
+                    ShadowPassSnapshot snap = latestShadowPassSnapshot;
+                    return snap != null ? snap.lightViewProjectionMatrix() : new Matrix4f();
+                }, Matrix4f.class, UniformCaptureTiming.FRAME_SYNC));
+        context.registerUniform(UNIFORM_LIGHT_DIRECTION, ValueGetter.create(
+                () -> {
+                    ShadowPassSnapshot snap = latestShadowPassSnapshot;
+                    return snap != null ? snap.lightDirection() : new Vector3f(0.0f, -1.0f, 0.0f);
+                }, Vector3f.class, UniformCaptureTiming.FRAME_SYNC));
+        context.registerUniform(UNIFORM_SHADOW_PARAMS, ValueGetter.create(
+                () -> {
+                    ShadowFrameView view = currentView();
+                    boolean available = view != null && view.available();
+                    float bias = 0.0025f;
+                    float strength = 0.45f;
+                    float mapSize = view != null ? (float) Math.max(view.width(), 1) : 2048.0f;
+                    return new Vector4f(available ? 1.0f : 0.0f, bias, strength, mapSize);
+                }, Vector4f.class, UniformCaptureTiming.FRAME_SYNC));
     }
 
     private void registerMetric(

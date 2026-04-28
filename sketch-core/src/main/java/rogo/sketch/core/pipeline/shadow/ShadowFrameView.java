@@ -1,9 +1,11 @@
 package rogo.sketch.core.pipeline.shadow;
 
+import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import rogo.sketch.core.backend.GpuHandle;
 import rogo.sketch.core.util.KeyId;
 
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -18,6 +20,7 @@ public final class ShadowFrameView {
     private final boolean shadowPassActive;
     private final KeyId renderTargetId;
     private final KeyId shadowMapTextureId;
+    private final Map<String, KeyId> exportedTextures;
     private final GpuHandle nativeTargetHandle;
     private final Matrix4f lightViewMatrix;
     private final Matrix4f lightProjectionMatrix;
@@ -31,6 +34,7 @@ public final class ShadowFrameView {
             boolean shadowPassActive,
             KeyId renderTargetId,
             KeyId shadowMapTextureId,
+            Map<String, KeyId> exportedTextures,
             GpuHandle nativeTargetHandle,
             Matrix4f lightViewMatrix,
             Matrix4f lightProjectionMatrix,
@@ -42,6 +46,7 @@ public final class ShadowFrameView {
         this.shadowPassActive = shadowPassActive;
         this.renderTargetId = renderTargetId;
         this.shadowMapTextureId = shadowMapTextureId;
+        this.exportedTextures = Map.copyOf(exportedTextures != null ? exportedTextures : Map.of());
         this.nativeTargetHandle = nativeTargetHandle != null ? nativeTargetHandle : GpuHandle.NONE;
         this.lightViewMatrix = new Matrix4f(lightViewMatrix != null ? lightViewMatrix : IDENTITY);
         this.lightProjectionMatrix = new Matrix4f(lightProjectionMatrix != null ? lightProjectionMatrix : IDENTITY);
@@ -57,6 +62,7 @@ public final class ShadowFrameView {
                 false,
                 null,
                 null,
+                Map.of(),
                 GpuHandle.NONE,
                 IDENTITY,
                 IDENTITY,
@@ -83,6 +89,10 @@ public final class ShadowFrameView {
 
     public KeyId shadowMapTextureId() {
         return shadowMapTextureId;
+    }
+
+    public Map<String, KeyId> exportedTextures() {
+        return exportedTextures;
     }
 
     public GpuHandle nativeTargetHandle() {
@@ -125,6 +135,7 @@ public final class ShadowFrameView {
                 && Objects.equals(providerId, other.providerId)
                 && Objects.equals(renderTargetId, other.renderTargetId)
                 && Objects.equals(shadowMapTextureId, other.shadowMapTextureId)
+                && Objects.equals(exportedTextures, other.exportedTextures)
                 && Objects.equals(nativeTargetHandle, other.nativeTargetHandle)
                 && Objects.equals(lightViewMatrix, other.lightViewMatrix)
                 && Objects.equals(lightProjectionMatrix, other.lightProjectionMatrix);
@@ -138,6 +149,7 @@ public final class ShadowFrameView {
                 shadowPassActive,
                 renderTargetId,
                 shadowMapTextureId,
+                exportedTextures,
                 nativeTargetHandle,
                 lightViewMatrix,
                 lightProjectionMatrix,
@@ -154,6 +166,7 @@ public final class ShadowFrameView {
                 ", shadowPassActive=" + shadowPassActive +
                 ", renderTargetId=" + renderTargetId +
                 ", shadowMapTextureId=" + shadowMapTextureId +
+                ", exportedTextures=" + exportedTextures +
                 ", nativeTargetHandle=" + nativeTargetHandle +
                 ", width=" + width +
                 ", height=" + height +

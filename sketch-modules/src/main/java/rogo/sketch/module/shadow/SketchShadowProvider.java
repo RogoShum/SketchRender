@@ -15,11 +15,13 @@ import rogo.sketch.core.resource.descriptor.SamplerWrap;
 import rogo.sketch.core.resource.vision.RenderTarget;
 import rogo.sketch.core.resource.vision.Texture;
 import rogo.sketch.core.pipeline.shadow.ShadowFrameView;
+import rogo.sketch.core.pipeline.shadow.ShadowProfile;
 import rogo.sketch.core.pipeline.shadow.ShadowProvider;
 import rogo.sketch.core.util.KeyId;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 public final class SketchShadowProvider implements ShadowProvider {
     public static final KeyId PROVIDER_ID = KeyId.of("sketch_render", "sketch_shadow");
@@ -27,8 +29,10 @@ public final class SketchShadowProvider implements ShadowProvider {
 
     private volatile boolean ownShadowEnabled;
     private volatile int resolution = 2048;
+    private volatile ShadowProfile profile = ShadowProfile.DEPTH_ONLY;
     private volatile long epoch;
     private volatile Texture shadowDepthTexture;
+    private volatile Texture shadowColor0Texture;
     private volatile RenderTarget shadowRenderTarget;
     private volatile ShadowFrameView currentFrameView = ShadowFrameView.unavailable(PROVIDER_ID);
 
@@ -42,17 +46,26 @@ public final class SketchShadowProvider implements ShadowProvider {
         return currentFrameView;
     }
 
+    public ShadowProfile profile() {
+        return profile;
+    }
+
     public boolean syncResources(
             GraphicsResourceManager resourceManager,
             ResourceAllocator installer,
             String ownerId,
             ResourceScope scope,
             boolean ownShadowEnabled,
-            int resolution) {
+            int resolution,
+            ShadowProfile profile) {
         int clampedResolution = Math.max(256, resolution);
-        boolean configChanged = this.ownShadowEnabled != ownShadowEnabled || this.resolution != clampedResolution;
+        ShadowProfile resolvedProfile = profile != null ? profile : ShadowProfile.DEPTH_ONLY;
+        boolean configChanged = this.ownShadowEnabled != ownShadowEnabled
+                || this.resolution != clampedResolution
+                || this.profile != resolvedProfile;
         boolean resourcesMissing = ownShadowEnabled
                 && (shadowDepthTexture == null || shadowDepthTexture.isDisposed()
+                || (requiresColor0(resolvedProfile) && (shadowColor0Texture == null || shadowColor0Texture.isDisposed()))
                 || shadowRenderTarget == null || shadowRenderTarget.isDisposed());
         if (!configChanged && !resourcesMissing) {
             return false;
@@ -60,6 +73,7 @@ public final class SketchShadowProvider implements ShadowProvider {
 
         this.ownShadowEnabled = ownShadowEnabled;
         this.resolution = clampedResolution;
+        this.profile = resolvedProfile;
         unregisterConcreteResources(resourceManager);
         disposeResources();
 
@@ -85,6 +99,32 @@ public final class SketchShadowProvider implements ShadowProvider {
                         null),
                 null,
                 null);
+        Texture nextColor0Texture = null;
+        if (requiresColor0(resolvedProfile)) {
+            nextColor0Texture = installer.installTexture(
+                    ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE,
+                    new ResolvedImageResource(
+                            ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE,
+                            clampedResolution,
+                            clampedResolution,
+                            1,
+                            ImageFormat.RGBA8_UNORM,
+                            EnumSet.of(ImageUsage.COLOR_ATTACHMENT, ImageUsage.SAMPLED),
+                            SamplerFilter.LINEAR,
+                            SamplerFilter.LINEAR,
+                            null,
+                            SamplerWrap.CLAMP_TO_EDGE,
+                            SamplerWrap.CLAMP_TO_EDGE,
+                            null),
+                    null,
+                    null);
+            resourceManager.registerDirect(
+                    ownerId,
+                    scope,
+                    ResourceTypes.TEXTURE,
+                    ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE,
+                    nextColor0Texture);
+        }
         resourceManager.registerDirect(
                 ownerId,
                 scope,
@@ -101,7 +141,9 @@ public final class SketchShadowProvider implements ShadowProvider {
                         clampedResolution,
                         1.0f,
                         1.0f,
-                        List.of(),
+                        requiresColor0(resolvedProfile)
+                                ? List.of(ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE)
+                                : List.of(),
                         ShadowModuleDescriptor.SHADOW_DEPTH_TEXTURE,
                         null));
         resourceManager.registerDirect(
@@ -112,14 +154,16 @@ public final class SketchShadowProvider implements ShadowProvider {
                 nextRenderTarget);
 
         shadowDepthTexture = nextDepthTexture;
+        shadowColor0Texture = nextColor0Texture;
         shadowRenderTarget = nextRenderTarget;
         epoch++;
         currentFrameView = new ShadowFrameView(
                 PROVIDER_ID,
                 true,
                 false,
-                ShadowModuleDescriptor.SHADOW_RENDER_TARGET,
-                ShadowModuleDescriptor.SHADOW_DEPTH_TEXTURE,
+                resolvedProfile.renderTargetId(),
+                resolvedProfile.shadowMapTextureId(),
+                resolvedProfile.exportedTextures(),
                 nextRenderTarget.gpuHandle(),
                 IDENTITY,
                 IDENTITY,
@@ -131,6 +175,10 @@ public final class SketchShadowProvider implements ShadowProvider {
 
     public Texture shadowDepthTexture() {
         return shadowDepthTexture;
+    }
+
+    public Texture shadowColor0Texture() {
+        return shadowColor0Texture;
     }
 
     public RenderTarget shadowRenderTarget() {
@@ -153,12 +201,17 @@ public final class SketchShadowProvider implements ShadowProvider {
         if (resourceManager.hasResource(ResourceTypes.TEXTURE, ShadowModuleDescriptor.SHADOW_DEPTH_TEXTURE)) {
             resourceManager.removeResource(ResourceTypes.TEXTURE, ShadowModuleDescriptor.SHADOW_DEPTH_TEXTURE);
         }
+        if (resourceManager.hasResource(ResourceTypes.TEXTURE, ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE)) {
+            resourceManager.removeResource(ResourceTypes.TEXTURE, ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE);
+        }
     }
 
     private void disposeResources() {
         disposeQuietly(shadowRenderTarget);
+        disposeQuietly(shadowColor0Texture);
         disposeQuietly(shadowDepthTexture);
         shadowRenderTarget = null;
+        shadowColor0Texture = null;
         shadowDepthTexture = null;
     }
 
@@ -170,12 +223,18 @@ public final class SketchShadowProvider implements ShadowProvider {
                 false,
                 null,
                 null,
+                Map.of(),
                 rogo.sketch.core.backend.GpuHandle.NONE,
                 IDENTITY,
                 IDENTITY,
                 0,
                 0,
                 epoch);
+    }
+
+    private boolean requiresColor0(ShadowProfile profile) {
+        return profile != null && !profile.depthOnly()
+                && profile.exportedTextureId(ShadowModuleDescriptor.SHADOW_COLOR0_ALIAS) != null;
     }
 
     private void disposeQuietly(Object resource) {

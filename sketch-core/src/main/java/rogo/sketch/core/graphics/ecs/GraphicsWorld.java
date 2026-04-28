@@ -262,6 +262,7 @@ public final class GraphicsWorld {
                 chunk.component(row, GraphicsBuiltinComponents.PREPARED_MESH),
                 chunk.component(row, GraphicsBuiltinComponents.RENDER_DESCRIPTOR),
                 chunk.component(row, GraphicsBuiltinComponents.INSTANCE_VERTEX_AUTHORING),
+                chunk.component(row, GraphicsBuiltinComponents.INSTANCE_COUNT),
                 chunk.component(row, GraphicsBuiltinComponents.TRANSFORM_BINDING),
                 chunk.component(row, GraphicsBuiltinComponents.TRANSFORM_HIERARCHY),
                 chunk.component(row, GraphicsBuiltinComponents.TICK_DRIVER),
@@ -330,6 +331,7 @@ public final class GraphicsWorld {
             GraphicsBuiltinComponents.PreparedMeshComponent preparedMesh,
             GraphicsBuiltinComponents.RenderDescriptorComponent renderDescriptor,
             GraphicsBuiltinComponents.InstanceVertexAuthoringComponent instanceVertexAuthoring,
+            GraphicsBuiltinComponents.InstanceCountComponent instanceCount,
             GraphicsBuiltinComponents.TransformBindingComponent transformBinding,
             GraphicsBuiltinComponents.TransformHierarchyComponent transformHierarchy,
             GraphicsBuiltinComponents.TickDriverComponent tickDriver,
@@ -395,6 +397,7 @@ public final class GraphicsWorld {
             accessors.put(GraphicsBuiltinComponents.PREPARED_MESH, snapshot -> snapshot.preparedMesh());
             accessors.put(GraphicsBuiltinComponents.RENDER_DESCRIPTOR, snapshot -> snapshot.renderDescriptor());
             accessors.put(GraphicsBuiltinComponents.INSTANCE_VERTEX_AUTHORING, snapshot -> snapshot.instanceVertexAuthoring());
+            accessors.put(GraphicsBuiltinComponents.INSTANCE_COUNT, snapshot -> snapshot.instanceCount());
             accessors.put(GraphicsBuiltinComponents.TRANSFORM_BINDING, snapshot -> snapshot.transformBinding());
             accessors.put(GraphicsBuiltinComponents.TRANSFORM_HIERARCHY, snapshot -> snapshot.transformHierarchy());
             accessors.put(GraphicsBuiltinComponents.TICK_DRIVER, snapshot -> snapshot.tickDriver());

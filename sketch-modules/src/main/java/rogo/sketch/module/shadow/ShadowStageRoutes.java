@@ -11,10 +11,14 @@ import rogo.sketch.core.driver.state.component.DepthMaskState;
 import rogo.sketch.core.driver.state.component.DepthTestState;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityBlueprint;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityPresets;
+import rogo.sketch.core.packet.ExecutionDomain;
+import rogo.sketch.core.pipeline.PartialRenderSetting;
 import rogo.sketch.core.pipeline.PipelineType;
 import rogo.sketch.core.pipeline.StageRouteDescriptor;
 import rogo.sketch.core.pipeline.TargetBinding;
 import rogo.sketch.core.pipeline.parmeter.RenderParameter;
+import rogo.sketch.core.resource.ResourceBinding;
+import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.shader.variant.ShaderVariantKey;
 import rogo.sketch.core.util.KeyId;
 
@@ -27,13 +31,22 @@ import java.util.Objects;
  * Shared code-side authoring helpers for own-shadow stage routes.
  */
 public final class ShadowStageRoutes {
+    public static final String SHADOW_SAMPLING_INCLUDE = "sketch_render:sketch_shadow_sampling.glsl";
+    public static final KeyId SHADOW_MAP_BINDING = KeyId.of("u_ShadowMap");
+
     private static final TargetBinding SHADOW_TARGET_BINDING = new TargetBinding(
             ShadowModuleDescriptor.SHADOW_RENDER_TARGET,
             List.of(),
             Boolean.FALSE,
             Boolean.TRUE);
+    private static final TargetBinding SHADOW_COLOR0_TARGET_BINDING = new TargetBinding(
+            ShadowModuleDescriptor.SHADOW_RENDER_TARGET,
+            List.of(ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE),
+            Boolean.FALSE,
+            Boolean.TRUE);
     private static final ShaderVariantKey SHADOW_VARIANT = ShaderVariantKey.of(ShadowModuleDescriptor.SHADOW_PASS_MACRO);
-    private static final RenderStatePatch SHADOW_CASTER_RENDER_STATE = createShadowCasterRenderState();
+    private static final RenderStatePatch SHADOW_DEPTH_ONLY_RENDER_STATE = createShadowCasterRenderState(false);
+    private static final RenderStatePatch SHADOW_COLOR_RENDER_STATE = createShadowCasterRenderState(true);
 
     private ShadowStageRoutes() {
     }
@@ -46,7 +59,19 @@ public final class ShadowStageRoutes {
                 renderParameter,
                 SHADOW_TARGET_BINDING,
                 SHADOW_VARIANT,
-                SHADOW_CASTER_RENDER_STATE,
+                SHADOW_DEPTH_ONLY_RENDER_STATE,
+                true);
+    }
+
+    public static StageRouteDescriptor shadowColorCasterRoute(RenderParameter renderParameter) {
+        Objects.requireNonNull(renderParameter, "renderParameter");
+        return new StageRouteDescriptor(
+                ShadowModuleDescriptor.SHADOW_DEPTH_STAGE_ID,
+                PipelineType.RASTERIZATION,
+                renderParameter,
+                SHADOW_COLOR0_TARGET_BINDING,
+                SHADOW_VARIANT,
+                SHADOW_COLOR_RENDER_STATE,
                 true);
     }
 
@@ -127,11 +152,56 @@ public final class ShadowStageRoutes {
         return result.withAttached();
     }
 
-    private static RenderStatePatch createShadowCasterRenderState() {
+    public static ResourceBinding shadowSamplingBinding() {
+        return shadowSamplingBinding(SHADOW_MAP_BINDING, ShadowModuleDescriptor.SHADOW_MAP_TEXTURE);
+    }
+
+    public static ResourceBinding shadowSamplingBinding(KeyId bindingName) {
+        return shadowSamplingBinding(bindingName, ShadowModuleDescriptor.SHADOW_MAP_TEXTURE);
+    }
+
+    public static ResourceBinding shadowSamplingBinding(KeyId bindingName, KeyId shadowMapResourceId) {
+        Objects.requireNonNull(bindingName, "bindingName");
+        Objects.requireNonNull(shadowMapResourceId, "shadowMapResourceId");
+        ResourceBinding binding = new ResourceBinding();
+        binding.addBinding(ResourceTypes.TEXTURE, bindingName, shadowMapResourceId);
+        return binding;
+    }
+
+    public static PartialRenderSetting withShadowSampling(PartialRenderSetting base) {
+        return withShadowSampling(base, SHADOW_MAP_BINDING, ShadowModuleDescriptor.SHADOW_MAP_TEXTURE);
+    }
+
+    public static PartialRenderSetting withShadowSampling(PartialRenderSetting base, KeyId bindingName) {
+        return withShadowSampling(base, bindingName, ShadowModuleDescriptor.SHADOW_MAP_TEXTURE);
+    }
+
+    public static PartialRenderSetting withShadowSampling(
+            PartialRenderSetting base,
+            KeyId bindingName,
+            KeyId shadowMapResourceId) {
+        Objects.requireNonNull(base, "base");
+        ResourceBinding mergedBinding = new ResourceBinding();
+        if (base.resourceBinding() != null) {
+            mergedBinding.merge(base.resourceBinding());
+        }
+        mergedBinding.merge(shadowSamplingBinding(bindingName, shadowMapResourceId));
+        return PartialRenderSetting.create(
+                base.executionDomain() != null ? base.executionDomain() : ExecutionDomain.RASTER,
+                base.renderState(),
+                base.targetBinding(),
+                mergedBinding,
+                base.shouldSwitchRenderState(),
+                base.aliasPolicy());
+    }
+
+    private static RenderStatePatch createShadowCasterRenderState(boolean enableColorWrites) {
         Map<KeyId, rogo.sketch.core.api.RenderStateComponent> overrides = new LinkedHashMap<>();
         overrides.put(DepthTestState.TYPE, new DepthTestState(true, CompareOp.LESS));
         overrides.put(DepthMaskState.TYPE, new DepthMaskState(true));
-        overrides.put(ColorMaskState.TYPE, new ColorMaskState(false, false, false, false));
+        overrides.put(ColorMaskState.TYPE, enableColorWrites
+                ? new ColorMaskState(true, true, true, true)
+                : new ColorMaskState(false, false, false, false));
         overrides.put(CullState.TYPE, new CullState(false, CullFaceMode.BACK, FrontFaceMode.CCW));
         return RenderStatePatch.of(overrides);
     }

@@ -16,6 +16,7 @@ import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.Map;
 import java.util.List;
@@ -63,6 +64,8 @@ public final class GraphicsBuiltinComponents {
             GraphicsComponentType.of(KeyId.of("sketch", "graphics_render_descriptor"), RenderDescriptorComponent.class);
     public static final GraphicsComponentType<InstanceVertexAuthoringComponent> INSTANCE_VERTEX_AUTHORING =
             GraphicsComponentType.of(KeyId.of("sketch", "graphics_instance_vertex_authoring"), InstanceVertexAuthoringComponent.class);
+    public static final GraphicsComponentType<InstanceCountComponent> INSTANCE_COUNT =
+            GraphicsComponentType.of(KeyId.of("sketch", "graphics_instance_count"), InstanceCountComponent.class);
     public static final GraphicsComponentType<UniformAuthoringComponent> UNIFORM_AUTHORING =
             GraphicsComponentType.of(KeyId.of("sketch", "graphics_uniform_authoring"), UniformAuthoringComponent.class);
     public static final GraphicsComponentType<SsboAuthoringComponent> SSBO_AUTHORING =
@@ -252,6 +255,12 @@ public final class GraphicsBuiltinComponents {
     }
 
     public record InstanceVertexAuthoringComponent(InstanceVertexAuthoring authoring) {
+    }
+
+    public record InstanceCountComponent(IntSupplier countSupplier) {
+        public int instanceCount() {
+            return countSupplier != null ? Math.max(0, countSupplier.getAsInt()) : 1;
+        }
     }
 
     public record UniformAuthoringComponent(UniformAuthoring authoring) {

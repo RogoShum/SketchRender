@@ -137,3 +137,5 @@ runs/
 /.tmp-javac-check/
 /.cursor/
 /misc/
+/.claude/
+/CLAUDE.md

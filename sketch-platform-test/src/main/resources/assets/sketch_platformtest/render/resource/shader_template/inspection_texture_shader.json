@@ -1,0 +1,13 @@
+{
+  "vertex": "sketch_platformtest:inspection_quad.vsh",
+  "fragment": "sketch_platformtest:inspection_texture.fsh",
+  "attributes": [
+    "vec2 position",
+    "vec3 color"
+  ],
+  "resourceBindings": {
+    "texture": {
+      "test_texture": 0
+    }
+  }
+}

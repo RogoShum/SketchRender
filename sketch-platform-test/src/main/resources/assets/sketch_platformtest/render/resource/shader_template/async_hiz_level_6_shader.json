@@ -1,0 +1,12 @@
+{
+  "compute": "sketch_platformtest:async_hiz_level_6.comp",
+  "resourceBindings": {
+    "image": {
+      "output_texture_0": 0
+    },
+    "texture": {
+      "hiz_source_snapshot": 1,
+      "hiz_source_atlas": 2
+    }
+  }
+}

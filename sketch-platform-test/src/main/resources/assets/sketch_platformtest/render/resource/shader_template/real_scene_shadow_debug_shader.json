@@ -1,0 +1,13 @@
+{
+  "vertex": "sketch_platformtest:inspection_quad.vsh",
+  "fragment": "sketch_platformtest:real_scene_shadow_debug.fsh",
+  "attributes": [
+    "vec2 position",
+    "vec3 color"
+  ],
+  "resourceBindings": {
+    "texture": {
+      "u_ShadowMap": 0
+    }
+  }
+}

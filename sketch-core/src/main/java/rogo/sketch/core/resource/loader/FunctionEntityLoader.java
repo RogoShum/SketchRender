@@ -15,8 +15,11 @@ import rogo.sketch.core.util.KeyId;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class FunctionEntityLoader implements ResourceLoader<GraphicsEntityBlueprint> {
+    public static final KeyId MANUAL_INSTALL_TAG = KeyId.of("sketch", "manual_function_resource");
+
     private final FunctionCommandCodecRegistry codecRegistry;
 
     public FunctionEntityLoader() {
@@ -65,7 +68,7 @@ public class FunctionEntityLoader implements ResourceLoader<GraphicsEntityBluepr
 
             graphicsCommands = commandList.toArray(new FunctionCommands.Command[0]);
             int priority = json.has("priority") ? json.get("priority").getAsInt() : 100;
-            return GraphicsEntityBlueprint.builder()
+            GraphicsEntityBlueprint.Builder builder = GraphicsEntityBlueprint.builder()
                     .put(GraphicsBuiltinComponents.IDENTITY, new GraphicsBuiltinComponents.IdentityComponent(keyId))
                     .put(GraphicsBuiltinComponents.LIFECYCLE, new GraphicsBuiltinComponents.LifecycleComponent(true, false))
                     .put(GraphicsBuiltinComponents.RESOURCE_ORIGIN, new GraphicsBuiltinComponents.ResourceOriginComponent(ResourceTypes.FUNCTION))
@@ -83,8 +86,13 @@ public class FunctionEntityLoader implements ResourceLoader<GraphicsEntityBluepr
                     .put(GraphicsBuiltinComponents.FUNCTION_INVOKE, new GraphicsBuiltinComponents.FunctionInvokeComponent(
                             null,
                             graphicsCommands,
-                            priority))
-                    .build();
+                            priority));
+            if (json.has("autoInstall") && !json.get("autoInstall").getAsBoolean()) {
+                builder.put(
+                        GraphicsBuiltinComponents.GRAPHICS_TAGS,
+                        new GraphicsBuiltinComponents.GraphicsTagsComponent(Set.of(MANUAL_INSTALL_TAG)));
+            }
+            return builder.build();
         } catch (Exception e) {
             SketchDiagnostics.get().error("function-loader", "Failed to load FunctionGraphics", e);
             return null;

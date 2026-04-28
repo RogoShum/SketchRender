@@ -333,7 +333,7 @@ final class DrawStreamCompiler {
         return compileDirectDrawItem(
                 vertexBufferKey,
                 preparedMesh,
-                entries.size(),
+                batchInstanceCount(entries),
                 batchStartVertex,
                 batchVertexCount,
                 batchStartIndex,
@@ -423,6 +423,19 @@ final class DrawStreamCompiler {
             return null;
         }
         return DrawPlan.DirectDrawItem.nonIndexed(batchVertexCount, batchStartVertex, 1, 0);
+    }
+
+    private int batchInstanceCount(List<StageEntityView.Entry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (StageEntityView.Entry entry : entries) {
+            if (entry != null) {
+                count += Math.max(0, entry.resolvedInstanceCount());
+            }
+        }
+        return count;
     }
 
     private IndexedDrawSlice generatedIndexedShard(PreparedMesh preparedMesh, PrimitiveType primitiveType) {

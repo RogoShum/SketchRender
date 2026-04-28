@@ -598,7 +598,21 @@ public final class DashboardViewSceneBuilder {
                             String.valueOf(shadowView.epoch()),
                             "",
                             0xFF34D399,
-                            "target=" + Objects.toString(shadowView.renderTargetId(), "none")));
+                            "target=" + Objects.toString(shadowView.renderTargetId(), "none")),
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-profile",
+                            "debug.dashboard.shadow.profile",
+                            inferredShadowProfile(shadowView),
+                            "",
+                            0xFFA78BFA,
+                            "exports=" + exportedAttachmentSummary(shadowView)),
+                    new DashboardSummaryMetric(
+                            "frame-capture-shadow-color0",
+                            "debug.dashboard.shadow.color0_bound",
+                            String.valueOf(shadowView.exportedTextures().containsKey("shadow_color0")),
+                            "",
+                            shadowView.exportedTextures().containsKey("shadow_color0") ? 0xFF34D399 : 0xFF64748B,
+                            "debug.dashboard.shadow.color0_bound.detail"));
             y = appendSummaryMetricRows(assembly, panelId, shadowSummary, viewport, y, 1, viewport.width(), 0,
                     metrics.summaryRowHeight, metrics, contentLayer, "frame-capture/shadow/");
         }
@@ -712,6 +726,7 @@ public final class DashboardViewSceneBuilder {
                 || shadowView.shadowPassActive()
                 || shadowView.renderTargetId() != null
                 || shadowView.shadowMapTextureId() != null
+                || !shadowView.exportedTextures().isEmpty()
                 || shadowView.nativeTargetHandle().isValid()
                 || shadowView.width() > 0
                 || shadowView.height() > 0
@@ -737,10 +752,30 @@ public final class DashboardViewSceneBuilder {
         }
         String renderTarget = Objects.toString(shadowView.renderTargetId(), "none");
         String texture = Objects.toString(shadowView.shadowMapTextureId(), "none");
+        String exports = exportedAttachmentSummary(shadowView);
         String nativeTarget = shadowView.nativeTargetHandle().isValid()
                 ? Long.toString(shadowView.nativeTargetHandle().value())
                 : "none";
-        return "rt=" + renderTarget + ", tex=" + texture + ", native=" + nativeTarget;
+        return "rt=" + renderTarget + ", tex=" + texture + ", exports=" + exports + ", native=" + nativeTarget;
+    }
+
+    private String inferredShadowProfile(ShadowFrameView shadowView) {
+        if (shadowView == null || shadowView.exportedTextures().isEmpty()) {
+            return "DEPTH_ONLY";
+        }
+        if (shadowView.exportedTextures().containsKey("shadow_color0")) {
+            return "DEPTH_PLUS_COLOR0";
+        }
+        return "CUSTOM";
+    }
+
+    private String exportedAttachmentSummary(ShadowFrameView shadowView) {
+        if (shadowView == null || shadowView.exportedTextures().isEmpty()) {
+            return "none";
+        }
+        return shadowView.exportedTextures().entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private String formatVector(Vector3f value) {

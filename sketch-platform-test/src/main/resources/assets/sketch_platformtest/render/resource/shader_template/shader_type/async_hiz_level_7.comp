@@ -1,0 +1,4 @@
+#version 430 core
+#define DEST_LEVEL 7
+#define HAS_SOURCE_ATLAS 1
+#include <sketch_platformtest:async_hiz_level_common.glsl>

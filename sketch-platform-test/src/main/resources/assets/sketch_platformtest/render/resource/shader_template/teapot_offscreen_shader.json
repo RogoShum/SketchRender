@@ -1,0 +1,7 @@
+{
+  "vertex": "sketch_platformtest:teapot_offscreen.vsh",
+  "fragment": "sketch_platformtest:teapot_offscreen.fsh",
+  "attributes": [
+    "vec3 position"
+  ]
+}

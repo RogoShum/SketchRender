@@ -40,6 +40,7 @@ public final class FunctionCommandCodecRegistry {
         return new FunctionCommandCodecRegistry()
                 .register("clear", FunctionCommandCodecRegistry::decodeClear)
                 .register("clearRenderTarget", FunctionCommandCodecRegistry::decodeClear)
+                .register("copyTexture", FunctionCommandCodecRegistry::decodeCopyTexture)
                 .register("genMipmap", FunctionCommandCodecRegistry::decodeGenMipmap);
     }
 
@@ -95,6 +96,27 @@ public final class FunctionCommandCodecRegistry {
         return textureId == null || textureId.isBlank()
                 ? null
                 : new FunctionCommands.GenMipmapCommand(KeyId.of(textureId));
+    }
+
+    private static FunctionCommands.Command decodeCopyTexture(JsonObject json) {
+        if (!json.has("sourceTexture") || !json.has("destinationTexture")) {
+            return null;
+        }
+        String sourceTextureId = json.get("sourceTexture").getAsString();
+        String destinationTextureId = json.get("destinationTexture").getAsString();
+        if (sourceTextureId == null || sourceTextureId.isBlank()
+                || destinationTextureId == null || destinationTextureId.isBlank()) {
+            return null;
+        }
+        int width = json.has("width") ? json.get("width").getAsInt() : 0;
+        int height = json.has("height") ? json.get("height").getAsInt() : 0;
+        boolean depthCopy = !json.has("depthCopy") || json.get("depthCopy").getAsBoolean();
+        return new FunctionCommands.CopyTextureCommand(
+                KeyId.of(sourceTextureId),
+                KeyId.of(destinationTextureId),
+                width,
+                height,
+                depthCopy);
     }
 
     private static List<Object> decodeColorAttachments(JsonObject json) {

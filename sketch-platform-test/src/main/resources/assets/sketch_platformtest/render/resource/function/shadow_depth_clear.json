@@ -1,0 +1,15 @@
+{
+  "stage": "sketch_render:shadow_depth_stage",
+  "priority": 0,
+  "autoInstall": false,
+  "command": [
+    {
+      "operate": "clear",
+      "renderTarget": "sketch_render:shadow_target",
+      "colorAttachments": [],
+      "clearChannels": "depth",
+      "depth": 1.0,
+      "restorePreviousRenderTarget": true
+    }
+  ]
+}

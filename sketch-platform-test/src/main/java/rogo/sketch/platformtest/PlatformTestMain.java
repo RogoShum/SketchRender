@@ -253,6 +253,7 @@ public final class PlatformTestMain {
             String value = arg.substring("--shadow-debug=".length()).trim().toLowerCase();
             return switch (value) {
                 case "target", "shadow_target", "shadow-target" -> PipelineTestScene.ShadowDebugMode.TARGET;
+                case "color0", "shadow_color0", "shadow-color0" -> PipelineTestScene.ShadowDebugMode.COLOR0;
                 case "off", "none", "false", "0" -> PipelineTestScene.ShadowDebugMode.OFF;
                 default -> PipelineTestScene.ShadowDebugMode.OFF;
             };

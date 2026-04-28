@@ -3,6 +3,7 @@ package rogo.sketch.core.pipeline;
 import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityBlueprint;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityId;
+import rogo.sketch.core.resource.loader.FunctionEntityLoader;
 import rogo.sketch.core.resource.ResourceTypes;
 import rogo.sketch.core.util.KeyId;
 
@@ -47,6 +48,11 @@ final class PipelineResourceBridge {
         for (Map.Entry<KeyId, GraphicsEntityBlueprint> entry : orderedEntries) {
             GraphicsEntityBlueprint blueprint = entry.getValue();
             if (blueprint == null || blueprint.isDisposed()) {
+                continue;
+            }
+            GraphicsBuiltinComponents.GraphicsTagsComponent tags =
+                    blueprint.component(GraphicsBuiltinComponents.GRAPHICS_TAGS);
+            if (tags != null && tags.hasTag(FunctionEntityLoader.MANUAL_INSTALL_TAG)) {
                 continue;
             }
             GraphicsEntityId entityId = spawnEntity.apply(blueprint);

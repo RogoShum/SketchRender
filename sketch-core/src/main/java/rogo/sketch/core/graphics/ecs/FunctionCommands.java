@@ -8,7 +8,7 @@ public final class FunctionCommands {
     private FunctionCommands() {
     }
 
-    public sealed interface Command permits ClearCommand, GenMipmapCommand {
+    public sealed interface Command permits ClearCommand, CopyTextureCommand, GenMipmapCommand {
     }
 
     public record ClearCommand(
@@ -29,5 +29,14 @@ public final class FunctionCommands {
     }
 
     public record GenMipmapCommand(KeyId textureId) implements Command {
+    }
+
+    public record CopyTextureCommand(
+            KeyId sourceTextureId,
+            KeyId destinationTextureId,
+            int width,
+            int height,
+            boolean depthCopy
+    ) implements Command {
     }
 }

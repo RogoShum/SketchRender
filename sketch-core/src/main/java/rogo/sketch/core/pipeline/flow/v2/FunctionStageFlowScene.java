@@ -6,6 +6,7 @@ import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityAssembler;
 import rogo.sketch.core.graphics.ecs.GraphicsWorld;
 import rogo.sketch.core.packet.ClearPacket;
+import rogo.sketch.core.packet.CopyTexturePacket;
 import rogo.sketch.core.packet.ExecutionKey;
 import rogo.sketch.core.packet.GenerateMipmapPacket;
 import rogo.sketch.core.packet.RenderPacket;
@@ -267,6 +268,20 @@ public final class FunctionStageFlowScene<C extends RenderContext> implements St
                     UniformValueSnapshot.empty(),
                     completionSubjects,
                     genMipmapCommand.textureId());
+        }
+        if (command instanceof FunctionCommands.CopyTextureCommand copyTextureCommand) {
+            return new CopyTexturePacket(
+                    stageId,
+                    pipelineType,
+                    TransferPlanKey.forTexture(copyTextureCommand.destinationTextureId()),
+                    compiledRenderSetting.resourceBindingPlan(),
+                    UniformValueSnapshot.empty(),
+                    completionSubjects,
+                    copyTextureCommand.sourceTextureId(),
+                    copyTextureCommand.destinationTextureId(),
+                    copyTextureCommand.width(),
+                    copyTextureCommand.height(),
+                    copyTextureCommand.depthCopy());
         }
         return null;
     }

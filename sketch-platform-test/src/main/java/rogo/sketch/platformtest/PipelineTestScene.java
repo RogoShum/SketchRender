@@ -40,7 +40,6 @@ import rogo.sketch.core.driver.state.DefaultRenderStates;
 import rogo.sketch.core.driver.state.component.ShaderState;
 import rogo.sketch.core.event.GraphicsPipelineInitEvent;
 import rogo.sketch.core.event.bridge.EventBusBridge;
-import rogo.sketch.core.graphics.ecs.FunctionCommands;
 import rogo.sketch.core.graphics.ecs.GraphicsBuiltinComponents;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityBlueprint;
 import rogo.sketch.core.graphics.ecs.GraphicsEntityPresets;
@@ -85,6 +84,7 @@ import rogo.sketch.core.pipeline.module.runtime.ModuleRuntimeContext;
 import rogo.sketch.core.pipeline.shadow.ShadowFrameView;
 import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshot;
 import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshotRegistry;
+import rogo.sketch.core.pipeline.shadow.ShadowProfile;
 import rogo.sketch.core.pipeline.shadow.ShadowPassSnapshotSource;
 import rogo.sketch.core.pipeline.graph.scheduler.SimpleProfiler;
 import rogo.sketch.core.pipeline.parmeter.ComputeParameter;
@@ -153,6 +153,9 @@ final class PipelineTestScene implements AutoCloseable {
     private static final KeyId MAIN_STAGE_ID = KeyId.of("sketch_platformtest:main_stage");
     private static final KeyId COMPUTE_STAGE_ID = KeyId.of("sketch_platformtest:compute_stage");
     private static final KeyId FUNCTION_STAGE_ID = KeyId.of("sketch_platformtest:function_stage");
+    private static final KeyId REAL_SCENE_FRAME_CLEAR_FUNCTION_ID = KeyId.of("sketch_platformtest:real_scene_frame_clear");
+    private static final KeyId REAL_SCENE_SHADOW_CLEAR_FUNCTION_ID = KeyId.of("sketch_platformtest:real_scene_shadow_clear");
+    private static final KeyId SHADOW_DEPTH_CLEAR_FUNCTION_ID = KeyId.of("sketch_platformtest:shadow_depth_clear");
     private static final KeyId OVERLAY_STAGE_ID = KeyId.of("sketch_platformtest:overlay_stage");
     private static final String SHADOW_PASS_MACRO = "SKETCH_SHADOW_PASS";
     private static final KeyId COLOR_SHADER_ID = KeyId.of("sketch_platformtest:color_shader");
@@ -200,6 +203,7 @@ final class PipelineTestScene implements AutoCloseable {
     private static final KeyId REAL_SCENE_SHADER_ID = KeyId.of("sketch_platformtest:real_scene_shader");
     private static final KeyId REAL_SCENE_RECEIVER_SHADER_ID = KeyId.of("sketch_platformtest:real_scene_receiver_shader");
     private static final KeyId REAL_SCENE_SHADOW_DEBUG_SHADER_ID = KeyId.of("sketch_platformtest:real_scene_shadow_debug_shader");
+    private static final KeyId REAL_SCENE_SHADOW_COLOR0_DEBUG_SHADER_ID = KeyId.of("sketch_platformtest:real_scene_shadow_color0_debug_shader");
     private static final KeyId REAL_SCENE_PARAMS_BINDING = KeyId.of("RealSceneParams");
     private static final KeyId REAL_SCENE_DIFFUSE_BINDING = KeyId.of("u_DiffuseTexture");
     private static final KeyId REAL_SCENE_SHADOW_MAP_BINDING = KeyId.of("u_ShadowMap");
@@ -415,513 +419,6 @@ final class PipelineTestScene implements AutoCloseable {
                 outColor = textureLod(test_texture, vUv, 2.0);
             }
             """;
-    private static final String INSPECTION_VERTEX_SHADER = """
-            #version 450 core
-            in vec2 position;
-            in vec3 color;
-            out vec2 vUv;
-
-            void main() {
-                gl_Position = vec4(position, 0.0, 1.0);
-                vUv = color.xy;
-            }
-            """;
-    private static final String INSPECTION_FRAGMENT_SHADER = """
-            #version 450 core
-            in vec2 vUv;
-            out vec4 outColor;
-            uniform sampler2D test_texture;
-
-            void main() {
-                float value = texture(test_texture, vUv).r;
-                outColor = vec4(value, value, value, 1.0);
-            }
-            """;
-    private static final String INSPECTION_LINEARIZED_FRAGMENT_SHADER = """
-            #version 450 core
-            in vec2 vUv;
-            out vec4 outColor;
-            uniform sampler2D test_texture;
-
-            float near = 0.05;
-            float far = 16.0;
-
-            float LinearizeDepth(float depth) {
-                float z = depth * 2.0 - 1.0;
-                return (near * far) / (far + near - z * (far - near));
-            }
-
-            void main() {
-                float depth = texture(test_texture, vUv).r;
-                float linearDepth = clamp(LinearizeDepth(depth) / far, 0.0, 1.0);
-                outColor = vec4(linearDepth, linearDepth, linearDepth, 1.0);
-            }
-            """;
-    private static final String COMPUTE_SHADER_SOURCE = """
-            #version 450 core
-            layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-
-            void main() {
-            }
-            """;
-    private static final String HIZ_SNAPSHOT_COPY_SHADER_SOURCE = """
-            #version 450 core
-            layout(r32f) uniform writeonly image2D output_texture_0;
-
-            uniform sampler2D sketch_SamplerTexture;
-
-            layout(local_size_x = 16, local_size_y = 16) in;
-
-            void main() {
-                ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-                ivec2 outputSize = imageSize(output_texture_0);
-                if (pixel.x >= outputSize.x || pixel.y >= outputSize.y) {
-                    return;
-                }
-
-                float depth = texelFetch(sketch_SamplerTexture, pixel, 0).r;
-                imageStore(output_texture_0, pixel, vec4(depth, 0.0, 0.0, 1.0));
-            }
-            """;
-    private static final String ASYNC_HIZ_FIRST_SHADER_SOURCE = """
-            #version 430 core
-            layout(local_size_x = 16, local_size_y = 16) in;
-
-            layout(r32f) uniform writeonly image2D output_texture_0;
-            uniform sampler2D hiz_source_snapshot;
-
-            const int TILE_SIZE = 16;
-            const int TILE_EDGE = TILE_SIZE * 2;
-            const float HIZ_NEAR = 0.05;
-            const float HIZ_FAR = 1024.0;
-
-            shared float depthCache[TILE_EDGE * TILE_EDGE];
-            shared float depthCacheSmall[TILE_SIZE * TILE_SIZE];
-
-            int cacheIndex32(int x, int y) {
-                return y * TILE_EDGE + x;
-            }
-
-            int cacheIndex16(int x, int y) {
-                return y * TILE_SIZE + x;
-            }
-
-            float linearizeDepth(float depth) {
-                float z = depth * 2.0 - 1.0;
-                return (HIZ_NEAR * HIZ_FAR) / (HIZ_FAR + HIZ_NEAR - z * (HIZ_FAR - HIZ_NEAR));
-            }
-
-            ivec2 packedLevelSize(ivec2 screenSize, int packedLevel) {
-                int width = max(1, screenSize.x >> (packedLevel + 1));
-                int height = max(1, screenSize.y >> (packedLevel + 1));
-                if ((width & 1) == 1) {
-                    width += 1;
-                }
-                if ((height & 1) == 1) {
-                    height += 1;
-                }
-                return ivec2(width, height);
-            }
-
-            int packedLevelYOffset(ivec2 screenSize, int packedLevel) {
-                int offset = 0;
-                for (int level = 0; level < packedLevel; ++level) {
-                    offset += packedLevelSize(screenSize, level).y;
-                }
-                return offset;
-            }
-
-            void reduce32To16(ivec2 localID, int nextWidth, int nextHeight) {
-                if (localID.x >= nextWidth || localID.y >= nextHeight) {
-                    return;
-                }
-                int x0 = localID.x * 2;
-                int y0 = localID.y * 2;
-                float d0 = depthCache[cacheIndex32(x0, y0)];
-                float d1 = depthCache[cacheIndex32(x0 + 1, y0)];
-                float d2 = depthCache[cacheIndex32(x0, y0 + 1)];
-                float d3 = depthCache[cacheIndex32(x0 + 1, y0 + 1)];
-                depthCacheSmall[cacheIndex16(localID.x, localID.y)] = max(max(d0, d1), max(d2, d3));
-            }
-
-            void reduce16To32(ivec2 localID, int nextWidth, int nextHeight) {
-                if (localID.x >= nextWidth || localID.y >= nextHeight) {
-                    return;
-                }
-                int x0 = localID.x * 2;
-                int y0 = localID.y * 2;
-                float d0 = depthCacheSmall[cacheIndex16(x0, y0)];
-                float d1 = depthCacheSmall[cacheIndex16(x0 + 1, y0)];
-                float d2 = depthCacheSmall[cacheIndex16(x0, y0 + 1)];
-                float d3 = depthCacheSmall[cacheIndex16(x0 + 1, y0 + 1)];
-                depthCache[cacheIndex32(localID.x, localID.y)] = max(max(d0, d1), max(d2, d3));
-            }
-
-            void store16(ivec2 screenSize, ivec2 groupStart, ivec2 localID, int nextWidth, int nextHeight, int packedLevel) {
-                if (localID.x >= nextWidth || localID.y >= nextHeight) {
-                    return;
-                }
-                ivec2 outPos = groupStart + localID;
-                ivec2 outSize = packedLevelSize(screenSize, packedLevel);
-                if (outPos.x >= outSize.x || outPos.y >= outSize.y) {
-                    return;
-                }
-                outPos.y += packedLevelYOffset(screenSize, packedLevel);
-                imageStore(output_texture_0, outPos, vec4(depthCacheSmall[cacheIndex16(localID.x, localID.y)], 0.0, 0.0, 1.0));
-            }
-
-            void store32(ivec2 screenSize, ivec2 groupStart, ivec2 localID, int nextWidth, int nextHeight, int packedLevel) {
-                if (localID.x >= nextWidth || localID.y >= nextHeight) {
-                    return;
-                }
-                ivec2 outPos = groupStart + localID;
-                ivec2 outSize = packedLevelSize(screenSize, packedLevel);
-                if (outPos.x >= outSize.x || outPos.y >= outSize.y) {
-                    return;
-                }
-                outPos.y += packedLevelYOffset(screenSize, packedLevel);
-                imageStore(output_texture_0, outPos, vec4(depthCache[cacheIndex32(localID.x, localID.y)], 0.0, 0.0, 1.0));
-            }
-
-            void main() {
-                ivec2 screenSize = textureSize(hiz_source_snapshot, 0);
-                ivec2 groupStart = ivec2(gl_WorkGroupID.xy) * TILE_SIZE;
-                ivec2 localID = ivec2(gl_LocalInvocationID.xy);
-                ivec2 minCoords = screenSize - ivec2(1);
-
-                for (int dy = 0; dy < 2; ++dy) {
-                    for (int dx = 0; dx < 2; ++dx) {
-                        ivec2 cachePos = localID * 2 + ivec2(dx, dy);
-                        ivec2 texPos = min(groupStart * 2 + cachePos, minCoords);
-                        depthCache[cacheIndex32(cachePos.x, cachePos.y)] =
-                                linearizeDepth(texelFetch(hiz_source_snapshot, texPos, 0).r);
-                    }
-                }
-                memoryBarrierShared();
-                barrier();
-
-                int nextWidth = TILE_SIZE;
-                int nextHeight = TILE_SIZE;
-                reduce32To16(localID, nextWidth, nextHeight);
-                memoryBarrierShared();
-                barrier();
-                store16(screenSize, groupStart, localID, nextWidth, nextHeight, 0);
-
-                nextWidth /= 2;
-                nextHeight /= 2;
-                reduce16To32(localID, nextWidth, nextHeight);
-                memoryBarrierShared();
-                barrier();
-                store32(screenSize, groupStart / 2, localID, nextWidth, nextHeight, 1);
-
-                nextWidth /= 2;
-                nextHeight /= 2;
-                reduce32To16(localID, nextWidth, nextHeight);
-                memoryBarrierShared();
-                barrier();
-                store16(screenSize, groupStart / 4, localID, nextWidth, nextHeight, 2);
-
-                nextWidth /= 2;
-                nextHeight /= 2;
-                reduce16To32(localID, nextWidth, nextHeight);
-                memoryBarrierShared();
-                barrier();
-                store32(screenSize, groupStart / 8, localID, nextWidth, nextHeight, 3);
-            }
-            """;
-    private static final String ASYNC_HIZ_SECOND_SHADER_SOURCE = """
-            #version 430 core
-            layout(local_size_x = 16, local_size_y = 16) in;
-
-            layout(r32f) uniform writeonly image2D output_texture_0;
-            uniform sampler2D hiz_source_atlas;
-            uniform sampler2D hiz_source_snapshot;
-
-            const int TILE_SIZE = 16;
-            const int TILE_EDGE = TILE_SIZE * 2;
-
-            shared float depthCache[TILE_EDGE * TILE_EDGE];
-            shared float depthCacheSmall[TILE_SIZE * TILE_SIZE];
-
-            int cacheIndex32(int x, int y) {
-                return y * TILE_EDGE + x;
-            }
-
-            int cacheIndex16(int x, int y) {
-                return y * TILE_SIZE + x;
-            }
-
-            ivec2 packedLevelSize(ivec2 screenSize, int packedLevel) {
-                int width = max(1, screenSize.x >> (packedLevel + 1));
-                int height = max(1, screenSize.y >> (packedLevel + 1));
-                if ((width & 1) == 1) {
-                    width += 1;
-                }
-                if ((height & 1) == 1) {
-                    height += 1;
-                }
-                return ivec2(width, height);
-            }
-
-            int packedLevelYOffset(ivec2 screenSize, int packedLevel) {
-                int offset = 0;
-                for (int level = 0; level < packedLevel; ++level) {
-                    offset += packedLevelSize(screenSize, level).y;
-                }
-                return offset;
-            }
-
-            void reduce32To16(ivec2 localID, int nextWidth, int nextHeight) {
-                if (localID.x >= nextWidth || localID.y >= nextHeight) {
-                    return;
-                }
-                int x0 = localID.x * 2;
-                int y0 = localID.y * 2;
-                float d0 = depthCache[cacheIndex32(x0, y0)];
-                float d1 = depthCache[cacheIndex32(x0 + 1, y0)];
-                float d2 = depthCache[cacheIndex32(x0, y0 + 1)];
-                float d3 = depthCache[cacheIndex32(x0 + 1, y0 + 1)];
-                depthCacheSmall[cacheIndex16(localID.x, localID.y)] = max(max(d0, d1), max(d2, d3));
-            }
-
-            void reduce16To32(ivec2 localID, int nextWidth, int nextHeight) {
-                if (localID.x >= nextWidth || localID.y >= nextHeight) {
-                    return;
-                }
-                int x0 = localID.x * 2;
-                int y0 = localID.y * 2;
-                float d0 = depthCacheSmall[cacheIndex16(x0, y0)];
-                float d1 = depthCacheSmall[cacheIndex16(x0 + 1, y0)];
-                float d2 = depthCacheSmall[cacheIndex16(x0, y0 + 1)];
-                float d3 = depthCacheSmall[cacheIndex16(x0 + 1, y0 + 1)];
-                depthCache[cacheIndex32(localID.x, localID.y)] = max(max(d0, d1), max(d2, d3));
-            }
-
-            void store16(ivec2 sourceScreen, ivec2 originalScreen, ivec2 groupStart, ivec2 localID, int nextWidth, int nextHeight, int packedLevel) {
-                if (localID.x >= nextWidth || localID.y >= nextHeight) {
-                    return;
-                }
-                ivec2 outPos = groupStart + localID;
-                ivec2 outSize = packedLevelSize(sourceScreen, packedLevel - 4);
-                if (outPos.x >= outSize.x || outPos.y >= outSize.y) {
-                    return;
-                }
-                outPos.y += packedLevelYOffset(originalScreen, packedLevel);
-                imageStore(output_texture_0, outPos, vec4(depthCacheSmall[cacheIndex16(localID.x, localID.y)], 0.0, 0.0, 1.0));
-            }
-
-            void store32(ivec2 sourceScreen, ivec2 originalScreen, ivec2 groupStart, ivec2 localID, int nextWidth, int nextHeight, int packedLevel) {
-                if (localID.x >= nextWidth || localID.y >= nextHeight) {
-                    return;
-                }
-                ivec2 outPos = groupStart + localID;
-                ivec2 outSize = packedLevelSize(sourceScreen, packedLevel - 4);
-                if (outPos.x >= outSize.x || outPos.y >= outSize.y) {
-                    return;
-                }
-                outPos.y += packedLevelYOffset(originalScreen, packedLevel);
-                imageStore(output_texture_0, outPos, vec4(depthCache[cacheIndex32(localID.x, localID.y)], 0.0, 0.0, 1.0));
-            }
-
-            void main() {
-                ivec2 originalScreen = textureSize(hiz_source_snapshot, 0);
-                ivec2 sourceScreen = packedLevelSize(originalScreen, 3);
-                ivec2 groupStart = ivec2(gl_WorkGroupID.xy) * TILE_SIZE;
-                ivec2 localID = ivec2(gl_LocalInvocationID.xy);
-                ivec2 minCoords = sourceScreen - ivec2(1);
-                int sourceYOffset = packedLevelYOffset(originalScreen, 3);
-
-                for (int dy = 0; dy < 2; ++dy) {
-                    for (int dx = 0; dx < 2; ++dx) {
-                        ivec2 cachePos = localID * 2 + ivec2(dx, dy);
-                        ivec2 texPos = min(groupStart * 2 + cachePos, minCoords);
-                        texPos.y += sourceYOffset;
-                        depthCache[cacheIndex32(cachePos.x, cachePos.y)] = texelFetch(hiz_source_atlas, texPos, 0).r;
-                    }
-                }
-                memoryBarrierShared();
-                barrier();
-
-                int nextWidth = TILE_SIZE;
-                int nextHeight = TILE_SIZE;
-                reduce32To16(localID, nextWidth, nextHeight);
-                memoryBarrierShared();
-                barrier();
-                store16(sourceScreen, originalScreen, groupStart, localID, nextWidth, nextHeight, 4);
-
-                nextWidth /= 2;
-                nextHeight /= 2;
-                reduce16To32(localID, nextWidth, nextHeight);
-                memoryBarrierShared();
-                barrier();
-                store32(sourceScreen, originalScreen, groupStart / 2, localID, nextWidth, nextHeight, 5);
-
-                nextWidth /= 2;
-                nextHeight /= 2;
-                reduce32To16(localID, nextWidth, nextHeight);
-                memoryBarrierShared();
-                barrier();
-                store16(sourceScreen, originalScreen, groupStart / 4, localID, nextWidth, nextHeight, 6);
-
-                nextWidth /= 2;
-                nextHeight /= 2;
-                reduce16To32(localID, nextWidth, nextHeight);
-                memoryBarrierShared();
-                barrier();
-                store32(sourceScreen, originalScreen, groupStart / 8, localID, nextWidth, nextHeight, 7);
-            }
-            """;
-    private static final String TEAPOT_OFFSCREEN_VERTEX_SHADER = """
-            #version 450 core
-            in vec3 position;
-            out vec3 vWorld;
-
-            mat3 rotateX(float angle) {
-                float s = sin(angle);
-                float c = cos(angle);
-                return mat3(
-                        1.0, 0.0, 0.0,
-                        0.0, c, -s,
-                        0.0, s, c);
-            }
-
-            mat3 rotateY(float angle) {
-                float s = sin(angle);
-                float c = cos(angle);
-                return mat3(
-                        c, 0.0, s,
-                        0.0, 1.0, 0.0,
-                        -s, 0.0, c);
-            }
-
-            void main() {
-                vec3 centered = position - vec3(0.0, 27.5, 0.0);
-                centered /= 60.0;
-                mat3 rotation = rotateY(0.65) * rotateX(-0.55);
-                vec3 world = rotation * centered;
-                vWorld = world;
-                gl_Position = vec4(world.xy * 0.54 + vec2(0.01, -0.08), 0.0, 1.0);
-            }
-            """;
-    private static final String TEAPOT_OFFSCREEN_FRAGMENT_SHADER = """
-            #version 450 core
-            in vec3 vWorld;
-            out vec4 outColor;
-
-            void main() {
-                float diffuse = clamp(0.55 + vWorld.z * 0.65, 0.0, 1.0);
-                vec3 base = vec3(0.82, 0.56, 0.24);
-                vec3 color = base * (0.25 + 0.75 * diffuse);
-                outColor = vec4(color, 1.0);
-            }
-            """;
-    private static final String REAL_SCENE_VERTEX_SHADER = """
-            #version 450 core
-            in vec3 position;
-            in vec2 uv;
-            uniform RealSceneParams {
-                mat4 u_ViewProjection;
-                mat4 u_Model;
-                mat4 u_LightViewProjection;
-                vec4 u_BaseColor;
-                vec4 u_ShadowParams;
-            };
-            out vec3 vWorld;
-            out vec2 vUv;
-
-            void main() {
-                vec4 world = u_Model * vec4(position, 1.0);
-                vWorld = world.xyz;
-                vUv = uv;
-            #ifdef SKETCH_SHADOW_PASS
-                gl_Position = u_LightViewProjection * world;
-            #else
-                gl_Position = u_ViewProjection * world;
-            #endif
-            }
-            """;
-    private static final String REAL_SCENE_FRAGMENT_SHADER = """
-            #version 450 core
-            in vec3 vWorld;
-            in vec2 vUv;
-            out vec4 outColor;
-            uniform RealSceneParams {
-                mat4 u_ViewProjection;
-                mat4 u_Model;
-                mat4 u_LightViewProjection;
-                vec4 u_BaseColor;
-                vec4 u_ShadowParams;
-            };
-            uniform sampler2D u_DiffuseTexture;
-
-            void main() {
-                float heightShade = clamp(0.62 + vWorld.y * 0.018, 0.30, 1.0);
-                vec4 texel = texture(u_DiffuseTexture, vUv);
-                vec3 color = texel.rgb * u_BaseColor.rgb * heightShade;
-                outColor = vec4(color, texel.a);
-            }
-            """;
-    private static final String REAL_SCENE_RECEIVER_FRAGMENT_SHADER = """
-            #version 450 core
-            in vec3 vWorld;
-            in vec2 vUv;
-            out vec4 outColor;
-            uniform RealSceneParams {
-                mat4 u_ViewProjection;
-                mat4 u_Model;
-                mat4 u_LightViewProjection;
-                vec4 u_BaseColor;
-                vec4 u_ShadowParams;
-            };
-            uniform sampler2D u_DiffuseTexture;
-            uniform sampler2D u_ShadowMap;
-
-            float shadowSample(vec3 shadowCoord, vec2 offset, vec2 texelSize) {
-                float closestDepth = texture(u_ShadowMap, shadowCoord.xy + offset * texelSize).r;
-                return shadowCoord.z - u_ShadowParams.y > closestDepth ? 1.0 : 0.0;
-            }
-
-            float projectedShadow() {
-                vec4 lightClip = u_LightViewProjection * vec4(vWorld, 1.0);
-                if (abs(lightClip.w) < 0.00001) {
-                    return 0.0;
-                }
-                vec3 projected = lightClip.xyz / lightClip.w;
-                vec3 shadowCoord = projected * 0.5 + 0.5;
-                if (shadowCoord.x < 0.0 || shadowCoord.x > 1.0
-                        || shadowCoord.y < 0.0 || shadowCoord.y > 1.0
-                        || shadowCoord.z < 0.0 || shadowCoord.z > 1.0) {
-                    return 0.0;
-                }
-                vec2 texelSize = 1.0 / vec2(textureSize(u_ShadowMap, 0));
-                float shadow = 0.0;
-                for (int y = -1; y <= 1; y++) {
-                    for (int x = -1; x <= 1; x++) {
-                        shadow += shadowSample(shadowCoord, vec2(float(x), float(y)), texelSize);
-                    }
-                }
-                return (shadow / 9.0) * u_ShadowParams.z;
-            }
-
-            void main() {
-                float heightShade = clamp(0.62 + vWorld.y * 0.018, 0.30, 1.0);
-                vec4 texel = texture(u_DiffuseTexture, vUv);
-                float shadow = projectedShadow() * clamp(u_ShadowParams.x, 0.0, 1.0);
-                vec3 color = texel.rgb * u_BaseColor.rgb * heightShade * (1.0 - shadow);
-                outColor = vec4(color, texel.a);
-            }
-            """;
-    private static final String REAL_SCENE_SHADOW_DEBUG_FRAGMENT_SHADER = """
-            #version 450 core
-            in vec2 vUv;
-            out vec4 outColor;
-            uniform sampler2D u_ShadowMap;
-
-            void main() {
-                float depth = texture(u_ShadowMap, vUv).r;
-                outColor = vec4(vec3(depth), 1.0);
-            }
-            """;
     private static final int REAL_SCENE_UNIFORM_BYTES = 224;
     private static final int VALIDATION_WARMUP_FRAMES = 2;
     private static final int VALIDATION_HARD_DEADLINE_FRAMES = 4;
@@ -959,7 +456,8 @@ final class PipelineTestScene implements AutoCloseable {
 
     enum ShadowDebugMode {
         OFF("off"),
-        TARGET("target");
+        TARGET("target"),
+        COLOR0("color0");
 
         private final String displayName;
 
@@ -1216,130 +714,6 @@ final class PipelineTestScene implements AutoCloseable {
         if (resourceManager == null) {
             return;
         }
-        replaceDirectResource(
-                resourceManager,
-                ResourceTypes.SHADER_TEMPLATE,
-                INSPECTION_TEXTURE_SHADER_ID,
-                new ShaderTemplate(
-                        INSPECTION_TEXTURE_SHADER_ID,
-                        Map.of(
-                                ShaderType.VERTEX, INSPECTION_VERTEX_SHADER,
-                                ShaderType.FRAGMENT, INSPECTION_FRAGMENT_SHADER),
-                        ShaderVertexLayout.empty(),
-                        new SketchShaderPreprocessor(),
-                        resourceManager.getSubResourceProvider(),
-                        Map.of(
-                                ResourceTypes.TEXTURE,
-                                Map.of(TEXTURE_BINDING, 0))));
-        replaceDirectResource(
-                resourceManager,
-                ResourceTypes.SHADER_TEMPLATE,
-                INSPECTION_LINEARIZED_TEXTURE_SHADER_ID,
-                new ShaderTemplate(
-                        INSPECTION_LINEARIZED_TEXTURE_SHADER_ID,
-                        Map.of(
-                                ShaderType.VERTEX, INSPECTION_VERTEX_SHADER,
-                                ShaderType.FRAGMENT, INSPECTION_LINEARIZED_FRAGMENT_SHADER),
-                        ShaderVertexLayout.empty(),
-                        new SketchShaderPreprocessor(),
-                        resourceManager.getSubResourceProvider(),
-                        Map.of(
-                                ResourceTypes.TEXTURE,
-                                Map.of(TEXTURE_BINDING, 0))));
-        replaceDirectResource(
-                resourceManager,
-                ResourceTypes.SHADER_TEMPLATE,
-                HIZ_SNAPSHOT_COPY_SHADER_ID,
-                new ShaderTemplate(
-                        HIZ_SNAPSHOT_COPY_SHADER_ID,
-                        Map.of(ShaderType.COMPUTE, HIZ_SNAPSHOT_COPY_SHADER_SOURCE),
-                        ShaderVertexLayout.empty(),
-                        new SketchShaderPreprocessor(),
-                        resourceManager.getSubResourceProvider(),
-                        Map.of(
-                                ResourceTypes.IMAGE, Map.of(KeyId.of("output_texture_0"), 0),
-                                ResourceTypes.TEXTURE, Map.of(KeyId.of("sketch_SamplerTexture"), 1))));
-        for (int level = 0; level < HIZ_DEPTH_LEVELS; level++) {
-            KeyId shaderId = asyncHiZLevelShaderId(level);
-            Map<KeyId, Map<KeyId, Integer>> bindings = level == 0
-                    ? Map.of(
-                    ResourceTypes.IMAGE, Map.of(KeyId.of("output_texture_0"), 0),
-                    ResourceTypes.TEXTURE, Map.of(KeyId.of("hiz_source_snapshot"), 1))
-                    : Map.of(
-                    ResourceTypes.IMAGE, Map.of(KeyId.of("output_texture_0"), 0),
-                    ResourceTypes.TEXTURE, Map.of(
-                            KeyId.of("hiz_source_snapshot"), 1,
-                            KeyId.of("hiz_source_atlas"), 2));
-            replaceDirectResource(
-                    resourceManager,
-                    ResourceTypes.SHADER_TEMPLATE,
-                    shaderId,
-                    new ShaderTemplate(
-                            shaderId,
-                            Map.of(ShaderType.COMPUTE, buildAsyncHiZLevelShaderSource(level)),
-                            ShaderVertexLayout.empty(),
-                            new SketchShaderPreprocessor(),
-                            resourceManager.getSubResourceProvider(),
-                            bindings));
-        }
-        replaceDirectResource(
-                resourceManager,
-                ResourceTypes.SHADER_TEMPLATE,
-                TEAPOT_OFFSCREEN_SHADER_ID,
-                new ShaderTemplate(
-                        TEAPOT_OFFSCREEN_SHADER_ID,
-                        Map.of(
-                                ShaderType.VERTEX, TEAPOT_OFFSCREEN_VERTEX_SHADER,
-                                ShaderType.FRAGMENT, TEAPOT_OFFSCREEN_FRAGMENT_SHADER),
-                        ShaderVertexLayout.empty(),
-                        new SketchShaderPreprocessor(),
-                        resourceManager.getSubResourceProvider(),
-                        Map.of()));
-        replaceDirectResource(
-                resourceManager,
-                ResourceTypes.SHADER_TEMPLATE,
-                REAL_SCENE_SHADER_ID,
-                new ShaderTemplate(
-                        REAL_SCENE_SHADER_ID,
-                        Map.of(
-                                ShaderType.VERTEX, REAL_SCENE_VERTEX_SHADER,
-                                ShaderType.FRAGMENT, REAL_SCENE_FRAGMENT_SHADER),
-                        ShaderVertexLayout.empty(),
-                        new SketchShaderPreprocessor(),
-                        resourceManager.getSubResourceProvider(),
-                        Map.of(
-                                ResourceTypes.UNIFORM_BUFFER, Map.of(REAL_SCENE_PARAMS_BINDING, 0),
-                                ResourceTypes.TEXTURE, Map.of(REAL_SCENE_DIFFUSE_BINDING, 1))));
-        replaceDirectResource(
-                resourceManager,
-                ResourceTypes.SHADER_TEMPLATE,
-                REAL_SCENE_RECEIVER_SHADER_ID,
-                new ShaderTemplate(
-                        REAL_SCENE_RECEIVER_SHADER_ID,
-                        Map.of(
-                                ShaderType.VERTEX, REAL_SCENE_VERTEX_SHADER,
-                                ShaderType.FRAGMENT, REAL_SCENE_RECEIVER_FRAGMENT_SHADER),
-                        ShaderVertexLayout.empty(),
-                        new SketchShaderPreprocessor(),
-                        resourceManager.getSubResourceProvider(),
-                        Map.of(
-                                ResourceTypes.UNIFORM_BUFFER, Map.of(REAL_SCENE_PARAMS_BINDING, 0),
-                                ResourceTypes.TEXTURE, Map.of(
-                                        REAL_SCENE_DIFFUSE_BINDING, 1,
-                                        REAL_SCENE_SHADOW_MAP_BINDING, 2))));
-        replaceDirectResource(
-                resourceManager,
-                ResourceTypes.SHADER_TEMPLATE,
-                REAL_SCENE_SHADOW_DEBUG_SHADER_ID,
-                new ShaderTemplate(
-                        REAL_SCENE_SHADOW_DEBUG_SHADER_ID,
-                        Map.of(
-                                ShaderType.VERTEX, INSPECTION_VERTEX_SHADER,
-                                ShaderType.FRAGMENT, REAL_SCENE_SHADOW_DEBUG_FRAGMENT_SHADER),
-                        ShaderVertexLayout.empty(),
-                        new SketchShaderPreprocessor(),
-                        resourceManager.getSubResourceProvider(),
-                        Map.of(ResourceTypes.TEXTURE, Map.of(REAL_SCENE_SHADOW_MAP_BINDING, 0))));
         replaceJsonResource(
                 resourceManager,
                 ResourceTypes.PARTIAL_RENDER_SETTING,
@@ -1705,86 +1079,6 @@ final class PipelineTestScene implements AutoCloseable {
         return Math.max(1, totalHeight);
     }
 
-    private static String buildAsyncHiZLevelShaderSource(int level) {
-        boolean firstLevel = level == 0;
-        String extraSampler = firstLevel ? "" : "uniform sampler2D hiz_source_atlas;\n";
-        String sourceSizeExpr = firstLevel
-                ? "originalScreen"
-                : "ivec2(levelExtent(originalScreen.x, %d), levelExtent(originalScreen.y, %d))".formatted(level - 1, level - 1);
-        String sourceYOffsetExpr = firstLevel ? "0" : buildAsyncHiZYOffsetExpr(level - 1);
-        String destSizeExpr = "ivec2(levelExtent(originalScreen.x, %d), levelExtent(originalScreen.y, %d))".formatted(level, level);
-        String destYOffsetExpr = buildAsyncHiZYOffsetExpr(level);
-        String readSource = firstLevel
-                ? "return linearizeDepth(texelFetch(hiz_source_snapshot, pos, 0).r);"
-                : "return texelFetch(hiz_source_atlas, pos, 0).r;";
-        return """
-                #version 430 core
-                layout(local_size_x = 16, local_size_y = 16) in;
-
-                layout(r32f) uniform writeonly image2D output_texture_0;
-                uniform sampler2D hiz_source_snapshot;
-                %s
-                const float HIZ_NEAR = 0.05;
-                const float HIZ_FAR = 1024.0;
-                const int DEST_LEVEL = %d;
-
-                int levelExtent(int value, int packedLevel) {
-                    int extent = max(1, value >> (packedLevel + 1));
-                    return (extent & 1) == 1 ? extent + 1 : extent;
-                }
-
-                float linearizeDepth(float depth) {
-                    float z = depth * 2.0 - 1.0;
-                    return (HIZ_NEAR * HIZ_FAR) / (HIZ_FAR + HIZ_NEAR - z * (HIZ_FAR - HIZ_NEAR));
-                }
-
-                float readSourceDepth(ivec2 pos) {
-                    %s
-                }
-
-                void main() {
-                    ivec2 originalScreen = textureSize(hiz_source_snapshot, 0);
-                    ivec2 sourceSize = %s;
-                    int sourceYOffset = %s;
-                    ivec2 destSize = %s;
-                    int destYOffset = %s;
-                    ivec2 outPos = ivec2(gl_GlobalInvocationID.xy);
-                    if (outPos.x >= destSize.x || outPos.y >= destSize.y) {
-                        return;
-                    }
-
-                    ivec2 sourceMax = sourceSize - ivec2(1);
-                    ivec2 base = outPos * 2;
-                    ivec2 p0 = min(base + ivec2(0, 0), sourceMax);
-                    ivec2 p1 = min(base + ivec2(1, 0), sourceMax);
-                    ivec2 p2 = min(base + ivec2(0, 1), sourceMax);
-                    ivec2 p3 = min(base + ivec2(1, 1), sourceMax);
-                    p0.y += sourceYOffset;
-                    p1.y += sourceYOffset;
-                    p2.y += sourceYOffset;
-                    p3.y += sourceYOffset;
-
-                    float d0 = readSourceDepth(p0);
-                    float d1 = readSourceDepth(p1);
-                    float d2 = readSourceDepth(p2);
-                    float d3 = readSourceDepth(p3);
-                    float hizDepth = max(max(d0, d1), max(d2, d3));
-                    imageStore(output_texture_0, ivec2(outPos.x, outPos.y + destYOffset), vec4(hizDepth, 0.0, 0.0, 1.0));
-                }
-                """.formatted(extraSampler, level, readSource, sourceSizeExpr, sourceYOffsetExpr, destSizeExpr, destYOffsetExpr);
-    }
-
-    private static String buildAsyncHiZYOffsetExpr(int packedLevel) {
-        if (packedLevel <= 0) {
-            return "0";
-        }
-        StringBuilder builder = new StringBuilder("0");
-        for (int index = 0; index < packedLevel; index++) {
-            builder.append(" + levelExtent(originalScreen.y, ").append(index).append(')');
-        }
-        return builder.toString();
-    }
-
     private Vector3i[] asyncHiZDepthInfo() {
         int width = Math.max(1, context.windowWidth());
         int height = Math.max(1, context.windowHeight());
@@ -1923,7 +1217,7 @@ final class PipelineTestScene implements AutoCloseable {
                             PipelineType.RASTERIZATION,
                             OBJ_SCENE_PARAMETER)));
         }
-        if (shadowDebugMode == ShadowDebugMode.TARGET) {
+        if (shadowDebugMode != ShadowDebugMode.OFF) {
             pipeline.spawnGraphicsEntity(createInspectionQuadBlueprint(
                     REAL_SCENE_SHADOW_DEBUG_ENTITY,
                     compileRealSceneShadowDebugRenderSetting(),
@@ -1936,23 +1230,15 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private void installRealSceneFrameClear() {
-        pipeline.spawnGraphicsEntity(
-                GraphicsEntityPresets.function(
-                                KeyId.of("sketch_platformtest:real_scene_frame_clear"),
-                                FRAME_CLEAR_STAGE_ID,
-                                0,
-                                () -> true,
-                                () -> false,
-                                List.of(new FunctionCommands.ClearCommand(
-                                        MAIN_TARGET,
-                                        List.of(0),
-                                        true,
-                                        true,
-                                        new float[]{0.03f, 0.035f, 0.045f, 1.0f},
-                                        1.0f,
-                                        new boolean[]{true, true, true, true},
-                                        true)))
-                        .build());
+        spawnFunctionResource(REAL_SCENE_FRAME_CLEAR_FUNCTION_ID);
+    }
+
+    private GraphicsEntityId spawnFunctionResource(KeyId functionId) {
+        GraphicsEntityBlueprint blueprint = resourceManager.getResource(ResourceTypes.FUNCTION, functionId);
+        if (blueprint == null || blueprint.isDisposed()) {
+            throw new IllegalStateException("Missing function resource: " + functionId);
+        }
+        return pipeline.spawnGraphicsEntity(blueprint);
     }
 
     private void installRealSceneFallbackTexture() {
@@ -2059,28 +1345,13 @@ final class PipelineTestScene implements AutoCloseable {
                 "sketch-platform-test@real-scene-shadow",
                 ResourceScope.EPHEMERAL_TEST,
                 true,
-                2048);
+                2048,
+                currentRealSceneShadowProfile());
         if (!installed) {
             throw new IllegalStateException("Real-scene mode failed to install shadow target resources");
         }
         validationShadowDepthNative = registerShadowNativeDepthOverride(2048);
-        shadowValidationClearEntity = pipeline.spawnGraphicsEntity(
-                GraphicsEntityPresets.function(
-                                KeyId.of("sketch_platformtest:real_scene_shadow_clear"),
-                                SHADOW_VARIANT_STAGE.getIdentifier(),
-                                0,
-                                () -> true,
-                                () -> false,
-                                List.of(new FunctionCommands.ClearCommand(
-                                        ShadowModuleDescriptor.SHADOW_RENDER_TARGET,
-                                        List.of(),
-                                        false,
-                                        true,
-                                        null,
-                                        1.0f,
-                                        null,
-                                        true)))
-                        .build());
+        shadowValidationClearEntity = spawnFunctionResource(REAL_SCENE_SHADOW_CLEAR_FUNCTION_ID);
     }
 
     private ShadowPassSnapshot currentRealSceneShadowSnapshot() {
@@ -2363,13 +1634,25 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private CompiledRenderSetting compileRealSceneShadowDebugRenderSetting() {
+        KeyId textureId = shadowDebugMode == ShadowDebugMode.COLOR0
+                ? ShadowModuleDescriptor.SHADOW_COLOR0_TEXTURE
+                : ShadowModuleDescriptor.SHADOW_DEPTH_TEXTURE;
+        KeyId shaderId = shadowDebugMode == ShadowDebugMode.COLOR0
+                ? REAL_SCENE_SHADOW_COLOR0_DEBUG_SHADER_ID
+                : REAL_SCENE_SHADOW_DEBUG_SHADER_ID;
         return compileDerivedRenderSetting(
                 DEPTH_VALIDATION_SCENE_SETTING_ID,
                 ExecutionDomain.RASTER,
                 SCENE_PARAMETER,
-                buildShadowTextureBinding(ShadowModuleDescriptor.SHADOW_DEPTH_TEXTURE),
+                buildShadowTextureBinding(textureId),
                 null,
-                REAL_SCENE_SHADOW_DEBUG_SHADER_ID);
+                shaderId);
+    }
+
+    private ShadowProfile currentRealSceneShadowProfile() {
+        return shadowDebugMode == ShadowDebugMode.COLOR0
+                ? ShadowProfile.DEPTH_PLUS_COLOR0
+                : ShadowProfile.DEPTH_ONLY;
     }
 
     private ResourceBinding buildResourceBinding(KeyId textureId, KeyId uniformBufferId) {
@@ -3575,7 +2858,8 @@ final class PipelineTestScene implements AutoCloseable {
                     "sketch-platform-test@shadow",
                     ResourceScope.EPHEMERAL_TEST,
                     true,
-                    1536);
+                    1536,
+                    ShadowProfile.DEPTH_ONLY);
             if (!resized) {
                 throw new IllegalStateException("Shadow infrastructure validation failed: provider did not rebuild after resolution change");
             }
@@ -3592,7 +2876,8 @@ final class PipelineTestScene implements AutoCloseable {
                     "sketch-platform-test@shadow",
                     ResourceScope.EPHEMERAL_TEST,
                     false,
-                    1536);
+                    1536,
+                    ShadowProfile.DEPTH_ONLY);
             if (!disabled) {
                 throw new IllegalStateException("Shadow infrastructure validation failed: provider did not react to disable");
             }
@@ -3658,7 +2943,8 @@ final class PipelineTestScene implements AutoCloseable {
                     "sketch-platform-test@shadow",
                     ResourceScope.EPHEMERAL_TEST,
                     true,
-                    1024);
+                    1024,
+                    ShadowProfile.DEPTH_ONLY);
             if (!installed) {
                 throw new IllegalStateException("Shadow infrastructure validation failed: provider did not install initial resources");
             }
@@ -3694,23 +2980,7 @@ final class PipelineTestScene implements AutoCloseable {
                 throw new IllegalStateException("Shadow infrastructure validation failed: shadow render target is disposed");
             }
 
-            shadowValidationClearEntity = pipeline.spawnGraphicsEntity(
-                    GraphicsEntityPresets.function(
-                                    KeyId.of("sketch_platformtest:shadow_depth_clear"),
-                                    SHADOW_VARIANT_STAGE.getIdentifier(),
-                                    0,
-                                    () -> true,
-                                    () -> false,
-                                    List.of(new FunctionCommands.ClearCommand(
-                                            ShadowModuleDescriptor.SHADOW_RENDER_TARGET,
-                                            List.of(),
-                                            false,
-                                            true,
-                                            null,
-                                            1.0f,
-                                            null,
-                                            true)))
-                            .build());
+            shadowValidationClearEntity = spawnFunctionResource(SHADOW_DEPTH_CLEAR_FUNCTION_ID);
             shadowValidationEntity = pipeline.spawnGraphicsEntity(createBakedBlueprint(
                     SHADOW_VALIDATION_ENTITY_ID,
                     SHADOW_VARIANT_STAGE.getIdentifier(),
@@ -4039,7 +3309,7 @@ final class PipelineTestScene implements AutoCloseable {
     }
 
     private int countRealSceneShadowDebugOverlayPackets() {
-        if (shadowDebugMode != ShadowDebugMode.TARGET) {
+        if (shadowDebugMode == ShadowDebugMode.OFF) {
             return 0;
         }
         StageExecutionPlan stagePlan = pipeline.getRenderPacketQueue().stagePlan(OVERLAY_STAGE_ID);
@@ -4429,15 +3699,8 @@ final class PipelineTestScene implements AutoCloseable {
         resourceManager.removeResource(ResourceTypes.TEXTURE, ASYNC_HIZ_ASYNC_TEXTURE);
         resourceManager.removeResource(ResourceTypes.RENDER_TARGET, ASYNC_OFFSCREEN_TARGET);
         resourceManager.removeResource(ResourceTypes.TEXTURE, ASYNC_OFFSCREEN_PRESENT_TEXTURE);
-        resourceManager.removeResource(ResourceTypes.SHADER_TEMPLATE, INSPECTION_TEXTURE_SHADER_ID);
-        resourceManager.removeResource(ResourceTypes.SHADER_TEMPLATE, INSPECTION_LINEARIZED_TEXTURE_SHADER_ID);
-        resourceManager.removeResource(ResourceTypes.SHADER_TEMPLATE, HIZ_SNAPSHOT_COPY_SHADER_ID);
-        resourceManager.removeResource(ResourceTypes.SHADER_TEMPLATE, REAL_SCENE_SHADER_ID);
-        resourceManager.removeResource(ResourceTypes.SHADER_TEMPLATE, REAL_SCENE_RECEIVER_SHADER_ID);
-        resourceManager.removeResource(ResourceTypes.SHADER_TEMPLATE, REAL_SCENE_SHADOW_DEBUG_SHADER_ID);
         resourceManager.removeResource(ResourceTypes.PARTIAL_RENDER_SETTING, ASYNC_HIZ_SNAPSHOT_COPY_SCENE_SETTING_ID);
         for (int level = 0; level < HIZ_DEPTH_LEVELS; level++) {
-            resourceManager.removeResource(ResourceTypes.SHADER_TEMPLATE, asyncHiZLevelShaderId(level));
             resourceManager.removeResource(ResourceTypes.PARTIAL_RENDER_SETTING, asyncHiZLevelSceneSettingId(level));
         }
         for (RealSceneUniformBuffer uniformBuffer : realSceneUniformBuffers.values()) {

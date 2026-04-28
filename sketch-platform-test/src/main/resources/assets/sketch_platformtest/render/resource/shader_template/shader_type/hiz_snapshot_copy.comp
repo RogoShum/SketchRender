@@ -1,0 +1,17 @@
+#version 450 core
+
+layout(r32f) uniform writeonly image2D output_texture_0;
+uniform sampler2D sketch_SamplerTexture;
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 outputSize = imageSize(output_texture_0);
+    if (pixel.x >= outputSize.x || pixel.y >= outputSize.y) {
+        return;
+    }
+
+    float depth = texelFetch(sketch_SamplerTexture, pixel, 0).r;
+    imageStore(output_texture_0, pixel, vec4(depth, 0.0, 0.0, 1.0));
+}

@@ -1,0 +1,16 @@
+{
+  "vertex": "sketch_platformtest:real_scene.vsh",
+  "fragment": "sketch_platformtest:real_scene.fsh",
+  "attributes": [
+    "vec3 position",
+    "vec2 uv"
+  ],
+  "resourceBindings": {
+    "uniform_buffer": {
+      "RealSceneParams": 0
+    },
+    "texture": {
+      "u_DiffuseTexture": 1
+    }
+  }
+}

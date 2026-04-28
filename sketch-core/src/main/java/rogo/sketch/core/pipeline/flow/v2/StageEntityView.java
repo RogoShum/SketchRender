@@ -149,6 +149,7 @@ public final class StageEntityView {
             @Nullable GraphicsBuiltinComponents.PreparedMeshComponent preparedMeshComponent,
             @Nullable GraphicsBuiltinComponents.RenderDescriptorComponent renderDescriptor,
             @Nullable GraphicsBuiltinComponents.InstanceVertexAuthoringComponent instanceVertexAuthoring,
+            @Nullable GraphicsBuiltinComponents.InstanceCountComponent instanceCount,
             @Nullable GraphicsBuiltinComponents.TransformBindingComponent transformBinding,
             @Nullable GraphicsBuiltinComponents.TickDriverComponent tickDriver,
             @Nullable GraphicsBuiltinComponents.AsyncTickDriverComponent asyncTickDriver,
@@ -234,6 +235,10 @@ public final class StageEntityView {
 
         public PreparedMesh preparedMesh() {
             return preparedMeshComponent != null ? preparedMeshComponent.preparedMesh() : null;
+        }
+
+        public int resolvedInstanceCount() {
+            return instanceCount != null ? instanceCount.instanceCount() : 1;
         }
 
         public SubmissionCapability submissionCapability() {

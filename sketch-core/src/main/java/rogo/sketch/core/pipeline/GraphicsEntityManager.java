@@ -142,6 +142,7 @@ public final class GraphicsEntityManager {
                 snapshot.preparedMesh(),
                 snapshot.renderDescriptor(),
                 snapshot.instanceVertexAuthoring(),
+                snapshot.instanceCount(),
                 snapshot.transformBinding(),
                 snapshot.tickDriver(),
                 snapshot.asyncTickDriver(),

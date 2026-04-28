@@ -2,51 +2,26 @@ package rogo.sketch.backend.opengl;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.PointerBuffer;
-import org.lwjgl.opengl.GL;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL14;
-import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL30;
-import org.lwjgl.opengl.GL31;
-import org.lwjgl.opengl.GL32;
-import org.lwjgl.opengl.GL42;
-import org.lwjgl.opengl.GL43;
-import org.lwjgl.opengl.GL45;
+import org.lwjgl.opengl.*;
 import org.lwjgl.system.MemoryStack;
-import rogo.sketch.core.backend.BackendPacketHandlerRegistry;
-import rogo.sketch.core.backend.BackendInstalledRenderTarget;
-import rogo.sketch.core.backend.BackendIndirectBuffer;
-import rogo.sketch.core.backend.BackendInstalledTexture;
-import rogo.sketch.core.backend.BackendFrameExecutor;
-import rogo.sketch.core.backend.BackendResourceRegistry;
-import rogo.sketch.core.backend.BackendStageScope;
-import rogo.sketch.core.debug.RenderDocRuntime;
 import rogo.sketch.backend.opengl.driver.GraphicsAPI;
-import rogo.sketch.core.driver.state.component.ColorMaskState;
 import rogo.sketch.backend.opengl.state.snapshot.GLStateSnapshot;
+import rogo.sketch.core.backend.*;
+import rogo.sketch.core.debug.RenderDocRuntime;
+import rogo.sketch.core.driver.state.component.ColorMaskState;
 import rogo.sketch.core.driver.state.snapshot.SnapshotScope;
-import rogo.sketch.core.packet.ClearPacket;
-import rogo.sketch.core.packet.CopyTexturePacket;
-import rogo.sketch.core.packet.DispatchPacket;
-import rogo.sketch.core.packet.DrawPacket;
-import rogo.sketch.core.packet.DrawPlan;
-import rogo.sketch.core.packet.ExecutionKey;
-import rogo.sketch.core.packet.GenerateMipmapPacket;
-import rogo.sketch.core.packet.RenderPacket;
-import rogo.sketch.core.packet.RenderPacketQueue;
+import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
+import rogo.sketch.core.packet.*;
 import rogo.sketch.core.pipeline.GraphicsPipeline;
 import rogo.sketch.core.pipeline.RenderContext;
 import rogo.sketch.core.pipeline.RenderStateManager;
 import rogo.sketch.core.pipeline.data.FrameDataDomain;
 import rogo.sketch.core.pipeline.data.GeometryFrameData;
-import rogo.sketch.core.graphics.ecs.GraphicsUniformSubject;
 import rogo.sketch.core.pipeline.module.diagnostic.RenderTraceRecorder;
-import rogo.sketch.core.resource.GraphicsResourceManager;
 import rogo.sketch.core.resource.ResourceBinding;
 import rogo.sketch.core.resource.ResourceTypes;
+import rogo.sketch.core.resource.vision.AttachmentBackedRenderTarget;
 import rogo.sketch.core.resource.vision.RenderTarget;
-import rogo.sketch.core.resource.vision.StandardRenderTarget;
 import rogo.sketch.core.shader.ComputeDispatchSupport;
 import rogo.sketch.core.shader.ShaderProgramHandle;
 import rogo.sketch.core.shader.uniform.UniformCaptureTiming;
@@ -710,9 +685,9 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
     }
 
     private List<Integer> resolveDrawBuffers(List<Object> colorAttachments, RenderTarget renderTarget) {
-        if (renderTarget instanceof StandardRenderTarget standardRenderTarget) {
+        if (renderTarget instanceof AttachmentBackedRenderTarget attachmentBackedRenderTarget) {
             List<Integer> activeBuffers = new ArrayList<>();
-            List<KeyId> attachments = standardRenderTarget.getColorAttachmentIds();
+            List<KeyId> attachments = attachmentBackedRenderTarget.getColorAttachmentIds();
             if (colorAttachments == null || colorAttachments.isEmpty()) {
                 for (int i = 0; i < attachments.size(); i++) {
                     activeBuffers.add(GL30.GL_COLOR_ATTACHMENT0 + i);
@@ -786,4 +761,3 @@ public final class OpenGLFrameExecutor implements BackendFrameExecutor {
         }
     }
 }
-

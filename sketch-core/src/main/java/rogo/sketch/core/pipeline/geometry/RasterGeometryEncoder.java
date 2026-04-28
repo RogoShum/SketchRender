@@ -40,7 +40,7 @@ public final class RasterGeometryEncoder {
             if (componentSpec == null || pair == null || pair.builder() == null) {
                 continue;
             }
-            if (instanceVertexAuthoring != null && instanceVertexAuthoring.authoring() != null) {
+            if (componentSpec.isInstanced() && instanceVertexAuthoring != null && instanceVertexAuthoring.authoring() != null) {
                 instanceVertexAuthoring.authoring().writeInstanceVertex(pair.key(), pair.builder());
                 continue;
             }
